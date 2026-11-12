@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { SessionBoot } from "@/auth/SessionBoot";
 
 export const metadata: Metadata = {
   title: "Gukirana Playground",
@@ -17,7 +18,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-dvh antialiased">{children}</body>
+      <body className="min-h-dvh antialiased">
+        <SessionBoot />
+        {children}
+      </body>
     </html>
   );
 }

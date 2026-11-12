@@ -29,3 +29,7 @@ packages/games/pool/wasm/
 !.vscode/extensions.json
 .DS_Store
 *.log
+.data/
+
+# Claude Code agent worktrees
+.claude/worktrees/

@@ -23,6 +23,7 @@
     "@react-three/fiber": "^9.8.2",
     "@react-three/xr": "^6.6.32",
     "colyseus.js": "^0.16.22",
+    "lucide-react": "^1.72.0",
     "next": "^16.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

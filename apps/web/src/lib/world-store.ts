@@ -11,6 +11,9 @@ export interface RemotePlayer {
   yaw: number;
   anim: number;
   emoteUntil?: number;
+  verified?: boolean;
+  look?: string;
+  bodyType?: string;
 }
 
 export interface ChatLine {

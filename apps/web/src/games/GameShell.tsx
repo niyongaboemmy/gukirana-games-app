@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ComponentType } from "react";
+import { Bot, ChevronLeft, Handshake, ShieldCheck, Star, Trophy, User } from "lucide-react";
 
 export interface PanelPlayer {
   name: string;
@@ -8,6 +9,8 @@ export interface PanelPlayer {
   level: number;
   active: boolean;
   isBot?: boolean;
+  /** overrides the "Lvl" line, e.g. "Rating 1516" for live opponents */
+  subtitle?: string;
   detail?: React.ReactNode;
 }
 
@@ -17,7 +20,7 @@ export interface PanelPlayer {
  */
 export function GameShell({
   title,
-  emoji,
+  icon: Icon,
   color,
   pot,
   you,
@@ -25,9 +28,13 @@ export function GameShell({
   fairness,
   children,
   footer,
+  mode = "Practice vs AI",
+  onLeave,
 }: {
+  mode?: string;
+  onLeave?: () => void;
   title: string;
-  emoji: string;
+  icon: ComponentType<{ size?: number; className?: string }>;
   color: string;
   pot: number;
   you: PanelPlayer;
@@ -42,16 +49,17 @@ export function GameShell({
     <div className="fixed inset-0 flex flex-col bg-[radial-gradient(ellipse_at_top,#2a2f7a_0%,#0b0d1a_70%)] text-white">
       <header className="flex items-center gap-2 px-[max(12px,env(safe-area-inset-left))] py-2">
         <button type="button" onClick={() => setLeaving(true)} className="rounded-xl bg-white/10 px-3 py-2 text-sm font-semibold hover:bg-white/15">
-          ◀ Leave
+          <span className="flex items-center gap-1"><ChevronLeft size={16} /> Leave</span>
         </button>
-        <h1 className="ml-1 truncate text-base font-extrabold sm:text-lg">
-          <span style={{ color }}>{emoji}</span> {title} <span className="text-xs font-semibold text-white/50">· Practice vs AI</span>
+        <h1 className="ml-1 flex min-w-0 items-center gap-2 truncate text-base font-extrabold sm:text-lg">
+          <span className="grid size-8 shrink-0 place-items-center rounded-xl" style={{ background: `${color}33`, color }}><Icon size={18} /></span>
+          {title} <span className="text-xs font-semibold text-white/50">· {mode}</span>
         </h1>
         <div className="ml-auto flex items-center gap-2">
-          <span className="rounded-full bg-[#7CC4FF]/20 px-3 py-1.5 text-sm font-extrabold tabular-nums">POT {pot} ⭐</span>
+          <span className="flex items-center gap-1.5 rounded-full bg-[#7CC4FF]/20 px-3 py-1.5 text-sm font-extrabold tabular-nums">{pot > 0 ? <>POT {pot} <Star size={14} className="fill-[#7CC4FF] text-[#7CC4FF]" /></> : "Practice · no stake"}</span>
           {fairness && (
-            <button type="button" onClick={() => setFairOpen(true)} className="rounded-full bg-[#22C55E]/20 px-3 py-1.5 text-sm font-bold text-[#7ef0a8]">
-              🛡️ Fair
+            <button type="button" onClick={() => setFairOpen(true)} className="flex items-center gap-1.5 rounded-full bg-[#22C55E]/20 px-3 py-1.5 text-sm font-bold text-[#7ef0a8]">
+              <ShieldCheck size={16} /> Fair
             </button>
           )}
         </div>
@@ -71,12 +79,12 @@ export function GameShell({
       {leaving && (
         <Modal onClose={() => setLeaving(false)}>
           <p className="text-lg font-bold">Leave the match?</p>
-          <p className="mt-1 text-sm text-white/70">Leaving counts as a forfeit. In practice you lose the {pot / 2} ⭐ stake.</p>
+          <p className="mt-1 text-sm text-white/70">{pot > 0 ? `Leaving counts as a forfeit: you lose your ${pot / 2} Stars stake.` : "Leaving ends this practice game."}</p>
           <div className="mt-4 flex gap-2">
             <button type="button" onClick={() => setLeaving(false)} className="flex-1 rounded-xl bg-white/10 py-2 font-semibold">
               Stay
             </button>
-            <Link href="/world" className="flex-1 rounded-xl bg-[#EF4444] py-2 text-center font-semibold">
+            <Link href="/world" onClick={onLeave} className="flex-1 rounded-xl bg-[#EF4444] py-2 text-center font-semibold">
               Leave
             </Link>
           </div>
@@ -84,7 +92,7 @@ export function GameShell({
       )}
       {fairOpen && fairness && (
         <Modal onClose={() => setFairOpen(false)}>
-          <p className="text-lg font-bold">🛡️ Provably fair</p>
+          <p className="flex items-center gap-2 text-lg font-bold"><ShieldCheck size={20} className="text-[#22C55E]" /> Provably fair</p>
           <p className="mt-1 text-sm text-white/70">Every roll comes from HMAC-SHA256(server seed, client seed, match, roll #). The seed is revealed after the match so you can verify every roll.</p>
           <p className="mt-3 text-xs text-white/50">Commit (SHA-256 of the seed)</p>
           <code className="block break-all rounded-lg bg-black/40 p-2 text-xs">{fairness.commit}</code>
@@ -104,15 +112,15 @@ function PlayerPanel({ p, label }: { p: PanelPlayer; label: string }) {
       style={{ borderColor: p.active ? p.color : "rgba(255,255,255,.12)", color: "inherit", boxShadow: p.active ? `0 0 22px -6px ${p.color}` : undefined }}
     >
       <div className="flex items-center gap-2">
-        <div className="grid size-9 shrink-0 place-items-center rounded-full text-lg sm:size-11" style={{ background: p.color }}>
-          {p.isBot ? "🤖" : "🙂"}
+        <div className="grid size-9 shrink-0 place-items-center rounded-full text-white sm:size-11" style={{ background: p.color }}>
+          {p.isBot ? <Bot size={20} /> : <User size={20} />}
         </div>
         <div className="min-w-0 leading-tight">
           <p className="truncate text-sm font-bold">{p.name}</p>
-          <p className="text-xs text-[#FFC83D]">★ {p.level} · {label}</p>
+          <p className="flex items-center gap-1 text-xs text-[#FFC83D]"><Star size={11} className="fill-current" /> {p.subtitle ?? `Lvl ${p.level}`} · {label}</p>
         </div>
       </div>
-      {p.active && <p className="text-xs font-bold" style={{ color: p.color }}>● Turn</p>}
+      {p.active && <p className="flex items-center gap-1.5 text-xs font-bold" style={{ color: p.color }}><span className="size-2 animate-pulse rounded-full" style={{ background: p.color }} /> Turn</p>}
       {p.detail}
     </div>
   );
@@ -132,7 +140,7 @@ export function ResultModal({ won, starsDelta, xp, summary, onRematch }: { won: 
   return (
     <Modal>
       <div className="text-center">
-        <div className="text-6xl">{won ? "🏆" : "🤝"}</div>
+        <div className={`mx-auto grid size-20 place-items-center rounded-full ${won ? "bg-[#FFC83D]/20 text-[#FFC83D]" : "bg-white/10 text-white"}`}>{won ? <Trophy size={40} /> : <Handshake size={40} />}</div>
         <p className="mt-2 text-2xl font-extrabold">{won ? "You won!" : "Good game"}</p>
         <p className="mt-1 text-sm text-white/70">{summary}</p>
         <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
@@ -140,7 +148,7 @@ export function ResultModal({ won, starsDelta, xp, summary, onRematch }: { won: 
             <p className="text-white/60">Stars</p>
             <p className={`text-xl font-extrabold ${starsDelta >= 0 ? "text-[#22C55E]" : "text-white"}`}>
               {starsDelta >= 0 ? "+" : ""}
-              {starsDelta} ⭐
+              {starsDelta} <Star size={16} className="inline fill-current align-[-2px]" />
             </p>
           </div>
           <div className="rounded-xl bg-white/5 p-3">

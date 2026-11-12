@@ -1,6 +1,7 @@
 "use client";
 import { Client, type Room } from "colyseus.js";
 import { useWorld, type RemotePlayer } from "./world-store";
+import { reasonText, useMatch, type IncomingProposal } from "./match-store";
 
 /** Realtime connection to the plaza room (plan P1-WLD-01/02). Works over LAN for phone testing. */
 let room: Room | null = null;
@@ -12,7 +13,7 @@ function realtimeUrl(): string {
   return `${proto}://${location.hostname}:2567`;
 }
 
-export async function connectPlaza(profile: { name: string; color: string; level: number }): Promise<void> {
+export async function connectPlaza(profile: { name: string; color: string; level: number; token?: string | null; look?: string }): Promise<void> {
   if (room || connecting) return;
   connecting = true;
   const w = useWorld.getState();
@@ -45,6 +46,21 @@ export async function connectPlaza(profile: { name: string; color: string; level
         system: true,
       }),
     );
+    // in-world proposals + Quick Match (SRS §8.4.2)
+    room.onMessage("proposal", (p: IncomingProposal) => useMatch.setState((s) => ({ incoming: [...s.incoming.filter((x) => x.id !== p.id), p] })));
+    room.onMessage("proposal-sent", (p) => useMatch.setState({ outgoing: p, notice: null }));
+    room.onMessage("proposal-failed", (m: { reason: string }) => useMatch.setState({ notice: reasonText(m.reason) }));
+    room.onMessage("proposal-closed", (m: { id: string; reason: string }) =>
+      useMatch.setState((s) => ({
+        incoming: s.incoming.filter((x) => x.id !== m.id),
+        outgoing: s.outgoing?.id === m.id ? null : s.outgoing,
+        notice: s.outgoing?.id === m.id || m.reason !== "EXPIRED" ? reasonText(m.reason) : s.notice,
+      })),
+    );
+    room.onMessage("quickmatch", (m: { status: "idle" | "waiting" | "error"; game?: "igisoro" | "ludo"; stake?: number; reason?: string }) =>
+      useMatch.setState({ quick: m, notice: m.status === "error" ? reasonText(m.reason) : null }),
+    );
+    room.onMessage("match-ready", (m) => useMatch.setState({ ready: m, incoming: [], outgoing: null, quick: { status: "idle" } }));
     room.onLeave(() => {
       room = null;
       useWorld.setState({ connected: false, players: {} });
@@ -71,4 +87,11 @@ export function sendMove(x: number, z: number, yaw: number, anim: number): void 
 }
 
 export const sendChat = (text: string) => room?.send("chat", { text });
+export const propose = (to: string, game: "igisoro" | "ludo", stake: number) => room?.send("propose", { to, game, stake });
+export const respondProposal = (id: string, accept: boolean) => {
+  room?.send("proposal-respond", { id, accept });
+  useMatch.setState((s) => ({ incoming: s.incoming.filter((x) => x.id !== id) }));
+};
+export const quickMatchJoin = (game: "igisoro" | "ludo", stake: number) => room?.send("quickmatch-join", { game, stake });
+export const quickMatchLeave = () => room?.send("quickmatch-leave");
 export const sendEmote = (emote: number) => room?.send("emote", { emote });

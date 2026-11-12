@@ -4,6 +4,7 @@ import { WebSocketTransport } from "@colyseus/ws-transport";
 import { loadEnv } from "@gukirana/config";
 import { createLogger } from "@gukirana/observability";
 import { WorldRoom } from "./rooms/world-room.js";
+import { MatchRoom } from "./rooms/match-room.js";
 
 const env = loadEnv();
 const logger = createLogger("realtime", env.LOG_LEVEL);
@@ -19,6 +20,7 @@ const http = createServer((req, res) => {
 
 const gameServer = new Server({ transport: new WebSocketTransport({ server: http }) });
 gameServer.define("plaza", WorldRoom);
+gameServer.define("match", MatchRoom);
 
 await gameServer.listen(env.REALTIME_PORT);
 logger.info({ port: env.REALTIME_PORT }, "realtime listening");

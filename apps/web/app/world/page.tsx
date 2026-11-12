@@ -6,6 +6,8 @@ import { WorldHud } from "@/hud/WorldHud";
 import { RotateGuard } from "@/hud/RotateGuard";
 import { levelForXp, useProfile } from "@/lib/profile-store";
 import { connectPlaza, leavePlaza } from "@/lib/realtime";
+import { useSession } from "@/lib/session";
+import { MatchmakingPanel } from "@/match/MatchmakingPanel";
 
 const WorldCanvas = dynamic(() => import("@/world/WorldCanvas"), {
   ssr: false,
@@ -23,25 +25,27 @@ export default function WorldPage() {
   const router = useRouter();
   const profile = useProfile();
   const [ready, setReady] = useState(false);
+  const session = useSession();
 
   useEffect(() => {
     setReady(true);
   }, []);
   useEffect(() => {
-    if (!ready) return;
-    if (!profile.onboarded) {
+    if (!ready || session.status === "loading") return;
+    if (session.status === "anonymous" || !profile.onboarded) {
       router.replace("/");
       return;
     }
-    void connectPlaza({ name: profile.name, color: profile.color, level: levelForXp(profile.xp) });
+    void connectPlaza({ name: profile.name, color: profile.color, level: levelForXp(profile.xp), token: session.accessToken, look: session.me?.look ?? undefined });
     return () => leavePlaza();
-  }, [ready, profile.onboarded, profile.name, profile.color, profile.xp, router]);
+  }, [ready, session.status, profile.onboarded, router]);
 
   if (!ready || !profile.onboarded) return null;
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#0b0d1a]">
       <WorldCanvas profile={{ name: profile.name, color: profile.color, level: levelForXp(profile.xp) }} />
       <WorldHud />
+      <MatchmakingPanel />
       <RotateGuard />
     </div>
   );

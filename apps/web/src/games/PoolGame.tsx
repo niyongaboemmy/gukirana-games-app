@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GameShell, ResultModal } from "./GameShell";
-import { PRACTICE_STAKE, settlePractice } from "./practice";
+import { PoolBallIcon } from "@/ui/game-icons";
+import { settlePractice } from "./practice";
 import { COLORS, H, moving, POCKETS, POCKET_R, R, rack, rayHit, segDist, step, W, type Ball, type StepEvents } from "./pool-physics";
 import { levelForXp, useProfile } from "@/lib/profile-store";
 
@@ -31,7 +32,8 @@ export default function PoolGame() {
   const end = useCallback((won: boolean, why: string) => {
     state.current.over = true;
     setMessage(why);
-    setResult({ won, ...settlePractice(won) });
+    setResult({ won, starsDelta: 0, xp: 0 });
+    void settlePractice("pool", won).then((r) => setResult({ won, ...r }));
   }, []);
 
   /** Applies 8-ball rules once all balls stop. */
@@ -49,7 +51,7 @@ export default function PoolGame() {
     if (potted.includes(8)) {
       const cleared = myGroup !== null && remaining(myGroup) === 0;
       const winner = cleared && !scratch ? shooter : ((1 - shooter) as 0 | 1);
-      end(winner === 0, winner === 0 ? "8-ball sunk. Clean finish! 🎱" : shooter === 0 ? "The 8-ball went down too early." : "The AI sank the 8-ball.");
+      end(winner === 0, winner === 0 ? "8-ball sunk. Clean finish!" : shooter === 0 ? "The 8-ball went down too early." : "The AI sank the 8-ball.");
       return;
     }
     if (!myGroup) {
@@ -281,14 +283,14 @@ export default function PoolGame() {
     setMessage("Your break!");
   };
 
-  const groupLabel = (gr: Group) => (gr ? `${gr === "solids" ? "●" : "◐"} ${gr} · ${remaining(gr)} left` : "Open table");
+  const groupLabel = (gr: Group) => (gr ? `${gr} · ${remaining(gr)} left` : "Open table");
 
   return (
     <GameShell
       title="8-Ball Pool"
-      emoji="🎱"
+      icon={PoolBallIcon}
       color="#2F80ED"
-      pot={PRACTICE_STAKE * 2}
+      pot={0}
       you={{ name: name || "You", color, level: levelForXp(xp), active: turn === 0 && !result, detail: <p className="text-xs font-semibold capitalize">{groupLabel(groups[0])}</p> }}
       opponents={[{ name: "Cue AI", color: "#2F80ED", level: 10, isBot: true, active: turn === 1 && !result, detail: <p className="text-xs font-semibold capitalize">{groupLabel(groups[1])}</p> }]}
       footer={<p className="text-center text-xs text-white/75 sm:text-sm">{message}</p>}

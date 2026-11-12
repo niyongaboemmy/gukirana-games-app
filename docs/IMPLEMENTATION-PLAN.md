@@ -31,8 +31,9 @@
 |---|---|---|
 | 2026-11-13 | **P0 foundations (part 1)**: monorepo, apps, shared packages, CI, ADRs; `money` (fees), `fairness` (browser + server RNG), `game-kit`, Drizzle ledger schema | Ticked tasks below |
 | 2026-11-13 | **P1 vertical slice (playable, practice mode)**: 3D Plaza (portals, Agaseke fountain, Imigongo ring, hills), avatars with headset, third-person camera, joystick + WASD, landscape HUD, rotate guard, Enter VR (WebXR + thumbstick locomotion); realtime plaza presence, emotes, chat with scam filter; Igisoro + Ludo engines with bots (tested); game screens for Igisoro, Ludo (fair dice + verify), Pool (practice physics + AI); Stars + XP (local stub) | Partial progress on P0-3D-01..03/05, P1-WLD-01/02/03/07/08, P1-AVA-01/04/05, P1-COM-01/02, P1-IGI-01..03, P1-LUD-01..04, P1-POOL-05/07, P1-GAME-01/02/05, P1-VR-01/02. Not ticked until full AC (server-authoritative rooms, persistence, auth) are met |
+| 2026-11-13 | **Accounts, ledger, live PvP**: phone-or-email OTP + rotating refresh sessions; Drizzle schema + migrations on PGlite (dev, no Docker) / Postgres (prod); `LedgerService.post()` with property tests; Stars wallet (welcome + daily, idempotent); XP/levels + Elo; Ed25519-signed results; internal match API (escrow lock → signed settle → ratings/XP; void refunds); authoritative Colyseus `MatchRoom` (intents only, fair RNG, turn timer + strikes, 60 s reconnection, forfeit); plaza auth, in-world challenges + Quick Match; web: login, session restore, challenge/accept UI, live match screen; emoji-free UI (Lucide + custom game glyphs) | Verified with API tests, a two-client realtime test and a two-browser end-to-end test. Open: SMS/email delivery (dev returns the code), Valkey queue, Glicko-2, Pool PvP (needs deterministic Rust engine) |
 
-**Next up (recommended order):** P0-AUTH-01/02 (OTP + sessions) → P0-LED-02/03 (ledger service with Postgres) → P0-GMK-04 (authoritative GameRoom) → move Igisoro / Ludo practice onto server rooms → human vs human matches with Stars → P1-PRO proposals in the world → LiveKit voice.
+**Next up (recommended order):** merge the 3D/VR world + gate-login design branch → SMS / email OTP delivery (X7) → LiveKit proximity voice (P1-COM-03/04) → Valkey matchmaking + Glicko-2 (P1-MM-01/02) → Pool authoritative physics (P1-POOL-01) → admin basics (P1-ADM).
 
 ### 0.3 Legend
 | Mark | Meaning |
@@ -346,14 +347,14 @@ pnpm build:wasm  # build crates/pool-physics → packages/games/pool/wasm
 
 ### Epic P0-AUTH — Identity skeleton
 - [ ] 🔴 **P0-AUTH-01** `identity` module: users table, phone OTP (SMS gateway abstraction + fake provider), rate limits, OTP hashing · *est 4d* · refs: FR-ACC-01 · 🛡️
-- [ ] 🔴 **P0-AUTH-02** Sessions: JWT access (15 min) + rotating refresh (httpOnly, SameSite=strict), device list, revoke · *est 3d* · refs: FR-ACC-09 · 🛡️
+- [x] 🔴 **P0-AUTH-02** Sessions: JWT access (15 min) + rotating refresh (httpOnly, SameSite=strict), device list, revoke · *est 3d* · refs: FR-ACC-09 · 🛡️
 - [ ] **P0-AUTH-03** Passkeys (WebAuthn register / login via SimpleWebAuthn) · *est 3d* · refs: FR-ACC-02
 - [ ] **P0-AUTH-04** RBAC skeleton for admin (roles from SRS §3.2), staff SSO (OIDC) + mandatory MFA · *est 3d*
 
 ### Epic P0-LED — Ledger core 💰
 - [x] 🔴 **P0-LED-01** `packages/money`: `Coins` branded type, `coinsToRwf`, `rwfToCoins`, `computeTableFee()` (Appendix A.3), 100% tests + property tests · *est 2d* · refs: SRS §6.1, §6.7.3
-- [ ] 🔴 **P0-LED-02** Ledger schema + migrations: `ledger_accounts`, `journal_entries`, `journal_lines`, `account_balances` (Appendix A.1) · *est 3d* · refs: FR-WAL-02/03/04
-- [ ] 🔴 **P0-LED-03** `LedgerService.post(entry)`: balanced check, idempotency, lock order, non-negative constraint, outbox event (Appendix A.2) · *est 4d* · deps: LED-02
+- [x] 🔴 **P0-LED-02** Ledger schema + migrations: `ledger_accounts`, `journal_entries`, `journal_lines`, `account_balances` (Appendix A.1) · *est 3d* · refs: FR-WAL-02/03/04
+- [x] 🔴 **P0-LED-03** `LedgerService.post(entry)`: balanced check, idempotency, lock order, non-negative constraint, outbox event (Appendix A.2) · *est 4d* · deps: LED-02
   - AC: property test with 10k random postings → Σ all balances = 0; no negative user balance; replayed idempotency keys return the original entry.
 - [ ] **P0-LED-04** Ledger invariants worker (Appendix A.6), alert to on-call · *est 2d*
 - [ ] **P0-LED-05** Outbox relay worker → NATS JetStream (at-least-once publish, consumer dedupe by event ID) · *est 2d*
@@ -362,7 +363,7 @@ pnpm build:wasm  # build crates/pool-physics → packages/games/pool/wasm
 - [x] 🔴 **P0-GMK-01** `packages/game-kit`: `GameModule` interface (Appendix B.1), `MatchResult`, intent / state typing, determinism helpers · *est 2d* · refs: SRS §10.1
 - [x] 🔴 **P0-GMK-02** `packages/fairness`: commit-reveal seeds, `rollInt(min,max)` with HMAC + rejection sampling, verifier (Appendix B.3) · *est 2d* · 🛡️ · refs: SRS §7.2
 - [ ] **P0-GMK-03** Simulation runner: random legal play, state-hash comparison (server vs client instance), CLI `pnpm sim --game <id> --n <count>` · *est 3d*
-- [ ] 🔴 **P0-GMK-04** Realtime `GameRoom` base (Colyseus): join with a signed ticket, intent validation via the module, timers, reconnection window, signed result (Ed25519) · *est 5d* · deps: GMK-01 · 🛡️
+- [x] 🔴 **P0-GMK-04** Realtime `GameRoom` base (Colyseus): join with a signed ticket, intent validation via the module, timers, reconnection window, signed result (Ed25519) · *est 5d* · deps: GMK-01 · 🛡️
 - [ ] **P0-GMK-05** Stub game "coin-flip duel" end-to-end (for the skeleton only, removed later) · *est 1d*
 
 ### Epic P0-3D — 3D foundations
@@ -407,7 +408,7 @@ pnpm build:wasm  # build crates/pool-physics → packages/games/pool/wasm
 - [ ] **P1-LOB-03** Classic 2D world parity: rooms as lists, people list, chat, voice, proposals (feature parity with 3D) · *est 5d* · refs: NFR-3D-09, ADR-11
 
 ### Epic P1-STR — Stars (practice currency)
-- [ ] **P1-STR-01** Stars accounts in the ledger (separate account kind, never convertible), daily free Stars grant, match stakes in Stars through the same escrow flow · *est 3d* · refs: FR-CUR-05 · 💰 (same code paths as coins)
+- [x] **P1-STR-01** Stars accounts in the ledger (separate account kind, never convertible), daily free Stars grant, match stakes in Stars through the same escrow flow · *est 3d* · refs: FR-CUR-05 · 💰 (same code paths as coins)
 - [ ] **P1-STR-02** Stars pill + history UI · *est 1d*
 
 ### Epic P1-MM — Matchmaking and ratings
@@ -473,14 +474,14 @@ pnpm build:wasm  # build crates/pool-physics → packages/games/pool/wasm
 - [ ] **P1-AVA-05** Emote wheel + 2-person "GG" handshake · *est 2d*
 
 ### Epic P1-PRO — Proposals (in-world challenges, Stars in P1)
-- [ ] 🔴 **P1-PRO-01** `challenges` module: proposals (send / counter / accept / decline / expire), state machine (Appendix C.2) · *est 4d* · refs: SRS §8.4.2, FR-CHL-*
+- [x] 🔴 **P1-PRO-01** `challenges` module: proposals (send / counter / accept / decline / expire), state machine (Appendix C.2) · *est 4d* · refs: SRS §8.4.2, FR-CHL-*
 - [ ] **P1-PRO-02** Proposal card UI (sheet / panel / VR card), countdown, counter-offer editing · *est 3d* · refs: DS §10.3
 - [ ] **P1-PRO-03** Accept → table reservation → auto-path / teleport → match start · *est 3d*
 - [ ] **P1-PRO-04** Challenge Board (posting funded challenges with Stars), filters, "walk to table" · *est 3d* · refs: FR-CHL-01..07
 
 ### Epic P1-COM — Text and voice
 - [ ] 🔴 **P1-COM-01** Chat service: room / nearby / private / table channels, retention policy, rate limits · *est 4d* · refs: FR-COM-04
-- [ ] 🔴 **P1-COM-02** Text safety filter: profanity, PII (phone / MoMo numbers), payment requests, links; scam warning UI · *est 3d* · refs: FR-COM-09 · 🛡️
+- [x] 🔴 **P1-COM-02** Text safety filter: profanity, PII (phone / MoMo numbers), payment requests, links; scam warning UI · *est 3d* · refs: FR-COM-09 · 🛡️
 - [ ] 🔴 **P1-COM-03** LiveKit integration: token issuing by API (per room instance + channel), push-to-talk, mic indicators · *est 4d* · refs: FR-COM-02/03
 - [ ] **P1-COM-04** Proximity / spatial voice: client-side per-participant volume + HRTF panning by avatar distance (DS §14.3) · *est 3d* · refs: FR-COM-01
 - [ ] **P1-COM-05** Voice rules in games (1v1 opt-in, multi-player cash restrictions prepared, spectators separated) · *est 2d* · refs: SRS §8.4.5 table
@@ -498,7 +499,7 @@ pnpm build:wasm  # build crates/pool-physics → packages/games/pool/wasm
 - [ ] **P1-VR-08** VR performance pass: 72 fps on Quest 3S in the busiest room (foveation, draw-call budget) · *est 4d* · refs: NFR-VR-01/07
 
 ### Epic P1-LVL — Levels and XP
-- [ ] **P1-LVL-01** `levels` module: XP rules (Appendix D.1), daily cap, same-opponent cap, reversal on void / dispute · *est 3d* · refs: SRS §5.9
+- [x] **P1-LVL-01** `levels` module: XP rules (Appendix D.1), daily cap, same-opponent cap, reversal on void / dispute · *est 3d* · refs: SRS §5.9
 - [ ] **P1-LVL-02** Level ring in HUD, level-up celebration, rewards unlock (cosmetic) · *est 3d*
 
 ### Epic P1-AI — AI features (MVP)

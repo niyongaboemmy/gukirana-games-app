@@ -58,5 +58,4 @@ export function tokenCell(seat: number, progress: number, token: number): RC {
 }
 
 export const SEAT_COLORS = ["#E53935", "#43A047", "#FDD835", "#1E88E5"];
-export const SEAT_SHAPES = ["●", "▲", "■", "◆"];
 export const SEAT_NAMES = ["Red", "Green", "Yellow", "Blue"];

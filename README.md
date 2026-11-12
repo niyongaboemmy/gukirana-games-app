@@ -63,16 +63,17 @@ Health checks: `GET :3200/api/health`, `GET :4200/healthz`, `GET :2567/healthz`.
 ```bash
 pnpm install
 pnpm build                                   # builds shared packages once
-pnpm --filter @gukirana/realtime dev         # plaza server  → ws://localhost:2567
-pnpm --filter @gukirana/web dev              # web app       → http://localhost:3200
+pnpm --filter @gukirana/api dev              # API (embedded Postgres in .data/) → http://localhost:4200
+pnpm --filter @gukirana/realtime dev         # plaza + match rooms             → ws://localhost:2567
+pnpm --filter @gukirana/web dev              # web app (proxies /api/v1)        → http://localhost:3200
 ```
 
-- Open **http://localhost:3200**, pick a username and hoodie colour, then **Enter the 3D world**.
-- Desktop: WASD / arrows to move, Shift to run, drag to look, wheel to zoom, **E** to enter a portal, **G** emotes, **T** chat.
-- Phone (same Wi-Fi): open `http://<your-computer-LAN-IP>:3200` and hold the phone in **landscape**.
-- Multiplayer: open a second browser window (or a phone) to see each other move, emote and chat.
-- VR: open the URL in a headset browser (Quest / Android XR / Vision Pro) and tap **🥽 Enter VR**.
-- Games (practice vs AI with Stars): Igisoro, Ludo (provably fair dice, tap 🛡️ Fair) and 8-Ball Pool.
+- Open **http://localhost:3200** and sign in with a **phone or email**. In dev there's no SMS/email gateway yet, so the code is shown on screen.
+- New players get 500 Stars (practice currency, no cash value) and can claim more daily.
+- **Enter the 3D world**: WASD / arrows to move, Shift to run, drag to look, **E** to enter a portal, **G** emotes, **T** chat.
+- **Play people**: open a second browser (or incognito / phone), sign in with another number, stand near each other and press **Challenge**, or use **Quick Match**. Stakes go to escrow, the server runs the game, and the winner gets 2× the stake.
+- Phone on the same Wi-Fi: `http://<your-computer-LAN-IP>:3200` in **landscape**. VR headset browser: tap **Enter VR**.
+- Practice vs AI (Igisoro, Ludo, Pool) gives XP only.
 
 ## Non-negotiable rules
 
