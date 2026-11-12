@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { DoorOpen } from "lucide-react";
 import { coins, quoteChallenge } from "@gukirana/money";
 import { Onboarding } from "@/components/Onboarding";
 import { levelForXp, useProfile } from "@/lib/profile-store";
@@ -43,14 +44,17 @@ export default function Home() {
             <p className="max-w-xl text-base text-white/75 sm:text-lg">
               Walk into a 3D games world, meet real people, talk, agree on a game and sit at the table. Pool, Ludo and Rwanda&apos;s own Igisoro, on your phone, computer or VR headset.
             </p>
-            {hydrated && profile.onboarded && (
+            {hydrated && (
               <div className="flex flex-wrap gap-3">
-                <Link href="/world" className="rounded-2xl bg-gradient-to-r from-[#3DA9FC] to-[#9B51E0] px-6 py-4 text-lg font-extrabold shadow-[0_10px_40px_-10px_#3DA9FC] transition hover:scale-[1.02]">
-                  🌍 Enter the 3D world
+                {/* 3D entry goes through the arrival gate (ID check); signed-in players skip straight inside */}
+                <Link href="/gate" className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#3DA9FC] to-[#9B51E0] px-6 py-4 text-lg font-extrabold shadow-[0_10px_40px_-10px_#3DA9FC] transition hover:scale-[1.02]">
+                  <DoorOpen size={22} strokeWidth={1.85} /> Enter
                 </Link>
-                <Link href="/play/ludo" className="rounded-2xl border border-white/20 bg-white/5 px-6 py-4 text-lg font-bold backdrop-blur hover:bg-white/10">
-                  ⚡ Quick Play
-                </Link>
+                {profile.onboarded && (
+                  <Link href="/play/ludo" className="rounded-2xl border border-white/20 bg-white/5 px-6 py-4 text-lg font-bold backdrop-blur hover:bg-white/10">
+                    ⚡ Quick Play
+                  </Link>
+                )}
               </div>
             )}
           </div>
