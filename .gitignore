@@ -1,0 +1,31 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+.next/
+out/
+.turbo/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# rust / wasm
+target/
+packages/games/pool/wasm/
+
+# env & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# local tooling
+.refact/
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+*.log

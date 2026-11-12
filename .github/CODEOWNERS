@@ -1,0 +1,6 @@
+# Money and fairness code needs the tech lead's review (plan §4.3, §4.4).
+*                                   @niyongaboemmy
+/packages/money/                    @niyongaboemmy
+/packages/fairness/                 @niyongaboemmy
+/apps/api/src/modules/ledger/       @niyongaboemmy
+/crates/pool-physics/               @niyongaboemmy

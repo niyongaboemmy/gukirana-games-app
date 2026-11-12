@@ -1,0 +1,36 @@
+{
+  "name": "gukirana-games",
+  "private": true,
+  "description": "Gukirana Games: skill-gaming platform with a 3D/VR virtual games world, coin wallet and real-time multiplayer games.",
+  "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "verify": "turbo run lint typecheck test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "pnpm --filter @gukirana/db generate",
+    "db:migrate": "pnpm --filter @gukirana/db migrate",
+    "build:wasm": "cd crates/pool-physics && wasm-pack build --target web --out-dir ../../packages/games/pool/wasm",
+    "test:rust": "cargo test --manifest-path crates/pool-physics/Cargo.toml",
+    "infra:up": "docker compose -f infra/docker/docker-compose.yml up -d",
+    "infra:down": "docker compose -f infra/docker/docker-compose.yml down"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.37.0",
+    "@types/node": "^24.7.0",
+    "eslint": "^9.37.0",
+    "globals": "^16.4.0",
+    "prettier": "^3.6.2",
+    "turbo": "^2.5.8",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.0",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "extends": "@gukirana/tsconfig/library.json",
+  "compilerOptions": { "rootDir": "src", "outDir": "dist", "declaration": false, "declarationMap": false },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
+}

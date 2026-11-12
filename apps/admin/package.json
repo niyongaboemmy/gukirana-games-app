@@ -1,0 +1,25 @@
+{
+  "name": "@gukirana/admin",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3201",
+    "build": "next build",
+    "start": "next start --port 3201",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint app",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@gukirana/ui": "workspace:*",
+    "next": "^16.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@gukirana/tsconfig": "workspace:*",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.1"
+  }
+}

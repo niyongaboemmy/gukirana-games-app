@@ -1,0 +1,6 @@
+{
+  "app": { "name": "Gukirana Playground", "tagline": "Jouer · Rencontrer · Gagner" },
+  "lobby": { "quickPlay": "Partie rapide", "enterWorld": "Entrer dans le monde", "live": "{count} en ligne", "comingSoon": "Bientôt" },
+  "games": { "pool": "Billard 8-Ball", "ludo": "Ludo", "igisoro": "Igisoro" },
+  "_review": "TODO(review): machine-drafted, needs native-speaker review"
+}

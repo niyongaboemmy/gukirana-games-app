@@ -1,0 +1,24 @@
+@import "tailwindcss";
+@import "@gukirana/ui/tokens.css";
+
+@theme {
+  --color-brand-indigo: var(--brand-indigo);
+  --color-brand-sky: var(--brand-sky);
+  --color-brand-gold: var(--brand-gold);
+  --color-coin: var(--coin);
+  --color-game-pool: var(--game-pool);
+  --color-game-ludo: var(--game-ludo);
+  --color-game-igisoro: var(--game-igisoro);
+  --color-game-arena: var(--game-arena);
+  --color-game-soon: var(--game-soon);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--surface-text);
+}
+
+body {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}

@@ -1,0 +1,13 @@
+[package]
+name = "pool-physics"
+version = "0.0.0"
+edition = "2021"
+description = "Deterministic fixed-point 8-ball pool physics, compiled to WASM for server and client (plan P1-POOL-01)."
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+opt-level = 3
+lto = true

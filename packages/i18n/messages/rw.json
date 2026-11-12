@@ -1,0 +1,6 @@
+{
+  "app": { "name": "Gukirana Playground", "tagline": "Kina · Hura n'abandi · Tsinda" },
+  "lobby": { "quickPlay": "Kina vuba", "enterWorld": "Injira mu isi", "live": "{count} bari gukina", "comingSoon": "Biraza vuba" },
+  "games": { "pool": "Biyari (8-Ball)", "ludo": "Ludo", "igisoro": "Igisoro" },
+  "_review": "TODO(review): machine-drafted, needs native-speaker review"
+}

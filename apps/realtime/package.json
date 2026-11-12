@@ -1,0 +1,26 @@
+{
+  "name": "@gukirana/realtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@colyseus/ws-transport": "^0.16.5",
+    "@gukirana/config": "workspace:*",
+    "@gukirana/contracts": "workspace:*",
+    "@gukirana/fairness": "workspace:*",
+    "@gukirana/observability": "workspace:*",
+    "@colyseus/core": "^0.16.19"
+  },
+  "devDependencies": {
+    "@gukirana/tsconfig": "workspace:*",
+    "tsx": "^4.20.6"
+  }
+}

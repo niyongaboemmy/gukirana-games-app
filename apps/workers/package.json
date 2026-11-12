@@ -1,0 +1,23 @@
+{
+  "name": "@gukirana/workers",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@gukirana/config": "workspace:*",
+    "@gukirana/money": "workspace:*",
+    "@gukirana/observability": "workspace:*"
+  },
+  "devDependencies": {
+    "@gukirana/tsconfig": "workspace:*",
+    "tsx": "^4.20.6"
+  }
+}

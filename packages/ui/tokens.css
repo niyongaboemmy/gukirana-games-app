@@ -1,0 +1,33 @@
+/* Design tokens — DESIGN-SPEC-3D-VR §5.3. Keep in sync with src/index.ts */
+:root {
+  --brand-indigo: #22266e;
+  --brand-sky: #3da9fc;
+  --brand-gold: #ffc83d;
+  --imigongo-ochre: #b5532a;
+  --imigongo-black: #1b1b1b;
+  --imigongo-white: #f4efe6;
+  --env-hill: #4e9f5b;
+  --game-pool: #2f80ed;
+  --game-ludo: #ff8a1f;
+  --game-igisoro: #27ae60;
+  --game-arena: #9b51e0;
+  --game-soon: #8a94a6;
+  --coin: #f5b301;
+  --star: #7cc4ff;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --surface: rgb(255 255 255 / 0.92);
+  --surface-text: #12142b;
+  --bg: #eef4fb;
+  --radius-panel: 16px;
+  --radius-button: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: rgb(15 18 34 / 0.88);
+    --surface-text: #eef1ff;
+    --bg: #0b0d1a;
+  }
+}
