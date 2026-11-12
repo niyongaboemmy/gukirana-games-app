@@ -26,6 +26,14 @@
 - **Hard rules** (never break them): see [§4.3 Money rules](#43-money-rules-non-negotiable) and [§4.4 Fairness rules](#44-fairness-rules-non-negotiable).
 - Prompt template: [§13.2](#132-prompt-template-for-a-task).
 
+### Progress log
+| Date | Delivered | Notes |
+|---|---|---|
+| 2026-11-13 | **P0 foundations (part 1)**: monorepo, apps, shared packages, CI, ADRs; `money` (fees), `fairness` (browser + server RNG), `game-kit`, Drizzle ledger schema | Ticked tasks below |
+| 2026-11-13 | **P1 vertical slice (playable, practice mode)**: 3D Plaza (portals, Agaseke fountain, Imigongo ring, hills), avatars with headset, third-person camera, joystick + WASD, landscape HUD, rotate guard, Enter VR (WebXR + thumbstick locomotion); realtime plaza presence, emotes, chat with scam filter; Igisoro + Ludo engines with bots (tested); game screens for Igisoro, Ludo (fair dice + verify), Pool (practice physics + AI); Stars + XP (local stub) | Partial progress on P0-3D-01..03/05, P1-WLD-01/02/03/07/08, P1-AVA-01/04/05, P1-COM-01/02, P1-IGI-01..03, P1-LUD-01..04, P1-POOL-05/07, P1-GAME-01/02/05, P1-VR-01/02. Not ticked until full AC (server-authoritative rooms, persistence, auth) are met |
+
+**Next up (recommended order):** P0-AUTH-01/02 (OTP + sessions) → P0-LED-02/03 (ledger service with Postgres) → P0-GMK-04 (authoritative GameRoom) → move Igisoro / Ludo practice onto server rooms → human vs human matches with Stars → P1-PRO proposals in the world → LiveKit voice.
+
 ### 0.3 Legend
 | Mark | Meaning |
 |---|---|
@@ -312,16 +320,16 @@ pnpm build:wasm  # build crates/pool-physics → packages/games/pool/wasm
 **Exit criteria:** all 🔴 P0 tasks done; staging deployed via GitOps; CI under 10 min; the skeleton demo is recorded.
 
 ### Epic P0-REP — Repository and tooling
-- [ ] 🔴 **P0-REP-01** Monorepo scaffold (pnpm, Turborepo, tsconfig base, ESLint flat config, Prettier) · *est 2d* · paths: root, `packages/tsconfig`, `packages/eslint-config`
+- [x] 🔴 **P0-REP-01** Monorepo scaffold (pnpm, Turborepo, tsconfig base, ESLint flat config, Prettier) · *est 2d* · paths: root, `packages/tsconfig`, `packages/eslint-config`
   - AC: `pnpm verify` runs on an empty app and a package; Turbo cache works.
-- [ ] 🔴 **P0-REP-02** App shells: `apps/web` (Next 16), `apps/admin`, `apps/api` (NestJS + Fastify), `apps/realtime` (Colyseus), `apps/workers` · *est 3d* · deps: REP-01
+- [x] 🔴 **P0-REP-02** App shells: `apps/web` (Next 16), `apps/admin`, `apps/api` (NestJS + Fastify), `apps/realtime` (Colyseus), `apps/workers` · *est 3d* · deps: REP-01
   - AC: `pnpm dev` starts everything; health endpoints `/healthz` respond.
-- [ ] **P0-REP-03** Lint rules: ban `Math.random` in `packages/games/**`, `packages/money/**`, `apps/api/src/modules/{ledger,wallet,payments,games,matchmaking,challenges}/**`; ban floats helpers (`parseFloat`, `toFixed`) in money code · *est 1d* · refs: §4.3, §4.4
-- [ ] **P0-REP-04** `CLAUDE.md` + `docs/adr/0001-record-architecture-decisions.md` + ADRs for every §2 decision · *est 1d*
-- [ ] **P0-REP-05** Commit hooks (lint-staged), PR template, CODEOWNERS (money / fairness paths require the tech lead) · *est 0.5d*
+- [x] **P0-REP-03** Lint rules: ban `Math.random` in `packages/games/**`, `packages/money/**`, `apps/api/src/modules/{ledger,wallet,payments,games,matchmaking,challenges}/**`; ban floats helpers (`parseFloat`, `toFixed`) in money code · *est 1d* · refs: §4.3, §4.4
+- [x] **P0-REP-04** `CLAUDE.md` + `docs/adr/0001-record-architecture-decisions.md` + ADRs for every §2 decision · *est 1d*
+- [x] **P0-REP-05** Commit hooks (lint-staged), PR template, CODEOWNERS (money / fairness paths require the tech lead) · *est 0.5d*
 
 ### Epic P0-INF — Infrastructure and DevOps
-- [ ] 🔴 **P0-INF-01** `infra/docker/docker-compose.yml`: Postgres 17, Valkey, NATS JetStream, MinIO, LiveKit, Unleash, Mailpit, OTel collector + Grafana stack · *est 2d*
+- [x] 🔴 **P0-INF-01** `infra/docker/docker-compose.yml`: Postgres 17, Valkey, NATS JetStream, MinIO, LiveKit, Unleash, Mailpit, OTel collector + Grafana stack · *est 2d*
 - [ ] 🔴 **P0-INF-02** CI pipeline (GitHub Actions): install with cache, lint, typecheck, unit, integration (affected), build, bundle-size check, SBOM, container build + sign · *est 3d* · deps: REP-02
 - [ ] 🔴 **P0-INF-03** Terraform: network, managed Kubernetes, managed Postgres (HA), Valkey, object storage, secrets manager, in the region chosen for data residency (X6) · *est 5d*
 - [ ] **P0-INF-04** Argo CD GitOps for `staging` (auto from `main`) and `production` (manual promotion) · *est 3d* · deps: INF-03
@@ -333,7 +341,7 @@ pnpm build:wasm  # build crates/pool-physics → packages/games/pool/wasm
 - [ ] 🔴 **P0-DS-01** `packages/ui`: tokens from Design spec §5.3–5.6 (colour, type, radius, motion), dark / light, Tailwind v4 theme, Storybook · *est 3d*
 - [ ] **P0-DS-02** Core components: Button, IconButton (round action), Pill (Coin / Star), Sheet (bottom / side), Modal, Toast, TimerRing, Avatar chip, Tabs, Form inputs, SlideToConfirm · *est 5d* · refs: DS §9.2
 - [ ] 🔴 **P0-DS-03** Responsive app shell: 2D lobby grid (SRS §8.2 breakpoints incl. phone-landscape row), bottom tab bar / nav rail, safe-area handling, rotate-screen component · *est 3d*
-- [ ] **P0-DS-04** i18n setup (next-intl, ICU, rw/en/fr/sw), locale routing, RWF / coin formatting helpers · *est 2d*
+- [x] **P0-DS-04** i18n setup (next-intl, ICU, rw/en/fr/sw), locale routing, RWF / coin formatting helpers · *est 2d*
 - [ ] **P0-DS-05** PWA: manifest (landscape for play routes), service worker (Workbox / Serwist), install prompt rules (UI-10) · *est 2d*
 
 ### Epic P0-AUTH — Identity skeleton
@@ -343,7 +351,7 @@ pnpm build:wasm  # build crates/pool-physics → packages/games/pool/wasm
 - [ ] **P0-AUTH-04** RBAC skeleton for admin (roles from SRS §3.2), staff SSO (OIDC) + mandatory MFA · *est 3d*
 
 ### Epic P0-LED — Ledger core 💰
-- [ ] 🔴 **P0-LED-01** `packages/money`: `Coins` branded type, `coinsToRwf`, `rwfToCoins`, `computeTableFee()` (Appendix A.3), 100% tests + property tests · *est 2d* · refs: SRS §6.1, §6.7.3
+- [x] 🔴 **P0-LED-01** `packages/money`: `Coins` branded type, `coinsToRwf`, `rwfToCoins`, `computeTableFee()` (Appendix A.3), 100% tests + property tests · *est 2d* · refs: SRS §6.1, §6.7.3
 - [ ] 🔴 **P0-LED-02** Ledger schema + migrations: `ledger_accounts`, `journal_entries`, `journal_lines`, `account_balances` (Appendix A.1) · *est 3d* · refs: FR-WAL-02/03/04
 - [ ] 🔴 **P0-LED-03** `LedgerService.post(entry)`: balanced check, idempotency, lock order, non-negative constraint, outbox event (Appendix A.2) · *est 4d* · deps: LED-02
   - AC: property test with 10k random postings → Σ all balances = 0; no negative user balance; replayed idempotency keys return the original entry.
@@ -351,8 +359,8 @@ pnpm build:wasm  # build crates/pool-physics → packages/games/pool/wasm
 - [ ] **P0-LED-05** Outbox relay worker → NATS JetStream (at-least-once publish, consumer dedupe by event ID) · *est 2d*
 
 ### Epic P0-GMK — Game kit
-- [ ] 🔴 **P0-GMK-01** `packages/game-kit`: `GameModule` interface (Appendix B.1), `MatchResult`, intent / state typing, determinism helpers · *est 2d* · refs: SRS §10.1
-- [ ] 🔴 **P0-GMK-02** `packages/fairness`: commit-reveal seeds, `rollInt(min,max)` with HMAC + rejection sampling, verifier (Appendix B.3) · *est 2d* · 🛡️ · refs: SRS §7.2
+- [x] 🔴 **P0-GMK-01** `packages/game-kit`: `GameModule` interface (Appendix B.1), `MatchResult`, intent / state typing, determinism helpers · *est 2d* · refs: SRS §10.1
+- [x] 🔴 **P0-GMK-02** `packages/fairness`: commit-reveal seeds, `rollInt(min,max)` with HMAC + rejection sampling, verifier (Appendix B.3) · *est 2d* · 🛡️ · refs: SRS §7.2
 - [ ] **P0-GMK-03** Simulation runner: random legal play, state-hash comparison (server vs client instance), CLI `pnpm sim --game <id> --n <count>` · *est 3d*
 - [ ] 🔴 **P0-GMK-04** Realtime `GameRoom` base (Colyseus): join with a signed ticket, intent validation via the module, timers, reconnection window, signed result (Ed25519) · *est 5d* · deps: GMK-01 · 🛡️
 - [ ] **P0-GMK-05** Stub game "coin-flip duel" end-to-end (for the skeleton only, removed later) · *est 1d*

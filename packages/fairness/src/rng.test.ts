@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commitSeed, createFairRng, newServerSeed, verifyCommit } from "./rng.js";
+import { commitSeed, createFairRng, newSeed, verifyCommit } from "./rng.js";
 
 describe("fair rng", () => {
   it("is deterministic for identical inputs", () => {
@@ -21,7 +21,7 @@ describe("fair rng", () => {
   });
 
   it("produces uniform dice (chi-square, 60k rolls)", () => {
-    const rng = createFairRng(newServerSeed(), ["x", "y"], "uniformity");
+    const rng = createFairRng(newSeed(), ["x", "y"], "uniformity");
     const counts = [0, 0, 0, 0, 0, 0];
     const n = 60_000;
     for (let i = 0; i < n; i++) counts[rng.int(1, 6) - 1]!++;
@@ -31,8 +31,8 @@ describe("fair rng", () => {
   });
 
   it("verifies commits", () => {
-    const seed = newServerSeed();
+    const seed = newSeed();
     expect(verifyCommit(seed, commitSeed(seed))).toBe(true);
-    expect(verifyCommit(seed, commitSeed(newServerSeed()))).toBe(false);
+    expect(verifyCommit(seed, commitSeed(newSeed()))).toBe(false);
   });
 });

@@ -13,18 +13,28 @@
   },
   "dependencies": {
     "@gukirana/contracts": "workspace:*",
+    "@gukirana/fairness": "workspace:*",
     "@gukirana/i18n": "workspace:*",
+    "@gukirana/igisoro": "workspace:*",
+    "@gukirana/ludo": "workspace:*",
     "@gukirana/money": "workspace:*",
     "@gukirana/ui": "workspace:*",
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.2",
+    "@react-three/xr": "^6.6.32",
+    "colyseus.js": "^0.16.22",
     "next": "^16.0.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "three": "^0.187.0",
+    "zustand": "^5.1.0"
   },
   "devDependencies": {
     "@gukirana/tsconfig": "workspace:*",
     "@tailwindcss/postcss": "^4.1.14",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.1",
+    "@types/three": "^0.187.0",
     "tailwindcss": "^4.1.14"
   }
 }

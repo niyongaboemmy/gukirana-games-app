@@ -18,7 +18,7 @@ const http = createServer((req, res) => {
 });
 
 const gameServer = new Server({ transport: new WebSocketTransport({ server: http }) });
-gameServer.define("world", WorldRoom);
+gameServer.define("plaza", WorldRoom);
 
 await gameServer.listen(env.REALTIME_PORT);
 logger.info({ port: env.REALTIME_PORT }, "realtime listening");
