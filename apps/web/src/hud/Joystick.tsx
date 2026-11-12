@@ -1,4 +1,5 @@
 "use client";
+import { ChevronUp } from "lucide-react";
 import { useRef, useState } from "react";
 import { useWorld } from "@/lib/world-store";
 
@@ -49,7 +50,9 @@ export function Joystick() {
         className="absolute left-1/2 top-1/2 size-[52px] rounded-full bg-gradient-to-b from-white to-[#cfe3ff] shadow-md"
         style={{ transform: `translate(calc(-50% + ${knob.x}px), calc(-50% + ${knob.y}px))` }}
       >
-        <div className="absolute inset-0 grid place-items-center text-[#3DA9FC]">▲</div>
+        <div className="absolute inset-0 grid place-items-center text-[#3DA9FC]">
+          <ChevronUp size={18} strokeWidth={2} />
+        </div>
       </div>
     </div>
   );

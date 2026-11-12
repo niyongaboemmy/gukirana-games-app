@@ -1,6 +1,8 @@
 "use client";
 import { Client, type Room } from "colyseus.js";
 import { useWorld, type RemotePlayer } from "./world-store";
+import { lookOf, useProfile } from "./profile-store";
+import { encodeLook } from "@/world/outfits";
 
 /** Realtime connection to the plaza room (plan P1-WLD-01/02). Works over LAN for phone testing. */
 let room: Room | null = null;
@@ -12,13 +14,15 @@ function realtimeUrl(): string {
   return `${proto}://${location.hostname}:2567`;
 }
 
-export async function connectPlaza(profile: { name: string; color: string; level: number }): Promise<void> {
+export async function connectPlaza(profile: { name: string; color: string; level: number; look?: string }): Promise<void> {
   if (room || connecting) return;
   connecting = true;
   const w = useWorld.getState();
   try {
     const client = new Client(realtimeUrl());
-    room = await client.joinOrCreate("plaza", profile);
+    // `look` is optional: servers that don't know it ignore it; when passed through it renders the chosen avatar.
+    const look = profile.look ?? encodeLook(lookOf(useProfile.getState()));
+    room = await client.joinOrCreate("plaza", { ...profile, look });
     w.set({ connected: true });
     room.onMessage("snapshot", (m: { you: string; players: RemotePlayer[] }) => {
       const players: Record<string, RemotePlayer> = {};

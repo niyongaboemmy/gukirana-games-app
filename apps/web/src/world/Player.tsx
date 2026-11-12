@@ -1,11 +1,14 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useXR } from "@react-three/xr";
 import * as THREE from "three";
 import { Avatar } from "./Avatar";
-import { FOUNTAIN_RADIUS, INTERACT_RADIUS, PLAZA_RADIUS, PORTALS, portalTransform, SPAWN } from "./layout";
+import { COLLIDERS, INTERACT_RADIUS, PLAZA_RADIUS, PORTALS, portalTransform, SPAWN } from "./layout";
+import { decodeLook } from "./outfits";
+import type { Tier } from "./materials";
 import { useWorld } from "@/lib/world-store";
+import { lookOf, useProfile } from "@/lib/profile-store";
 import { sendMove } from "@/lib/realtime";
 
 const WALK = 3.0; // m/s (DESIGN-SPEC §6.1)
@@ -14,11 +17,35 @@ const keys = new Set<string>();
 
 /** Camera orbit state shared between the camera rig and the movement code. */
 export const cameraState = { yaw: 0, pitch: 0.3, distance: 5.6 };
+// dev-only hook for visual QA scripts (headless screenshots of wide views); stripped from production logic
+if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") (window as unknown as { __gkCam: typeof cameraState }).__gkCam = cameraState;
 
-export function LocalPlayer({ color, name, level }: { color: string; name: string; level: number }) {
+/**
+ * Spawn spread over a ring around the arrival point (the avenue from the gate), so players who arrive together
+ * don't overlap: angle from a hash of the username plus a small per-session jitter (cosmetic, not game randomness).
+ */
+function spawnPoint(name: string): THREE.Vector3 {
+  let h = 2166136261;
+  for (let i = 0; i < name.length; i++) h = Math.imul(h ^ name.charCodeAt(i), 16777619);
+  const a = (((h >>> 0) % 360) * Math.PI) / 180 + Math.random() * 0.8;
+  const r = 1.6 + Math.random() * 1.6;
+  return new THREE.Vector3(SPAWN.x + Math.sin(a) * r, 0, SPAWN.z + Math.cos(a) * r * 0.6);
+}
+
+export function LocalPlayer({ color, name, level, tier = "standard" }: { color: string; name: string; level: number; tier?: Tier }) {
+  const bodyType = useProfile((s) => s.bodyType);
+  const skinTone = useProfile((s) => s.skinTone);
+  const hairStyle = useProfile((s) => s.hairStyle);
+  const hairColor = useProfile((s) => s.hairColor);
+  const outfit = useProfile((s) => s.outfit);
+  const liveColor = useProfile((s) => s.color) || color;
+  const look = useMemo(
+    () => lookOf({ bodyType, skinTone, hairStyle, hairColor, outfit, color: liveColor }),
+    [bodyType, skinTone, hairStyle, hairColor, outfit, liveColor],
+  );
   const group = useRef<THREE.Group>(null);
   const anim = useRef(0);
-  const pos = useRef(new THREE.Vector3(SPAWN.x, 0, SPAWN.z));
+  const pos = useRef(spawnPoint(name));
   const facing = useRef(Math.PI);
   const { camera, gl } = useThree();
   const inXR = useXR((s) => s.session != null);
@@ -99,10 +126,18 @@ export function LocalPlayer({ color, name, level }: { color: string; name: strin
       anim.current = e && e.until > Date.now() ? e.id : 0;
     }
 
-    // collisions: plaza edge, fountain
+    // collisions: plaza edge, then push out of round obstacles (fountain, planters, benches, totems)
     const r = Math.hypot(pos.current.x, pos.current.z);
-    if (r > PLAZA_RADIUS - 1) pos.current.multiplyScalar((PLAZA_RADIUS - 1) / r);
-    if (r < FOUNTAIN_RADIUS + 0.5 && r > 0.001) pos.current.multiplyScalar((FOUNTAIN_RADIUS + 0.5) / r);
+    if (r > PLAZA_RADIUS) pos.current.multiplyScalar(PLAZA_RADIUS / r);
+    for (const c of COLLIDERS) {
+      const dx = pos.current.x - c.x;
+      const dz = pos.current.z - c.z;
+      const d = Math.hypot(dx, dz);
+      if (d < c.r && d > 0.0001) {
+        pos.current.x = c.x + (dx / d) * c.r;
+        pos.current.z = c.z + (dz / d) * c.r;
+      }
+    }
 
     if (group.current) {
       group.current.position.copy(pos.current);
@@ -125,9 +160,16 @@ export function LocalPlayer({ color, name, level }: { color: string; name: strin
       const t = portalTransform(p);
       if (Math.hypot(t.entryX - pos.current.x, t.entryZ - pos.current.z) < INTERACT_RADIUS) nearPortal = p.id;
     }
+    // nearest verified player within reach (players without the field — older servers — count as eligible)
     let nearPlayer: string | null = null;
+    let best = 2.6;
     for (const op of Object.values(w.players)) {
-      if (Math.hypot(op.x / 100 - pos.current.x, op.z / 100 - pos.current.z) < 2.6) nearPlayer = op.id;
+      if (op.verified === false) continue;
+      const d = Math.hypot(op.x / 100 - pos.current.x, op.z / 100 - pos.current.z);
+      if (d < best) {
+        best = d;
+        nearPlayer = op.id;
+      }
     }
     if (nearPortal !== w.nearPortal || nearPlayer !== w.nearPlayer) w.set({ nearPortal, nearPlayer });
 
@@ -136,13 +178,23 @@ export function LocalPlayer({ color, name, level }: { color: string; name: strin
 
   return (
     <group ref={group}>
-      <Avatar color={color} name={name} level={level} animRef={anim} />
+      <Avatar look={look} name={name} level={level} animRef={anim} shadows={tier !== "lite"} />
     </group>
   );
 }
 
-function RemoteAvatar({ id }: { id: string }) {
+function RemoteAvatar({ id, tier }: { id: string; tier: Tier }) {
   const p = useWorld((s) => s.players[id]);
+  const lookStr = p?.look;
+  const color = p?.color ?? "#3DA9FC";
+  // `look` is optional on the wire; without it the avatar falls back to the default look in the player's colour
+  const bodyType = p?.bodyType;
+  const look = useMemo(() => {
+    const l = decodeLook(lookStr, color);
+    // server may send the chosen body type on its own (no full look yet)
+    if (!lookStr && (bodyType === "feminine" || bodyType === "masculine" || bodyType === "neutral")) l.bodyType = bodyType;
+    return l;
+  }, [lookStr, color, bodyType]);
   const group = useRef<THREE.Group>(null);
   const anim = useRef(0);
   useFrame((_, dt) => {
@@ -160,12 +212,12 @@ function RemoteAvatar({ id }: { id: string }) {
   if (!p) return null;
   return (
     <group ref={group} position={[p.x / 100, 0, p.z / 100]}>
-      <Avatar color={p.color} name={p.name} level={p.level} animRef={anim} />
+      <Avatar look={look} name={p.name} level={p.level} animRef={anim} lod shadows={tier !== "lite"} />
     </group>
   );
 }
 
-export function RemotePlayers() {
+export function RemotePlayers({ tier = "standard" }: { tier?: Tier }) {
   const ids = useWorld((s) => Object.keys(s.players).join(","));
   return (
     <>
@@ -173,7 +225,7 @@ export function RemotePlayers() {
         .split(",")
         .filter(Boolean)
         .map((id) => (
-          <RemoteAvatar key={id} id={id} />
+          <RemoteAvatar key={id} id={id} tier={tier} />
         ))}
     </>
   );
