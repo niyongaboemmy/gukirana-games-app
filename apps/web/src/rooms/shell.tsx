@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
 import * as THREE from "three";
@@ -11,9 +11,18 @@ import { uiAudio } from "@/lib/audio";
 import { PlazaGlimpse } from "./PlazaGlimpse";
 
 const FONT = "/fonts/Baloo2.ttf";
-/** The doors start sliding at ~4.2 m and are fully open by ~2 m, so you can walk straight in without stopping. */
-const DOOR_START = 4.2;
-const DOOR_FULL = 2.0;
+/**
+ * Door operator (like a real sensor-driven sliding door): latched open / closed with hysteresis, so standing near the
+ * door never makes the leaves hover or replay the whoosh. Opens when you are within OPEN_R and walking towards it
+ * (or already in the doorway, or leaving); closes once you have been beyond CLOSE_R for CLOSE_DELAY seconds.
+ */
+const OPEN_R = 3.2;
+const DOORWAY_R = 1.6;
+const CLOSE_R = 4.8;
+const CLOSE_DELAY = 0.6;
+const OPEN_S = 0.9;
+const CLOSE_S = 1.2;
+const WHOOSH_COOLDOWN = 1.5;
 
 /* ---------------- door chime: a soft pneumatic "whoosh" (filtered noise, WebAudio, no asset) ---------------- */
 function whoosh(opening: boolean) {
@@ -50,99 +59,121 @@ function whoosh(opening: boolean) {
 
 /* ---------------- auto sliding door ---------------- */
 
+const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+
+/**
+ * Surface-mounted automatic sliding door on the inside face of the entrance wall (`z` = the wall face). The two leaves
+ * run on their own tracks in front of the wall (left 10 cm, right 13 cm into the room: never in the wall's plane, never
+ * coplanar with each other), under a header track + operator housing that also stands clear of the wall. Glass is one
+ * shared low-opacity physical material with a fixed render order; every other part is opaque (no sorting flicker).
+ */
 export function AutoDoor({ x, z, w, color }: { x: number; z: number; w: number; color: string }) {
   const left = useRef<THREE.Group>(null);
   const right = useRef<THREE.Group>(null);
-  const open = useRef(0);
-  const wasOpening = useRef(false);
+  const op = useRef({ latched: false, progress: 0, init: false, farFor: 0, lastDist: 0, approach: 0, lastWhoosh: -99, t: 0 });
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.05);
+    const o = op.current;
+    o.t += dt;
     const dist = Math.hypot(selfPose.x - x, selfPose.z - z);
-    // target opening follows distance (smoothstep), the panels ease towards it (fast enough to beat a running player)
-    const k = THREE.MathUtils.clamp((DOOR_START - dist) / (DOOR_START - DOOR_FULL), 0, 1);
-    const target = k * k * (3 - 2 * k);
-    const rate = target > open.current ? 7 : 2.5;
-    open.current += (target - open.current) * Math.min(1, dt * rate);
-    const opening = target > 0.05;
-    if (opening !== wasOpening.current) {
-      wasOpening.current = opening;
-      whoosh(opening);
+    if (!o.init) {
+      // arriving through this door: it is already open behind you
+      o.init = true;
+      o.lastDist = dist;
+      o.latched = dist < DOORWAY_R;
+      o.progress = o.latched ? 1 : 0;
     }
-    const slide = open.current * (w / 2 - 0.04);
+    // approach speed (m/s towards the door), smoothed so a single jittery frame never triggers the sensor
+    const v = (o.lastDist - dist) / Math.max(dt, 1e-3);
+    o.lastDist = dist;
+    o.approach += (v - o.approach) * Math.min(1, dt * 6);
+    const leaving = useRoom.getState().leaving;
+    if (!o.latched) {
+      if (dist < DOORWAY_R || (dist < OPEN_R && o.approach > 0.25) || (leaving && dist < 6)) o.latched = true;
+    } else {
+      o.farFor = dist > CLOSE_R && !leaving ? o.farFor + dt : 0;
+      if (o.farFor > CLOSE_DELAY) o.latched = false;
+    }
+    const before = o.progress;
+    o.progress = THREE.MathUtils.clamp(o.progress + (o.latched ? dt / OPEN_S : -dt / CLOSE_S), 0, 1);
+    if (o.progress !== before && (before === 0 || before === 1) && o.t - o.lastWhoosh > WHOOSH_COOLDOWN) {
+      o.lastWhoosh = o.t;
+      whoosh(o.latched);
+    }
+    const eased = easeInOutCubic(o.progress);
+    const slide = eased * (w / 2 - 0.06);
     if (left.current) left.current.position.x = -w / 4 - slide;
     if (right.current) right.current.position.x = w / 4 + slide;
-    const isOpen = open.current > 0.55;
+    const isOpen = eased >= 0.55; // collision gate for walking out (the leave flow relies on it)
     if (isOpen !== useRoom.getState().doorOpen) useRoom.getState().set({ doorOpen: isOpen });
   });
-  const panel = (
+  const mats = useMemo(
+    () => ({
+      glass: new THREE.MeshPhysicalMaterial({ color: "#c5d3da", transparent: true, opacity: 0.16, roughness: 0.04, metalness: 0, reflectivity: 0.6, envMapIntensity: 1.3, depthWrite: false }),
+      alu: new THREE.MeshStandardMaterial({ color: "#b9bec6", metalness: 0.85, roughness: 0.3 }),
+      steel: new THREE.MeshStandardMaterial({ color: "#d6d9de", metalness: 0.95, roughness: 0.15 }),
+      // satin-frosted safety band, tinted towards the hall colour (opaque: never sorted against the glass)
+      band: new THREE.MeshStandardMaterial({ color: new THREE.Color("#e9eef0").lerp(new THREE.Color(color), 0.35), roughness: 0.6, metalness: 0 }),
+      housing: new THREE.MeshStandardMaterial({ color: "#2a2d34", metalness: 0.7, roughness: 0.35 }),
+    }),
+    [color],
+  );
+  useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats]);
+  const H = 2.6; // glass height (between the rails)
+  const lw = w / 2; // leaf width
+  const leaf = (
     <>
-      <mesh>
-        <boxGeometry args={[w / 2, 2.7, 0.025]} />
-        <meshStandardMaterial
-          color="#9fb7c4"
-          transparent
-          opacity={0.22}
-          roughness={0.04}
-          metalness={0.2}
-          envMapIntensity={1.5}
-          depthWrite={false}
-        />
+      <mesh material={mats.glass} renderOrder={3}>
+        <boxGeometry args={[lw - 0.1, H, 0.012]} />
       </mesh>
-      {/* aluminium stiles + rails */}
-      {[-1, 1].map((s) => (
-        <mesh key={s} position={[(s * w) / 4 - s * 0.025, 0, 0]}>
-          <boxGeometry args={[0.05, 2.7, 0.05]} />
-          <meshStandardMaterial color="#b9bec6" metalness={0.85} roughness={0.3} />
+      {/* aluminium stiles + top / bottom rails framing the glass (no shared faces with it) */}
+      {[-1, 1].map((sd) => (
+        <mesh key={sd} material={mats.alu} position={[sd * (lw / 2 - 0.025), 0, 0]}>
+          <boxGeometry args={[0.05, H + 0.16, 0.044]} />
         </mesh>
       ))}
-      <mesh position={[0, -1.33, 0]}>
-        <boxGeometry args={[w / 2, 0.06, 0.05]} />
-        <meshStandardMaterial color="#b9bec6" metalness={0.85} roughness={0.3} />
-      </mesh>
-      {/* vertical pull handle (stainless) on the meeting edge */}
-      <mesh position={[0, 0, 0.05]}>
+      {[-1, 1].map((sd) => (
+        <mesh key={`r${sd}`} material={mats.alu} position={[0, sd * (H / 2 + 0.04), 0]}>
+          <boxGeometry args={[lw - 0.1, 0.08, 0.04]} />
+        </mesh>
+      ))}
+      {/* vertical pull handle on the room side, near the meeting edge */}
+      <mesh material={mats.steel} position={[0, 0, -0.05]}>
         <cylinderGeometry args={[0.014, 0.014, 0.9, 10]} />
-        <meshStandardMaterial color="#d6d9de" metalness={0.95} roughness={0.15} />
       </mesh>
-      {/* frosted manifestation band (safety marking) */}
-      <mesh position={[0, -0.25, 0.016]}>
-        <boxGeometry args={[w / 2 - 0.06, 0.08, 0.004]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={color}
-          emissiveIntensity={0.6}
-          transparent
-          opacity={0.85}
-        />
+      {/* frosted manifestation band (safety marking) on the room-side face, 2 mm proud of the glass */}
+      <mesh material={mats.band} position={[0, -0.25, -0.009]}>
+        <boxGeometry args={[lw - 0.1, 0.08, 0.002]} />
       </mesh>
     </>
   );
+  // leaves hang so their bottom rail clears the floor by 1 cm
+  const cy = 0.01 + 0.08 + H / 2;
   return (
-    <group position={[x, 1.35, z]}>
-      <group ref={left}>{panel}</group>
-      <group ref={right}>{panel}</group>
-      {/* operator housing + sensor */}
-      <mesh position={[0, 1.5, 0]}>
-        <boxGeometry args={[w + 0.4, 0.3, 0.32]} />
-        <meshStandardMaterial color="#2a2d34" metalness={0.7} roughness={0.35} />
+    <group position={[x, 0, z]}>
+      <group ref={left} position={[-w / 4, cy, -0.1]}>
+        {leaf}
+      </group>
+      <group ref={right} position={[w / 4, cy, -0.13]}>
+        {leaf}
+      </group>
+      {/* header track (full travel) + operator housing, standing clear of the wall face */}
+      <mesh material={mats.alu} position={[0, cy + H / 2 + 0.13, -0.115]}>
+        <boxGeometry args={[w * 2 - 0.1, 0.05, 0.08]} />
       </mesh>
-      <mesh position={[0, 1.36, 0.17]}>
-        <boxGeometry args={[0.18, 0.04, 0.03]} />
+      <mesh material={mats.housing} position={[0, cy + H / 2 + 0.3, -0.13]}>
+        <boxGeometry args={[w * 2, 0.28, 0.2]} />
+      </mesh>
+      <mesh position={[0, cy + H / 2 + 0.18, -0.235]}>
+        <boxGeometry args={[0.18, 0.04, 0.012]} />
         <meshStandardMaterial color="#111" emissive="#ff2a2a" emissiveIntensity={0.8} />
       </mesh>
       {/* illuminated EXIT sign above the operator */}
-      <mesh position={[0, 1.92, -0.2]}>
+      <mesh position={[0, cy + H / 2 + 0.72, -0.06]}>
         <boxGeometry args={[0.9, 0.3, 0.08]} />
         <meshStandardMaterial color="#0d7a3e" emissive="#16a34a" emissiveIntensity={1.4} toneMapped={false} />
       </mesh>
-      <Text
-        font={FONT}
-        fontSize={0.17}
-        position={[0, 1.91, -0.245]}
-        rotation={[0, Math.PI, 0]}
-        anchorX="center"
-        anchorY="middle"
-      >
+      <Text font={FONT} fontSize={0.17} position={[0, cy + H / 2 + 0.71, -0.105]} rotation={[0, Math.PI, 0]} anchorX="center" anchorY="middle">
         EXIT · PLAZA
         <meshBasicMaterial color={[2.4, 2.4, 2.4]} toneMapped={false} />
       </Text>
@@ -264,6 +295,11 @@ export function DoorGlimpse({ layout, lite = false }: { layout: HallLayout; lite
   return (
     <group>
       <PlazaGlimpse layout={layout} lite={lite} />
+      {/* basalt threshold through the wall opening (the plaza impostor starts 35 cm outside the wall face) */}
+      <mesh position={[layout.door.x, 0.003, d / 2 + 0.24]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[layout.door.w + 0.2, 0.52]} />
+        <meshStandardMaterial color="#3a3836" roughness={0.85} />
+      </mesh>
       <GltfInstances
         url={model("potted_plant_02")}
         items={[

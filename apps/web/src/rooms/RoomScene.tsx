@@ -26,7 +26,7 @@ export function RoomScene({ layout, lite }: { layout: HallLayout; lite: boolean 
       ) : (
         <IgisoroCourt layout={layout} lite={lite} />
       )}
-      <AutoDoor x={layout.door.x} z={d / 2 - 0.05} w={layout.door.w} color={layout.color} />
+      <AutoDoor x={layout.door.x} z={d / 2} w={layout.door.w} color={layout.color} />
       <Suspense fallback={null}>
         <DoorGlimpse layout={layout} lite={lite} />
       </Suspense>

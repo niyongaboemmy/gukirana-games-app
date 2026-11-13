@@ -36,7 +36,7 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
       const dz = wz - frame.centre.z;
       return [dx * c + dz * s + layout.door.x, -dx * s + dz * c];
     };
-    const parts: Record<string, Part[]> = { paving: [], lawn: [], stone: [], white: [], glass: [], water: [], agaseke: [], green: [], roof: [] };
+    const parts: Record<string, Part[]> = { paving: [], lawn: [], stone: [], white: [], glass: [], water: [], agaseke: [], green: [], roof: [], arenaStone: [], arenaGlass: [], arenaWhite: [], arenaRoof: [] };
     const q = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
     const add = (mat: string, geo: THREE.BufferGeometry, wx: number, y: number, wz: number, rotY = 0, scale: [number, number, number] = [1, 1, 1]) => {
@@ -71,10 +71,10 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
 
     // Tournament Arena: basalt plinth, glazed concourse, white drum and the shallow dome
     const ell = (rx: number, rz: number) => [rx, 1, rz] as [number, number, number];
-    add("stone", new THREE.CylinderGeometry(1, 1, 1.2, seg, 1, true), 0, 0.6, ARENA.cz, 0, ell(ARENA.rx + 0.4, ARENA.rz + 0.4));
-    add("glass", new THREE.CylinderGeometry(1, 1, 6, seg, 1, true), 0, 4.2, ARENA.cz, 0, ell(ARENA.rx - 0.3, ARENA.rz - 0.3));
-    add("white", new THREE.CylinderGeometry(1, 1, ARENA.wall - 7.1, seg, 1, false), 0, 7.1 + (ARENA.wall - 7.1) / 2, ARENA.cz, 0, ell(ARENA.rx + 0.2, ARENA.rz + 0.2));
-    add("roof", new THREE.SphereGeometry(1, seg, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0, ARENA.wall + 0.2, ARENA.cz, 0, [ARENA.rx + 0.45, 5.5, ARENA.rz + 0.45]);
+    add("arenaStone", new THREE.CylinderGeometry(1, 1, 1.2, seg, 1, true), 0, 0.6, ARENA.cz, 0, ell(ARENA.rx + 0.4, ARENA.rz + 0.4));
+    add("arenaGlass", new THREE.CylinderGeometry(1, 1, 6, seg, 1, true), 0, 4.2, ARENA.cz, 0, ell(ARENA.rx - 0.3, ARENA.rz - 0.3));
+    add("arenaWhite", new THREE.CylinderGeometry(1, 1, ARENA.wall - 7.1, seg, 1, false), 0, 7.1 + (ARENA.wall - 7.1) / 2, ARENA.cz, 0, ell(ARENA.rx + 0.2, ARENA.rz + 0.2));
+    add("arenaRoof", new THREE.SphereGeometry(1, seg, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0, ARENA.wall + 0.2, ARENA.cz, 0, [ARENA.rx + 0.45, 5.5, ARENA.rz + 0.45]);
 
     // neighbouring buildings on the door ring (this hall itself is where you stand)
     const building = (p: PortalDef | { angleDeg: number; kind: "service" }) => {
@@ -119,7 +119,7 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
     gl.localClippingEnabled = true;
   }, [gl]);
   const mats = useMemo(() => {
-    const clip = [new THREE.Plane(new THREE.Vector3(0, 0, 1), -(d / 2 + 0.25))];
+    const clip = [new THREE.Plane(new THREE.Vector3(0, 0, 1), -(d / 2 + 0.35))];
     const day = (color: string, k = 0.55, extra: THREE.MeshLambertMaterialParameters = {}) =>
       new THREE.MeshLambertMaterial({ color, emissive: new THREE.Color(color).multiplyScalar(k), clippingPlanes: clip, ...extra });
     const paving = pavingTexture().clone();
@@ -130,7 +130,7 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
     agaseke.wrapS = agaseke.wrapT = THREE.RepeatWrapping;
     agaseke.repeat.set(6, 1);
     agaseke.needsUpdate = true;
-    return {
+    const out = {
       paving: day("#b9b2a6", 0.62, { map: paving, emissiveMap: paving }),
       lawn: day("#6f8f4c", 0.5),
       stone: day("#5d5a55", 0.5),
@@ -141,6 +141,15 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
       green: day("#557c3a", 0.5),
       roof: day("#9ea3a8", 0.55),
     } as Record<string, THREE.MeshLambertMaterial>;
+    // the arena drum stands right beside some halls: only draw it from 8 m outside the door, so it never hangs over
+    // the doorway like a canopy (the real hall exteriors are smaller than these interiors)
+    const far = [new THREE.Plane(new THREE.Vector3(0, 0, 1), -(d / 2 + 8))];
+    for (const k of ["stone", "glass", "white", "roof"]) {
+      const m = out[k]!.clone();
+      m.clippingPlanes = far;
+      out[`arena${k[0]!.toUpperCase()}${k.slice(1)}`] = m;
+    }
+    return out;
   }, [d]);
 
   useEffect(
