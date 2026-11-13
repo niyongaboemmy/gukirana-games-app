@@ -4,9 +4,10 @@ import { useFrame } from "@react-three/fiber";
 import { RoundedBox, Sparkles, Text } from "@react-three/drei";
 import * as THREE from "three";
 import { ARENA, buildDistrict } from "./District";
+import { LUDO_DIE, PLOTS } from "./footprints";
 import { Landscape } from "./Landscape";
 import { Lighting } from "./Lighting";
-import { DOOR, DOOR_OPEN_RADIUS, DOOR_RING, doorInset, doorLocal, VESTIBULE_DEPTH, PORTALS, portalTransform, ringPoint, SERVICE_ANGLE, TOTEMS, type PortalDef } from "./layout";
+import { DOOR, DOOR_OPEN_RADIUS, DOOR_RING, doorInset, doorLocal, VESTIBULE_DEPTH, PORTALS, portalTransform, ringPoint, SERVICE_ANGLE, TOTEMS, WAYFINDING, wayfindingRows, EXPANSION_PLOTS, EXPANSION_RING, FOUNTAIN_COURT, OUTER_PROMENADE, PLAZA_RADIUS, SPAWN, type PortalDef } from "./layout";
 import { doorHold, doorOpen } from "./transition";
 import { selfPose, useWorld } from "@/lib/world-store";
 import { plazaDoorSound, PlazaLife } from "./Ambience";
@@ -328,11 +329,11 @@ function GiantDie() {
   return (
     <group position={[x, 0, z]} rotation={[0, rotY, 0]}>
       {/* axle through the fork arms (District.ts ludoLounge) */}
-      <mesh position={[4, 11.7, -12]} rotation={[0, 0, Math.PI / 2]}>
+      <mesh position={[LUDO_DIE.x, LUDO_DIE.y, LUDO_DIE.z]} rotation={[0, 0, Math.PI / 2]}>
         <cylinderGeometry args={[0.05, 0.05, 2.6, 8]} />
         <meshStandardMaterial color="#3a3f47" metalness={0.9} roughness={0.4} />
       </mesh>
-      <group ref={die} position={[4, 11.7, -12]}>
+      <group ref={die} position={[LUDO_DIE.x, LUDO_DIE.y, LUDO_DIE.z]}>
         <RoundedBox args={[2.2, 2.2, 2.2]} radius={0.32} smoothness={3} castShadow>
           <meshStandardMaterial color="#f7f4ee" roughness={0.25} metalness={0.05} />
         </RoundedBox>
@@ -347,9 +348,82 @@ function GiantDie() {
   );
 }
 
+/**
+ * Campus map for the welcome totem, drawn from the plot data (footprints.ts PLOTS), so every new hall or plot shows up
+ * on it without any edit: plaza, inner ring halls in their colours, reserved plots hatched grey, "you are here".
+ */
+function siteMapTexture(): THREE.CanvasTexture {
+  const S = 512;
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const g = c.getContext("2d")!;
+  const span = OUTER_EDGE * 2;
+  const px = (v: number) => S / 2 + (v / span) * S;
+  g.fillStyle = "#1b1e23";
+  g.fillRect(0, 0, S, S);
+  g.lineWidth = 2;
+  g.strokeStyle = "#3a414b";
+  g.fillStyle = "#2a2f36";
+  for (const [r, fill] of [
+    [OUTER_PROMENADE.r1, false],
+    [PLAZA_RADIUS, true],
+  ] as const) {
+    g.beginPath();
+    g.arc(px(0), px(0), (r / span) * S, 0, Math.PI * 2);
+    if (fill) g.fill();
+    g.stroke();
+  }
+  const colour = (id: string) => PORTALS.find((p) => p.id === id && p.kind !== "soon")?.color ?? (id === "service" ? GAME_COLORS.sky : "#6b7380");
+  for (const p of PLOTS) {
+    const d = ringPoint(p.angleDeg, p.ring);
+    const cs = Math.cos(d.rotY);
+    const sn = Math.sin(d.rotY);
+    g.fillStyle = colour(p.id);
+    g.globalAlpha = p.type === "site" || p.type === "soon" ? 0.45 : 0.95;
+    if (p.type === "arena") {
+      g.beginPath();
+      g.ellipse(px(d.x - ARENA.cz * sn), px(d.z + ARENA.cz * cs), (ARENA.rx / span) * S, (ARENA.rz / span) * S, 0, 0, Math.PI * 2);
+      g.fill();
+    } else
+      for (const f of p.rects) {
+        g.beginPath();
+        for (const [lx, lz] of [
+          [f.x0, f.z0],
+          [f.x1, f.z0],
+          [f.x1, f.z1],
+          [f.x0, f.z1],
+        ] as const)
+          g.lineTo(px(d.x + lx * cs + lz * sn), px(d.z - lx * sn + lz * cs));
+        g.closePath();
+        g.fill();
+      }
+  }
+  g.globalAlpha = 1;
+  // the avenue to the gates, the fountain and "you are here"
+  g.fillStyle = "#2a2f36";
+  g.fillRect(px(-4), px(PLAZA_RADIUS), (8 / span) * S, S);
+  g.fillStyle = "#3d7fd9";
+  g.beginPath();
+  g.arc(px(0), px(0), (FOUNTAIN_COURT / span) * S, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "#f5f6f8";
+  g.beginPath();
+  g.arc(px(SPAWN.x), px(SPAWN.z), 7, 0, Math.PI * 2);
+  g.fill();
+  g.font = "600 22px sans-serif";
+  g.fillText("You are here", px(SPAWN.x) + 12, px(SPAWN.z) + 8);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+const OUTER_EDGE = EXPANSION_RING + 50;
+
 function Totems() {
+  const map = useMemo(() => siteMapTexture(), []);
+  useEffect(() => () => map.dispose(), [map]);
   const content = {
-    welcome: { title: "Welcome", color: "#3DA9FC", lines: ["Walk to a lit door to play", "Tap a player to say hi", "Fair dice, verified rolls"] },
+    welcome: { title: "Welcome", color: "#3DA9FC", lines: [] as string[] },
     wallet: { title: "Wallet Kiosk", color: "#F5B301", lines: ["Practice with Stars today", "Coins arrive with the", "licensed real-money pilot"] },
   } as const;
   return (
@@ -365,11 +439,53 @@ function Totems() {
             <Text font={FONT} fontSize={0.3} color={c.color} position={[0, 3.1, 0.16]} anchorX="center">
               {c.title}
             </Text>
+            {t.id === "welcome" && (
+              <mesh position={[0, 1.78, 0.158]}>
+                <planeGeometry args={[2.05, 2.05]} />
+                <meshBasicMaterial map={map} toneMapped={false} />
+              </mesh>
+            )}
             {c.lines.map((l, i) => (
               <Text key={i} font={FONT} fontSize={0.16} color="#ffffff" position={[0, 2.55 - i * 0.32, 0.16]} anchorX="center" maxWidth={2}>
                 {l}
               </Text>
             ))}
+          </group>
+        );
+      })}
+    </>
+  );
+}
+
+/** Wayfinding sign lettering (District.ts draws the posts, panels and colour bars): one Text per face. */
+function Wayfinding() {
+  const signs = useMemo(() => WAYFINDING.map((w) => ({ w, text: wayfindingRows(w).map((r) => `${r.name}   ${r.m} m`).join("\n") })), []);
+  return (
+    <>
+      {signs.map(({ w, text }) => (
+        <group key={w.deg} position={[w.x, 0, w.z]} rotation={[0, w.rotY, 0]}>
+          {[0, Math.PI].map((face) => (
+            <Text key={face} rotation={[0, face, 0]} font={FONT} fontSize={0.085} lineHeight={4.94} color="#eef0f3" position={[Math.cos(face) * -0.54, 1.45, Math.cos(face) * 0.095]} anchorX="left" anchorY="middle">
+              {text}
+            </Text>
+          ))}
+        </group>
+      ))}
+    </>
+  );
+}
+
+/** Lettering on the site boards of the reserved expansion plots (District.ts hallSite draws the boards). */
+function PlotSigns() {
+  return (
+    <>
+      {EXPANSION_PLOTS.map((e) => {
+        const d = ringPoint(e.angleDeg, EXPANSION_RING);
+        return (
+          <group key={e.id} position={[d.x, 0, d.z]} rotation={[0, d.rotY, 0]}>
+            <Text font={FONT} fontSize={0.34} color="#e6e8eb" position={[4.4, 3.4, -0.24]} anchorX="center" anchorY="middle" textAlign="center" lineHeight={1.25}>
+              {`HALL PLOT ${e.n}\nCOMING SOON`}
+            </Text>
           </group>
         );
       })}
@@ -403,7 +519,9 @@ export function Plaza({ nearPortal, tier = "standard" }: { nearPortal: string | 
       <ArenaScreen tier={tier} />
       <GiantDie />
       <Totems />
+      <Wayfinding />
       <ServiceSign />
+      <PlotSigns />
       <EntryGate tier={tier} />
     </group>
   );

@@ -230,17 +230,16 @@ export function pavingTexture(): THREE.CanvasTexture {
  * soft blotches at 8–16 m, darker worn lines from the entrance to the fountain and on to every door, and scuffed
  * rings around the benches. Grey = 1.0 (neutral) at 50 % … darker below.
  */
-export function pavingWearTexture(paths: { x: number; z: number }[][], spots: { x: number; z: number; r: number }[]): THREE.CanvasTexture {
+export function pavingWearTexture(paths: { x: number; z: number }[][], spots: { x: number; z: number; r: number }[], half = 33): THREE.CanvasTexture {
   return cached("paving-wear", () => {
-    const S = 256;
-    const half = 33;
+    const S = 512;
     const { c, g } = canvas(S, S);
     const r = rng(17);
     const px = (x: number) => ((x + half) / (half * 2)) * S;
     g.fillStyle = "rgb(250,250,250)";
     g.fillRect(0, 0, S, S);
-    // soft grime blotches (8–16 m)
-    for (let i = 0; i < 70; i++) {
+    // soft grime blotches (8–16 m), as many per square metre whatever the plaza size
+    for (let i = 0; i < Math.round(70 * (half / 33) ** 2); i++) {
       const x = r() * S;
       const y = r() * S;
       const rad = ((4 + r() * 8) / (half * 2)) * S;

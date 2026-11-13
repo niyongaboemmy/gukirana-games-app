@@ -39,7 +39,7 @@ export interface ChatLine {
  */
 export const selfPose = { x: 0, z: 16, yaw: Math.PI };
 
-export type PortalId = "pool" | "ludo" | "igisoro" | "arena" | "soon-left" | "soon-right";
+export type PortalId = "pool" | "ludo" | "igisoro" | "arena" | "soon-left" | "soon-right" | "soon-sw" | "soon-se";
 
 interface WorldState {
   connected: boolean;

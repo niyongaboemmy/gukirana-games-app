@@ -2,35 +2,40 @@ import * as THREE from "three";
 import { GeoBatch } from "./geo";
 import { LAMPS } from "./obstacles";
 import { RING_PLANTERS } from "./beds";
-import { BENCHES, DOOR, DOOR_RING, FOUNTAIN_RADIUS, PORTALS, ringPoint, SERVICE_ANGLE, SPAWN, TOTEMS, type PortalDef } from "./layout";
+import { ARENA, FOOTPRINTS, igisoroHall, inBuilding, LUDO_DIE, PLOTS, sitePlan, toLocal, WING_HW, wingedHall } from "./footprints";
+import {
+  BENCHES,
+  DOOR,
+  DOOR_RING,
+  FOUNTAIN_COURT,
+  FOUNTAIN_RADIUS,
+  PAVING_R,
+  PERIMETER_R,
+  PORTALS,
+  RING_ROAD,
+  ringPoint,
+  SPAWN,
+  TOTEMS,
+  ENTRY_Z,
+  EXPANSION_PLOTS,
+  EXPANSION_RING,
+  OUTER_PROMENADE,
+  WAYFINDING,
+  wayfindingRows,
+  type PortalDef,
+} from "./layout";
+
+export { ARENA, FOOTPRINTS, toLocal };
 
 /**
  * Static architecture of the Gukirana Arena District, authored as primitives and merged per material (geo.ts).
  * Every building is built in a local frame: door centre at the origin, facade facing +z (towards the fountain),
  * the volume extending to −z. Dimensions in metres; see docs/WORLD-ARENA-DESIGN.md §5–6.
  *
- * Exterior scale matches the hall interiors (24 × 18 m): each hall is an entrance wing on the plaza ring with the
- * full-size hall behind it, offset away from its neighbours so the wedge between doors stays open. The doors and
- * their positions on the ring (DOOR_RING, PORTALS) never move.
+ * Exterior scale follows the hall interiors (world/footprints.ts derives every hall volume from rooms/layouts.ts
+ * HALLS): each hall is an entrance wing on the plaza ring with the full-size hall behind it, offset away from its
+ * neighbours so the wedge between doors stays open. The doors sit on the ring (DOOR_RING, PORTALS).
  */
-
-export const ARENA = { cz: -22, rx: 18, rz: 16, wall: 18.5 };
-
-/** Building footprints (local rectangles, incl. roof overhangs) — keeps the perimeter walls out of the halls. */
-export const FOOTPRINTS: Record<PortalDef["kind"] | "service", { x0: number; x1: number; z0: number; z1: number }[]> = {
-  pool: [
-    { x0: -7.6, x1: 7.6, z0: 1.6, z1: -8 },
-    { x0: -15.4, x1: 9.4, z0: -8, z1: -26.4 },
-  ],
-  ludo: [
-    { x0: -7.6, x1: 7.6, z0: 1.6, z1: -8 },
-    { x0: -9.4, x1: 15.4, z0: -8, z1: -26.4 },
-  ],
-  igisoro: [{ x0: -15.4, x1: 11.4, z0: 1, z1: -21.8 }],
-  arena: [{ x0: -19, x1: 19, z0: 3, z1: -39 }],
-  soon: [{ x0: -5.2, x1: 5.2, z0: 0.5, z1: -10 }],
-  service: [{ x0: -5.2, x1: 5.2, z0: 0.6, z1: -7 }],
-};
 
 /** Wall with a door opening, centred on x = 0. */
 function wallWithDoor(b: GeoBatch, key: string, w: number, h: number, z: number, t: number, tile: number) {
@@ -79,8 +84,8 @@ function hallVolume(b: GeoBatch, wall: string, x0: number, x1: number, z0: numbe
   b.box("lava", W + 0.24, 1.0, 0.12, { p: [cx, 0.5, z1 - 0.06], tile: 1.2 });
   for (const s of [-1, 1]) {
     // front shoulders either side of the entrance wing
-    const xa = s < 0 ? x0 : 7.6;
-    const xb = s < 0 ? -7.6 : x1;
+    const xa = s < 0 ? x0 : WING_HW;
+    const xb = s < 0 ? -WING_HW : x1;
     if (xb - xa > 0.2) b.box("lava", xb - xa, 1.0, 0.12, { p: [(xa + xb) / 2, 0.5, z0 + 0.06], tile: 1.2 });
   }
   // roof slab + parapet
@@ -97,8 +102,9 @@ function ribbon(b: GeoBatch, x: number, z0: number, z1: number, y: number, h: nu
 }
 
 function poolHall(b: GeoBatch) {
+  const hall = wingedHall("pool");
   const W = 14;
-  const D = 8;
+  const D = hall.wing;
   const H = 7.5;
   // entrance wing: dark board-formed concrete, basalt base course, glass shopfront behind timber fins
   b.box("concreteDark", 0.4, H, D, { p: [-W / 2 + 0.2, H / 2, -D / 2], tile: 2 });
@@ -111,20 +117,30 @@ function poolHall(b: GeoBatch) {
   }
   b.box("concreteDark", W + 1.2, 0.9, D + 1.6, { p: [0, H + 0.45, -D / 2 + 0.6], tile: 2 });
   b.box("led-pool", W + 1.24, 0.03, 0.03, { p: [0, H + 0.06, 1.42] });
-  // the 24 × 18 m hall behind (taller than the wing), ribbon clerestory on the open side
-  hallVolume(b, "concreteDark", -15, 9, -8, -26, 8.6, 2);
-  ribbon(b, -15.03, -9.5, -24.5, 6.6, 1.4);
-  ribbon(b, 9.03, -9.5, -24.5, 6.6, 1.4);
+  // the full-size hall behind (taller than the wing), ribbon clerestories on both sides and above the wing
+  const { x0, x1, z0, z1, H: H2 } = hall;
+  hallVolume(b, "concreteDark", x0, x1, z0, z1, H2, 2);
+  ribbon(b, x0 - 0.03, z0 - 1.5, z1 + 1.5, H2 - 2, 1.4);
+  ribbon(b, x1 + 0.03, z0 - 1.5, z1 + 1.5, H2 - 2, 1.4);
+  for (const s of [-1, 1]) {
+    const xa = s < 0 ? x0 + 1.2 : WING_HW + 1.2;
+    const xb = s < 0 ? -WING_HW - 1.2 : x1 - 1.2;
+    if (xb - xa > 2) b.box("glass", xb - xa, 1.4, 0.06, { p: [(xa + xb) / 2, H2 - 2, z0 + 0.03], tile: 6 });
+  }
   pylons(b);
   doorSurround(b, "led-pool", -0.5);
   // rooftop plant on the hall roof
-  b.box("steel", 3, 1.2, 2, { p: [-6, 9.7, -18] });
-  b.box("steel", 2, 0.9, 1.4, { p: [2.5, 9.55, -21] });
+  const cz = (z0 + z1) / 2;
+  const cx = (x0 + x1) / 2;
+  b.box("steel", 3, 1.2, 2, { p: [cx - 6, H2 + 1.1, cz] });
+  b.box("steel", 2, 0.9, 1.4, { p: [cx + 4, H2 + 0.95, cz - 4] });
+  b.box("steel", 2.4, 1.0, 1.6, { p: [cx + 9, H2 + 1.0, cz + 5] });
 }
 
 function ludoLounge(b: GeoBatch) {
+  const hall = wingedHall("ludo");
   const W = 14;
-  const D = 8;
+  const D = hall.wing;
   const H = 5.6;
   b.box("brick", 0.45, H, D, { p: [-W / 2 + 0.22, H / 2, -D / 2], tile: 1 });
   b.box("brick", 0.45, H, D, { p: [W / 2 - 0.22, H / 2, -D / 2], tile: 1 });
@@ -146,54 +162,55 @@ function ludoLounge(b: GeoBatch) {
     b.box("wood", 11.4, 0.18, 0.12, { p: [0, R + 3.05, z], tile: 1 });
     b.box("led-ludo", 11.2, 0.02, 0.02, { p: [0, R + 2.92, z] });
   }
-  for (const x of [-5, 5]) b.box("hedge", 2.2, 0.7, 1.0, { p: [x, R + 0.35, -7.2] });
+  for (const x of [-5, 5]) b.box("hedge", 2.2, 0.7, 1.0, { p: [x, R + 0.35, -D + 0.8] });
   b.box("led-ludo", W + 0.64, 0.03, 0.03, { p: [0, H + 0.04, 0.32] });
-  // the 24 × 18 m lounge behind, roof terrace with umbrellas and the giant die on its mast (Plaza.tsx)
-  const H2 = 6.8;
-  hallVolume(b, "brick", -9, 15, -8, -26, H2, 1);
-  ribbon(b, 15.03, -9.5, -24.5, 3.4, 2.2);
-  ribbon(b, -9.03, -9.5, -24.5, 3.4, 2.2);
+  // the full-size lounge behind, roof terrace with umbrellas and the giant die on its mast (Plaza.tsx)
+  const { x0, x1, z0, z1, H: H2 } = hall;
+  hallVolume(b, "brick", x0, x1, z0, z1, H2, 1);
+  ribbon(b, x1 + 0.03, z0 - 1.5, z1 + 1.5, 3.4, 2.2);
+  ribbon(b, x0 - 0.03, z0 - 1.5, z1 + 1.5, 3.4, 2.2);
   const R2 = H2 + 0.5;
-  for (const [x, z, k] of [
-    [-3.2, -11.2, "paint-teal"],
-    [0.4, -11.6, "paint-pink"],
-    [8.6, -11.1, "paint-orange"],
+  for (const [x, dz, k] of [
+    [-3.2, -3.2, "paint-teal"],
+    [0.4, -3.6, "paint-pink"],
+    [8.6, -3.1, "paint-orange"],
   ] as const) {
-    b.cyl("steel", 0.04, 0.04, 2.4, 6, { p: [x, R2 + 1.2, z] });
-    b.add(k, new THREE.ConeGeometry(1.4, 0.6, 12, 1, true), { p: [x, R2 + 2.4, z] });
+    b.cyl("steel", 0.04, 0.04, 2.4, 6, { p: [x, R2 + 1.2, z0 + dz] });
+    b.add(k, new THREE.ConeGeometry(1.4, 0.6, 12, 1, true), { p: [x, R2 + 2.4, z0 + dz] });
   }
   // die mast with a fork bracket (the die no longer floats in mid-air)
-  b.cyl("steel", 0.09, 0.12, 2.6, 10, { p: [4, R2 + 1.3, -12] });
-  b.box("steel", 2.64, 0.12, 0.14, { p: [4, R2 + 2.6, -12] });
-  for (const s of [-1, 1]) b.box("steel", 0.12, 1.95, 0.14, { p: [4 + s * 1.26, R2 + 3.6, -12] });
+  const die = LUDO_DIE;
+  b.cyl("steel", 0.09, 0.12, 2.6, 10, { p: [die.x, R2 + 1.3, die.z] });
+  b.box("steel", 2.64, 0.12, 0.14, { p: [die.x, R2 + 2.6, die.z] });
+  for (const s of [-1, 1]) b.box("steel", 0.12, 1.95, 0.14, { p: [die.x + s * 1.26, R2 + 3.6, die.z] });
   doorSurround(b, "led-ludo", -0.35);
   pylons(b, 4.6);
 }
 
-function igisoroCourt(b: GeoBatch, tier: string) {
-  // a rectangular 24 × 18 m hall (as inside) under a big hipped thatch roof, inspired by the royal palace at Nyanza
-  const x0 = -14;
-  const x1 = 10;
-  const z0 = -2.4;
-  const z1 = -20.4;
-  const H = 5.0;
+/**
+ * A white lime-plaster block on a lava-stone base course, Imigongo frieze under the eaves, timber-framed windows and
+ * a hipped thatch roof (inspired by the royal palace at Nyanza). `door`: the front wall gets the lava door section;
+ * `hidden`: front-wall span (x range) covered by another block, left without windows.
+ */
+function thatchedBlock(b: GeoBatch, x0: number, x1: number, z0: number, z1: number, H: number, tier: string, opts: { door?: boolean; hidden?: [number, number] } = {}) {
   const W = x1 - x0;
   const D = z0 - z1;
   const cx = (x0 + x1) / 2;
   const cz = (z0 + z1) / 2;
-  const t = 0.5;
-  // walls: white lime plaster on a lava-stone base course, Imigongo frieze under the eaves
+  const { t, ov } = igisoroHall();
   b.box("white", t, H, D, { p: [x0 + t / 2, H / 2, cz] });
   b.box("white", t, H, D, { p: [x1 - t / 2, H / 2, cz] });
   b.box("white", W, H, t, { p: [cx, H / 2, z1 + t / 2] });
-  // front wall either side of the door wall section
-  const fw = 6.2;
-  for (const [a, c] of [
-    [x0, -fw / 2],
-    [fw / 2, x1],
-  ] as const)
-    b.box("white", c - a, H, t, { p: [(a + c) / 2, H / 2, z0] });
-  wallWithDoor(b, "lava", fw, H, z0, t, 1.2);
+  // front wall (either side of the lava door section when there is a door)
+  const fw = opts.door ? 6.2 : 0;
+  const fronts: [number, number][] = opts.door
+    ? [
+        [x0, -fw / 2],
+        [fw / 2, x1],
+      ]
+    : [[x0, x1]];
+  for (const [a, c] of fronts) b.box("white", c - a, H, t, { p: [(a + c) / 2, H / 2, z0 - t / 2] });
+  if (opts.door) wallWithDoor(b, "lava", fw, H, z0 - t / 2, t, 1.2);
   for (const [px, pz, w, d, rot] of [
     [x0 - 0.04, cz, D, 0.08, Math.PI / 2],
     [x1 + 0.04, cz, D, 0.08, Math.PI / 2],
@@ -202,24 +219,20 @@ function igisoroCourt(b: GeoBatch, tier: string) {
     b.box("lava", w + 0.1, 0.9, d, { p: [px, 0.45, pz], r: [0, rot, 0], tile: 1.2 });
     b.box("imigongo", w + 0.1, 1.0, d, { p: [px, H - 0.75, pz], r: [0, rot, 0], uv: [w / 4.4, 1] });
   }
-  for (const [a, c] of [
-    [x0, -fw / 2],
-    [fw / 2, x1],
-  ] as const) {
-    b.box("lava", c - a, 0.9, 0.08, { p: [(a + c) / 2, 0.45, z0 + t / 2 + 0.04], tile: 1.2 });
-    b.box("imigongo", c - a, 1.0, 0.08, { p: [(a + c) / 2, H - 0.75, z0 + t / 2 + 0.04], uv: [(c - a) / 4.4, 1] });
+  for (const [a, c] of fronts) {
+    const segs: [number, number][] = opts.hidden ? [[a, Math.min(c, opts.hidden[0])], [Math.max(a, opts.hidden[1]), c]] : [[a, c]];
+    for (const [sa, sc] of segs) {
+      if (sc - sa < 0.2) continue;
+      b.box("lava", sc - sa, 0.9, 0.08, { p: [(sa + sc) / 2, 0.45, z0 + 0.04], tile: 1.2 });
+      b.box("imigongo", sc - sa, 1.0, 0.08, { p: [(sa + sc) / 2, H - 0.75, z0 + 0.04], uv: [(sc - sa) / 4.4, 1] });
+    }
   }
   // hipped thatch roof: a 4-sided pyramid stretched over the rectangle, deep overhang, timber ridge finial
-  const ov = 1.4;
-  const rh = 6.2;
+  const rh = 6.2 * Math.max(0.75, Math.min(W, D) / 18) ** 0.5;
   const k = 1 / Math.SQRT1_2;
   const roof = new THREE.ConeGeometry(1, 1, 4, 1, true).rotateY(Math.PI / 4).toNonIndexed();
   roof.computeVertexNormals(); // flat roof planes, not a rounded cone
-  b.add("thatch", roof, {
-    p: [cx, H + rh / 2 - 0.25, cz],
-    s: [(W / 2 + ov) * k, rh, (D / 2 + ov) * k],
-    uv: [26, 5],
-  });
+  b.add("thatch", roof, { p: [cx, H + rh / 2 - 0.25, cz], s: [(W / 2 + ov) * k, rh, (D / 2 + ov) * k], uv: [Math.max(8, W + D) * 0.6, 5] });
   b.add("woodDark", new THREE.ConeGeometry(0.45, 1.5, 10), { p: [cx, H + rh + 0.4, cz] });
   // eave fascia with a slim green LED line
   for (const [px, pz, w, rot] of [
@@ -232,15 +245,9 @@ function igisoroCourt(b: GeoBatch, tier: string) {
     b.box("led-igisoro", w, 0.025, 0.025, { p: [px, H - 0.44, pz], r: [0, rot, 0] });
   }
   if (tier !== "lite")
-    // exposed rafter ends under the eaves
-    for (let x = x0 - ov + 0.6; x <= x1 + ov - 0.5; x += 0.9) b.box("woodDark", 0.08, 0.1, ov, { p: [x, H - 0.18, z0 + ov / 2], tile: 1 });
-  // timber porch
-  b.box("wood", 6.4, 0.3, 3.4, { p: [0, 4.6, -0.9], tile: 1 });
-  for (const x of [-2.9, 2.9]) b.cyl("woodDark", 0.16, 0.18, 4.45, 10, { p: [x, 2.22, 0.5] });
-  doorSurround(b, "led-igisoro", -2.1);
-  // lettered timber fascia board hung under the porch roof (the lettering is drawn in Plaza.tsx)
-  b.box("woodDark", 4.6, 0.62, 0.08, { p: [0, 4.14, 0.84], tile: 1 });
-  for (const x of [-2.0, 2.0]) b.box("steel", 0.03, 0.12, 0.03, { p: [x, 4.5, 0.84] });
+    // exposed rafter ends under the front eaves
+    for (let x = x0 - ov + 0.6; x <= x1 + ov - 0.5; x += 0.9)
+      if (!opts.hidden || x < opts.hidden[0] - ov || x > opts.hidden[1] + ov) b.box("woodDark", 0.08, 0.1, ov, { p: [x, H - 0.18, z0 + ov / 2], tile: 1 });
   // windows: timber-framed 0.9 × 1.6 m, sill at 0.9 m, every ~3 m on all walls; neutral glass in front of a warm
   // out-of-focus view of the hall (columns, lamps, tables) for depth
   const win = (x: number, z: number, rotY: number) => {
@@ -253,13 +260,28 @@ function igisoroCourt(b: GeoBatch, tier: string) {
       b.box("woodDark", 0.9, 0.05, 0.05, { p: [0, 2.05, 0.11], tile: 1 }); // transom bar
     });
   };
-  for (let x = x0 + 1.8; x <= -fw / 2 - 1.0; x += 3) win(x, z0 + t / 2, 0);
-  for (let x = fw / 2 + 1.2; x <= x1 - 1.0; x += 3) win(x, z0 + t / 2, 0);
+  const frontOk = (x: number) => (!opts.door || Math.abs(x) > fw / 2 + 0.9) && (!opts.hidden || x < opts.hidden[0] - 0.8 || x > opts.hidden[1] + 0.8);
+  for (let x = x0 + 1.8; x <= x1 - 1.0; x += 3) if (frontOk(x)) win(x, z0, 0);
   for (let z = z0 - 2.0; z >= z1 + 1.0; z -= 3) {
-    win(x0 - 0.0, z, -Math.PI / 2);
-    win(x1 + 0.0, z, Math.PI / 2);
+    win(x0, z, -Math.PI / 2);
+    win(x1, z, Math.PI / 2);
   }
   for (let x = x0 + 1.8; x <= x1 - 1.0; x += 3) win(x, z1, Math.PI);
+}
+
+function igisoroCourt(b: GeoBatch, tier: string) {
+  // the thatched porch wing with the carved door, and the full-size court behind it (the interior size plus walls)
+  const h = igisoroHall();
+  const wx = WING_HW - 0.6;
+  thatchedBlock(b, -wx, wx, h.doorZ + h.t / 2, -h.wing, 4.6, tier, { door: true });
+  thatchedBlock(b, h.x0, h.x1, h.z0, h.z1, 5.6, tier, { hidden: [-wx - 0.2, wx + 0.2] });
+  // timber porch
+  b.box("wood", 6.4, 0.3, 3.4, { p: [0, 4.6, -0.9], tile: 1 });
+  for (const x of [-2.9, 2.9]) b.cyl("woodDark", 0.16, 0.18, 4.45, 10, { p: [x, 2.22, 0.5] });
+  doorSurround(b, "led-igisoro", -2.1);
+  // lettered timber fascia board hung under the porch roof (the lettering is drawn in Plaza.tsx)
+  b.box("woodDark", 4.6, 0.62, 0.08, { p: [0, 4.14, 0.84], tile: 1 });
+  for (const x of [-2.0, 2.0]) b.box("steel", 0.03, 0.12, 0.03, { p: [x, 4.5, 0.84] });
   // carved benches either side of the porch
   for (const x of [-2.2, 2.2]) b.box("woodDark", 1.4, 0.45, 0.5, { p: [x, 0.23, -1.6], tile: 1 });
 }
@@ -279,7 +301,7 @@ function tournamentArena(b: GeoBatch, tier: string) {
     uv: [perim / 3, 3],
   });
   // pleated Imigongo skin: tilted panels around the ellipse create the rhythm of light and shadow
-  const panels = tier === "lite" ? 40 : 58;
+  const panels = Math.round(perim / (tier === "lite" ? 2.7 : 1.85));
   for (let i = 0; i < panels; i++) {
     const a = (i / panels) * Math.PI * 2;
     const x = Math.sin(a) * (rx + 0.2);
@@ -400,7 +422,7 @@ function towerCrane(b: GeoBatch, cx: number, cz: number, tier: string) {
   b.box("concrete", 2.4, 0.6, 2.4, { p: [cx, 0.3, cz], tile: 2 });
 }
 
-function comingSoon(b: GeoBatch, tier: string) {
+function comingSoon(b: GeoBatch, tier: string, crane = true) {
   // hoarding fence with a gate (the "door"), concrete frame under construction, tower crane
   for (const s of [-1, 1]) b.box("hoarding", 4.8, 2.6, 0.12, { p: [s * 4.2, 1.3, -0.4] });
   b.box("steel", 3.6, 0.3, 0.2, { p: [0, 4.35, -0.4] });
@@ -419,8 +441,50 @@ function comingSoon(b: GeoBatch, tier: string) {
       b.box("steel", 0.06, 7.5, 0.06, { p: [x, 3.75, -1.8] });
       b.box("steel", 0.06, 0.06, 1.0, { p: [x, 5.5, -2.3] });
     }
-  towerCrane(b, 2, -12, tier);
+  if (crane) towerCrane(b, 2, -12, tier);
   doorSurround(b, "led-soon", -0.4);
+}
+
+/**
+ * A reserved hall plot: hoarding around the whole plot a ~36 × 28 m hall will take (entrance wing + hall), the site
+ * gate on the door line, and on some plots a tower crane over a rising concrete frame.
+ */
+function hallSite(b: GeoBatch, away: number, tier: string, crane: boolean, ringPlot: boolean) {
+  const h = sitePlan(away);
+  const H = 2.6;
+  const fence = (ax: number, az: number, cx: number, cz: number) => {
+    const len = Math.hypot(cx - ax, cz - az);
+    if (len < 0.1) return;
+    b.box("hoarding", len, H, 0.12, { p: [(ax + cx) / 2, H / 2, (az + cz) / 2], r: [0, -Math.atan2(cz - az, cx - ax), 0] });
+  };
+  const wx = WING_HW;
+  const pts: [number, number][] = [
+    [wx, -0.4],
+    [wx, h.z0],
+    [h.x1, h.z0],
+    [h.x1, h.z1],
+    [h.x0, h.z1],
+    [h.x0, h.z0],
+    [-wx, h.z0],
+    [-wx, -0.4],
+  ];
+  for (let i = 0; i < pts.length - 1; i++) fence(pts[i]![0], pts[i]![1], pts[i + 1]![0], pts[i + 1]![1]);
+  for (const [x, z] of pts) b.box("steel", 0.12, H + 0.2, 0.12, { p: [x, (H + 0.2) / 2, z] });
+  if (ringPlot) {
+    // inner-ring plots: the standard construction front (site gate, frame, crane) from the small plots
+    for (const sd of [-1, 1]) fence(sd * 6.6, -0.4, sd * wx, -0.4);
+    comingSoon(b, tier, crane);
+    return;
+  }
+  // expansion plots: the site gate on the door line and a lettered board (Plaza.tsx)
+  for (const sd of [-1, 1]) {
+    fence(sd * 1.9, -0.4, sd * wx, -0.4);
+    b.box("steel", 0.2, 4.5, 0.2, { p: [sd * 1.75, 2.25, -0.4] });
+  }
+  b.box("steel", 3.6, 0.3, 0.2, { p: [0, 4.35, -0.4] });
+  b.box("led-soon", 3.5, 0.03, 0.03, { p: [0, 4.18, -0.28] });
+  b.box("screenFrame", 5.2, 1.3, 0.1, { p: [4.4, 3.4, -0.3] });
+  if (crane && tier !== "lite") towerCrane(b, (h.x0 + h.x1) / 2 + 6, (h.z0 + h.z1) / 2, tier);
 }
 
 function servicePavilion(b: GeoBatch) {
@@ -479,20 +543,28 @@ function ao(b: GeoBatch, x: number, z: number, w: number, d: number, rotY = 0) {
 /** Paving, basalt bands, LED wayfinding inlays, fountain, Agaseke sculpture, benches, lamps, planters, totems. */
 function plaza(b: GeoBatch, tier: string) {
   const flat = (geo: THREE.BufferGeometry) => geo.rotateX(-Math.PI / 2);
-  b.add("paving", flat(new THREE.CircleGeometry(32.5, tier === "lite" ? 64 : 128)), { p: [0, 0, 0], tile: 4.8 });
+  const ringSeg = tier === "lite" ? 96 : 192;
+  b.add("paving", flat(new THREE.CircleGeometry(PAVING_R, ringSeg)), { p: [0, 0, 0], tile: 4.8 });
+  // the fountain court: a honed granite disc, framed by a basalt band; a second band halfway out to the edge
+  b.add("granite", flat(new THREE.CircleGeometry(FOUNTAIN_COURT, tier === "lite" ? 64 : 128)), { p: [0, 0.003, 0], tile: 4.8 });
   for (const [r0, r1, k] of [
-    [7.6, 7.9, "basalt"],
-    [15.75, 15.95, "basalt"],
-    [32.5, 33.3, "lava"],
+    [FOUNTAIN_COURT - 0.05, FOUNTAIN_COURT + 0.3, "basalt"],
+    [20.6, 20.8, "basalt"],
+    [PAVING_R, PAVING_R + 0.8, "lava"],
   ] as const)
-    b.add(k, flat(new THREE.RingGeometry(r0, r1, 128, 1)), { p: [0, 0.004, 0], tile: 1.2 });
-  // wayfinding: a slim LED line in each game's colour, inlaid in one flush 0.3 m basalt band (§6.2)
+    b.add(k, flat(new THREE.RingGeometry(r0, r1, ringSeg, 1)), { p: [0, 0.004, 0], tile: 1.2 });
+  // promenades: from the fountain court to every door, a 3.6 m walk edged by two flush basalt strips, with a slim
+  // LED line in each game's colour down the middle (§6.2)
   for (const p of PORTALS) {
     const key = p.kind === "soon" ? "led-soon" : `led-${p.kind}`;
-    const len = DOOR_RING - 3 - (FOUNTAIN_RADIUS + 1.2);
-    const mid = ringPoint(p.angleDeg, FOUNTAIN_RADIUS + 1.2 + len / 2);
+    const r0 = FOUNTAIN_COURT + 0.3;
+    const len = DOOR_RING - 3 - r0;
+    const mid = ringPoint(p.angleDeg, r0 + len / 2);
+    const a = (p.angleDeg * Math.PI) / 180;
     b.box("basalt", 0.3, 0.008, len, { p: [mid.x, 0.004, mid.z], r: [0, mid.rotY, 0], tile: 1.2 });
     b.box(key, 0.04, 0.004, len, { p: [mid.x, 0.009, mid.z], r: [0, mid.rotY, 0] });
+    for (const s of [-1, 1])
+      b.box("basalt", 0.2, 0.008, len, { p: [mid.x + s * 1.8 * Math.cos(a), 0.004, mid.z + s * 1.8 * Math.sin(a)], r: [0, mid.rotY, 0], tile: 1.2 });
   }
   // spawn medallion: flush granite disc with a 15 mm brass inlay ring
   b.add("granite", flat(new THREE.CircleGeometry(1.1, 48)), { p: [SPAWN.x, 0.005, SPAWN.z], tile: 2.4 });
@@ -525,7 +597,7 @@ function plaza(b: GeoBatch, tier: string) {
   b.add("agaseke", new THREE.LatheGeometry(
     prof.map(([r, y]) => new THREE.Vector2(r, y)),
     tier === "lite" ? 20 : 40,
-  ), { p: [0, 1.05, 0], s: [1.25, 1.25, 1.25], uv: [6, 1] });
+  ), { p: [0, 1.05, 0], s: [1.35, 1.35, 1.35], uv: [6, 1] });
   // ten bronze nozzles inside the coping
   for (let i = 0; i < 10; i++) {
     const a = (i / 10) * Math.PI * 2;
@@ -541,7 +613,7 @@ function plaza(b: GeoBatch, tier: string) {
     });
     ao(b, bench.x, bench.z, 2.9, 1.3, bench.rotY);
   }
-  // lamp posts with warm LED heads (same 12 posts the player collides with: world/obstacles.ts LAMPS)
+  // lamp posts with warm LED heads (the same posts the player collides with: world/obstacles.ts LAMPS)
   for (const p of LAMPS) {
     b.cyl("steel", 0.06, 0.09, 4.6, 8, { p: [p.x, 2.3, p.z] });
     b.cyl("steel", 0.16, 0.18, 0.08, 12, { p: [p.x, 0.04, p.z] });
@@ -563,37 +635,55 @@ function plaza(b: GeoBatch, tier: string) {
     });
     ao(b, t.x, t.z, 2.4, 1.3, t.rotY);
   }
+  // wayfinding signs at the fountain court: brushed aluminium post with a dark panel on both faces, a colour bar
+  // per listed plot (the names and distances are Text, Plaza.tsx)
+  for (const w of WAYFINDING) {
+    const rows = wayfindingRows(w);
+    b.frame([w.x, 0, w.z], w.rotY, () => {
+      b.box("aluBrushed", 1.5, 2.3, 0.16, { p: [0, 1.35, 0] });
+      b.box("lava", 0.9, 0.2, 0.42, { p: [0, 0.1, 0], tile: 1.2 });
+      b.box("led-sky", 1.4, 0.02, 0.17, { p: [0, 2.49, 0] });
+      b.box("screenFrame", 1.38, 1.9, 0.172, { p: [0, 1.42, 0] });
+      rows.forEach((r, i) => {
+        for (const s of [-1, 1]) b.box(r.led, 0.04, 0.24, 0.18, { p: [s * 0.62, 1.42 + (1.5 - i) * 0.42, 0] });
+      });
+    });
+    ao(b, w.x, w.z, 1.8, 0.8, w.rotY);
+  }
   // perimeter: low black lava-rock walls between the buildings (typical Musanze dry-stone walls) + road ring
-  const builder = (deg: number) => [...PORTALS.map((p) => ({ a: p.angleDeg, k: p.kind as keyof typeof FOOTPRINTS })), { a: SERVICE_ANGLE, k: "service" as const }].some(({ a, k }) => {
+  // (3.6 m wall stones every STEP degrees; kept clear of the doors, the buildings and the entry gate's own walls)
+  const STEP = (3.6 / PERIMETER_R) * (180 / Math.PI);
+  const DOOR_GAP = (7.1 / PERIMETER_R) * (180 / Math.PI);
+  const builder = (deg: number) => {
     for (const s of [-1.8, 0, 1.8]) {
-      const w = ringPoint(deg + 3, 34);
-      const o = ringPoint(deg + 3 + 90, s);
-      const l = toLocal(a, w.x + o.x, w.z + o.z);
-      if (FOOTPRINTS[k].some((f) => l.x > f.x0 - 1 && l.x < f.x1 + 1 && l.z < f.z0 + 1 && l.z > f.z1 - 1)) return true;
+      const w = ringPoint(deg + STEP / 2, PERIMETER_R);
+      const o = ringPoint(deg + STEP / 2 + 90, s);
+      if (inBuilding(w.x + o.x, w.z + o.z, 1)) return true;
     }
     return false;
-  });
-  for (let deg = -180; deg < 180; deg += 6) {
-    const near = [...PORTALS.map((p) => p.angleDeg), SERVICE_ANGLE].some((a) => Math.abs(((deg - a + 540) % 360) - 180) < 12);
-    if (near || Math.abs(deg) > 168 || builder(deg)) continue;
-    const p = ringPoint(deg + 3, 34);
+  };
+  const off = (deg: number, a: number) => Math.abs(((deg + STEP / 2 - a + 540) % 360) - 180);
+  for (let deg = -180; deg < 180; deg += STEP) {
+    const near = PLOTS.some((q) => q.ring === DOOR_RING && off(deg, q.angleDeg) < DOOR_GAP);
+    const p = ringPoint(deg + STEP / 2, PERIMETER_R);
+    const gate = p.z > ENTRY_Z - 6 && Math.abs(p.x) < 17.5; // the entry gate has its own perimeter walls
+    if (near || gate || builder(deg)) continue;
     b.box("lava", 3.6, 0.8, 0.6, { p: [p.x, 0.4, p.z], r: [0, p.rotY, 0], tile: 1.2 });
   }
-  b.add("asphalt", flat(new THREE.RingGeometry(74, 81, 160, 1)), { p: [0, 0.01, 0], tile: 3 });
-  b.add("white", flat(new THREE.RingGeometry(77.42, 77.58, 160, 1)), { p: [0, 0.02, 0] });
+  // expansion district: the outer promenade ring (honed granite between basalt kerbs), served by the main avenue
+  b.add("granite", flat(new THREE.RingGeometry(OUTER_PROMENADE.r0, OUTER_PROMENADE.r1, 240, 1)), { p: [0, 0.008, 0], tile: 4.8 });
+  for (const r of [OUTER_PROMENADE.r0, OUTER_PROMENADE.r1]) b.add("basalt", flat(new THREE.RingGeometry(r - 0.1, r + 0.1, 240, 1)), { p: [0, 0.012, 0], tile: 1.2 });
+  // a forecourt in front of every expansion plot
+  for (const e of EXPANSION_PLOTS) {
+    const m = ringPoint(e.angleDeg, (OUTER_PROMENADE.r1 + EXPANSION_RING) / 2 + 0.3);
+    b.box("granite", 16, 0.02, EXPANSION_RING - OUTER_PROMENADE.r1 + 1.2, { p: [m.x, 0.007, m.z], r: [0, m.rotY, 0], tile: 4.8 });
+  }
+  const mid = (RING_ROAD.r0 + RING_ROAD.r1) / 2;
+  b.add("asphalt", flat(new THREE.RingGeometry(RING_ROAD.r0, RING_ROAD.r1, 200, 1)), { p: [0, 0.01, 0], tile: 3 });
+  b.add("white", flat(new THREE.RingGeometry(mid - 0.08, mid + 0.08, 200, 1)), { p: [0, 0.02, 0] });
   // approach avenue from the south (spawn side) to the road
-  b.box("paving", 8, 0.02, 41, { p: [0, 0.0, 53.5], tile: 4.8 });
-}
-
-/** World point → a building's local frame (door at the origin, +z towards the fountain). */
-export function toLocal(angleDeg: number, x: number, z: number) {
-  const d = ringPoint(angleDeg, DOOR_RING);
-  const rot = d.rotY;
-  const dx = x - d.x;
-  const dz = z - d.z;
-  const c = Math.cos(rot);
-  const s = Math.sin(rot);
-  return { x: dx * c - dz * s, z: dx * s + dz * c };
+  const a0 = PAVING_R - 1;
+  b.box("paving", 8, 0.02, RING_ROAD.r0 - a0, { p: [0, 0.0, (a0 + RING_ROAD.r0) / 2], tile: 4.8 });
 }
 
 export function buildDistrict(tier: string): Map<string, THREE.BufferGeometry> {
@@ -606,11 +696,14 @@ export function buildDistrict(tier: string): Map<string, THREE.BufferGeometry> {
     arena: tournamentArena,
     soon: comingSoon,
   };
-  for (const p of PORTALS) {
-    const d = ringPoint(p.angleDeg, DOOR_RING);
-    b.frame([d.x, 0, d.z], d.rotY, () => builders[p.kind](b, tier));
-  }
-  const s = ringPoint(SERVICE_ANGLE, DOOR_RING);
-  b.frame([s.x, 0, s.z], s.rotY, () => servicePavilion(b));
+  // every plot from the data (layout.ts PORTALS / EXPANSION_PLOTS → footprints.ts PLOTS)
+  PLOTS.forEach((p, i) => {
+    const d = ringPoint(p.angleDeg, p.ring);
+    b.frame([d.x, 0, d.z], d.rotY, () => {
+      if (p.type === "service") servicePavilion(b);
+      else if (p.type === "site") hallSite(b, p.away, tier, p.ring === DOOR_RING || i % 2 === 0, p.ring === DOOR_RING);
+      else builders[p.type](b, tier);
+    });
+  });
   return b.build();
 }

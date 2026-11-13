@@ -104,7 +104,7 @@ All the patterns in the code are **original procedural drawings** "inspired by" 
 
 | Element | Technique |
 |---|---|
-| **Terrain** | One polar-grid mesh (Standard 256 segments × ~100 rings; Lite 128 × ~55). It uses FBM hills and **terracing** (a stepped height function blended 80%). Vertex-coloured field patches per terrace band, with darker riser lines, carry the terraces even where the geometry is coarse. The terrain stays flat in the district (r < 88 m) and at the gate forecourt, stays low towards the north so the volcanoes stay visible, and rises into southern ridges that close the horizon |
+| **Terrain** | One polar-grid mesh (Standard 256 segments × ~100 rings; Lite 128 × ~55). It uses FBM hills and **terracing** (a stepped height function blended 80%). Vertex-coloured field patches per terrace band, with darker riser lines, carry the terraces even where the geometry is coarse. The terrain stays flat in the district (r < `COMPOUND_R`, 172 m) and at the gate forecourt, stays low towards the north so the volcanoes stay visible, and rises into southern ridges that close the horizon |
 | **Virunga chain** | Five radial-grid cones merged into one mesh. Each has a profile exponent (Muhabura is almost a straight cone, Karisimbi is broad), erosion gullies, Bisoke and Gahinga have craters (Bisoke's with a lake disc), and Sabyinyo has a ridge of jagged "teeth". Altitude bands: farmland → bamboo → montane forest → Hagenia/heath → bare rock. Azimuths follow the real view from Musanze (Karisimbi WNW to Muhabura NE). Distances are compressed (~25 km → 0.8–1 km) and heights slightly exaggerated in angular size |
 | **Twin Lakes** | Basins carved into the terrain function. Water planes sit at two levels: Burera is higher and further away, Ruhondo lower |
 | **Atmosphere** | `FogExp2` matched to the sky horizon gives atmospheric perspective: near hills stay crisp and the far cones fade to blue-grey. drei `Sky` gives a hazy morning (turbidity 7) |
@@ -113,43 +113,62 @@ All the patterns in the code are **original procedural drawings** "inspired by" 
 
 ---
 
-## 5. Site plan
+## 5. Site plan (campus scale, P1-WLD-03)
 
 ```
-                         N  (Virunga skyline: Karisimbi · Bisoke · Sabyinyo · Gahinga · Muhabura)
-                                     ┌──────────────────────┐
-                                     │  TOURNAMENT ARENA    │ elliptical drum 42×34 m, h≈25 m
-                                     │  Imigongo pleated    │ LED ribbons · space-frame dome
-                                     │  skin · LED screen   │ "GUKIRANA PLAYGROUND" crown
-                                     └─────────┬────────────┘
-                     POOL HALL  ╲    canopy + door (0°)    ╱  LUDO LOUNGE
-               (−38°) timber fins ╲          │           ╱ (+38°) brick + rooftop garden
-                 IGISORO COURT ─── ╲ ·  ·  · │ ·  ·  · ╱ ─── COMING SOON (Chess, +76°)
-          (−76°) royal-hut cone  ·   planters ◯  lamps   ·      hoarding · tower crane
-                                ·     ┌──────────────┐     ·
-     COMING SOON (Draughts) ──  ·     │   AGASEKE    │     ·  ── HELP DESK · CAFE (+112°)
-          (−112°)               ·     │   FOUNTAIN   │     ·
-                                 ·    └──────────────┘    ·      LED lines in each game colour
-                                  ·  WELCOME ▣   ▣ WALLET ·      run fountain → door
-                                    ·      ◎ SPAWN      ·        plaza r = 28 m walkable,
-                                      · · · ·║· · · · ·          paving r = 32.5 m
-                         ═══════════ ring road (r 74–81 m) ═══════════
-                                             ║ avenue (8 m, tree-lined)
-                     ┌────── lava-stone wall ═╬═ ARRIVAL GATE (z ≈ 96 m) ═══════┐
-                     │  WARDROBE ▤ (inside)   ║  canopy · 5 turnstile lanes      │
-                     │                guard ▢ ║ ▣ ID kiosk · welcome LED screen  │
-                     └────────────────────────╨──────────────────────────────────┘
-                                         forecourt r 19 m
-                                             ▲ arrival
-                         S  (terraced hills · eucalyptus · farmhouses)
+                N  (Virunga skyline: the north sector stays open: no plots between −30° and +30° out to the farmland)
+                                         ┌──────────────────┐
+                                         │ TOURNAMENT ARENA │ elliptical drum 44 × 38 m
+                                         └────────┬─────────┘
+           POOL HALL (−44°, 36 × 28 m)  ╲   canopy + door (0°)   ╱  LUDO LOUNGE (+44°)
+   IGISORO COURT (−88°) ─────────────── ╲  ·  ·  ·  │  ·  ·  ·  ╱ ─── HALL PLOT (Chess, +88°, 36 × 28 m site)
+                                          ·  seating clusters  ·
+   COMING SOON Draughts (−122°) ──────   ·   ┌─────────────┐   ·   ── HELP DESK · CAFE (+122°)
+   COMING SOON Cards (−144°) ────────    ·   │ FOUNTAIN    │   ·   ── COMING SOON Esports (+144°)
+                                          ·  │ COURT r 10.5│  ·        promenades (3.6 m, LED line in the game
+                                           · └─────────────┘ ·         colour) run from the court to every door
+                                            ·   ◎ SPAWN     ·          plaza r = 37 m walkable (1.75× the 28 m
+                                              · · ·║· · · ·            courtyard), paving r = 41.5 m
+                  ─ ─ ─ outer promenade (r 100–105 m) ─ ─ ─  10 reserved HALL PLOTS on its outside (door ring r 108 m,
+                                                ║                         ±35°, ±65°, ±95°, ±125°, ±155°)
+                                                ║ avenue
+                                   ARRIVAL GATE (GATE_Z = ENTRY_Z + 16.5: the sign-in walk stays ≈ 9 s)
+                  ═══════════════ ring road (r 158–165 m) ═══════════════  farmland beyond r 172 m
 ```
+
+Everything is derived from a few constants in `world/layout.ts` (`PLAZA_RADIUS`, `DOOR_RING`, `PORTALS`,
+`SERVICE_ANGLE`, `EXPANSION_PLOTS`, `OUTER_PROMENADE`, `RING_ROAD`, `COMPOUND_R`): the entry gate (`ENTRY_Z`), the
+arrival gate (`GATE_Z`), the spawn, the seating clusters and lamps (`MID_ANGLES`), the planters and arc beds
+(`world/beds.ts`), the perimeter walls, the landscape (`world/Landscape.tsx` moves the farmland, woodlots and lakes
+out with `COMPOUND_R`) and the halls' window and door views.
+
+**Building volumes** come from the interiors: `world/footprints.ts` derives every hall's exterior from
+`HALLS.<game>.size` (rooms/layouts.ts): an entrance wing on the door ring (its depth grows with the hall width:
+14 m for a 36 m hall) and the full hall behind it (interior + 0.4 m walls), offset 2.5 m away from the arena.
+Every "hall" plot is sized for a 36 × 28 m interior (`PLOT_HALL_SIZE`); `world/footprints.test.ts` checks that no two
+buildings touch, now and with every hall grown to 36 × 28 m.
+
+**Seats** are shared with the realtime server: `@gukirana/contracts` `PLAZA_BENCHES` (6 fountain-court benches +
+10 seating clusters of two = 26 benches, 78 places); the web test checks they match `MID_ANGLES`.
+
+### 5.1 Adding a hall
+
+1. Add the interior to `rooms/layouts.ts` `HALLS` (and its seats to `@gukirana/contracts` `HALL_SEATING`).
+2. In `world/layout.ts`, turn a "Coming Soon" entry of `PORTALS` with `plot: "hall"` (inner ring, e.g. Chess at
+   +88°) into the hall: `id`, `label`, `href`, `color`, `kind`, `plot: "hall"`. Its footprint, perimeter-wall gap,
+   lawn beds, wayfinding signs, campus map (welcome totem) and promenade LED line follow from the data.
+3. Give the kind a builder in `world/District.ts` (`buildDistrict` → `builders`); a new hall can reuse `wingedHall()`
+   / `hallVolume()` with its own facade materials, as the Pool Hall and the Ludo Lounge do.
+4. For an expansion plot (outer ring), move its entry from `EXPANSION_PLOTS` to the hall list; the walkable area
+   then has to reach the outer promenade (today the player walks the plaza disc only: `world/Player.tsx` clamps to
+   `PLAZA_RADIUS`, `world/obstacles.ts` plans routes on the plaza grid).
+5. Run `pnpm --filter @gukirana/web test` (layout tests: overlaps, promenades, walking time ≤ 35 s at 2.2 m/s).
 
 The metrics follow DESIGN-SPEC §6.1:
 - doors are 3.0 × 4.0 m and the interaction radius is 3.0 m;
-- the plaza is 60 m across and the walk/run speed is 3.0/5.5 m/s;
 - avatars are about 1.70 m tall, scaled per body type (0.965–1.0).
 
-Every building faces the fountain, and its door is the interaction point. `nearPortal`, the E key and the Interact button work unchanged, and the routes stay `/play/pool`, `/play/ludo` and `/play/igisoro`.
+Every building faces the fountain, and its door is the interaction point. `nearPortal`, the E key and the Interact button work unchanged.
 
 ---
 

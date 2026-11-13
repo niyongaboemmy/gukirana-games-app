@@ -3,7 +3,8 @@ import { useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { AVENUE_BEDS, GATE_ARCS, LAWN_BEDS, PLAZA_ARCS, RING_PLANTERS, arcPoint, type ArcBed, type RectBed } from "./beds";
+import { AVENUE_BEDS, GATE_ARCS, LAWN_BEDS, PLAZA_ARCS, PLAZA_BEDS, RING_PLANTERS, arcPoint, type ArcBed, type RectBed } from "./beds";
+import { PLAZA_RADIUS } from "./layout";
 import { worldMaterials, type Tier } from "./materials";
 import { rng } from "./textures";
 import { addWind } from "./Vegetation";
@@ -393,7 +394,7 @@ function bedStructures(tier: Tier) {
     }
   }
   // rectangular beds (avenue + lawns): concrete kerb, mulch, optional clipped hedge and bougainvillea trellis
-  for (const b of [...AVENUE_BEDS, ...LAWN_BEDS]) {
+  for (const b of [...AVENUE_BEDS, ...LAWN_BEDS, ...PLAZA_BEDS]) {
     const frame = new THREE.Group();
     const box = (w: number, h: number, d: number, x: number, y: number, z: number) => {
       const g = new THREE.BoxGeometry(w, h, d).translate(x, y, z);
@@ -456,6 +457,35 @@ function noiseTex(base: string, spots: string[], scale = 1, seed = 3): THREE.Can
   return t;
 }
 
+/**
+ * Distance LOD for the flower drifts (no extra draw calls): beyond ~30 m a stable, hash-chosen share of the plants
+ * collapses to a point in the vertex shader (degenerate triangles cost no fill), thinning to ~25 % at 100 m and
+ * nothing past ~160 m. Up close every plant is drawn; far away the beds still read as colour, at a fraction of the
+ * alpha-tested overdraw (the expensive part on phones). Lite thins sooner.
+ */
+function addDistanceThinning(mat: THREE.Material, lite: boolean) {
+  const [near, far, cull] = lite ? [22, 80, 120] : [30, 100, 160];
+  const prev = mat.onBeforeCompile.bind(mat);
+  const key = mat.customProgramCacheKey.bind(mat);
+  mat.onBeforeCompile = (shader, renderer) => {
+    prev(shader, renderer);
+    shader.vertexShader = shader.vertexShader.replace(
+      "#include <project_vertex>",
+      `#ifdef USE_INSTANCING
+      {
+        vec3 gkP = instanceMatrix[3].xyz;
+        float gkD = distance(gkP.xz, cameraPosition.xz);
+        float gkKeep = gkD > ${cull.toFixed(1)} ? 0.0 : 1.0 - smoothstep(${near.toFixed(1)}, ${far.toFixed(1)}, gkD) * 0.75;
+        float gkR = fract(sin(dot(gkP.xz, vec2(12.9898, 78.233))) * 43758.5453);
+        if (gkR > gkKeep) transformed = vec3(0.0);
+      }
+      #endif
+      #include <project_vertex>`,
+    );
+  };
+  mat.customProgramCacheKey = () => `${key()}-thin${lite ? "L" : "S"}`;
+}
+
 /* ---------------- component ---------------- */
 export function Flowers({ tier }: { tier: Tier }) {
   const lite = tier === "lite";
@@ -484,7 +514,7 @@ export function Flowers({ tier }: { tier: Tier }) {
     });
     PLAZA_ARCS.forEach((b, i) => fillBed(out, arcInside(b), arcBox(b), b.h - 0.05, PALETTES[(i + 1) % PALETTES.length]!, density, r, drift));
     GATE_ARCS.forEach((b, i) => fillBed(out, arcInside(b), arcBox(b), b.h - 0.05, PALETTES[i % PALETTES.length]!, density, r, drift));
-    [...AVENUE_BEDS, ...LAWN_BEDS].forEach((b, i) => {
+    [...AVENUE_BEDS, ...LAWN_BEDS, ...PLAZA_BEDS].forEach((b, i) => {
       const local = rectLocal(b);
       const pal = PALETTES[i % PALETTES.length]!;
       const ext = Math.hypot(b.hw, b.hd);
@@ -501,7 +531,7 @@ export function Flowers({ tier }: { tier: Tier }) {
         [b.x - ext, b.z - ext, b.x + ext, b.z + ext],
         b.h - 0.05,
         pal,
-        density * (b.x * b.x + b.z * b.z > 50 * 50 ? 0.6 : 1),
+        density * (Math.hypot(b.x, b.z) > PLAZA_RADIUS + 22 ? 0.6 : 1),
         r,
         (x, z) => Math.floor((local(x, z).lx + 20) / 1.8),
       );
@@ -545,6 +575,7 @@ export function Flowers({ tier }: { tier: Tier }) {
       const geo = plantGeometry(CELLS.indexOf(id), id === "grass" || id === "strelitzia" || id === "bougainvillea" ? 3 : 2);
       const mat = new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.45, alphaToCoverage: true, side: THREE.DoubleSide, roughness: 0.75, metalness: 0 });
       addWind(mat, id === "grass" ? 0.08 : id === "bougainvillea" ? 0.02 : 0.05);
+      addDistanceThinning(mat, lite);
       const matrices = new Float32Array(list.length * 16);
       const colors = new Float32Array(list.length * 3);
       list.forEach((p, i) => {

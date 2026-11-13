@@ -7,7 +7,7 @@ import * as THREE from "three";
 import { Avatar } from "../Avatar";
 import { BODY_TYPES } from "../outfits";
 import { clearHandoff, crossTo, peekHandoff, useStage } from "../stage";
-import { ENTRY_Z } from "../layout";
+import { ENTRY_Z, PLAZA_RADIUS } from "../layout";
 import { GATE_Z, INSIDE, KIOSK, STAND, WARDROBE } from "./Gate";
 import { useGate } from "./gate-store";
 import { freePoint, GATE_OBSTACLES, resolve } from "../obstacles";
@@ -29,8 +29,8 @@ const SHOTS = {
 };
 /** arrival fly-in after the reveal (ms) */
 const ARRIVE_MS = 2200;
-/** inside the plaza ring (PLAZA_RADIUS 28): the plaza's own controller takes over the walk-in here */
-const PLAZA_IN_Z = 27.6;
+/** inside the plaza ring: the plaza's own controller takes over the walk-in here */
+const PLAZA_IN_Z = PLAZA_RADIUS - 0.4;
 /** sign-out: the camera's drift back down the avenue to the arrival gate */
 const FLIGHT_MS = 3200;
 /** walking pace through the gate (m/s); the plaza step-out carries the same stride on across the cut */

@@ -17,7 +17,7 @@ import {
   thatchTexture,
   woodTexture,
 } from "./textures";
-import { BENCHES, PORTALS, ringPoint, SPAWN } from "./layout";
+import { BENCHES, FOUNTAIN_COURT, FOUNTAIN_RADIUS, PAVING_R, PLAZA_RADIUS, PORTALS, ringPoint, SPAWN } from "./layout";
 
 export type Tier = "lite" | "standard";
 
@@ -48,17 +48,20 @@ let shared: { tier: Tier; m: Record<string, THREE.Material> } | null = null;
 
 /** Worn walking lines across the plaza: entrance → fountain → every door, plus the bench ring. */
 function wearPaths(): { x: number; z: number }[][] {
-  const paths: { x: number; z: number }[][] = [[{ x: SPAWN.x, z: SPAWN.z + 6 }, { x: 0, z: 4.5 }]];
-  for (const p of PORTALS) paths.push([ringPoint(p.angleDeg, 4.6), ringPoint(p.angleDeg, 27)]);
-  const ring: { x: number; z: number }[] = [];
-  for (let a = 0; a <= 360; a += 10) ring.push(ringPoint(a, 9.6));
-  paths.push(ring);
+  const paths: { x: number; z: number }[][] = [[{ x: SPAWN.x, z: SPAWN.z + 6 }, { x: 0, z: FOUNTAIN_RADIUS + 1 }]];
+  for (const p of PORTALS) paths.push([ringPoint(p.angleDeg, FOUNTAIN_RADIUS + 1), ringPoint(p.angleDeg, PLAZA_RADIUS - 1)]);
+  for (const r of [FOUNTAIN_COURT - 1, FOUNTAIN_COURT + 6]) {
+    const ring: { x: number; z: number }[] = [];
+    for (let a = 0; a <= 360; a += 8) ring.push(ringPoint(a, r));
+    paths.push(ring);
+  }
   return paths;
 }
 
-/** Paving: slab texture (4.8 m tile) × a plaza-wide wear map sampled in world space (±33 m). */
+/** Paving: slab texture (4.8 m tile) × a plaza-wide wear map sampled in world space (± WEAR_HALF m). */
+const WEAR_HALF = PAVING_R + 0.5;
 function pavingMaterial(): THREE.MeshStandardMaterial {
-  const wear = pavingWearTexture(wearPaths(), [...BENCHES.map((b) => ({ x: b.x, z: b.z, r: 2.2 })), { x: 0, z: 0, r: 6 }]);
+  const wear = pavingWearTexture(wearPaths(), [...BENCHES.map((b) => ({ x: b.x, z: b.z, r: 2.2 })), { x: 0, z: 0, r: FOUNTAIN_RADIUS + 2.4 }], WEAR_HALF);
   const m = new THREE.MeshStandardMaterial({ map: pavingTexture(), color: "#bcb4a8", roughness: 0.85, metalness: 0, envMapIntensity: 0.45 });
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uWear = { value: wear };
@@ -67,7 +70,7 @@ function pavingMaterial(): THREE.MeshStandardMaterial {
       "uniform sampler2D uWear;\nvarying vec2 vGkW;\n" +
       sh.fragmentShader.replace(
         "#include <map_fragment>",
-        "#include <map_fragment>\n  diffuseColor.rgb *= 0.55 + 0.45 * texture2D(uWear, vGkW / 66.0 + 0.5).r * 1.0204;",
+        `#include <map_fragment>\n  diffuseColor.rgb *= 0.55 + 0.45 * texture2D(uWear, vGkW / ${(WEAR_HALF * 2).toFixed(1)} + 0.5).r * 1.0204;`,
       );
   };
   m.customProgramCacheKey = () => "gk-paving-wear";
