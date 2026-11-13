@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { PLAZA_BENCH_ANGLES, PLAZA_BENCH_RADIUS, PLAZA_SEATS } from "@gukirana/contracts";
-import { BENCHES } from "@/world/layout";
+import { PLAZA_BENCH_CLUSTERS, PLAZA_BENCHES, PLAZA_SEATS } from "@gukirana/contracts";
+import { BENCHES, BENCH_CLUSTER_RADIUS, MID_ANGLES, PLAZA_RADIUS } from "@/world/layout";
 import { selfPose, useWorld, type RemotePlayer } from "@/lib/world-store";
 import { ghostOf, ghosts, pushPose, renderPose, stepGhosts, stepMotion, tracks } from "./motion";
 
@@ -15,7 +15,10 @@ beforeEach(() => {
 
 describe("shared bench places match the plaza layout", () => {
   it("every bench in world/layout.ts has its seats in @gukirana/contracts", () => {
-    expect(BENCHES).toHaveLength(PLAZA_BENCH_ANGLES.length);
+    expect(BENCHES).toHaveLength(PLAZA_BENCHES.length);
+    // the seating clusters stand on the plaza's bearings between plots (they move with the ring layout)
+    expect([...PLAZA_BENCH_CLUSTERS.angles]).toEqual(MID_ANGLES);
+    expect(BENCH_CLUSTER_RADIUS).toBeLessThan(PLAZA_RADIUS - 8);
     BENCHES.forEach((b, i) => {
       const seats = PLAZA_SEATS.filter((s) => s.id.startsWith(`b${i}s`));
       expect(seats.length).toBeGreaterThanOrEqual(2);
@@ -23,7 +26,7 @@ describe("shared bench places match the plaza layout", () => {
         expect(Math.hypot(s.x - b.x, s.z - b.z)).toBeLessThan(0.9); // on the 2.1 m bench
         expect(Math.abs(Math.atan2(Math.sin(s.yaw - b.rotY), Math.cos(s.yaw - b.rotY)))).toBeLessThan(1e-6); // facing the fountain
       }
-      expect(Math.hypot(b.x, b.z)).toBeCloseTo(PLAZA_BENCH_RADIUS);
+      expect(Math.hypot(b.x, b.z)).toBeCloseTo(PLAZA_BENCHES[i]!.r);
     });
   });
 });

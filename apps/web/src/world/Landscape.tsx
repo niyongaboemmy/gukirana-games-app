@@ -9,6 +9,10 @@ import { InstancedSpecies, type Placement } from "./Vegetation";
 import { Flowers } from "./Flowers";
 import { sessionMemo } from "./session-cache";
 import { BitmapTextureLoader } from "./bitmap-texture";
+import { COMPOUND_R } from "./layout";
+
+/** How far the compound (and so the farmland) moved out from the first 88 m layout (P1-WLD-03). */
+const GROW = COMPOUND_R - 88;
 
 /**
  * Northern Rwanda backdrop (Musanze, at the foot of Volcanoes National Park), built procedurally:
@@ -71,8 +75,8 @@ interface Lake {
 const az = (deg: number, d: number) => ({ x: Math.sin((deg * Math.PI) / 180) * d, z: -Math.cos((deg * Math.PI) / 180) * d });
 /** Burera sits ~100 m above Ruhondo in reality; here Burera is the further, higher lake. */
 export const LAKES: Lake[] = [
-  { name: "Ruhondo", ...az(102, 250), rx: 95, rz: 34, rot: 0.25, level: 1.2 },
-  { name: "Burera", ...az(70, 400), rx: 150, rz: 48, rot: -0.35, level: 7.5 },
+  { name: "Ruhondo", ...az(102, 250 + GROW), rx: 95, rz: 34, rot: 0.25, level: 1.2 },
+  { name: "Burera", ...az(70, 400 + GROW), rx: 150, rz: 48, rot: -0.35, level: 7.5 },
 ];
 function lakeDist(l: Lake, x: number, z: number): number {
   const dx = x - l.x;
@@ -87,12 +91,12 @@ function lakeDist(l: Lake, x: number, z: number): number {
 
 /* ---------------- terrain ---------------- */
 const TERRACE = 2.2;
-/** Height of the farmland terrain (metres). Flat district up to ~85 m, hills beyond; low plain towards the volcanoes. */
+/** Height of the farmland terrain (metres). Flat district up to the compound edge, hills beyond; low plain towards the volcanoes. */
 export function terrainHeight(x: number, z: number): number {
   const r = Math.hypot(x, z);
   // keep the arrival gate forecourt (south, on the avenue axis) flat
-  const gateZone = 1 - smooth(22, 46, Math.hypot(x * 1.4, z - 100));
-  const ramp = smooth(88, 175, r) * (1 - gateZone);
+  const gateZone = 1 - smooth(22, 46, Math.hypot(x * 1.4, z - 100 - GROW));
+  const ramp = smooth(88 + GROW, 175 + GROW, r) * (1 - gateZone);
   if (ramp <= 0) return -0.06;
   const north = smooth(0.15, 0.7, -z / Math.max(r, 1));
   const amp = lerp(30, 6, north);
@@ -156,7 +160,7 @@ function plotColor(x: number, z: number, out: THREE.Color) {
 function terrainColor(x: number, z: number, h: number, out: THREE.Color) {
   const r = Math.hypot(x, z);
   _lawn.set("#5b9442").lerp(_c2.set("#73a650"), fbm(x * 0.05, z * 0.05, 2));
-  if (r < 88) {
+  if (r < COMPOUND_R) {
     out.copy(_lawn);
     return;
   }
@@ -171,7 +175,7 @@ function terrainColor(x: number, z: number, h: number, out: THREE.Color) {
   if (f > 0.7 && r < 600) out.multiplyScalar(lerp(0.78, 1, smooth(380, 600, r))); // terrace riser shadow line
   out.lerp(_c2.set("#3e6b30"), 0.25 * fbm(x * 0.03, z * 0.03, 2));
   // the compound lawn runs out softly into the farmland (no hard seam behind the gate)
-  out.lerp(_lawn, 1 - smooth(88, 118, r));
+  out.lerp(_lawn, 1 - smooth(COMPOUND_R, COMPOUND_R + 30, r));
 }
 
 function buildTerrain(tier: Tier): THREE.BufferGeometry {
@@ -443,14 +447,14 @@ function Vegetation({ tier }: { tier: Tier }) {
     /** the compound (plaza, lawns, avenue, gates, ring road) is a designed garden: no trees, no wild scrub */
     const outside = (x: number, z: number) => {
       const r0 = Math.hypot(x, z);
-      if (r0 < 90) return false;
-      if (Math.abs(x) < 26 && z > 60 && z < 125) return false; // avenue, arrival gate and its forecourt
+      if (r0 < COMPOUND_R + 2) return false;
+      if (Math.abs(x) < 26 && z > 60 && z < 125 + GROW) return false; // avenue, arrival gate and its forecourt
       return !inLake(x, z);
     };
     // scattered acacias on the farmland hills, scrub and lava boulders between the fields
     for (let i = 0; i < (lite ? 40 : 110); i++) {
       const a = r() * Math.PI * 2;
-      const rad = 92 + r() * 260;
+      const rad = 92 + GROW + r() * 260;
       const x = Math.sin(a) * rad;
       const z = Math.cos(a) * rad;
       if (!outside(x, z) || (-z / rad > 0.75 && rad > 200)) continue;
@@ -465,7 +469,7 @@ function Vegetation({ tier }: { tier: Tier }) {
     // eucalyptus woodlots: dense blocks of 30–80 trees on the ridges (as on the Musanze hills)
     for (let w = 0; w < (lite ? 8 : 16); w++) {
       const a = r() * Math.PI * 2;
-      const rad = 120 + r() * 300;
+      const rad = 120 + GROW + r() * 300;
       const cx = Math.sin(a) * rad;
       const cz = Math.cos(a) * rad;
       if (-cz / rad > 0.75 && rad > 200) continue; // keep the volcano view open
@@ -485,7 +489,7 @@ function Vegetation({ tier }: { tier: Tier }) {
     // farmhouses with iron-sheet roofs on the hills
     for (let i = 0; i < (lite ? 50 : 130); i++) {
       const a = r() * Math.PI * 2;
-      const rad = 120 + r() * 330;
+      const rad = 120 + GROW + r() * 330;
       const x = Math.sin(a) * rad;
       const z = Math.cos(a) * rad;
       if (!outside(x, z) || (-z / rad > 0.8 && rad > 260)) continue;

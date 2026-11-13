@@ -1,6 +1,6 @@
-import { BENCHES, DOOR, doorInset, doorLocal, ENTRY_Z, EXIT_KIOSK, FOUNTAIN_RADIUS, PORTALS, ringPoint, TOTEMS, VESTIBULE_DEPTH } from "./layout";
+import { BENCH_CLUSTER_RADIUS, BENCHES, DOOR, DOOR_RING, doorInset, doorLocal, ENTRY_Z, EXIT_KIOSK, FOUNTAIN_RADIUS, MID_ANGLES, PLAZA_RADIUS, PORTALS, RING_ANGLES, ringPoint, TOTEMS, VESTIBULE_DEPTH, WAYFINDING } from "./layout";
 import { doorOpen } from "./transition";
-import { arcPoint, GATE_ARCS, PLAZA_ARCS, RING_PLANTERS, type ArcBed } from "./beds";
+import { arcPoint, GATE_ARCS, PLAZA_ARCS, PLAZA_BEDS, RING_PLANTERS, type ArcBed } from "./beds";
 import { GATE_Z, GUARD_POST, KIOSK } from "./gate/Gate";
 
 /**
@@ -20,8 +20,16 @@ export type Obstacle =
 export const circle = (x: number, z: number, r: number, h = 1): Obstacle => ({ kind: "circle", x, z, r, h });
 export const rect = (x: number, z: number, hw: number, hd: number, rot = 0, h = 1): Obstacle => ({ kind: "rect", x, z, hw, hd, rot, h });
 
-/** Lamp posts on the plaza ring (District draws the same 12). */
-export const LAMPS = Array.from({ length: 12 }, (_, i) => ringPoint((i / 12) * 360 + 15, 19.5));
+/**
+ * Lamp posts (District draws the same ones): one in the middle of every seating cluster (between its two benches),
+ * and a pair flanking every promenade where it meets the door (wayfinding at night, P1-WLD-03).
+ */
+const FLANK_R = PLAZA_RADIUS - 3;
+const FLANK_DEG = (3.2 / FLANK_R) * (180 / Math.PI);
+export const LAMPS = [
+  ...MID_ANGLES.map((deg) => ringPoint(deg, BENCH_CLUSTER_RADIUS)),
+  ...RING_ANGLES.flatMap((deg) => [-1, 1].map((s) => ringPoint(deg + s * FLANK_DEG, FLANK_R))),
+];
 
 /** An arc bed as a chain of overlapping circles along its centre line. */
 function arcCircles(b: ArcBed): Obstacle[] {
@@ -43,6 +51,8 @@ export const PLAZA_OBSTACLES: Obstacle[] = [
   ...RING_PLANTERS.map((p) => circle(p.x, p.z, p.r, 1.2)),
   ...PLAZA_ARCS.flatMap(arcCircles),
   ...TOTEMS.map((t) => rect(t.x, t.z, 1.22, 0.36, t.rotY, 3.8)),
+  ...WAYFINDING.map((w) => rect(w.x, w.z, 0.76, 0.2, w.rotY, 2.6)),
+  ...PLAZA_BEDS.map((b) => rect(b.x, b.z, b.hw + 0.06, b.hd + 0.06, b.rot, 0.9)),
   ...LAMPS.map((l) => circle(l.x, l.z, 0.12, 4.8)),
   // plaza entry gate (seen from inside): exit kiosk, guard, pylons, turnstile cabinets
   rect(EXIT_KIOSK.x, EXIT_KIOSK.z, 0.42, 0.32, EXIT_KIOSK.rotY, 1.9),
@@ -144,10 +154,10 @@ export function freePoint(p: { x: number; z: number }, list: Obstacle[]): { x: n
 function cameraBlocked(x: number, y: number, z: number, list: Obstacle[]): boolean {
   // the buildings stand on the ring beyond the plaza edge (except the open sky over the avenue / gate)
   const r = Math.hypot(x, z);
-  if (r > 29.2 && y < 11 && !(Math.abs(x) < 10 && z > 25)) {
+  if (r > DOOR_RING - 0.3 && y < 11 && !(Math.abs(x) < 10 && z > PLAZA_RADIUS - 3)) {
     // …except through an open hall door: the lobby behind it is open space (stepping out of a hall, the camera
     // starts in the doorway behind you, exactly where the hall's camera was)
-    if (r < 29.2 + VESTIBULE_DEPTH + 3 && y < DOOR.h - 0.35)
+    if (r < DOOR_RING - 0.3 + VESTIBULE_DEPTH + 3 && y < DOOR.h - 0.35)
       for (const p of PORTALS) {
         if (!p.href || (doorOpen[p.id] ?? 0) < 0.3) continue;
         const l = doorLocal(p, x, z);
@@ -191,13 +201,13 @@ export function cameraArm(px: number, pz: number, yaw: number, pitch: number, wa
 
 /* ---------------- click-to-walk route planning (A* on a 0.5 m grid, then string-pulled) ---------------- */
 const CELL = 0.5;
-const HALF = 28.5;
+const HALF = PLAZA_RADIUS + 0.5;
 const N = Math.ceil((HALF * 2) / CELL);
 let gridFor: Obstacle[] | null = null;
 let grid: Uint8Array | null = null;
 
 function blockedAt(x: number, z: number, list: Obstacle[], margin: number): boolean {
-  if (Math.hypot(x, z) > 27.9) return true;
+  if (Math.hypot(x, z) > PLAZA_RADIUS - 0.1) return true;
   const q = { x, z };
   return resolve(q, list, margin);
 }
@@ -266,7 +276,7 @@ export function planRoute(from: { x: number; z: number }, to: { x: number; z: nu
   fScore[start] = h(start);
   inOpen[start] = 1;
   let iter = 0;
-  while (open.length && iter++ < 20000) {
+  while (open.length && iter++ < 60000) {
     let bi = 0;
     for (let k = 1; k < open.length; k++) if (fScore[open[k]!]! < fScore[open[bi]!]!) bi = k;
     const cur = open[bi]!;

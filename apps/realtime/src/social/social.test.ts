@@ -21,7 +21,7 @@ describe("SeatRegistry", () => {
   it("rejects seat ids that don't exist in this place", () => {
     const plaza = new SeatRegistry("plaza");
     expect(plaza.claim("t0s0", "A")).toBe("invalid");
-    expect(plaza.claim("b9s0", "A")).toBe("invalid");
+    expect(plaza.claim("b26s0", "A")).toBe("invalid"); // 26 plaza benches: b0–b25
     expect(plaza.claim({}, "A")).toBe("invalid");
     const pool = new SeatRegistry("pool");
     expect(pool.claim("t3s1", "A")).toBe("ok");

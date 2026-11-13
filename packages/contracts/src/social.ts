@@ -9,9 +9,23 @@ import { z } from "zod";
 // Seats
 // ---------------------------------------------------------------------------------------------------------------
 
-/** Plaza benches: timber benches on lava-stone plinths around the fountain (apps/web/src/world/layout.ts BENCHES). */
-export const PLAZA_BENCH_ANGLES = [30, 90, 150, -30, -90, -150] as const;
-export const PLAZA_BENCH_RADIUS = 11;
+/**
+ * Plaza benches: timber benches on lava-stone plinths, all facing the fountain (apps/web/src/world/layout.ts
+ * BENCHES draws these, in this order; the web test checks they match the plaza layout).
+ *  - b0–b5: the fountain-court ring;
+ *  - b6…: the seating clusters, a pair of benches either side of a lamp on every bearing between two plots.
+ */
+export const PLAZA_BENCH_COURT = { radius: 13.5, angles: [22, 66, 105, -22, -66, -105] } as const;
+export const PLAZA_BENCH_CLUSTERS = { radius: 26, angles: [-159, -133, -105, -66, -22, 22, 66, 105, 133, 159], pair: 2.0 } as const;
+/** Every bench by bearing (degrees, 0 = north / −z, clockwise from above) and distance from the fountain (m). */
+export const PLAZA_BENCHES: readonly { deg: number; r: number }[] = (() => {
+  const c = PLAZA_BENCH_CLUSTERS;
+  const pairDeg = (c.pair / c.radius) * (180 / Math.PI);
+  return [
+    ...PLAZA_BENCH_COURT.angles.map((deg) => ({ deg, r: PLAZA_BENCH_COURT.radius })),
+    ...c.angles.flatMap((m) => [-1, 1].map((s) => ({ deg: Math.round((m + s * pairDeg) * 100) / 100, r: c.radius }))),
+  ];
+})();
 /** Three places per 2.1 m bench, facing the fountain. Offsets along the bench (m). */
 export const PLAZA_BENCH_SLOTS = [-0.68, 0, 0.68] as const;
 /** Seat surface height of the plaza benches (m). The seated animation is authored for a 0.46 m seat. */
@@ -27,16 +41,16 @@ export interface SeatPose {
 }
 
 function benchSeat(bench: number, slot: number): SeatPose {
-  const deg = PLAZA_BENCH_ANGLES[bench]!;
+  const { deg, r } = PLAZA_BENCHES[bench]!;
   const a = (deg * Math.PI) / 180;
-  const bx = PLAZA_BENCH_RADIUS * Math.sin(a);
-  const bz = -PLAZA_BENCH_RADIUS * Math.cos(a);
+  const bx = r * Math.sin(a);
+  const bz = -r * Math.cos(a);
   const o = PLAZA_BENCH_SLOTS[slot]!;
   // bench local +x in world = (cos a, sin a); local +z (towards the fountain) = (-sin a, cos a) → yaw = -a
   return { id: `b${bench}s${slot}`, x: bx + o * Math.cos(a), z: bz + o * Math.sin(a), yaw: -a };
 }
 
-export const PLAZA_SEATS: readonly SeatPose[] = PLAZA_BENCH_ANGLES.flatMap((_, b) => PLAZA_BENCH_SLOTS.map((__, s) => benchSeat(b, s)));
+export const PLAZA_SEATS: readonly SeatPose[] = PLAZA_BENCHES.flatMap((_, b) => PLAZA_BENCH_SLOTS.map((__, s) => benchSeat(b, s)));
 const PLAZA_SEAT_IDS = new Set(PLAZA_SEATS.map((s) => s.id));
 
 /** Hall interiors: tables × chairs per table (apps/web/src/rooms/layouts.ts; the web test checks they match). Seat ids are `t{table}s{chair}`. */

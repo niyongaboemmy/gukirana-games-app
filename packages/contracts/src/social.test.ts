@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACT, EmoteSendSchema, isContactAction, isKnownAnim, isValidSeat, PAIR_DISTANCE, PAIR_KINDS, pairPlacement, PairRequestSchema, PairRespondSchema, PLAZA_SEATS, plazaSeat } from "./social.js";
+import { ACT, EmoteSendSchema, isContactAction, isKnownAnim, isValidSeat, PAIR_DISTANCE, PAIR_KINDS, pairPlacement, PairRequestSchema, PairRespondSchema, PLAZA_BENCHES, PLAZA_SEATS, plazaSeat } from "./social.js";
 
 describe("people actions", () => {
   it("accepts player emotes, refuses locomotion, sitting and contact codes", () => {
@@ -30,7 +30,8 @@ describe("people actions", () => {
 
 describe("seats", () => {
   it("offers three bench places per plaza bench, facing the fountain", () => {
-    expect(PLAZA_SEATS).toHaveLength(18);
+    expect(PLAZA_SEATS).toHaveLength(PLAZA_BENCHES.length * 3);
+    expect(PLAZA_BENCHES.length).toBe(26); // 6 fountain-court benches + 10 seating clusters of two
     for (const s of PLAZA_SEATS) {
       // forward vector points (roughly) at the fountain at the origin
       const fx = Math.sin(s.yaw);
@@ -42,7 +43,8 @@ describe("seats", () => {
   });
   it("validates seat ids per place", () => {
     expect(isValidSeat("plaza", "b5s2")).toBe(true);
-    expect(isValidSeat("plaza", "b6s0")).toBe(false);
+    expect(isValidSeat("plaza", "b25s2")).toBe(true);
+    expect(isValidSeat("plaza", "b26s0")).toBe(false);
     expect(isValidSeat("plaza", "t0s0")).toBe(false);
     expect(isValidSeat("pool", "t3s1")).toBe(true);
     expect(isValidSeat("pool", "t11s1")).toBe(true);

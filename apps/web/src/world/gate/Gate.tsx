@@ -10,6 +10,7 @@ import { useGate } from "./gate-store";
 import { VirtualKeyboard } from "./VirtualKeyboard";
 import { Avatar } from "../Avatar";
 import { DEFAULT_LOOK } from "../outfits";
+import { ENTRY_Z, RING_ROAD } from "../layout";
 
 /**
  * Arrival gate on the southern avenue: basalt pylons, a timber-soffit canopy, five turnstile lanes, a guard booth,
@@ -21,7 +22,7 @@ import { DEFAULT_LOOK } from "../outfits";
  * gate, inside the ring road, so signing in is one continuous walk of ≈ 8–10 s from the tablet to the plaza (it
  * used to stand 64 m away beyond the ring road: a 29 s walk). P1-WLD-05.
  */
-export const GATE_Z = 48;
+export const GATE_Z = ENTRY_Z + 16.5; // a fixed 16.5 m from the plaza entry gate, however large the plaza grows (P1-WLD-03)
 export const KIOSK = { x: -1.55, z: GATE_Z + 1.9, rotY: 0.55 };
 export const STAND = { x: 0.45, z: GATE_Z + 2.6 }; // where the avatar stands to show ID
 export const INSIDE = { x: 0, z: GATE_Z - 4 };
@@ -46,7 +47,8 @@ export function buildGate(tier: Tier, Z: number = GATE_Z, variant: "arrival" | "
     const seg = tier === "lite" ? 48 : 96;
     b.add("paving", flat(new THREE.CircleGeometry(19, seg, Math.PI, Math.PI)), { p: [0, 0.018, Z], tile: 4 });
     b.add("lava", flat(new THREE.RingGeometry(19, 19.6, seg, 1, Math.PI, Math.PI)), { p: [0, 0.022, Z], tile: 1.2 });
-    if (74.5 > Z + 18.8) b.box("paving", 8, 0.02, 74.5 - (Z + 18.8), { p: [0, 0.012, (74.5 + Z + 18.8) / 2], tile: 4 });
+    const road = RING_ROAD.r0 + 0.5;
+    if (road > Z + 18.8) b.box("paving", 8, 0.02, road - (Z + 18.8), { p: [0, 0.012, (road + Z + 18.8) / 2], tile: 4 });
     b.box("paving", 18.8, 0.02, 8.2, { p: [0, 0.015, Z - 4.1], tile: 4 });
   }
   // canopy: white slab, timber soffit battens, LED edges
