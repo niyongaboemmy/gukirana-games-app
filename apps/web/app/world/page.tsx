@@ -33,7 +33,7 @@ export default function WorldPage() {
   useEffect(() => {
     if (!ready || session.status === "loading") return;
     if (session.status === "anonymous" || !profile.onboarded) {
-      router.replace("/");
+      router.replace("/gate");
       return;
     }
     void connectPlaza({ name: profile.name, color: profile.color, level: levelForXp(profile.xp), token: session.accessToken, look: session.me?.look ?? undefined });

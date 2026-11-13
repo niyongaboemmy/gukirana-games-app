@@ -1,6 +1,7 @@
 "use client";
 import { create } from "zustand";
 import { useProfile } from "./profile-store";
+import { decodeLook } from "@/world/outfits";
 
 export interface Me {
   id: string;
@@ -74,6 +75,9 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 /** Mirrors the server profile into the local profile store used by the 3D world and HUD. */
 function mirror(me: Me) {
   useProfile.setState({ name: me.username ?? "", color: me.color, xp: me.xp, stars: me.stars, onboarded: !!me.username });
+  // the account's saved avatar wins over this device's local look
+  if (me.look) useProfile.getState().setLook(decodeLook(me.look, me.color));
+  else useProfile.setState({ bodyType: me.bodyType });
 }
 
 export async function loadMe(): Promise<Me> {

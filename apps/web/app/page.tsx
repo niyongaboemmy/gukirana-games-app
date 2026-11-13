@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { Gift, Globe, Glasses, LogOut, ShieldCheck, Sparkles, Star, Trophy, User, Zap } from "lucide-react";
+import { DoorOpen, Gift, Glasses, LogOut, ShieldCheck, Sparkles, Star, Trophy, User, Zap } from "lucide-react";
 import { coins, quoteChallenge } from "@gukirana/money";
 import { LoginFlow } from "@/auth/LoginFlow";
 import { claimDailyStars, logout, useSession } from "@/lib/session";
@@ -46,14 +46,17 @@ export default function Home() {
             <p className="max-w-xl text-base text-white/75 sm:text-lg">
               Walk into a 3D games world in the hills of Rwanda. Meet real people, talk, agree on a game and sit at the table. Pool, Ludo and Rwanda&apos;s own Igisoro, on your phone, computer or VR headset.
             </p>
-            {ready && (
+            {status !== "loading" && (
               <div className="flex flex-wrap gap-3">
-                <Link href="/world" className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#3DA9FC] to-[#9B51E0] px-6 py-4 text-lg font-extrabold shadow-[0_10px_40px_-10px_#3DA9FC] transition hover:scale-[1.02]">
-                  <Globe size={22} /> Enter the 3D world
+                {/* 3D entry goes through the arrival gate (ID check); signed-in players skip straight inside */}
+                <Link href="/gate" className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#3DA9FC] to-[#9B51E0] px-6 py-4 text-lg font-extrabold shadow-[0_10px_40px_-10px_#3DA9FC] transition hover:scale-[1.02]">
+                  <DoorOpen size={22} /> {ready ? "Enter the 3D world" : "Enter"}
                 </Link>
-                <Link href="/play/ludo" className="flex items-center gap-2 rounded-2xl border border-white/20 bg-white/5 px-6 py-4 text-lg font-bold backdrop-blur hover:bg-white/10">
-                  <Zap size={20} className="text-[#FFC83D]" /> Practice now
-                </Link>
+                {ready && (
+                  <Link href="/play/ludo" className="flex items-center gap-2 rounded-2xl border border-white/20 bg-white/5 px-6 py-4 text-lg font-bold backdrop-blur hover:bg-white/10">
+                    <Zap size={20} className="text-[#FFC83D]" /> Practice now
+                  </Link>
+                )}
               </div>
             )}
           </div>
@@ -90,7 +93,7 @@ export default function Home() {
             ) : (
               <>
                 <p className="mb-1 text-2xl font-extrabold">Muraho!</p>
-                <p className="mb-4 text-sm text-white/60">Sign in with your phone or email to play real people.</p>
+                <p className="mb-4 text-sm text-white/60">Sign in with your phone or email, or walk up to the gate in 3D.</p>
                 <LoginFlow />
               </>
             )}

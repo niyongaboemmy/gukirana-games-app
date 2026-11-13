@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Smartphone } from "lucide-react";
 
 /** Phones must play in landscape (SRS UI-04). Portrait shows this screen + a Classic 2D option. */
 export function RotateGuard() {
@@ -16,7 +17,9 @@ export function RotateGuard() {
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-[#0b0d1a]/95 p-8 text-center text-white">
       <div className="flex flex-col items-center gap-5">
-        <div className="animate-[spin_2.4s_ease-in-out_infinite] text-6xl">📱</div>
+        <div className="animate-[spin_2.4s_ease-in-out_infinite]">
+          <Smartphone size={64} strokeWidth={1.75} />
+        </div>
         <p className="text-2xl font-extrabold">Rotate your phone</p>
         <p className="max-w-xs text-sm text-white/70">The games world is built for landscape. Turn your phone sideways to play.</p>
         <Link href="/" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold">

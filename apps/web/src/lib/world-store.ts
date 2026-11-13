@@ -11,8 +11,10 @@ export interface RemotePlayer {
   yaw: number;
   anim: number;
   emoteUntil?: number;
-  verified?: boolean;
+  /** Optional encoded avatar look (world/outfits.ts encodeLook); absent on older servers/clients. */
   look?: string;
+  /** Server-side verified account (OTP); unverified players are not offered as interaction targets. */
+  verified?: boolean;
   bodyType?: string;
 }
 

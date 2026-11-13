@@ -1,6 +1,7 @@
 "use client";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { DEFAULT_LOOK, DEFAULT_OUTFIT, type AvatarLook, type BodyType, type HairStyle, type Outfit } from "@/world/outfits";
 
 /**
  * Local player profile (dev stub until identity + ledger APIs exist: P0-AUTH, P1-STR, P1-LVL).
@@ -21,7 +22,30 @@ interface ProfileState {
   setProfile: (p: { name: string; color: string }) => void;
   addXp: (amount: number) => number;
   addStars: (amount: number) => void;
+  // avatar look (DESIGN-SPEC §7.2) — always chosen by the player, never inferred
+  bodyType: BodyType;
+  skinTone: string;
+  hairStyle: HairStyle;
+  hairColor: string;
+  outfit: Outfit;
+  setBodyType: (b: BodyType) => void;
+  setSkinTone: (hex: string) => void;
+  setHairStyle: (h: HairStyle) => void;
+  setHairColor: (hex: string) => void;
+  setOutfit: (o: Partial<Outfit>) => void;
+  /** Saves a full look from the avatar creator (`accent` maps to the existing `color`). */
+  setLook: (l: AvatarLook) => void;
 }
+
+/** Current look of the local player, assembled from the profile. */
+export const lookOf = (s: Pick<ProfileState, "bodyType" | "skinTone" | "hairStyle" | "hairColor" | "outfit" | "color">): AvatarLook => ({
+  bodyType: s.bodyType ?? DEFAULT_LOOK.bodyType,
+  skinTone: s.skinTone ?? DEFAULT_LOOK.skinTone,
+  hairStyle: s.hairStyle ?? DEFAULT_LOOK.hairStyle,
+  hairColor: s.hairColor ?? DEFAULT_LOOK.hairColor,
+  outfit: { ...DEFAULT_OUTFIT, ...s.outfit },
+  accent: s.color,
+});
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Kigali" });
 
@@ -42,6 +66,18 @@ export const useProfile = create<ProfileState>()(
         return granted;
       },
       addStars: (amount) => set({ stars: Math.max(0, get().stars + amount) }),
+      bodyType: DEFAULT_LOOK.bodyType,
+      skinTone: DEFAULT_LOOK.skinTone,
+      hairStyle: DEFAULT_LOOK.hairStyle,
+      hairColor: DEFAULT_LOOK.hairColor,
+      outfit: DEFAULT_OUTFIT,
+      setBodyType: (bodyType) => set({ bodyType }),
+      setSkinTone: (skinTone) => set({ skinTone }),
+      setHairStyle: (hairStyle) => set({ hairStyle }),
+      setHairColor: (hairColor) => set({ hairColor }),
+      setOutfit: (o) => set({ outfit: { ...DEFAULT_OUTFIT, ...get().outfit, ...o } }),
+      setLook: (l) =>
+        set({ bodyType: l.bodyType, skinTone: l.skinTone, hairStyle: l.hairStyle, hairColor: l.hairColor, outfit: { ...l.outfit }, color: l.accent }),
     }),
     { name: "gukirana-profile" },
   ),
