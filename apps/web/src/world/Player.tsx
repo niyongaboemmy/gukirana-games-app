@@ -7,6 +7,9 @@ import { Avatar } from "./Avatar";
 import {
   DOOR,
   DOOR_RING,
+  doorInset,
+  doorLocal,
+  doorWorld,
   ENTRY_Z,
   EXIT_KIOSK,
   EXIT_RADIUS,
@@ -15,6 +18,7 @@ import {
   PORTALS,
   portalTransform,
   SPAWN,
+  VESTIBULE_DEPTH,
 } from "./layout";
 import { doorOpen, useTransition } from "./transition";
 import { useDoorway } from "./doorway";
@@ -44,6 +48,9 @@ export const cameraState = { yaw: 0, pitch: 0.42, distance: 9 }; // start zoomed
 export const MAX_ORBIT = 24;
 /** Over-the-shoulder offset (m, to the right) when the camera is close, so your own avatar doesn't hide who you face. */
 const SHOULDER = 0.45;
+/** Walking in through a hall door: the follow camera closes to this distance (m) and height, over the shoulder. */
+export const ENTER_CAM_L = 2.1;
+const ENTER_CAM_Y = 1.9;
 // dev-only hook for visual QA scripts (headless screenshots of wide views); stripped from production logic
 if (process.env.NODE_ENV !== "production" && typeof window !== "undefined")
   Object.assign(window as unknown as Record<string, unknown>, { __gkCam: cameraState, __gkNav: nav });
@@ -100,19 +107,28 @@ export function LocalPlayer({
   // (stepping out of a hall: straight from the hall's controller, or restored after a reload / back button)
   const fromDoor = !!hand?.fromDoor || !!restored.current?.fromDoor;
   const reentryAfter = useRef(fromDoor ? performance.now() + 2500 : 0);
-  if (fromDoor && typeof window !== "undefined") {
-    cameraState.yaw = (hand?.yaw ?? restored.current?.yaw ?? 0) + Math.PI; // behind the player, between them and the hall
-    cameraState.distance = Math.min(cameraState.distance, 4.2); // stays in front of the facade
-  }
-  if (hand?.cam) {
-    // the follow camera starts exactly where the gate camera was (same orbit around the person)
-    const [cx, cy, cz] = hand.cam;
-    const dx = cx - hand.x;
-    const dz = cz - hand.z;
-    const dist = Math.hypot(dx, dz, cy - 1.6);
-    cameraState.yaw = Math.atan2(dx, dz);
-    cameraState.distance = THREE.MathUtils.clamp(dist, 2.5, MAX_ORBIT);
-    cameraState.pitch = THREE.MathUtils.clamp(Math.asin((cy - 1.6) / Math.max(dist, 1e-3)), 0.08, 1.1);
+  // once, before the first frame (not on every re-render: e.g. when `you` arrives after connecting, a re-render
+  // used to reset the orbit to the hand-off pose a second after arriving)
+  const camInit = useRef<{ done: boolean; arm: number | null }>({ done: false, arm: null });
+  if (!camInit.current.done && typeof window !== "undefined") {
+    camInit.current.done = true;
+    if (fromDoor) {
+      cameraState.yaw = (hand?.yaw ?? restored.current?.yaw ?? 0) + Math.PI; // behind the player, between them and the hall
+      cameraState.distance = Math.min(cameraState.distance, 4.2); // stays in front of the facade
+    }
+    if (hand?.cam) {
+      // the follow camera starts exactly where the previous camera was (same orbit around the person): the gate
+      // camera, or the hall's camera stepping out through its door (then in the doorway, close behind you: the
+      // arm starts that short and eases out to your usual distance)
+      const [cx, cy, cz] = hand.cam;
+      const dx = cx - hand.x;
+      const dz = cz - hand.z;
+      const dist = Math.hypot(dx, dz, cy - 1.6);
+      cameraState.yaw = Math.atan2(dx, dz);
+      cameraState.distance = THREE.MathUtils.clamp(dist, 2.5, MAX_ORBIT);
+      cameraState.pitch = THREE.MathUtils.clamp(Math.asin((cy - 1.6) / Math.max(dist, 1e-3)), 0.08, 1.1);
+      camInit.current.arm = Math.min(cameraState.distance, Math.max(1.2, dist));
+    }
   }
   const lookAt = useRef<THREE.Vector3 | null>(null);
   const social = useRef({ listening: false, company: false });
@@ -121,7 +137,8 @@ export function LocalPlayer({
   const you = useWorld((s) => s.you);
   const animSet = HUMAN_MODELS[look.bodyType]?.anim ?? "m";
   const lookTarget = useMemo(() => new THREE.Vector3(), []);
-  const armLen = useRef(cameraState.distance);
+  const armLen = useRef(camInit.current.arm ?? cameraState.distance);
+  const enterCam = useRef({ on: false, L: 0 });
   /** remaining click-to-walk waypoints (routed around benches, beds, planters …) */
   const route = useRef<{ x: number; z: number }[]>([]);
   const stuck = useRef({ t: 0, x: 0, z: 0 });
@@ -262,7 +279,10 @@ export function LocalPlayer({
       const lateral = Math.abs(pos.current.x * Math.cos(a) + pos.current.z * Math.sin(a));
       if (lateral < DOOR.w / 2 - 0.35 && pos.current.x * Math.sin(a) - pos.current.z * Math.cos(a) > 0) {
         // walking in: on into the vestibule (a cold hall keeps loading while you are still visibly walking)
-        limit = entering ? DOOR_RING + 2.6 : DOOR_RING + 0.4;
+        // (entering: up to just short of the lobby's far end; the hall takes over once the camera is through the door)
+        // (not entering but already in the lobby, e.g. a crossing was called off: never shove the person back out)
+        const lobbyEnd = DOOR_RING - doorInset(p.kind) + VESTIBULE_DEPTH - 0.45;
+        limit = entering ? lobbyEnd : Math.max(DOOR_RING + 0.4, Math.min(r, lobbyEnd));
         // crossing the threshold of an open door: fade and go inside (no button needed; E stays as a fallback)
         if (r > DOOR_RING - 0.9 && !entering && performance.now() > reentryAfter.current) {
           // coming back from the room puts you just outside this door, facing the plaza
@@ -298,8 +318,42 @@ export function LocalPlayer({
     }
 
     // third-person camera (DESIGN-SPEC §8.1)
-    if (!inXR) {
-      const want = seatCam.current > 0.01 ? THREE.MathUtils.lerp(cameraState.distance, Math.min(cameraState.distance, 3.6), seatCam.current) : cameraState.distance;
+    const enterPortal = entering ? PORTALS.find((p) => p.href === entering) : undefined;
+    if (!inXR && enterPortal) {
+      // walking in through a door: the camera follows close behind (over the shoulder), centred in the doorway,
+      // through the door line and into the lobby; the hall takes over with this exact camera pose once it is
+      // through (world/stage.ts enterHall), so the person never leaves the frame and never jumps on screen
+      const ec = enterCam.current;
+      if (!ec.on) {
+        ec.on = true;
+        ec.L = Math.hypot(camera.position.x - pos.current.x, camera.position.z - pos.current.z);
+      }
+      ec.L += (ENTER_CAM_L - ec.L) * Math.min(1, dt * 2.6);
+      const fx = Math.sin(facing.current);
+      const fz = Math.cos(facing.current);
+      const loc = doorLocal(enterPortal, pos.current.x - fx * ec.L, pos.current.z - fz * ec.L);
+      const line = doorInset(enterPortal.kind);
+      // near and inside the door: stay clear of the jambs and the lobby walls
+      if (loc.lz < line + 1.8) loc.lx = THREE.MathUtils.clamp(loc.lx, -0.8, 0.8);
+      const w = doorWorld(enterPortal, loc.lx, loc.lz);
+      const wy = THREE.MathUtils.lerp(camera.position.y, ENTER_CAM_Y, Math.min(1, dt * 3));
+      camera.position.lerp(new THREE.Vector3(w.x, wy, w.z), Math.min(1, dt * 7));
+      camera.lookAt(pos.current.x + fx * 1.2, 1.45, pos.current.z + fz * 1.2);
+    } else if (!inXR) {
+      enterCam.current.on = false;
+      let want = seatCam.current > 0.01 ? THREE.MathUtils.lerp(cameraState.distance, Math.min(cameraState.distance, 3.6), seatCam.current) : cameraState.distance;
+      // walking up to an open hall door: the camera closes in behind you over the last few metres, so that walking
+      // through it is one continuous follow (no swoop at the threshold)
+      for (const p of PORTALS) {
+        if (!p.href || (doorOpen[p.id] ?? 0) < 0.2) continue;
+        const loc = doorLocal(p, pos.current.x, pos.current.z);
+        const depth = loc.lz - doorInset(p.kind);
+        if (depth > 7 || depth < -0.5 || Math.abs(loc.lx) > 3) continue;
+        const t = portalTransform(p);
+        const towards = -(Math.sin(facing.current) * Math.sin(t.rotY) + Math.cos(facing.current) * Math.cos(t.rotY));
+        const k = THREE.MathUtils.smoothstep(7 - depth, 0, 5.5) * THREE.MathUtils.smoothstep(towards, 0.3, 0.9);
+        want = THREE.MathUtils.lerp(want, Math.min(want, ENTER_CAM_L + 0.5), k);
+      }
       // spring arm: pull the camera in front of anything solid between the head and the wanted position
       // (buildings around the plaza, sign totems, lamp posts, kiosks, the gate canopy); snap in, ease out
       const d = cameraArm(pos.current.x, pos.current.z, cameraState.yaw, cameraState.pitch, want);
@@ -317,8 +371,7 @@ export function LocalPlayer({
       let cy = aimY + 0.1 + Math.sin(cameraState.pitch) * L;
       // keep the camera below the entry gate canopy (soffit at ~5.2 m) instead of clipping through it
       if (Math.abs(cx) < 10 && Math.abs(cz - ENTRY_Z) < 4.6) cy = Math.min(cy, 4.6);
-      // going through a door: the camera stays on the plaza side and watches you walk in (it never follows into the wall)
-      if (!entering) camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * (d < L + 0.01 ? 14 : 8)));
+      camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * (d < L + 0.01 ? 14 : 8)));
       // aim only a little right of the head: the camera's own sideways offset then puts you left of centre
       camera.lookAt(pos.current.x + rx * 0.25, aimY, pos.current.z + rz * 0.25);
     }

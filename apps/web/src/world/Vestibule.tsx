@@ -1,17 +1,17 @@
 "use client";
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
-import { DOOR, type PortalDef } from "./layout";
+import { DOOR, VESTIBULE_DEPTH, type PortalDef } from "./layout";
 import type { Tier } from "./materials";
 import { blobTexture, doorBadgeTexture, hallGlimpseTexture, woodTexture } from "./textures";
 
 /**
  * A real entrance vestibule behind each plaza hall door (P1-WLD-03, review P0-2): instead of a glowing poster the
- * doorway opens onto a 2.8 m lobby in the hall's own materials — floor, side walls, a ceiling with warm downlights
+ * doorway opens onto a 4.2 m lobby in the hall's own materials — floor, side walls, a ceiling with warm downlights
  * and soft light pools — ending in the open inner doorway with an out-of-focus view into the hall.
  * Local frame = the building's door frame (door centre at x = 0, plaza towards +z), `inset` = door line z.
  */
-const DEPTH = 2.8;
+const DEPTH = VESTIBULE_DEPTH;
 
 interface Style {
   floor: string;

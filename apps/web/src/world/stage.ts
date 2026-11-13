@@ -7,7 +7,7 @@ import { selfPose } from "@/lib/world-store";
 import { useDoorway } from "./doorway";
 import { nav } from "./navigation";
 import { useGate } from "./gate/gate-store";
-import { ENTRY_Z, PORTALS, portalTransform } from "./layout";
+import { doorInset, doorLocal, ENTRY_Z, PORTALS, portalTransform } from "./layout";
 import { doorHold } from "./transition";
 import { HALLS } from "@/rooms/layouts";
 
@@ -102,7 +102,9 @@ export const useStage = create<StageState>()((set, get) => ({
     if (w[0] === g) return;
     set({ warm: [g] }); // the previous warm hall (if not on screen) is released
   },
-  coolHall: (g) => set({ warm: get().warm.filter((x) => x !== g) }),
+  coolHall: (g) => {
+    if (get().warm.includes(g)) set({ warm: get().warm.filter((x) => x !== g) });
+  },
   setReady: (a, v) => {
     if (!!get().ready[a] !== v) set({ ready: { ...get().ready, [a]: v } });
   },
@@ -160,7 +162,7 @@ export const stageNav: { push: (href: string) => void; replace: (href: string) =
 /* ---------------- shared frames: plaza door ↔ hall door ---------------- */
 
 /** Door line of each hall building in its plaza door frame (keep in sync with Plaza.tsx `Door` insets). */
-const DOOR_INSET: Record<HallGame, number> = { pool: -0.55, ludo: -0.4, igisoro: -2.15 };
+const DOOR_INSET: Record<HallGame, number> = { pool: doorInset("pool"), ludo: doorInset("ludo"), igisoro: doorInset("igisoro") };
 
 /**
  * The hall's door line IS the plaza door's line: a position keeps its lateral offset from the door centre, its
@@ -189,10 +191,18 @@ export function hallToPlaza(game: HallGame, x: number, z: number, yaw: number) {
 
 /* ---------------- crossings ---------------- */
 
-/** Walking into a warm hall: the person is seen crossing the door line before the cut (~1.6 m at 1.35 m/s). */
-const ENTER_WALK_MS = 1200;
+/**
+ * Walking into a warm hall: the plaza camera follows the person through the door (world/Player); the hall takes
+ * over the moment the CAMERA is this far past the door line, with the same camera pose mapped through the door
+ * frame (the hall's camera is then inside the hall, behind the person, who stays put on screen).
+ */
+const CAM_PAST_DOOR = 0.45;
+/** never wait longer than this for the camera to come through (blocked, turned round …) */
+const ENTER_MAX_MS = 4200;
+/** once the camera is through: wait at most this long for the late top-up before crossing anyway */
+const TOPUP_GRACE_MS = 250;
 /** Cold hall: keep walking on into the vestibule (live) this long before falling back to the frozen-frame hold. */
-const COLD_LIVE_MS = 2300;
+const COLD_LIVE_MS = 4400;
 /** Walking out of a hall door before the cut onto the plaza (just past the door line). */
 const EXIT_WALK_MS = 380;
 
@@ -235,7 +245,27 @@ export function enterHall(href: string, label: string) {
   useStage.getState().warmHall(game);
   const t0 = performance.now();
   let topped: "no" | "running" | "done" = "no";
-  const inside = () => ({ ...plazaToHall(game, selfPose.x, selfPose.z, selfPose.yaw), speed: 1.35, walk: 1.9 });
+  const portal = PORTALS.find((p) => p.id === game)!;
+  const cam = getArea("outdoor").camera;
+  let throughAt = 0;
+  const camThrough = () => {
+    // the camera is through the door line, and behind the person (who is further in)
+    const c = doorLocal(portal, cam.position.x, cam.position.z).lz;
+    return c < DOOR_INSET[game] - CAM_PAST_DOOR && doorLocal(portal, selfPose.x, selfPose.z).lz < c - 1.0;
+  };
+  const inside = (): HandoffIn => {
+    // the camera pose crosses the door frame with the person: same position and aim relative to them
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
+    const c = plazaToHall(game, cam.position.x, cam.position.z, 0);
+    const l = plazaToHall(game, cam.position.x + fwd.x * 4, cam.position.z + fwd.z * 4, 0);
+    return {
+      ...plazaToHall(game, selfPose.x, selfPose.z, selfPose.yaw),
+      speed: 1.35,
+      walk: 1.9,
+      cam: [c.x, cam.position.y, c.z],
+      look: [l.x, cam.position.y + fwd.y * 4, l.z],
+    };
+  };
   const tick = () => {
     const st = useStage.getState();
     if (st.view !== "plaza") return void (crossing = false); // signed out / navigated away meanwhile
@@ -244,8 +274,11 @@ export function enterHall(href: string, label: string) {
       topped = "running";
       void (areaTopUp.get(area)?.() ?? Promise.resolve()).finally(() => (topped = "done"));
     }
-    if (st.ready[area] && topped === "done" && el >= ENTER_WALK_MS) return crossTo(`hall:${game}`, href, inside);
-    if (el >= COLD_LIVE_MS) {
+    const through = camThrough() || el >= ENTER_MAX_MS;
+    if (through) throughAt ||= performance.now();
+    // the top-up (parts that streamed in late) gets a moment, but never holds the person up in the lobby
+    if (st.ready[area] && through && (topped === "done" || performance.now() - throughAt > TOPUP_GRACE_MS)) return crossTo(`hall:${game}`, href, inside);
+    if (el >= COLD_LIVE_MS && !st.ready[area]) {
       // cold (first visit before the hall finished loading): hold the last frame until the hall is ready
       crossing = false;
       const h = inside();
@@ -273,7 +306,12 @@ export function leaveHall() {
   doorHold[game] = performance.now() + 4000;
   const t0 = performance.now();
   let topped: "no" | "running" | "done" = "no";
-  const out = () => ({ ...hallToPlaza(game, selfPose.x, selfPose.z, selfPose.yaw), speed: 1.35, walk: 2.0, fromDoor: true });
+  const hcam = getArea(`hall:${game}`).camera;
+  const out = (): HandoffIn => {
+    // the hall's camera (inside, behind you) carries on as the plaza camera in the doorway behind you
+    const c = hallToPlaza(game, hcam.position.x, hcam.position.z, 0);
+    return { ...hallToPlaza(game, selfPose.x, selfPose.z, selfPose.yaw), speed: 1.35, walk: 2.0, fromDoor: true, cam: [c.x, hcam.position.y, c.z] };
+  };
   const tick = () => {
     const el = performance.now() - t0;
     const ready = !!useStage.getState().ready.outdoor;

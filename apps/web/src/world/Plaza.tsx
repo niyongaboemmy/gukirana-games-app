@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { ARENA, buildDistrict } from "./District";
 import { Landscape } from "./Landscape";
 import { Lighting } from "./Lighting";
-import { DOOR, DOOR_OPEN_RADIUS, DOOR_RING, PORTALS, portalTransform, ringPoint, SERVICE_ANGLE, TOTEMS, type PortalDef } from "./layout";
+import { DOOR, DOOR_OPEN_RADIUS, DOOR_RING, doorInset, doorLocal, VESTIBULE_DEPTH, PORTALS, portalTransform, ringPoint, SERVICE_ANGLE, TOTEMS, type PortalDef } from "./layout";
 import { doorHold, doorOpen } from "./transition";
 import { selfPose, useWorld } from "@/lib/world-store";
 import { plazaDoorSound, PlazaLife } from "./Ambience";
@@ -65,7 +65,7 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
   const { x, z, rotY } = portalTransform(def);
   const ring = useRef<THREE.MeshBasicMaterial>(null);
   const soon = def.kind === "soon";
-  const inset = def.kind === "arena" ? -1.15 : def.kind === "igisoro" ? -2.15 : def.kind === "pool" ? -0.55 : def.kind === "ludo" ? -0.4 : -0.45;
+  const inset = doorInset(def.kind);
   const ledColor = useMemo(() => new THREE.Color(def.color).multiplyScalar(LED_BOOST[tier]), [def.color, tier]);
   const hoarding = worldMaterials(tier)["hoarding"];
   useFrame(({ clock }) => {
@@ -139,6 +139,12 @@ function AutoDoors({ def, inset, tier, locked = false }: { def: PortalDef; inset
     // a real sensor door opens for whoever walks up to it, not only for you
     // (also held open for someone about to step out of the hall: their position is inside it, out of sensor range)
     let near = Math.hypot(selfPose.x - entryX, selfPose.z - entryZ) < DOOR_OPEN_RADIUS || (doorHold[def.id] ?? 0) > performance.now();
+    if (!near) {
+      // anyone in the doorway or the lobby behind it keeps it open (walking in, the hall takes over only once the
+      // camera is through the door, ~3 m in: the doors must not close on the way)
+      const l = doorLocal(def, selfPose.x, selfPose.z);
+      near = Math.abs(l.lx) < DOOR.w && l.lz < inset + 1.2 && l.lz > inset - VESTIBULE_DEPTH - 0.5;
+    }
     if (!near) {
       const ps = useWorld.getState().players;
       for (const id in ps) {

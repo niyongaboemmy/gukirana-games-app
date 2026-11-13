@@ -82,3 +82,29 @@ export const COLLIDERS: Collider[] = [
   ...PLANTERS.map((p) => ({ x: p.x, z: p.z, r: p.r + 0.35 })),
   ...TOTEMS.map((t) => ({ x: t.x, z: t.z, r: 1.1 })),
 ];
+
+/** Door line of each building in its door frame (local z; negative = set back into the facade). */
+export function doorInset(kind: PortalDef["kind"]): number {
+  return kind === "arena" ? -1.15 : kind === "igisoro" ? -2.15 : kind === "pool" ? -0.55 : kind === "ludo" ? -0.4 : -0.45;
+}
+
+/** Depth of the entrance lobby behind a hall door (world/Vestibule): deep enough that the follow camera passes the
+ *  door line behind you before you reach its far end (the hall takes over as the camera crosses). */
+export const VESTIBULE_DEPTH = 4.2;
+
+/** A point in a portal's door frame: lateral offset from the door centre (lx), depth towards the fountain (lz). */
+export function doorLocal(p: PortalDef, x: number, z: number) {
+  const t = portalTransform(p);
+  const c = Math.cos(t.rotY);
+  const s = Math.sin(t.rotY);
+  const dx = x - t.x;
+  const dz = z - t.z;
+  return { lx: dx * c - dz * s, lz: dx * s + dz * c };
+}
+/** Inverse of `doorLocal`. */
+export function doorWorld(p: PortalDef, lx: number, lz: number) {
+  const t = portalTransform(p);
+  const c = Math.cos(t.rotY);
+  const s = Math.sin(t.rotY);
+  return { x: t.x + lx * c + lz * s, z: t.z - lx * s + lz * c };
+}

@@ -55,6 +55,15 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
         : new THREE.Vector3(layout.door.x, 0, layout.size.d / 2 - 1.0),
   );
   const introSpeed = hand?.speed ?? 1.35;
+  /** the plaza camera's orbit around you at the crossing (walked in through the door), see the intro shot below */
+  const [handCam] = useState(() => {
+    if (!hand?.cam) return null;
+    const [x, y, z] = hand.cam;
+    const dx = x - hand.x;
+    const dz = z - hand.z;
+    const dist = Math.max(0.5, Math.hypot(dx, dz, y - 1.6));
+    return { yaw: Math.atan2(dx, dz), pitch: Math.asin(THREE.MathUtils.clamp((y - 1.6) / dist, -1, 1)), dist };
+  });
   const insideOnce = useRef(!!back.current);
   /** scripted entry: a few natural steps into the hall (any input takes over immediately) */
   const intro = useRef(back.current ? 0 : INTRO_S);
@@ -339,7 +348,22 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     let cx: number;
     let cy: number;
     let cz: number;
-    if (intro.current > 0) {
+    if (intro.current > 0 && handCam) {
+      // walked in through the plaza door: the camera arrives exactly where the plaza camera was (mapped through the
+      // door frame: behind you, over the shoulder, just inside the door) and opens out onto the normal follow pose
+      // as you walk on in, so you stay put on screen across the crossing
+      const k = THREE.MathUtils.smoothstep(1 - intro.current / INTRO_S, 0, 1);
+      const yaw = handCam.yaw + wrapA(0 - handCam.yaw) * k;
+      const pitch = THREE.MathUtils.lerp(handCam.pitch, cameraState.pitch, k);
+      const dd = THREE.MathUtils.lerp(handCam.dist, cameraState.distance, k);
+      cx = pos.current.x + Math.sin(yaw) * Math.cos(pitch) * dd;
+      cz = pos.current.z + Math.cos(yaw) * Math.cos(pitch) * dd;
+      cy = 1.6 + Math.sin(pitch) * dd;
+      // same aim as the plaza's door follow (a little ahead of you at chest height), settling onto the head
+      const fx = Math.sin(facing.current);
+      const fz = Math.cos(facing.current);
+      target.set(pos.current.x + fx * 1.2 * (1 - k), THREE.MathUtils.lerp(1.45, 1.55, k), pos.current.z + fz * 1.2 * (1 - k));
+    } else if (intro.current > 0) {
       // walk-in shot: the normal follow camera (behind you, held inside the doorway) looking into the hall; the
       // view settles from the hall ahead onto your shoulders as you step in, ending exactly on the follow pose
       const dd = cameraState.distance;
