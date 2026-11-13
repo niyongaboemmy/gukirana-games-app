@@ -14,10 +14,11 @@ import { AdminGuard, AuthGuard, InternalGuard } from "./common/auth.js";
 import { EconomyAdminController, EconomyPublicController } from "./modules/economy/economy.controller.js";
 import { EconomyService } from "./modules/economy/economy.service.js";
 import { WalletService } from "./modules/wallet/wallet.service.js";
+import { AdminBlockModule } from "./modules/admin-block/admin-block.module.js";
 
 /** Modular monolith root (plan §3). */
 @Module({
-  imports: [DbModule, LedgerModule],
+  imports: [DbModule, LedgerModule, AdminBlockModule],
   controllers: [HealthController, IdentityController, WalletController, GamesController, SocialController, EconomyPublicController, EconomyAdminController],
   providers: [IdentityService, LevelsService, GamesService, SocialService, EconomyService, WalletService, AuthGuard, InternalGuard, AdminGuard],
 })

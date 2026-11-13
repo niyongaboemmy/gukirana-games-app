@@ -11,6 +11,7 @@ import { starsBudget, userStars } from "../ledger/accounts.js";
 import { levelForXp } from "../levels/xp.js";
 import { maskEmail, maskLoginId, maskPhone, type LoginId } from "./phone.js";
 import { defaultLookCode, lookOf } from "./default-look.js";
+import { AccessService } from "../admin-block/access.service.js";
 
 const log = createLogger("identity");
 const OTP_TTL_MS = 5 * 60_000;
@@ -30,6 +31,7 @@ export class IdentityService {
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly ledger: LedgerService,
+    private readonly access: AccessService,
   ) {}
 
   /** FR-ACC-01: phone OTP. Rate limited (3 per 10 min). Dev returns the code to the client. */
@@ -94,6 +96,8 @@ export class IdentityService {
   async issue(userId: string, device?: string): Promise<Omit<Tokens, "isNew">> {
     const [u] = await this.db.select().from(users).where(eq(users.id, userId));
     if (!u || u.status !== "active") throw new UnauthorizedException({ code: "ACCOUNT_INACTIVE" });
+    // dev / first-run: BOOTSTRAP_SUPER_ADMINS (emails / phones) → super_admin at login + refresh; unset = never
+    await this.access.bootstrap(u, env().BOOTSTRAP_SUPER_ADMINS);
     const refreshToken = randomBytes(32).toString("base64url");
     const refreshExpires = new Date(Date.now() + REFRESH_TTL_MS);
     await this.db.insert(refreshTokens).values({ id: newId(), userId, tokenHash: sha(refreshToken), device: device?.slice(0, 120), expiresAt: refreshExpires });

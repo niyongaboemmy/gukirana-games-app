@@ -9,7 +9,8 @@
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "grant-role": "tsx src/scripts/grant-role.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",
@@ -35,6 +36,7 @@
   "devDependencies": {
     "@gukirana/tsconfig": "workspace:*",
     "@nestjs/cli": "^11.0.10",
-    "fast-check": "^4.10.2"
+    "fast-check": "^4.10.2",
+    "tsx": "^4.20.6"
   }
 }
