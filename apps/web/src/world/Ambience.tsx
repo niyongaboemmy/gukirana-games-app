@@ -4,6 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { selfPose } from "@/lib/world-store";
 import { uiAudio } from "@/lib/audio";
+import { isOnScreen, useArea } from "./stage";
 import { DOOR_RING } from "./layout";
 import type { Tier } from "./materials";
 
@@ -125,7 +126,7 @@ function droplet(rnd: () => number, level: number) {
 /** A plaza sensor door sliding open/closed, attenuated by distance from the listener. */
 export function plazaDoorSound(x: number, z: number, opening: boolean) {
   const ctx = uiAudio();
-  if (!ctx) return;
+  if (!ctx || !isOnScreen("outdoor")) return; // the plaza is kept warm while you are in a hall: silent there
   const dist = Math.hypot(selfPose.x - x, selfPose.z - z);
   const vol = 0.06 / (1 + dist * 0.35);
   if (vol < 0.004) return;
@@ -152,6 +153,8 @@ function Soundscape() {
   const rnd = useMemo(() => lcg(77), []);
   const nextBird = useRef(0);
   const nextDrop = useRef(0);
+  const area = useArea();
+  const muted = useRef(false);
   useEffect(
     () => () => {
       // leaving the plaza (into a hall, signing out): fade the bed out
@@ -166,6 +169,13 @@ function Soundscape() {
     const ctx = uiAudio();
     if (!b || !ctx) return;
     const t = clock.elapsedTime;
+    // the plaza stays mounted (warm) while you are in a hall: its soundscape fades out there and back in on return
+    const here = isOnScreen(area);
+    if (here === muted.current) {
+      muted.current = !here;
+      b.master.gain.setTargetAtTime(here ? 1 : 0, ctx.currentTime, here ? 0.6 : 0.3);
+    }
+    if (!here) return;
     const d = Math.hypot(selfPose.x, selfPose.z); // fountain at the plaza centre
     // near the basin it is a calm murmur (not a roar); it fades out within ~20 m
     const near = 1 / (1 + Math.max(0, d - 3) * 0.45);

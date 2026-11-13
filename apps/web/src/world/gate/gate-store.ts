@@ -10,8 +10,9 @@ import { chime, buzz } from "./sfx";
  * world-space keyboard (VR), so both stay in sync. Auth itself lives in lib/session.ts (not reimplemented here).
  *
  * arrive → id → code → opening → (setup for new players) → entering → /world
+ * leaving: signing out, the person walks back out through the turnstiles (then → id for the next visitor)
  */
-export type GateStep = "arrive" | "id" | "code" | "opening" | "setup" | "entering";
+export type GateStep = "arrive" | "id" | "code" | "opening" | "setup" | "entering" | "leaving";
 
 interface GateState {
   step: GateStep;

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useXR } from "@react-three/xr";
 import * as THREE from "three";
@@ -18,6 +18,7 @@ import {
 } from "./layout";
 import { doorOpen, useTransition } from "./transition";
 import { useDoorway } from "./doorway";
+import { clearHandoff, peekHandoff } from "./stage";
 import { cameraArm, freePoint, planRoute, plazaObstacles, resolve } from "./obstacles";
 import type { Tier } from "./materials";
 import { useWorld } from "@/lib/world-store";
@@ -83,18 +84,35 @@ export function LocalPlayer({
   );
   const group = useRef<THREE.Group>(null);
   const anim = useRef(0);
+  // walking in from the gate: the same walk carries straight on (pose, stride, camera handed over at the cut)
+  const [hand] = useState(() => (typeof window !== "undefined" ? peekHandoff("plaza") : null));
+  useEffect(() => clearHandoff("plaza"), []);
   // come back exactly where you were (after a game / a room); otherwise spawn by the gate
-  const restored = useRef(typeof window !== "undefined" ? takeWorldPose() : null);
+  const restored = useRef(hand ? null : typeof window !== "undefined" ? takeWorldPose() : null);
   const pos = useRef(
-    restored.current ? new THREE.Vector3(restored.current.x, 0, restored.current.z) : spawnPoint(name),
+    hand ? new THREE.Vector3(hand.x, 0, hand.z) : restored.current ? new THREE.Vector3(restored.current.x, 0, restored.current.z) : spawnPoint(name),
   );
-  const facing = useRef(restored.current?.yaw ?? Math.PI);
-  const stepOut = useRef(restored.current?.fromDoor ? 1.6 : restored.current ? 0 : 1.4); // fresh arrival: walk in from the gate
+  const facing = useRef(hand?.yaw ?? restored.current?.yaw ?? Math.PI);
+  const stepOut = useRef(hand ? hand.walk : restored.current?.fromDoor ? 2.0 : restored.current ? 0 : 1.4); // out of a hall: ~2.6 m out through the door; fresh arrival: walk in from the gate
+  /** pace of the scripted step-out / walk-in (m/s): carried over from the walk that came before */
+  const stepSpeed = hand?.speed ?? 1.35;
   /** don't pull the player straight back through the door they just came out of */
-  const reentryAfter = useRef(restored.current?.fromDoor ? performance.now() + 2500 : 0);
-  if (restored.current?.fromDoor && typeof window !== "undefined") {
-    cameraState.yaw = (restored.current.yaw ?? 0) + Math.PI; // behind the player, between them and the hall
+  // (stepping out of a hall: straight from the hall's controller, or restored after a reload / back button)
+  const fromDoor = !!hand?.fromDoor || !!restored.current?.fromDoor;
+  const reentryAfter = useRef(fromDoor ? performance.now() + 2500 : 0);
+  if (fromDoor && typeof window !== "undefined") {
+    cameraState.yaw = (hand?.yaw ?? restored.current?.yaw ?? 0) + Math.PI; // behind the player, between them and the hall
     cameraState.distance = Math.min(cameraState.distance, 4.2); // stays in front of the facade
+  }
+  if (hand?.cam) {
+    // the follow camera starts exactly where the gate camera was (same orbit around the person)
+    const [cx, cy, cz] = hand.cam;
+    const dx = cx - hand.x;
+    const dz = cz - hand.z;
+    const dist = Math.hypot(dx, dz, cy - 1.6);
+    cameraState.yaw = Math.atan2(dx, dz);
+    cameraState.distance = THREE.MathUtils.clamp(dist, 2.5, MAX_ORBIT);
+    cameraState.pitch = THREE.MathUtils.clamp(Math.asin((cy - 1.6) / Math.max(dist, 1e-3)), 0.08, 1.1);
   }
   const lookAt = useRef<THREE.Vector3 | null>(null);
   const social = useRef({ listening: false, company: false });
@@ -111,6 +129,9 @@ export function LocalPlayer({
   const still = useRef(true);
   const { camera, gl } = useThree();
   const inXR = useXR((s) => s.session != null);
+  useLayoutEffect(() => {
+    if (hand?.cam) camera.position.set(...hand.cam);
+  }, [hand, camera]);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -176,7 +197,7 @@ export function LocalPlayer({
       // stepping out of a hall: a few natural steps towards the plaza while the door closes behind
       const held = useDoorway.getState().phase === "closed"; // step out once the doors have opened
       if (!held) stepOut.current -= dt;
-      const sp = held ? 0 : 1.35 * Math.min(1, stepOut.current / 0.4 + 0.2);
+      const sp = held ? 0 : stepSpeed * Math.min(1, stepOut.current / 0.4 + 0.2);
       pos.current.x += Math.sin(facing.current) * sp * dt;
       pos.current.z += Math.cos(facing.current) * sp * dt;
       anim.current = stepOut.current > 0.05 && sp > 0 ? 1 : 0;
@@ -240,12 +261,13 @@ export function LocalPlayer({
       const a = (p.angleDeg * Math.PI) / 180;
       const lateral = Math.abs(pos.current.x * Math.cos(a) + pos.current.z * Math.sin(a));
       if (lateral < DOOR.w / 2 - 0.35 && pos.current.x * Math.sin(a) - pos.current.z * Math.cos(a) > 0) {
-        limit = DOOR_RING + 0.4;
+        // walking in: on into the vestibule (a cold hall keeps loading while you are still visibly walking)
+        limit = entering ? DOOR_RING + 2.6 : DOOR_RING + 0.4;
         // crossing the threshold of an open door: fade and go inside (no button needed; E stays as a fallback)
         if (r > DOOR_RING - 0.9 && !entering && performance.now() > reentryAfter.current) {
           // coming back from the room puts you just outside this door, facing the plaza
           // a few steps out from the door (camera stays on the plaza side, no prompt to walk straight back in)
-          saveDoorPose({ x: Math.sin(a) * (DOOR_RING - 4.5), z: -Math.cos(a) * (DOOR_RING - 4.5), yaw: -a });
+          saveDoorPose({ x: Math.sin(a) * (DOOR_RING - 1.2), z: -Math.cos(a) * (DOOR_RING - 1.2), yaw: -a });
           useTransition.getState().enter(p.href);
         }
       }

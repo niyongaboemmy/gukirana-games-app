@@ -2,6 +2,7 @@
 import { useGLTF, useTexture } from "@react-three/drei";
 import { INTERIOR_BASE, model, type PbrName } from "./interior-kit";
 import type { HallGame } from "./layouts";
+import { useStage } from "@/world/stage";
 
 /** What each hall loads (keep in sync with PoolHall / LudoLounge / IgisoroCourt). */
 const HALL_ASSETS: Record<HallGame, { models: string[]; pbr: [PbrName, boolean][] }> = {
@@ -21,8 +22,10 @@ const HALL_ASSETS: Record<HallGame, { models: string[]; pbr: [PbrName, boolean][
 
 const done = new Set<HallGame>();
 
-/** Warm the caches for a hall (called as the player walks towards its door), so entering shows no loading gap. */
+/** Warm a hall (called every frame while the player is within 12 m of its door), so entering shows no loading gap. */
 export function preloadHall(game: HallGame) {
+  // mount the hall hidden in the persistent stage: compiled + uploaded before you reach the threshold
+  if (useStage.getState().view === "plaza") useStage.getState().warmHall(game);
   if (done.has(game)) return;
   done.add(game);
   const a = HALL_ASSETS[game];

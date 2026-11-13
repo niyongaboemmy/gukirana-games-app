@@ -7,7 +7,7 @@ import { ARENA, buildDistrict } from "./District";
 import { Landscape } from "./Landscape";
 import { Lighting } from "./Lighting";
 import { DOOR, DOOR_OPEN_RADIUS, DOOR_RING, PORTALS, portalTransform, ringPoint, SERVICE_ANGLE, TOTEMS, type PortalDef } from "./layout";
-import { doorOpen } from "./transition";
+import { doorHold, doorOpen } from "./transition";
 import { selfPose, useWorld } from "@/lib/world-store";
 import { plazaDoorSound, PlazaLife } from "./Ambience";
 import { EntryGate } from "./gate/EntryGate";
@@ -137,7 +137,8 @@ function AutoDoors({ def, inset, tier, locked = false }: { def: PortalDef; inset
     if (locked) return; // not open yet (Tournament Arena): the doors stay shut
     const dt = Math.min(rawDt, 0.05);
     // a real sensor door opens for whoever walks up to it, not only for you
-    let near = Math.hypot(selfPose.x - entryX, selfPose.z - entryZ) < DOOR_OPEN_RADIUS;
+    // (also held open for someone about to step out of the hall: their position is inside it, out of sensor range)
+    let near = Math.hypot(selfPose.x - entryX, selfPose.z - entryZ) < DOOR_OPEN_RADIUS || (doorHold[def.id] ?? 0) > performance.now();
     if (!near) {
       const ps = useWorld.getState().players;
       for (const id in ps) {

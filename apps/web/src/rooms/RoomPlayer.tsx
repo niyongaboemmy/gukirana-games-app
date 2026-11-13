@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { Avatar } from "@/world/Avatar";
@@ -11,6 +11,7 @@ import { useRoom } from "./room-store";
 import { takeReturnFor } from "@/lib/return-point";
 import { autoFollow, nav, pointerNav, steer, TargetMarker } from "@/world/navigation";
 import { useDoorway } from "@/world/doorway";
+import { clearHandoff, peekHandoff } from "@/world/stage";
 import type { HallLayout } from "./layouts";
 
 const SIT_ANIM = 13;
@@ -33,8 +34,27 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   const anim = useRef(0);
   // back from a game → same spot / same chair; otherwise appear in the open doorway and walk in automatically
   const back = useRef(typeof window !== "undefined" ? takeReturnFor(`/room/${layout.game}`) : null);
-  // just inside the open doors, facing into the hall (−z), with the follow camera already behind you
-  const pos = useRef(back.current ? new THREE.Vector3(back.current.x, 0, back.current.z) : new THREE.Vector3(layout.door.x, 0, layout.size.d / 2 - 1.0));
+  // walked in through the plaza door: the exact spot / heading / pace you crossed the door line with (world/stage.ts
+  // maps the plaza door frame onto this door); otherwise (reload, deep link) just inside the open doors
+  const [hand] = useState(() => (typeof window !== "undefined" ? peekHandoff(`hall:${layout.game}`) : null));
+  useEffect(() => clearHandoff(`hall:${layout.game}`), [layout.game]);
+  // you just walked through the open door: it is open on the very first frame (whatever order the door sensor and
+  // this controller run in, the wall clamp would otherwise snap you 0.2 m inwards)
+  useLayoutEffect(() => {
+    if (!hand) return;
+    useRoom.getState().set({ doorOpen: true });
+    // and the hall door sensor sees you where you are from its very first frame
+    selfPose.x = hand.x;
+    selfPose.z = hand.z;
+  }, [hand]);
+  const pos = useRef(
+    back.current
+      ? new THREE.Vector3(back.current.x, 0, back.current.z)
+      : hand
+        ? new THREE.Vector3(hand.x, 0, hand.z)
+        : new THREE.Vector3(layout.door.x, 0, layout.size.d / 2 - 1.0),
+  );
+  const introSpeed = hand?.speed ?? 1.35;
   const insideOnce = useRef(!!back.current);
   /** scripted entry: a few natural steps into the hall (any input takes over immediately) */
   const intro = useRef(back.current ? 0 : INTRO_S);
@@ -48,7 +68,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     cameraState.pitch = 0.2;
     cameraState.distance = 5.8;
   }
-  const facing = useRef(back.current?.yaw ?? Math.PI); // facing into the room (−z)
+  const facing = useRef(back.current?.yaw ?? hand?.yaw ?? Math.PI); // facing into the room (−z)
   const exited = useRef(false);
   const leaveStart = useRef(0);
   const sitStage = useRef<SitStage | null>(null);
@@ -238,9 +258,11 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       const ph = useDoorway.getState().phase;
       const shut = ph === "closed"; // the walk-in starts exactly when the arrival dissolve starts
       if (!shut) intro.current -= dt;
-      const sp = shut ? 0 : 1.35 * Math.min(1, intro.current / 0.4 + 0.2);
-      pos.current.z -= sp * dt;
-      facing.current = Math.PI;
+      const sp = shut ? 0 : introSpeed * Math.min(1, intro.current / 0.4 + 0.2);
+      // carry on along the heading you came in with, easing round to face into the hall
+      facing.current += wrapA(Math.PI - facing.current) * Math.min(1, dt * 3);
+      pos.current.x += Math.sin(facing.current) * sp * dt;
+      pos.current.z += Math.cos(facing.current) * sp * dt;
       anim.current = intro.current > 0.05 && sp > 0 ? 1 : 0;
     } else {
       intro.current = 0;

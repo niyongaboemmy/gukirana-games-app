@@ -1,11 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { useWorld } from "@/lib/world-store";
 import { logout } from "@/lib/session";
 import { useTransition } from "./transition";
-import { useDoorway } from "./doorway";
+import { enterHall, signOut as walkOut } from "./stage";
 import { PORTALS } from "./layout";
 
 /** UI strings (to move to @gukirana/i18n keys `world.exit.*`). */
@@ -19,22 +18,21 @@ const STR = {
 } as const;
 
 /**
- * DOM overlay for the world: (1) the exit-kiosk prompt + confirm sheet ("Sign out at the gate"), and (2) the
- * walk-through door transition (soft fade to black, then navigate to the room).
+ * DOM overlay for the world: (1) the exit-kiosk prompt + confirm sheet ("Sign out at the gate": the person then
+ * walks out through the gate, world/stage.ts signOut), and (2) the walk-through door crossing into a hall.
  */
 export function WorldOverlays() {
-  const router = useRouter();
   const nearGateExit = useWorld((s) => s.nearGateExit);
   const entering = useTransition((s) => s.entering);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // door transition: the hall's glass doors close in front of you, the room loads behind them, then they open inside
+  // door crossing: you keep walking into the vestibule, the (pre-warmed) hall takes over mid-stride
   useEffect(() => {
     if (!entering) return;
     const label = PORTALS.find((p) => p.href === entering)?.label ?? "";
-    useDoorway.getState().pass(label, () => router.push(entering));
-  }, [entering, router]);
+    enterHall(entering, label);
+  }, [entering]);
   useEffect(() => () => useTransition.getState().reset(), []);
 
   useEffect(() => {
@@ -50,13 +48,11 @@ export function WorldOverlays() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const signOut = async () => {
+  // the person turns and walks out through the turnstiles; the session ends once the walk has started
+  const signOut = () => {
     setBusy(true);
-    try {
-      await logout();
-    } finally {
-      router.push("/gate");
-    }
+    setConfirm(false);
+    walkOut("kiosk", logout);
   };
 
   return (
@@ -85,7 +81,7 @@ export function WorldOverlays() {
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => void signOut()}
+                onClick={signOut}
                 className="btn-danger flex flex-1 items-center justify-center gap-2 rounded-full py-2.5 font-bold disabled:opacity-60"
               >
                 <LogOut size={18} strokeWidth={1.85} /> {busy ? STR.busy : STR.confirm}

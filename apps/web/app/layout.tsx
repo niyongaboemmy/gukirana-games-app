@@ -3,6 +3,7 @@ import { Chakra_Petch, Inter } from "next/font/google";
 import "./globals.css";
 import { SessionBoot } from "@/auth/SessionBoot";
 import { DoorTransition } from "@/world/doorway";
+import { SceneHost } from "@/world/SceneHost";
 
 // UI type (docs/UI-DESIGN-SYSTEM.md, SIL OFL 1.1, self-hosted by next/font at build time): Chakra Petch for display
 // (titles, chips, buttons, numerals), Inter for body text (chat, menus, descriptions).
@@ -28,6 +29,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning className={`${display.variable} ${ui.variable}`}>
       <body suppressHydrationWarning className="min-h-dvh antialiased">
         <SessionBoot />
+        {/* one persistent 3D canvas for the whole session; pages only choose what it shows */}
+        <SceneHost />
         {children}
         <DoorTransition />
       </body>

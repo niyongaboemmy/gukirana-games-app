@@ -76,12 +76,32 @@ export function OutdoorView({
   useFrame(() => {
     if (captured) return;
     frames.current++;
-    // frame 1: landscape + environment map are built; frame 3: everything uploaded, capture once
+    // frame 1: landscape + environment map are built; from frame 3: one cube face per frame (six full renders of
+    // the landscape in a single frame stalled the walk up to the door while this hall pre-warmed)
     if (frames.current < 3) return;
+    const face = frames.current - 3;
+    if (face === 0) {
+      cam.coordinateSystem = gl.coordinateSystem;
+      cam.updateCoordinateSystem();
+      cam.updateMatrixWorld(true);
+    }
     const shadows = gl.shadowMap.enabled;
+    const tm = gl.toneMapping;
+    const xr = gl.xr.enabled;
+    const prev = gl.getRenderTarget();
     gl.shadowMap.enabled = false;
-    cam.update(gl, outdoor);
-    gl.shadowMap.enabled = shadows;
+    gl.toneMapping = THREE.NoToneMapping;
+    gl.xr.enabled = false;
+    try {
+      gl.setRenderTarget(rt, face);
+      gl.render(outdoor, cam.children[face] as THREE.Camera);
+    } finally {
+      gl.setRenderTarget(prev);
+      gl.xr.enabled = xr;
+      gl.toneMapping = tm;
+      gl.shadowMap.enabled = shadows;
+    }
+    if (face < 5) return;
     scene.background = rt.texture;
     scene.backgroundIntensity = 1;
     setCaptured(true);
