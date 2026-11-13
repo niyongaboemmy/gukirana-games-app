@@ -119,9 +119,9 @@ function WalletModel({ open, currency, stars, hasMoney }: { open: boolean; curre
   );
 }
 
-export function Wallet3D({ open, currency, stars, hasMoney }: { open: boolean; currency: string; stars: number; hasMoney: boolean }) {
+export function Wallet3D({ open, currency, stars, hasMoney, compact = false }: { open: boolean; currency: string; stars: number; hasMoney: boolean; compact?: boolean }) {
   return (
-    <Canvas dpr={[1, 2]} camera={{ position: [0, 0.05, 3.9], fov: 36 }} gl={{ antialias: true, alpha: true }} style={{ background: "transparent" }}>
+    <Canvas dpr={[1, 2]} camera={{ position: [0, compact ? 0.15 : 0.05, compact ? 2.35 : 3.9], fov: 36 }} gl={{ antialias: true, alpha: true }} style={{ background: "transparent" }}>
       {/* soft, even, glare-free light: a sky/ground fill and one diffuse key */}
       <hemisphereLight args={["#f2efe9", "#3a342e", 1.1]} />
       <directionalLight position={[1.5, 2, 3]} intensity={1.3} color="#fff4e6" />
