@@ -305,3 +305,80 @@ UVs are re-projected to **world metres** by the batcher, so texel density stays 
 |---|---|---|
 | `@react-three/postprocessing` ^3.2 + `postprocessing` ^6.39 | One merged bloom and tone-mapping pass on the Standard tier only (DESIGN-SPEC §16.1 "Bloom (low)"). `ToneMappingMode` comes from `postprocessing` | Only in the lazily loaded world chunk |
 | `lucide-react` ^1.72 | MIT line icons replacing emojis in the HUD, creator and gate (no SF Symbols on the web) | Tree-shaken per icon |
+
+---
+
+## 13. Realism pass (real people, real trees)
+
+Feedback addressed: "make the person a real person, enable all person functions; real trees". All third-party
+files are listed with source, licence and modifications in `docs/ASSET-LICENSES.md`.
+
+### 13.1 People (`world/Avatar.tsx`, `world/human/*`)
+
+- **Bodies.** Photographic, rigged Microsoft Rocketbox avatars (MIT licence): feminine = `Business_Female_01`,
+  masculine = `Male_Adult_12`, neutral = `Male_Adult_17`. Each is about 7–8k triangles with real faces,
+  hands, eyes, lashes and hair cards, and 1024 px WebP textures. A `lod1` mesh simplified to about 30 % is
+  used beyond 12 m and always on the Lite tier.
+- **Player look on real textures.** A per-texel mask (built offline from skin weights, UV islands and
+  skin-colour classification) drives a small shader patch:
+  - skin tone: per-channel ratio blended into a luminance transfer;
+  - hair colour: luminance transfer on the scalp and hair cards; "bald" turns scalp hair into skin;
+  - top, bottom and shoe colours and kitenge prints: luminance transfer, so fabric folds and stitching survive.
+- **Extra pieces attached to bones** through a "neutral frame":
+  - hair volumes the bases lack (afro, puffs, bun, braids, locs, headwrap);
+  - cap, beanie and bucket hat;
+  - glasses, sunglasses, earrings, watch;
+  - skirt and long wrap (legs become skin under them).
+- **Motion.** Motion-captured Rocketbox clips in one animation glb per skeleton set (about 1 MB each):
+  - **Locomotion:** a speed-driven, phase-synced blend (walk → fast walk → run → sprint) in which the shared gait
+    phase advances by ground speed / stride length, so the feet don't slide. It stays a walk up to ~2.0 m/s,
+    becomes a run from ~2.8 m/s and cross-fades in between. Ground speed is measured from the avatar's own
+    world motion, so local, remote and scripted avatars all get it.
+  - **Other states:** turning on the spot (small steps), idle (breathing, weight shift), wave (10), dance (11),
+    clap (12), and sit (13) with sit-down / stand-up transitions. The seated loop is re-based for a 0.46 m seat
+    centred on the avatar origin.
+  - **Voice:** a talk-gesture layer and jaw motion while speaking (`useVoice().talking[id]` / `selfTalking`),
+    plus a green three-bar speaking indicator above the name tag.
+  - **Gaze:** a ±55° head turn towards a nearby speaker.
+- **Budgets.** Characters total 4.06 MB. Mixer update rate drops with distance (every frame < 15 m, then
+  1/2, 1/4, 1/8). Skinned bounding spheres are padded so animated poses are not culled.
+- **Staff.** A uniformed security guard (`Security_Male_01`, keeps his own clothes) stands at the arrival gate
+  and at the plaza entry gate. He is scenery: no name tag, never in `players`, never counted (rules E4/E5).
+
+### 13.2 Trees, plants, ground (`world/Vegetation.tsx`, `world/Landscape.tsx`)
+
+- **Species:** Poly Haven CC0 models converted for the web.
+  - jacaranda → "acacia" umbrella tree on planters and lawns;
+  - island_tree_02 → broadleaf shade tree and the elders' fig;
+  - tree_small_02 → eucalyptus woodlots on the hills;
+  - searsia lucida / burchellii → bushes and shrubs;
+  - grass_medium_02 → grass tufts; fern_02 → planter ferns;
+  - rock_07 and namaqualand_boulder_04 → lava stones and boulders.
+- **Conversion.** Leaves are thinned by keeping a deterministic subset of individual leaves and enlarging each
+  about its centroid, so the crown keeps its volume. Wood is sloppy-simplified after a position-only weld.
+- **LODs.** Each species is instanced with LOD0 / LOD1 / far impostor, re-bucketed by camera distance a few
+  times per second. The impostors are 8-view atlases baked offline with the world's light rig and drawn on
+  camera-facing quads that pick the view by angle.
+- **Wind sway** in the vertex shader on every foliage material (one shared time uniform).
+- **Grass tufts follow the camera** on a toroidally wrapped grid (1,500 on Standard, 450 on Lite) and only grow
+  on lawns: not on paving, the ring road, the avenue, the gate or lakes.
+- **Ground:** Poly Haven `leafy_grass` (CC0, 1024 px WebP + normal map) tinted per field by the existing vertex
+  colours. The volcano backdrop, mist and sky are unchanged.
+- **Budget:** 8.8 MB of environment assets (limit 15 MB). The Lite tier uses LOD1 near the player, 60 % LOD
+  distances, fewer placements and no foliage shadows.
+
+### 13.3 Arrival, doors, exit
+
+- **Entry gate.** The arrival gate structure (turnstiles, canopy, guard booth, kiosk) also stands at the plaza
+  end of the avenue (`ENTRY_Z` 31.5). Players spawn just inside it (`SPAWN` z 25) with the gate behind them.
+  The camera stays under the canopy instead of clipping through it.
+- **Doors.** Playable buildings have sensor doors: sliding glass at Pool Hall and Ludo Lounge, carved timber
+  double doors at Igisoro Court.
+  - They open within 4.6 m and close behind you.
+  - The doorway becomes walkable; crossing the threshold fades out and opens `/room/<game>`.
+  - Tapping a doorway walks you through; E / Interact still works.
+  - The plaza pose is saved just outside the door, so returning from a room puts you back there.
+  - Tournament Arena and the "coming soon" buildings stay closed.
+- **Exit kiosk.** "Exit · Sign out" kiosk inside the entry gate. Within 2.5 m `nearGateExit` is set and a prompt
+  "Sign out at the gate" appears (E / tap). A confirm sheet follows; on confirm it calls `logout()` and goes to
+  `/gate`.
