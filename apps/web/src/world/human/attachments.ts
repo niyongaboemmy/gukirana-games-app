@@ -191,7 +191,7 @@ export function buildAttachments(look: AvatarLook, a: Anchors, shadows: boolean)
   // ---------- headwear ----------
   const hat = itemById(look.outfit.headwear);
   if (hat && hat.kind !== "none" && look.hairStyle !== "headwrap") {
-    const color = hat.color === "accent" ? look.accent : hat.color;
+    const color = hat.color === "accent" ? (look.topColor ?? look.accent) : hat.color;
     const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.82 });
     const big = look.hairStyle === "afro" ? 1.32 : look.hairStyle === "puffs" || look.hairStyle === "bun" ? 1.1 : 1;
     const g = new THREE.Group();
@@ -199,7 +199,9 @@ export function buildAttachments(look: AvatarLook, a: Anchors, shadows: boolean)
     g.scale.setScalar(big);
     const crown = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.5), mat);
     if (hat.kind === "cap") {
-      crown.scale.set(SKULL.rx + 0.012, SKULL.ry * 0.95, SKULL.rz + 0.012);
+      // a little deeper at the back so the hair never pokes through as a dark notch
+      crown.scale.set(SKULL.rx + 0.014, SKULL.ry * 0.97, SKULL.rz + 0.022);
+      crown.position.z = -0.006;
       const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.01, 24, 1, false, -Math.PI / 2, Math.PI), mat);
       brim.scale.set(1, 1, 1.15);
       brim.position.set(0, 0.0, SKULL.rz * 0.9);

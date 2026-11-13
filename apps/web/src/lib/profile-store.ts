@@ -1,7 +1,7 @@
 "use client";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { DEFAULT_LOOK, DEFAULT_OUTFIT, type AvatarLook, type BodyType, type HairStyle, type Outfit } from "@/world/outfits";
+import { DEFAULT_LOOK, DEFAULT_OUTFIT, seededLook, type AvatarLook, type BodyType, type HairStyle, type Outfit } from "@/world/outfits";
 
 /**
  * Local player profile (dev stub until identity + ledger APIs exist: P0-AUTH, P1-STR, P1-LVL).
@@ -28,6 +28,8 @@ interface ProfileState {
   hairStyle: HairStyle;
   hairColor: string;
   outfit: Outfit;
+  /** Muted top colour of a default (seeded) look; cleared when the player picks their own accent. */
+  topColor?: string;
   setBodyType: (b: BodyType) => void;
   setSkinTone: (hex: string) => void;
   setHairStyle: (h: HairStyle) => void;
@@ -38,13 +40,14 @@ interface ProfileState {
 }
 
 /** Current look of the local player, assembled from the profile. */
-export const lookOf = (s: Pick<ProfileState, "bodyType" | "skinTone" | "hairStyle" | "hairColor" | "outfit" | "color">): AvatarLook => ({
+export const lookOf = (s: Pick<ProfileState, "bodyType" | "skinTone" | "hairStyle" | "hairColor" | "outfit" | "color"> & { topColor?: string }): AvatarLook => ({
   bodyType: s.bodyType ?? DEFAULT_LOOK.bodyType,
   skinTone: s.skinTone ?? DEFAULT_LOOK.skinTone,
   hairStyle: s.hairStyle ?? DEFAULT_LOOK.hairStyle,
   hairColor: s.hairColor ?? DEFAULT_LOOK.hairColor,
   outfit: { ...DEFAULT_OUTFIT, ...s.outfit },
   accent: s.color,
+  ...(s.topColor ? { topColor: s.topColor } : {}),
 });
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Kigali" });
@@ -77,8 +80,37 @@ export const useProfile = create<ProfileState>()(
       setHairColor: (hairColor) => set({ hairColor }),
       setOutfit: (o) => set({ outfit: { ...DEFAULT_OUTFIT, ...get().outfit, ...o } }),
       setLook: (l) =>
-        set({ bodyType: l.bodyType, skinTone: l.skinTone, hairStyle: l.hairStyle, hairColor: l.hairColor, outfit: { ...l.outfit }, color: l.accent }),
+        set({
+          bodyType: l.bodyType,
+          skinTone: l.skinTone,
+          hairStyle: l.hairStyle,
+          hairColor: l.hairColor,
+          outfit: { ...l.outfit },
+          color: l.accent,
+          // a newly picked accent recolours the top again (the seeded muted colour only lasts until then)
+          topColor: l.topColor && (l.accent === get().color || !get().topColor) ? l.topColor : undefined,
+        }),
     }),
     { name: "gukirana-profile" },
   ),
 );
+
+/**
+ * Accounts without a saved look get their own deterministic default (the same one the API assigns at sign-up), never
+ * the shared default clone or a look left on this device by another account. Loaded lazily: session.ts imports this
+ * module, so a static import back would be circular.
+ */
+if (typeof window !== "undefined") {
+  void import("./session").then(({ useSession }) => {
+    let seededFor: string | null = null;
+    const apply = (me: { id: string; look: string | null; color: string; bodyType: BodyType } | null) => {
+      if (!me || me.look || seededFor === me.id) return;
+      seededFor = me.id;
+      const body = me.bodyType === "feminine" || me.bodyType === "masculine" ? me.bodyType : null;
+      // after session.ts has mirrored the rest of the profile (it runs right after the session update)
+      queueMicrotask(() => useProfile.getState().setLook(seededLook(me.id, me.color, body)));
+    };
+    apply(useSession.getState().me);
+    useSession.subscribe((s) => apply(s.me));
+  });
+}

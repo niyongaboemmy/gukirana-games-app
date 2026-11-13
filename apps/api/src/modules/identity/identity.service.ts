@@ -10,6 +10,7 @@ import { LedgerService } from "../ledger/ledger.service.js";
 import { starsBudget, userStars } from "../ledger/accounts.js";
 import { levelForXp } from "../levels/xp.js";
 import { maskEmail, maskLoginId, maskPhone, type LoginId } from "./phone.js";
+import { defaultLookCode, lookOf } from "./default-look.js";
 
 const log = createLogger("identity");
 const OTP_TTL_MS = 5 * 60_000;
@@ -60,7 +61,9 @@ export class IdentityService {
     if (!user) {
       isNew = true;
       const userId = newId();
-      await this.db.insert(users).values(id.kind === "email" ? { id: userId, email: id.value } : { id: userId, phone: id.value });
+      // every new player starts with their own varied look (deterministic per id), not a shared default clone
+      const look = defaultLookCode(userId, "#2F80ED");
+      await this.db.insert(users).values(id.kind === "email" ? { id: userId, email: id.value, look } : { id: userId, phone: id.value, look });
       [user] = await this.db.select().from(users).where(eq(users.id, userId));
       // welcome Stars (practice currency, no cash value)
       await this.ledger.post({
@@ -94,7 +97,7 @@ export class IdentityService {
     const refreshToken = randomBytes(32).toString("base64url");
     const refreshExpires = new Date(Date.now() + REFRESH_TTL_MS);
     await this.db.insert(refreshTokens).values({ id: newId(), userId, tokenHash: sha(refreshToken), device: device?.slice(0, 120), expiresAt: refreshExpires });
-    const accessToken = await signAccessToken({ sub: u.id, name: u.username ?? "", color: u.color, lvl: levelForXp(u.xp), look: u.look ?? undefined, bt: u.bodyType });
+    const accessToken = await signAccessToken({ sub: u.id, name: u.username ?? "", color: u.color, lvl: levelForXp(u.xp), look: lookOf(u), bt: u.bodyType });
     return { accessToken, refreshToken, refreshExpires };
   }
 
@@ -109,7 +112,7 @@ export class IdentityService {
       username: u.username,
       color: u.color,
       bodyType: u.bodyType,
-      look: u.look,
+      look: lookOf(u),
       xp: u.xp,
       level: levelForXp(u.xp),
       stars: await this.ledger.balance(userStars(u.id)),
@@ -126,3 +129,4 @@ export class IdentityService {
     return this.me(userId);
   }
 }
+

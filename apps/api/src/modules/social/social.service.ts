@@ -5,6 +5,7 @@ import { createLogger } from "@gukirana/observability";
 import { DB, type Db } from "../../common/db.module.js";
 import { newId } from "../../common/ids.js";
 import { levelForXp } from "../levels/xp.js";
+import { lookOf } from "../identity/default-look.js";
 
 const log = createLogger("social");
 export const REPORTS_PER_DAY = 20;
@@ -31,7 +32,7 @@ export class SocialService {
       username: u.username,
       color: u.color,
       bodyType: u.bodyType,
-      look: u.look,
+      look: lookOf(u),
       level: levelForXp(u.xp),
       memberSince: u.createdAt.toISOString().slice(0, 7),
       ratings: Object.fromEntries(r.map((x) => [x.game, { rating: x.rating, games: x.games, wins: x.wins }])),

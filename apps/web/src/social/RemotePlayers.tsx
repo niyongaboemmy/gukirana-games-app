@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Billboard, Text } from "@react-three/drei";
+import { Text } from "@react-three/drei";
 import * as THREE from "three";
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import type { SeatPose } from "@gukirana/contracts";
-import { Avatar } from "@/world/Avatar";
-import { decodeLook } from "@/world/outfits";
+import { Avatar, headTop, tagScale, tagVisible, UprightBillboard } from "@/world/Avatar";
+import { decodeLook, seededLook } from "@/world/outfits";
 import type { Tier } from "@/world/materials";
 import { selfPose, useWorld } from "@/lib/world-store";
 import { useVoice } from "@/voice/voice";
@@ -33,58 +33,97 @@ function bubbleText(text: string): string {
   return t.length > 64 ? `${t.slice(0, 62).trimEnd()}…` : t;
 }
 
-/** Two-line speech bubble above a head; fades out at the end of its 6 s. */
-export function SpeechBubble({ id, y, emote = "" }: { id: string; y: number; emote?: string }) {
+/** Rounded speech-bubble outline with a small tail pointing down at the speaker (origin = tail tip). */
+function bubbleShape(w: number, h: number): THREE.ShapeGeometry {
+  const r = Math.min(0.06, h / 2);
+  const tail = 0.045;
+  const s = new THREE.Shape();
+  const x0 = -w / 2;
+  const y0 = tail;
+  s.moveTo(x0 + r, y0);
+  s.lineTo(-0.035, y0);
+  s.lineTo(0, 0);
+  s.lineTo(0.035, y0);
+  s.lineTo(-x0 - r, y0);
+  s.quadraticCurveTo(-x0, y0, -x0, y0 + r);
+  s.lineTo(-x0, y0 + h - r);
+  s.quadraticCurveTo(-x0, y0 + h, -x0 - r, y0 + h);
+  s.lineTo(x0 + r, y0 + h);
+  s.quadraticCurveTo(x0, y0 + h, x0, y0 + h - r);
+  s.lineTo(x0, y0 + r);
+  s.quadraticCurveTo(x0, y0, x0 + r, y0);
+  return new THREE.ShapeGeometry(s, 6);
+}
+
+/**
+ * Speech bubble (DESIGN-SPEC §12.2: max 2 lines, 6 s): white rounded card with a tail to the head, 0.25 m above the
+ * head (or just above the name tag when that is showing), 150 ms scale-in, fades out at the end of its 6 s.
+ * `head` = top of the head (m); `tag` = this person shows a name tag (remote people).
+ */
+export function SpeechBubble({ id, head, tag = false, emote = "" }: { id: string; head: number; tag?: boolean; emote?: string }) {
   const bubble = useSocial((s) => s.bubbles[id]);
   const g = useRef<THREE.Group>(null);
+  const anchor = useRef<THREE.Group>(null);
   const bg = useRef<THREE.MeshBasicMaterial>(null);
   const txt = useRef<THREE.Mesh>(null);
   const emoteRef = useRef<THREE.Group>(null);
   const text = bubble ? bubbleText(bubble.text) : "";
   const lines = text.length > 30 ? 2 : 1;
-  const width = Math.min(2.1, Math.max(0.7, Math.min(text.length, 32) * 0.066 + 0.34));
+  const width = Math.min(2.1, Math.max(0.6, Math.min(text.length, 32) * 0.064 + 0.3));
+  const height = lines === 2 ? 0.33 : 0.2;
+  const shape = useMemo(() => bubbleShape(width, height), [width, height]);
+  useEffect(() => () => shape.dispose(), [shape]);
   useFrame(({ camera }) => {
-    if (!g.current) return;
-    const d = camera.position.distanceTo(g.current.getWorldPosition(tmp));
+    if (!g.current || !anchor.current) return;
+    const d = camera.position.distanceTo(anchor.current.getWorldPosition(tmp));
     const far = d > BUBBLE_RANGE;
-    // keep bubbles readable: grow with distance (≈ constant on-screen size from 5 m on)
+    // sits 0.25 m above the head, or clear of the name tag while that is visible (≥ 2.5 m, or hovered)
+    anchor.current.position.y = tag && tagVisible(d, id, TAG_RANGE) ? head + 0.31 + 0.13 * tagScale(d) : head + 0.25;
+    // keep bubbles readable: grow with distance (≈ constant on-screen size from 5 m on), anchored at the tail
     const k = THREE.MathUtils.clamp(d / 5, 1, 2.6);
-    g.current.scale.setScalar(k);
-    g.current.position.y = (k - 1) * 0.18;
     const age = bubble ? Date.now() - bubble.t : Infinity;
     const on = age < BUBBLE_MS && !far;
     g.current.visible = on;
     if (on) {
-      const a = age > BUBBLE_MS - 700 ? (BUBBLE_MS - age) / 700 : Math.min(1, age / 150);
-      if (bg.current) bg.current.opacity = 0.86 * a;
-      const m = txt.current?.material as THREE.Material & { opacity?: number } | undefined;
+      const pop = Math.min(1, age / 150);
+      g.current.scale.setScalar(k * (0.6 + 0.4 * (1 - (1 - pop) * (1 - pop))));
+      const a = age > BUBBLE_MS - 700 ? (BUBBLE_MS - age) / 700 : pop;
+      if (bg.current) bg.current.opacity = 0.92 * a;
+      const m = txt.current?.material as (THREE.Material & { opacity?: number }) | undefined;
       if (m) m.opacity = a;
     }
     if (emoteRef.current) emoteRef.current.visible = !far && !on;
   });
   return (
-    <>
-      <Billboard position={[0, y, 0]}>
+    <group ref={anchor} position={[0, head + 0.25, 0]}>
+      <UprightBillboard>
         <group ref={g} visible={false}>
           {text && (
             <>
-              <mesh position={[0, 0, -0.01]}>
-                <planeGeometry args={[width, lines === 2 ? 0.36 : 0.22]} />
-                <meshBasicMaterial ref={bg} color="#ffffff" transparent opacity={0.86} depthWrite={false} />
+              <mesh geometry={shape} renderOrder={5}>
+                <meshBasicMaterial ref={bg} color="#ffffff" transparent opacity={0.92} depthWrite={false} toneMapped={false} />
               </mesh>
-              <mesh position={[0, lines === 2 ? -0.19 : -0.12, -0.011]} rotation={[0, 0, Math.PI / 4]}>
-                <planeGeometry args={[0.08, 0.08]} />
-                <meshBasicMaterial color="#ffffff" transparent opacity={0.86} depthWrite={false} />
-              </mesh>
-              <Text ref={txt} font={FONT} fontSize={0.115} maxWidth={width - 0.16} lineHeight={1.15} textAlign="center" color="#12142b" anchorX="center" anchorY="middle" fillOpacity={1}>
+              <Text
+                ref={txt}
+                font={FONT}
+                fontSize={0.1}
+                maxWidth={width - 0.14}
+                lineHeight={1.15}
+                textAlign="center"
+                color="#1d2030"
+                anchorX="center"
+                anchorY="middle"
+                position={[0, 0.045 + height / 2, 0.002]}
+                renderOrder={6}
+              >
                 {text}
               </Text>
             </>
           )}
         </group>
-      </Billboard>
+      </UprightBillboard>
       {emote && (
-        <Billboard position={[0, y - 0.05, 0]}>
+        <UprightBillboard position={[0, 0.06, 0]}>
           <group ref={emoteRef} visible={false}>
             <mesh position={[0, 0, -0.01]}>
               <planeGeometry args={[0.62, 0.2]} />
@@ -94,9 +133,9 @@ export function SpeechBubble({ id, y, emote = "" }: { id: string; y: number; emo
               {emote}
             </Text>
           </group>
-        </Billboard>
+        </UprightBillboard>
       )}
-    </>
+    </group>
   );
 }
 const tmp = new THREE.Vector3();
@@ -125,19 +164,20 @@ function RemoteAvatar({ id, tier }: { id: string; tier: Tier }) {
   const meta = useWorld(
     useShallow((s) => {
       const p = s.players[id];
-      return p ? { name: p.name, level: p.level, color: p.color, look: p.look, bodyType: p.bodyType } : null;
+      return p ? { name: p.name, level: p.level, color: p.color, look: p.look, bodyType: p.bodyType, uid: p.uid } : null;
     }),
   );
   const lite = useCrowd((s) => !!s.lite[id]);
   const lookStr = meta?.look;
   const color = meta?.color ?? "#3DA9FC";
   const bodyType = meta?.bodyType;
-  // `look` is optional on the wire; without it the avatar falls back to the default look in the player's colour
+  const uid = meta?.uid;
+  // `look` is optional on the wire; without it the person gets their own deterministic default look (the same hash
+  // of the account id as the API's sign-up look; guests hash their session id), never a shared default clone
   const look = useMemo(() => {
-    const l = decodeLook(lookStr, color);
-    if (!lookStr && (bodyType === "feminine" || bodyType === "masculine" || bodyType === "neutral")) l.bodyType = bodyType;
-    return l;
-  }, [lookStr, color, bodyType]);
+    const body = bodyType === "feminine" || bodyType === "masculine" ? bodyType : null;
+    return lookStr ? decodeLook(lookStr, color) : seededLook(uid ?? id, color, body);
+  }, [lookStr, color, bodyType, uid, id]);
   const group = useRef<THREE.Group>(null);
   const anim = useRef(0);
   const lookAt = useRef<THREE.Vector3 | null>(null);
@@ -213,7 +253,7 @@ function RemoteAvatar({ id, tier }: { id: string; tier: Tier }) {
   });
 
   if (!meta) return null;
-  const tagY = look.bodyType === "feminine" ? 2.02 : 2.1;
+
   return (
     <group ref={group}>
       <Avatar
@@ -230,7 +270,7 @@ function RemoteAvatar({ id, tier }: { id: string; tier: Tier }) {
       />
       <TalkRing id={id} />
       <group ref={bubbleLift}>
-        <SpeechBubble id={id} y={tagY + 0.62} emote={seatedEmote} />
+        <SpeechBubble id={id} head={headTop(look.bodyType)} tag emote={seatedEmote} />
       </group>
     </group>
   );

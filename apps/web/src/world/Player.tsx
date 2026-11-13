@@ -36,6 +36,10 @@ const keys = new Set<string>();
 
 /** Camera orbit state shared between the camera rig and the movement code. */
 export const cameraState = { yaw: 0, pitch: 0.42, distance: 9 }; // start zoomed out
+/** Farthest orbit distance (m) for wheel / pinch zoom. */
+export const MAX_ORBIT = 24;
+/** Over-the-shoulder offset (m, to the right) when the camera is close, so your own avatar doesn't hide who you face. */
+const SHOULDER = 0.45;
 // dev-only hook for visual QA scripts (headless screenshots of wide views); stripped from production logic
 if (process.env.NODE_ENV !== "production" && typeof window !== "undefined")
   Object.assign(window as unknown as Record<string, unknown>, { __gkCam: cameraState, __gkNav: nav });
@@ -69,9 +73,10 @@ export function LocalPlayer({
   const hairColor = useProfile((s) => s.hairColor);
   const outfit = useProfile((s) => s.outfit);
   const liveColor = useProfile((s) => s.color) || color;
+  const topColor = useProfile((s) => s.topColor);
   const look = useMemo(
-    () => lookOf({ bodyType, skinTone, hairStyle, hairColor, outfit, color: liveColor }),
-    [bodyType, skinTone, hairStyle, hairColor, outfit, liveColor],
+    () => lookOf({ bodyType, skinTone, hairStyle, hairColor, outfit, color: liveColor, topColor }),
+    [bodyType, skinTone, hairStyle, hairColor, outfit, liveColor, topColor],
   );
   const group = useRef<THREE.Group>(null);
   const anim = useRef(0);
@@ -139,7 +144,7 @@ export function LocalPlayer({
       },
     );
     const wheel = (e: WheelEvent) => {
-      cameraState.distance = THREE.MathUtils.clamp(cameraState.distance + e.deltaY * 0.006, 2.5, 18);
+      cameraState.distance = THREE.MathUtils.clamp(cameraState.distance + e.deltaY * 0.006, 2.5, MAX_ORBIT);
     };
     el.addEventListener("wheel", wheel, { passive: true });
     return () => {
@@ -260,14 +265,18 @@ export function LocalPlayer({
       const d = cameraArm(pos.current.x, pos.current.z, cameraState.yaw, cameraState.pitch, want);
       armLen.current = d < armLen.current ? d : armLen.current + (d - armLen.current) * Math.min(1, dt * 2.5);
       const L = armLen.current;
-      const cx = pos.current.x + Math.sin(cameraState.yaw) * Math.cos(cameraState.pitch) * L;
-      const cz = pos.current.z + Math.cos(cameraState.yaw) * Math.cos(cameraState.pitch) * L;
+      // close up (< 3 m): slide camera and aim point to the right shoulder
+      const sh = SHOULDER * THREE.MathUtils.smoothstep(3.0 - L, 0, 0.8);
+      const rx = Math.cos(cameraState.yaw) * sh;
+      const rz = -Math.sin(cameraState.yaw) * sh;
+      const cx = pos.current.x + Math.sin(cameraState.yaw) * Math.cos(cameraState.pitch) * L + rx;
+      const cz = pos.current.z + Math.cos(cameraState.yaw) * Math.cos(cameraState.pitch) * L + rz;
       let cy = 1.6 + Math.sin(cameraState.pitch) * L;
       // keep the camera below the entry gate canopy (soffit at ~5.2 m) instead of clipping through it
       if (Math.abs(cx) < 10 && Math.abs(cz - ENTRY_Z) < 4.6) cy = Math.min(cy, 4.6);
       // going through a door: the camera stays on the plaza side and watches you walk in (it never follows into the wall)
       if (!entering) camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * (d < L + 0.01 ? 14 : 8)));
-      camera.lookAt(pos.current.x, 1.5, pos.current.z);
+      camera.lookAt(pos.current.x + rx, 1.5, pos.current.z + rz);
     }
 
     // proximity: portals and players

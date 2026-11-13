@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { fabricTexture } from "../textures";
-import { itemById, type AvatarLook, type OutfitItem } from "../outfits";
+import { itemById, LEGACY_SKIN, type AvatarLook, type OutfitItem } from "../outfits";
 import type { HumanModelMeta } from "./meta";
 
 /**
@@ -58,7 +58,7 @@ export function lookUniforms(look: AvatarLook, meta: HumanModelMeta, isHead: boo
   const top = itemById(look.outfit.top);
   const bottom = itemById(look.outfit.bottom);
   const shoes = itemById(look.outfit.shoes);
-  const skin = lin(look.skinTone);
+  const skin = lin(LEGACY_SKIN[look.skinTone.toUpperCase()] ?? look.skinTone);
   const ref = new THREE.Color(...meta.skinRef);
   const mul = new THREE.Vector3(skin.r / Math.max(ref.r, 0.004), skin.g / Math.max(ref.g, 0.004), skin.b / Math.max(ref.b, 0.004));
   // large tone changes amplify the dark channels' noise with a plain ratio, so fade towards luminance transfer
@@ -72,7 +72,7 @@ export function lookUniforms(look: AvatarLook, meta: HumanModelMeta, isHead: boo
     uSkinMul: { value: mul },
     uSkinMix: { value: skinMix },
     uSkinRef: { value: meta.regions.skin },
-    uTop: { value: lin(top?.print ? "#ffffff" : itemColor(top, look.accent, "#3a3a3a")) },
+    uTop: { value: lin(top?.print ? "#ffffff" : itemColor(top, look.topColor ?? look.accent, "#3a3a3a")) },
     uTopRef: { value: meta.regions.top },
     uBottom: { value: lin(bottom?.print ? "#ffffff" : itemColor(bottom, look.accent, "#2b2f45")) },
     uBottomRef: { value: meta.regions.bottom },
@@ -138,9 +138,19 @@ const ROUGH = /* glsl */ `
   // skin has a soft sheen, fabric is matte, hair slightly glossy
   // skin: slightly glossier in the T-zone / darker creases, matte elsewhere (not plastic)
   float gkLr = dot(texture2D(map, vMapUv).rgb, vec3(0.3, 0.59, 0.11));
-  roughnessFactor = mix(roughnessFactor, mix(0.6, 0.45, smoothstep(0.05, 0.4, gkLr)), gkM2.r);
+  roughnessFactor = mix(roughnessFactor, mix(0.56, 0.46, smoothstep(0.05, 0.4, gkLr)), gkM2.r);
   if (uIsHead < 0.5) roughnessFactor = mix(roughnessFactor, 0.75, clamp(1.0 - gkM2.r - gkM2.g - gkM2.b, 0.0, 1.0));
   if (uIsHead > 0.5) roughnessFactor = mix(roughnessFactor, 0.62, gkM2.g);
+}
+`;
+
+const RIM = /* glsl */ `
+#include <emissivemap_fragment>
+{
+  // skin: faint warm sheen at grazing angles (subsurface / peach-fuzz rim), so skin never reads as matte plastic
+  float gkSk = texture2D(uMask, vMapUv).r;
+  float gkRim = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 3.0);
+  totalEmissiveRadiance += uSkin * vec3(1.0, 0.82, 0.72) * gkRim * gkSk * 0.16;
 }
 `;
 
@@ -155,7 +165,8 @@ export function makeLookMaterial(base: THREE.MeshStandardMaterial, look: AvatarL
   m.userData.gkUniforms = u;
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, u);
-    shader.fragmentShader = HEADER + shader.fragmentShader.replace("#include <map_fragment>", RECOLOUR).replace("#include <roughnessmap_fragment>", ROUGH);
+    shader.fragmentShader =
+      HEADER + shader.fragmentShader.replace("#include <map_fragment>", RECOLOUR).replace("#include <roughnessmap_fragment>", ROUGH).replace("#include <emissivemap_fragment>", RIM);
   };
   m.customProgramCacheKey = () => "gk-human-look";
   return m;

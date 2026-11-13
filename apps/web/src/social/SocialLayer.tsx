@@ -6,6 +6,7 @@ import { NEARBY_CHAT_RANGE } from "@gukirana/contracts";
 import { selfPose, useWorld } from "@/lib/world-store";
 import { useProfile } from "@/lib/profile-store";
 import { nav } from "@/world/navigation";
+import { headTop, tagHover } from "@/world/Avatar";
 import { tracks } from "./motion";
 import { SpeechBubble } from "./RemotePlayers";
 import { useSocial } from "./social-store";
@@ -125,7 +126,9 @@ export function SocialLayer() {
       const now = performance.now();
       if (now - hoverAt < 80) return;
       hoverAt = now;
-      el.style.cursor = pickPerson(e.clientX, e.clientY, el, camera, false) ? "pointer" : "";
+      const over = pickPerson(e.clientX, e.clientY, el, camera, false);
+      tagHover.id = over ?? null; // hovering someone shows their name tag even up close
+      el.style.cursor = over ? "pointer" : "";
     };
     // dev-only hook for automated multi-player QA (like __gkCam / __gkNav): where is a person on screen?
     if (process.env.NODE_ENV !== "production")
@@ -175,5 +178,5 @@ export function SocialLayer() {
     if (n !== useSocial.getState().nearbyCount) useSocial.setState({ nearbyCount: n });
   });
 
-  return <group ref={selfGroup}>{you && <SpeechBubble id={you} y={(bodyType === "feminine" ? 2.02 : 2.1) + 0.3} />}</group>;
+  return <group ref={selfGroup}>{you && <SpeechBubble id={you} head={headTop(bodyType)} />}</group>;
 }

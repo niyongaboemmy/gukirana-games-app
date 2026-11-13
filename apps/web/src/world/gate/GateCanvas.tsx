@@ -215,7 +215,7 @@ function Rig() {
     <>
       {(step === "id" || step === "code") && <TargetMarker />}
       <group ref={avatar} position={pos.current.toArray()}>
-        <Avatar look={look} name={name || undefined} animRef={anim} showTag={false} />
+        <Avatar look={look} name={name || undefined} animRef={anim} showTag={false} holdPhone={step === "id" || step === "code"} />
       </group>
       <XROrigin ref={origin} position={[STAND.x, 0, STAND.z]} />
     </>

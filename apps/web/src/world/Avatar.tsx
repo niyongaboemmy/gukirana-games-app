@@ -45,10 +45,22 @@ export interface AvatarProps {
   keepClothes?: boolean;
   /** Crowds: hide the name tag + speaking bars beyond this camera distance (m). Default: always shown. */
   tagRange?: number;
+  /** Hold a phone in both hands, forearms raised (signing in at the gate). */
+  holdPhone?: boolean;
 }
 
 const FONT = "/fonts/Baloo2.ttf";
 const NEAR_LOD = 12;
+
+/** Top of the head (m) per body type: speech bubbles float 0.25 m above it. */
+export const headTop = (bodyType: string | undefined) => (bodyType === "feminine" ? 1.72 : 1.8);
+/** Name tags hide up close (< 2.5 m) unless the person is hovered, and beyond `range`. */
+export const TAG_NEAR = 2.5;
+/** Person currently under the mouse pointer (set by social/SocialLayer). */
+export const tagHover: { id: string | null } = { id: null };
+export const tagVisible = (d: number, id: string | undefined, range = Infinity) => d < range && (d >= TAG_NEAR || (!!id && tagHover.id === id));
+/** Name tags keep a readable size: 0.6× up close … 1.0× from 10 m on. */
+export const tagScale = (d: number) => THREE.MathUtils.clamp(d / 10, 0.6, 1);
 
 /** Prepare a loaded base model once: pull the recolour masks out of the emissive slot, set shadow/culling flags. */
 function prepareBase(scene: THREE.Object3D) {
@@ -88,6 +100,7 @@ interface Instance {
   extras: THREE.Object3D[];
   head: THREE.Bone | null;
   jaw: THREE.Bone | null;
+  arms: { upper: THREE.Bone; fore: THREE.Bone; hand: THREE.Bone; side: 1 | -1 }[];
 }
 
 function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMeta, shadows: boolean, keepClothes: boolean): Instance {
@@ -118,7 +131,8 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
     mesh.frustumCulled = false;
     if (part === "body") full.push(mesh);
     else if (part === "lod1") lite.push(mesh);
-    if (part === "haircards") mesh.visible = SHOW_CARDS.has(look.hairStyle);
+    // hair cards stick out through headwear (the dark "notch" at the back of every cap): hide them under a hat
+    if (part === "haircards") mesh.visible = SHOW_CARDS.has(look.hairStyle) && (look.outfit.headwear === "no-hat" || look.outfit.headwear === "none");
   });
   const bone = (n: string) => (root.getObjectByName(n) as THREE.Bone | undefined) ?? null;
   const head = bone("Bip01_Head");
@@ -126,7 +140,17 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
   const handL = bone("Bip01_L_Hand");
   let extras: THREE.Object3D[] = [];
   if (head && pelvis && handL) extras = buildAttachments(look, { head: neutralFrame(head, root), pelvis: neutralFrame(pelvis, root), wristL: handL }, shadows);
-  return { root, full, lite, materials, extras, head, jaw: bone("Bip01_MJaw") };
+  const arms: Instance["arms"] = [];
+  for (const [k, side] of [
+    ["R", 1],
+    ["L", -1],
+  ] as const) {
+    const upper = bone(`Bip01_${k}_UpperArm`);
+    const fore = bone(`Bip01_${k}_Forearm`);
+    const hand = bone(`Bip01_${k}_Hand`);
+    if (upper && fore && hand) arms.push({ upper, fore, hand, side });
+  }
+  return { root, full, lite, materials, extras, head, jaw: bone("Bip01_MJaw"), arms };
 }
 
 function disposeInstance(inst: Instance) {
@@ -148,6 +172,26 @@ const _q = new THREE.Quaternion();
 const _q2 = new THREE.Quaternion();
 const _e = new THREE.Euler();
 const UP = new THREE.Vector3(0, 1, 0);
+const _a = new THREE.Vector3();
+const _b = new THREE.Vector3();
+const _d = new THREE.Vector3();
+const _qa = new THREE.Quaternion();
+const _qb = new THREE.Quaternion();
+
+/** Turn `bone` (world space) so the direction to `child` points along `dir` (world), blended by `w`. */
+function aimBone(bone: THREE.Bone, child: THREE.Object3D, dir: THREE.Vector3, w: number) {
+  if (!bone.parent) return;
+  bone.getWorldPosition(_a);
+  child.getWorldPosition(_b);
+  _d.subVectors(_b, _a).normalize();
+  _qa.setFromUnitVectors(_d, dir);
+  _qa.slerp(_qb.identity(), 1 - w);
+  bone.getWorldQuaternion(_qb);
+  _qb.premultiply(_qa);
+  bone.parent.getWorldQuaternion(_qa);
+  bone.quaternion.copy(_qa.invert().multiply(_qb));
+  bone.updateMatrixWorld(true);
+}
 
 function HumanBody({
   look,
@@ -159,7 +203,9 @@ function HumanBody({
   keepClothes,
   talkingRef,
   lookAtRef,
+  holdPhone = false,
 }: {
+  holdPhone?: boolean;
   look: AvatarLook;
   animRef: React.RefObject<number>;
   shadows: boolean;
@@ -185,7 +231,33 @@ function HumanBody({
     };
   }, [inst, animator]);
 
-  const st = useRef({ last: new THREE.Vector3(), has: false, speed: 0, yaw: 0, yawRate: 0, frame: Math.floor(Math.random() * 8), acc: 0, jaw: 0, jawT: 0, look: 0, near: true });
+  const st = useRef({ last: new THREE.Vector3(), has: false, speed: 0, yaw: 0, yawRate: 0, frame: Math.floor(Math.random() * 8), acc: 0, jaw: 0, jawT: 0, look: 0, near: true, phone: 0 });
+  const phone = useMemo(() => {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.074, 0.152, 0.009), new THREE.MeshStandardMaterial({ color: "#1b1d22", metalness: 0.6, roughness: 0.35 }));
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.066, 0.142), new THREE.MeshBasicMaterial({ color: "#9fc8ff", toneMapped: true }));
+    screen.position.z = 0.0048;
+    g.add(body, screen);
+    g.visible = false;
+    return g;
+  }, []);
+  useEffect(() => {
+    inst.root.add(phone);
+    return () => {
+      inst.root.remove(phone);
+    };
+  }, [inst, phone]);
+  useEffect(
+    () => () =>
+      phone.traverse((c) => {
+        const m = c as THREE.Mesh;
+        if (m.isMesh) {
+          m.geometry.dispose();
+          (m.material as THREE.Material).dispose();
+        }
+      }),
+    [phone],
+  );
 
   useFrame(({ camera }, rawDt) => {
     const dt = Math.min(rawDt, 0.1);
@@ -224,6 +296,24 @@ function HumanBody({
     s.acc = 0;
     const talking = !!talkingRef.current;
     animator.update(step, { anim: animRef.current ?? 0, speed: s.speed, yawRate: s.yawRate, talking });
+
+    // holding a phone: upper arms down by the sides, forearms raised ~70° towards the chest, phone in the right hand
+    s.phone += ((holdPhone ? 1 : 0) - s.phone) * (1 - Math.exp(-step * 6));
+    if (s.phone > 0.01 && inst.arms.length) {
+      root.getWorldQuaternion(_q2);
+      for (const arm of inst.arms) {
+        aimBone(arm.upper, arm.fore, _v2.set(arm.side * -0.1, -0.96, 0.22).normalize().applyQuaternion(_q2), s.phone);
+        aimBone(arm.fore, arm.hand, _v2.set(arm.side * 0.42, 0.34, 0.84).normalize().applyQuaternion(_q2), s.phone);
+      }
+      const r = inst.arms.find((a) => a.side === 1);
+      if (r) {
+        r.hand.getWorldPosition(_v2);
+        root.worldToLocal(_v2);
+        phone.position.set(_v2.x + 0.05, _v2.y + 0.03, _v2.z + 0.05);
+        phone.rotation.set(-0.95, 0, 0);
+      }
+      phone.visible = s.phone > 0.5;
+    } else phone.visible = false;
 
     // jaw: syllable-like open/close while speaking
     if (inst.jaw) {
@@ -320,16 +410,23 @@ export function Avatar({
   model,
   keepClothes = false,
   tagRange,
+  holdPhone = false,
 }: AvatarProps) {
   const blob = useMemo(() => blobTexture(), []);
   const talkingRef = useRef(false);
   const tags = useRef<THREE.Group>(null);
+  const tagPlate = useRef<THREE.Group>(null);
   useFrame(({ camera }) => {
     if (tags.current) {
       // seated (anim 13): the head is ~0.75 m lower, so is the name tag
       const y = tags.current.position.y;
       tags.current.position.y = y + ((animRef.current === 13 ? -0.72 : 0) - y) * 0.12;
-      if (tagRange) tags.current.visible = camera.position.distanceTo(tags.current.getWorldPosition(_v)) < tagRange;
+      const d = camera.position.distanceTo(tags.current.getWorldPosition(_v));
+      if (tagRange) tags.current.visible = d < tagRange;
+      if (tagPlate.current) {
+        tagPlate.current.visible = tagVisible(d, voiceId, tagRange ?? Infinity);
+        tagPlate.current.scale.setScalar(tagScale(d));
+      }
     }
     if (!voiceId && !self) return;
     const v = useVoice.getState();
@@ -339,28 +436,72 @@ export function Avatar({
   const tagY = modelId === "feminine" ? 2.02 : 2.1;
   return (
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} renderOrder={1}>
-        <planeGeometry args={[0.9, 0.9]} />
-        <meshBasicMaterial map={blob} color="#000000" transparent opacity={0.34} depthWrite={false} />
+      {/* contact blob (0.38 m radius core): the only grounding on Lite, a soft AO under the real shadow on Standard */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]} renderOrder={1}>
+        <planeGeometry args={[1.0, 1.0]} />
+        <meshBasicMaterial map={blob} color="#000000" transparent opacity={quality === "lite" || !shadows ? 0.42 : 0.3} depthWrite={false} polygonOffset polygonOffsetFactor={-1} />
       </mesh>
       <Suspense fallback={<Placeholder />}>
-        <HumanBody look={look} animRef={animRef} shadows={shadows} quality={quality} lod={lod} modelId={modelId} keepClothes={keepClothes} talkingRef={talkingRef} lookAtRef={lookAtRef} />
+        <HumanBody look={look} animRef={animRef} shadows={shadows} quality={quality} lod={lod} modelId={modelId} keepClothes={keepClothes} talkingRef={talkingRef} lookAtRef={lookAtRef} holdPhone={holdPhone} />
       </Suspense>
       <group ref={tags}>
       {(voiceId || self) && <SpeakingBars talkingRef={talkingRef} y={showTag && name ? tagY + 0.27 : tagY - 0.05} />}
       {showTag && name && (
-        <Billboard position={[0, tagY, 0]}>
-          <mesh position={[0, 0, -0.01]}>
-            <planeGeometry args={[Math.max(0.9, name.length * 0.085 + 0.45), 0.26]} />
-            <meshBasicMaterial color="#12142b" transparent opacity={0.72} />
-          </mesh>
-          <Text font={FONT} fontSize={0.14} color="#ffffff" anchorX="center" anchorY="middle">
-            {`Lv ${level}  ${name}`}
-          </Text>
-        </Billboard>
+        // light, distance-scaled tag; upright (no pitch) so it never slices into the wearer's head
+        <UprightBillboard position={[0, tagY, 0]}>
+          <group ref={tagPlate}>
+            <RoundedPlate w={Math.max(0.62, (name.length + 5) * 0.058 + 0.2)} h={0.19} />
+            <Text font={FONT} fontSize={0.105} color="#ffffff" anchorX="center" anchorY="middle" outlineWidth={0.004} outlineColor="#000000" outlineOpacity={0.25}>
+              {`Lv ${level} · ${name}`}
+            </Text>
+          </group>
+        </UprightBillboard>
       )}
       </group>
     </group>
+  );
+}
+
+const _bbP = new THREE.Vector3();
+const _bbC = new THREE.Vector3();
+/**
+ * Upright billboard: turns only about the vertical axis to face the camera (never pitches), so a tag or bubble above
+ * a head can't tilt down into it. Works under rotated parents (avatars turn), unlike locked-axis billboards.
+ */
+export function UprightBillboard({ position, children }: { position?: [number, number, number]; children: React.ReactNode }) {
+  const g = useRef<THREE.Group>(null);
+  useFrame(({ camera }) => {
+    const o = g.current;
+    if (!o?.parent) return;
+    _bbC.copy(camera.position);
+    o.parent.worldToLocal(_bbC);
+    _bbP.copy(o.position);
+    o.rotation.set(0, Math.atan2(_bbC.x - _bbP.x, _bbC.z - _bbP.z), 0);
+  });
+  return (
+    <group ref={g} position={position}>
+      {children}
+    </group>
+  );
+}
+
+/** Pill-shaped translucent backing for name tags (rgba(0,0,0,.35)). */
+function RoundedPlate({ w, h }: { w: number; h: number }) {
+  const geo = useMemo(() => {
+    const r = h / 2;
+    const s = new THREE.Shape();
+    s.moveTo(-w / 2 + r, -r);
+    s.lineTo(w / 2 - r, -r);
+    s.absarc(w / 2 - r, 0, r, -Math.PI / 2, Math.PI / 2, false);
+    s.lineTo(-w / 2 + r, r);
+    s.absarc(-w / 2 + r, 0, r, Math.PI / 2, (Math.PI * 3) / 2, false);
+    return new THREE.ShapeGeometry(s, 8);
+  }, [w, h]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return (
+    <mesh geometry={geo} position={[0, 0, -0.005]}>
+      <meshBasicMaterial color="#000000" transparent opacity={0.35} depthWrite={false} />
+    </mesh>
   );
 }
 
