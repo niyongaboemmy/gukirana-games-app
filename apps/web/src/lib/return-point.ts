@@ -89,3 +89,15 @@ export function takeWorldPose(): (Pose & { fromDoor?: boolean }) | null {
   if (p?.fromDoor) write(WORLD_KEY, { ...p, fromDoor: false }); // the step-out plays once
   return p;
 }
+
+/** Fresh start: forget where the player was (sign-out, or coming in through the gate). */
+export function clearPositions() {
+  doorPoseLocked = false;
+  try {
+    window.sessionStorage.removeItem(GAME_KEY);
+    window.sessionStorage.removeItem(WORLD_KEY);
+    window.sessionStorage.removeItem("gk-from-room");
+  } catch {
+    /* private mode */
+  }
+}

@@ -2,6 +2,7 @@
 import { create } from "zustand";
 import { useProfile } from "./profile-store";
 import { decodeLook } from "@/world/outfits";
+import { clearPositions } from "./return-point";
 
 export interface Me {
   id: string;
@@ -105,6 +106,7 @@ export async function updateMe(p: Partial<Pick<Me, "username" | "color" | "bodyT
 }
 
 export async function logout(): Promise<void> {
+  clearPositions(); // next sign-in starts at the entrance, not where you signed out
   await raw("/auth/logout", { method: "POST" }).catch(() => undefined);
   useSession.setState({ status: "anonymous", accessToken: null, me: null });
   useProfile.setState({ onboarded: false });

@@ -45,7 +45,8 @@ export default function WorldPage() {
     }
     void connectPlaza({ name: profile.name, color: profile.color, level: levelForXp(profile.xp), token: session.accessToken, look: session.me?.look ?? undefined });
     return () => {
-      saveWorldPose();
+      // only remember the spot while signed in (signing out must not save "where you signed out")
+      if (useSession.getState().status === "authenticated") saveWorldPose();
       useWorld.getState().set({ nearPortal: null, nearPlayer: null });
       leavePlaza();
     };

@@ -8,6 +8,7 @@ import { refreshSession, useSession } from "@/lib/session";
 import { useProfile } from "@/lib/profile-store";
 import { useGate } from "@/world/gate/gate-store";
 import { decodeLook } from "@/world/outfits";
+import { clearPositions } from "@/lib/return-point";
 
 const GateCanvas = dynamic(() => import("@/world/gate/GateCanvas"), {
   ssr: false,
@@ -62,6 +63,7 @@ export default function GatePage() {
 
   useEffect(() => {
     if (step !== "entering") return;
+    clearPositions(); // coming in through the gate: spawn just inside it
     const t = setTimeout(() => router.push("/world"), 2300);
     return () => clearTimeout(t);
   }, [step, router]);
