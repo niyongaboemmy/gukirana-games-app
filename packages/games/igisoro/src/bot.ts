@@ -10,7 +10,7 @@ function evaluate(s: IgisoroState, me: 0 | 1): number {
 }
 
 function minimax(s: IgisoroState, depth: number, me: 0 | 1, alpha: number, beta: number): number {
-  if (depth === 0 || s.winner !== null) return evaluate(s, me);
+  if (depth === 0 || s.winner !== null || s.draw) return evaluate(s, me);
   const moves = legalPits(s);
   if (s.turn === me) {
     let best = -Infinity;

@@ -54,6 +54,8 @@ const div = (a: number, b: number) => Math.trunc(a / b);
 export interface ShotEvents {
   firstHit: number | null;
   pocketed: number[];
+  /** pocket index (into POCKETS) for each entry of `pocketed` */
+  pockets: number[];
   cushionAfterContact: boolean;
 }
 
@@ -82,7 +84,7 @@ export function simulateShot(input: readonly Ball[], dx: number, dy: number, pow
   cue.vy = div(dy * speed, len);
   const dirX = div(dx * 10000, len);
   const dirY = div(dy * 10000, len);
-  const ev: ShotEvents = { firstHit: null, pocketed: [], cushionAfterContact: false };
+  const ev: ShotEvents = { firstHit: null, pocketed: [], pockets: [], cushionAfterContact: false };
   const frames: number[][] = [];
   let tick = 0;
   let spinApplied = spin === 0;
@@ -107,7 +109,8 @@ export function simulateShot(input: readonly Ball[], dx: number, dy: number, pow
         }
       }
       // pockets first, then cushions
-      for (const [px, py, pr] of POCKETS) {
+      for (let p = 0; p < POCKETS.length; p++) {
+        const [px, py, pr] = POCKETS[p]!;
         const ddx = b.x - px;
         const ddy = b.y - py;
         if (ddx * ddx + ddy * ddy < pr * pr) {
@@ -115,6 +118,7 @@ export function simulateShot(input: readonly Ball[], dx: number, dy: number, pow
           b.vx = 0;
           b.vy = 0;
           ev.pocketed.push(b.n);
+          ev.pockets.push(p);
           break;
         }
       }
@@ -208,6 +212,37 @@ export function rack(order: readonly number[]): Ball[] {
       balls.push({ n: order[k++]!, x: footX + row * rowDx, y: div(TABLE_H, 2) + (2 * i - row) * (R + 2 * U), vx: 0, vy: 0, in: false });
     }
   return balls;
+}
+
+/** True when a ball centred at (x, y) lies on the cloth and touches no other ball on the table. */
+export function isClearSpot(balls: readonly Ball[], x: number, y: number, ignore: number): boolean {
+  if (x < R || x > TABLE_W - R || y < R || y > TABLE_H - R) return false;
+  for (const [px, py, pr] of POCKETS) if ((x - px) ** 2 + (y - py) ** 2 < (pr + R) * (pr + R)) return false;
+  return balls.every((b) => b.n === ignore || b.in || (b.x - x) ** 2 + (b.y - y) ** 2 >= 4 * R * R);
+}
+
+/** Puts the 8-ball back on the foot spot (sliding towards the foot rail while the spot is taken). */
+export function respotEight(balls: Ball[]): void {
+  const eight = balls.find((b) => b.n === 8);
+  if (!eight) return;
+  eight.in = false;
+  eight.vx = 0;
+  eight.vy = 0;
+  const y = div(TABLE_H, 2);
+  for (let x = div(TABLE_W * 3, 4); x < TABLE_W - R; x += R) {
+    if (isClearSpot(balls, x, y, 8)) {
+      eight.x = x;
+      eight.y = y;
+      return;
+    }
+  }
+  for (let x = div(TABLE_W * 3, 4); x > R; x -= R) {
+    if (isClearSpot(balls, x, y, 8)) {
+      eight.x = x;
+      eight.y = y;
+      return;
+    }
+  }
 }
 
 /** Places the cue ball on the head spot, sliding along the head string until clear. */
