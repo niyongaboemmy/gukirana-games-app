@@ -1,6 +1,8 @@
 "use client";
 import { useLayoutEffect, useMemo, useRef } from "react";
-import { ContactShadows, useGLTF, useTexture } from "@react-three/drei";
+import { ContactShadows, useGLTF } from "@react-three/drei";
+import { useLoader } from "@react-three/fiber";
+import { BitmapTextureLoader } from "@/world/bitmap-texture";
 import * as THREE from "three";
 import { blobTexture } from "./room-textures";
 
@@ -47,7 +49,8 @@ export function usePbr(
     `${INTERIOR_BASE}/tex/${name}_rough.webp`,
     ...(withMap ? [`${INTERIOR_BASE}/tex/${name}_diff.webp`] : []),
   ];
-  const loaded = useTexture(urls);
+  // decoded off the main thread (createImageBitmap): no decode stall in the first upload while the hall pre-warms
+  const loaded = useLoader(BitmapTextureLoader, urls);
   return useMemo(() => {
     const prep = (t: THREE.Texture, srgb: boolean) => {
       const c = t.clone();

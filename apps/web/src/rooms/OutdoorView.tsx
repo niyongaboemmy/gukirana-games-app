@@ -29,6 +29,9 @@ export function hallFrame(layout: HallLayout) {
   return { centre, yaw, sun };
 }
 
+/** captured window views per hall + tier, kept for the session (≈ 25 MB GPU per hall on Standard, 6 MB on Lite) */
+const CAPTURED = new Map<string, THREE.WebGLCubeRenderTarget>();
+
 export function OutdoorView({
   layout,
   lite,
@@ -40,6 +43,10 @@ export function OutdoorView({
 }) {
   const { gl, scene } = useThree();
   const frame = useMemo(() => hallFrame(layout), [layout]);
+  const key = `${layout.game}:${lite ? "lite" : "std"}`;
+  // the view out of this hall's windows never changes during a session: once captured it is kept (the next warm-up
+  // of this hall, e.g. walking up to its door again, then costs nothing)
+  const cached = CAPTURED.get(key) ?? null;
   const outdoor = useMemo(() => {
     const s = new THREE.Scene();
     s.fog = new THREE.FogExp2(FOG_COLOR, lite ? 0.0012 : 0.00085);
@@ -47,6 +54,7 @@ export function OutdoorView({
   }, [lite]);
   const rt = useMemo(
     () =>
+      cached ??
       new THREE.WebGLCubeRenderTarget(lite ? 512 : 1024, {
         type: THREE.UnsignedByteType, // widely supported (half-float cube targets render black on some GPUs/browsers)
         colorSpace: THREE.SRGBColorSpace,
@@ -54,7 +62,7 @@ export function OutdoorView({
         minFilter: THREE.LinearFilter,
         magFilter: THREE.LinearFilter,
       }),
-    [lite],
+    [lite, cached],
   );
   const cam = useMemo(() => {
     const c = new THREE.CubeCamera(0.5, 3200, rt);
@@ -62,29 +70,22 @@ export function OutdoorView({
     outdoor.add(c);
     return c;
   }, [rt, outdoor]);
-  const [captured, setCaptured] = useState(false);
-  const frames = useRef(0);
+  const [captured, setCaptured] = useState(!!cached);
+  const step = useRef<{ n: number; compiled: "no" | "running" | "done"; face: number }>({ n: 0, compiled: "no", face: 0 });
 
   useEffect(() => {
-    scene.background = new THREE.Color("#c4d2dc");
+    if (CAPTURED.get(key) === rt) {
+      scene.background = rt.texture;
+      scene.backgroundIntensity = 1;
+    } else scene.background = new THREE.Color("#c4d2dc");
     return () => {
       scene.background = null;
-      rt.dispose();
+      if (CAPTURED.get(key) !== rt) rt.dispose();
     };
-  }, [scene, rt]);
+  }, [scene, rt, key]);
 
-  useFrame(() => {
-    if (captured) return;
-    frames.current++;
-    // frame 1: landscape + environment map are built; from frame 3: one cube face per frame (six full renders of
-    // the landscape in a single frame stalled the walk up to the door while this hall pre-warmed)
-    if (frames.current < 3) return;
-    const face = frames.current - 3;
-    if (face === 0) {
-      cam.coordinateSystem = gl.coordinateSystem;
-      cam.updateCoordinateSystem();
-      cam.updateMatrixWorld(true);
-    }
+  /** the renderer state the capture draws with (programs are keyed on it, so the compile below must use it too) */
+  const withCaptureState = <T,>(face: number, fn: () => T): T => {
     const shadows = gl.shadowMap.enabled;
     const tm = gl.toneMapping;
     const xr = gl.xr.enabled;
@@ -94,14 +95,42 @@ export function OutdoorView({
     gl.xr.enabled = false;
     try {
       gl.setRenderTarget(rt, face);
-      gl.render(outdoor, cam.children[face] as THREE.Camera);
+      return fn();
     } finally {
       gl.setRenderTarget(prev);
       gl.xr.enabled = xr;
       gl.toneMapping = tm;
       gl.shadowMap.enabled = shadows;
     }
+  };
+
+  useFrame(() => {
+    if (captured) return;
+    const st = step.current;
+    st.n++;
+    // frames 1–2: landscape + environment map are built
+    if (st.n < 3) return;
+    if (st.compiled !== "done") {
+      // compile the landscape's programs for this offscreen scene first, off the frame (parallel compile), so the
+      // first face render never blocks on a synchronous shader link
+      if (st.compiled === "no") {
+        st.compiled = "running";
+        cam.coordinateSystem = gl.coordinateSystem;
+        cam.updateCoordinateSystem();
+        cam.updateMatrixWorld(true);
+        void withCaptureState(0, () => gl.compileAsync(outdoor, cam.children[0] as THREE.Camera))
+          .catch(() => undefined)
+          .finally(() => (st.compiled = "done"));
+      }
+      return;
+    }
+    // then one cube face per frame (six full renders of the landscape in a single frame stalled the walk up to the door)
+    const face = st.face;
+    if (face > 5) return;
+    withCaptureState(face, () => gl.render(outdoor, cam.children[face] as THREE.Camera));
+    st.face++;
     if (face < 5) return;
+    CAPTURED.set(key, rt);
     scene.background = rt.texture;
     scene.backgroundIntensity = 1;
     setCaptured(true);

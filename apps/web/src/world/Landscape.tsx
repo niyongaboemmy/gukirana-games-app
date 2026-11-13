@@ -7,6 +7,8 @@ import { mistTexture, rng } from "./textures";
 import type { Tier } from "./materials";
 import { InstancedSpecies, type Placement } from "./Vegetation";
 import { Flowers } from "./Flowers";
+import { sessionMemo } from "./session-cache";
+import { BitmapTextureLoader } from "./bitmap-texture";
 
 /**
  * Northern Rwanda backdrop (Musanze, at the foot of Volcanoes National Park), built procedurally:
@@ -426,7 +428,8 @@ function inLake(x: number, z: number) {
 
 function Vegetation({ tier }: { tier: Tier }) {
   const lite = tier === "lite";
-  const data = useMemo(() => {
+  // deterministic (seeded) placements: built once per session, shared with the halls' window views
+  const data = useMemo(() => sessionMemo(`landscape:veg:${lite}`, () => {
     const r = rng(42);
     const acacia: Placement[] = [];
     const euca: Placement[] = [];
@@ -506,22 +509,24 @@ function Vegetation({ tier }: { tier: Tier }) {
       }
     }
     return { acacia, euca, bushes, rocks, boulders, bananas, walls, roofs };
-  }, [lite]);
+  }), [lite]);
 
   const geos = useMemo(
-    () => ({
-      banana: bananaGeometry(),
-      box: new THREE.BoxGeometry(1, 1, 1),
-      roof: new THREE.CylinderGeometry(0.5, 0.5, 1, 3).rotateZ(Math.PI / 2).rotateX(0).scale(1, 1, 1),
-    }),
+    () =>
+      sessionMemo("landscape:veg-geos", () => ({
+        banana: bananaGeometry(),
+        box: new THREE.BoxGeometry(1, 1, 1),
+        roof: new THREE.CylinderGeometry(0.5, 0.5, 1, 3).rotateZ(Math.PI / 2).rotateX(0).scale(1, 1, 1),
+      })),
     [],
   );
   const mats = useMemo(
-    () => ({
-      banana: new THREE.MeshStandardMaterial({ map: bananaLeafTexture(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.7 }),
-      wall: new THREE.MeshStandardMaterial({ roughness: 0.95 }),
-      roof: new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.55 }),
-    }),
+    () =>
+      sessionMemo("landscape:veg-mats", () => ({
+        banana: new THREE.MeshStandardMaterial({ map: bananaLeafTexture(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.7 }),
+        wall: new THREE.MeshStandardMaterial({ roughness: 0.95 }),
+        roof: new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.55 }),
+      })),
     [],
   );
   const shadows = !lite;
@@ -617,7 +622,7 @@ interface MistDef {
   flat?: boolean;
 }
 function Mist({ tier }: { tier: Tier }) {
-  const tex = useMemo(() => mistTexture(), []);
+  const tex = useMemo(() => sessionMemo("landscape:mist", () => mistTexture()), []);
   const defs = useMemo<MistDef[]>(() => {
     const list: MistDef[] = [];
     for (const v of VOLCANOES) {
@@ -683,8 +688,10 @@ function Mist({ tier }: { tier: Tier }) {
 
 /* ---------------- composition ---------------- */
 export function Landscape({ tier }: { tier: Tier }) {
-  const terrain = useMemo(() => buildTerrain(tier), [tier]);
-  const volcanoes = useMemo(() => {
+  // the procedural meshes are pure functions of the tier: built once per session (the plaza and the halls' window
+  // views share them, already on the GPU), never disposed
+  const terrain = useMemo(() => sessionMemo(`landscape:terrain:${tier}`, () => buildTerrain(tier)), [tier]);
+  const volcanoes = useMemo(() => sessionMemo(`landscape:volcanoes:${tier}`, () => {
     const v = buildVolcanoes(tier);
     // planar UVs (world xz / 60 m) for the detail texture
     const P = v.geo.getAttribute("position") as THREE.BufferAttribute;
@@ -695,9 +702,9 @@ export function Landscape({ tier }: { tier: Tier }) {
     }
     v.geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
     return v;
-  }, [tier]);
-  const detail = useMemo(() => mountainDetailTexture(), []);
-  const volcanoMat = useMemo(() => {
+  }), [tier]);
+  const detail = useMemo(() => sessionMemo("landscape:detail", () => mountainDetailTexture()), []);
+  const volcanoMat = useMemo(() => sessionMemo("landscape:volcano-mat", () => {
     const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, map: detail, fog: false });
     m.onBeforeCompile = (sh) => {
       // aerial perspective: blue-grey haze and loss of saturation with distance (km-scale), output (sRGB) space
@@ -714,26 +721,19 @@ export function Landscape({ tier }: { tier: Tier }) {
     };
     m.customProgramCacheKey = () => "gk-volcano-haze";
     return m;
-  }, [detail]);
+  }), [detail]);
   // CC0 photographic lawn texture (Poly Haven "leafy_grass"), tinted per field by the vertex colours
-  const ground = useMemo(() => {
+  const ground = useMemo(() => sessionMemo(`landscape:ground:${tier}`, () => {
     const load = (url: string, srgb: boolean) => {
-      const t = new THREE.TextureLoader().load(url);
+      const t = new BitmapTextureLoader().load(url); // decoded off the main thread
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
       t.anisotropy = tier === "lite" ? 2 : 8;
       if (srgb) t.colorSpace = THREE.SRGBColorSpace;
       return t;
     };
     return { map: load("/assets/env/ground-grass.webp", true), normal: tier === "lite" ? null : load("/assets/env/ground-grass-n.webp", false) };
-  }, [tier]);
+  }), [tier]);
   const tint = useMemo(() => new THREE.Color("#ffffff").multiplyScalar(1.35), []);
-  useEffect(
-    () => () => {
-      terrain.dispose();
-      volcanoes.geo.dispose();
-    },
-    [terrain, volcanoes],
-  );
   return (
     <group>
       <mesh geometry={terrain} receiveShadow>

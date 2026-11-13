@@ -6,7 +6,6 @@ import { LocalPlayer, RemotePlayers } from "./Player";
 import { SPAWN } from "./layout";
 import type { Tier } from "./materials";
 import { levelForXp, useProfile } from "@/lib/profile-store";
-import { preloadHumans } from "./Avatar";
 import { SocialLayer } from "@/social/SocialLayer";
 
 /**
@@ -14,8 +13,7 @@ import { SocialLayer } from "@/social/SocialLayer";
  * landscape, lighting) belongs to the outdoor area and stays mounted; these mount when the plaza is on screen.
  */
 
-// start streaming the realistic human models + animation sets as soon as the world bundle loads
-if (typeof window !== "undefined") preloadHumans();
+// (the human models for other people stream after the first reveal: world/SceneCanvas DeferredAssets)
 
 export { xrStore } from "./xr-store";
 

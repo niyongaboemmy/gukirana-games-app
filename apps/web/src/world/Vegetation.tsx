@@ -1,8 +1,10 @@
 "use client";
-import { useEffect, useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
+import { sessionMemo } from "./session-cache";
+import { BitmapTextureLoader } from "./bitmap-texture";
 
 /**
  * Real vegetation (Poly Haven CC0 photogrammetry-based models, see docs/ASSET-LICENSES.md), instanced with
@@ -120,16 +122,64 @@ interface Bucket {
   meshes: THREE.InstancedMesh[];
 }
 
-/** One species, all its placements, LOD-bucketed by camera distance. */
-export function InstancedSpecies({ id, items, lite = false, shadows = true, maxLod = 2 }: { id: SpeciesId; items: Placement[]; lite?: boolean; shadows?: boolean; maxLod?: number }) {
-  const def: SpeciesDef = SPECIES[id];
-  const gltf = useGLTF(def.url, false);
-  const impTex = useMemo(() => {
-    if (!def.impostor) return null;
-    const t = new THREE.TextureLoader().load(def.impostor.url);
+type SpeciesProps = { id: SpeciesId; items: Placement[]; lite?: boolean; shadows?: boolean; maxLod?: number };
+
+function impostorSheet(imp: NonNullable<SpeciesDef["impostor"]>) {
+  // one texture object per impostor sheet for the session (a second mount, e.g. a hall's window view, reuses the
+  // already uploaded texture instead of decoding + uploading it again)
+  return sessionMemo(`impostor:${imp.url}`, () => {
+    const t = new BitmapTextureLoader().load(imp.url); // decoded off the main thread
     t.colorSpace = THREE.SRGBColorSpace;
     t.anisotropy = 4;
     return t;
+  });
+}
+
+/**
+ * One species, all its placements. The far impostors (a ~100 kB sheet) draw straight away for every placement; the
+ * full / sparse meshes (MBs) are not part of the first load: they stream in after the reveal and then take over the
+ * near and mid distances (P1-WLD-05: critical download).
+ */
+export function InstancedSpecies(props: SpeciesProps) {
+  const def: SpeciesDef = SPECIES[props.id];
+  return (
+    <Suspense fallback={def.impostor ? <ImpostorsOnly {...props} /> : null}>
+      <SpeciesLods {...props} />
+    </Suspense>
+  );
+}
+
+/** Every placement as an impostor (until the species' meshes have loaded). */
+function ImpostorsOnly({ id, items }: SpeciesProps) {
+  const def: SpeciesDef = SPECIES[id];
+  const mesh = useMemo(() => {
+    const imp = def.impostor!;
+    const g = new THREE.PlaneGeometry(imp.w, imp.h).translate(0, imp.h / 2 + imp.y0, 0);
+    const im = new THREE.InstancedMesh(g, impostorMaterial(impostorSheet(imp), imp.frames), Math.max(1, items.length));
+    items.forEach((p, i) => im.setMatrixAt(i, compose(p, _m)));
+    im.count = items.length;
+    im.frustumCulled = false;
+    im.instanceMatrix.needsUpdate = true;
+    return im;
+  }, [def, items]);
+  useEffect(
+    () => () => {
+      mesh.geometry.dispose();
+      (mesh.material as THREE.Material).dispose();
+      mesh.dispose();
+    },
+    [mesh],
+  );
+  return <primitive object={mesh} />;
+}
+
+/** One species, all its placements, LOD-bucketed by camera distance. */
+function SpeciesLods({ id, items, lite = false, shadows = true, maxLod = 2 }: SpeciesProps) {
+  const def: SpeciesDef = SPECIES[id];
+  const gltf = useGLTF(def.url, false);
+  const impTex = useMemo(() => {
+    const imp = def.impostor;
+    return imp ? impostorSheet(imp) : null;
   }, [def.impostor]);
 
   const buckets = useMemo(() => {
@@ -216,10 +266,30 @@ export function InstancedSpecies({ id, items, lite = false, shadows = true, maxL
     void _m;
   });
 
+  // streamed in while the scene is on screen: compile the new programs off the frame (parallel compile) and only
+  // then swap from the impostors to the meshes, so their arrival never costs a frame
+  const group = useRef<THREE.Group>(null);
+  const { gl, camera, scene } = useThree();
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const g = group.current;
+    if (!g) return;
+    let alive = true;
+    gl.compileAsync(g, camera, scene)
+      .catch(() => undefined)
+      .finally(() => alive && setShown(true));
+    return () => {
+      alive = false;
+    };
+  }, [gl, camera, scene]);
+
   return (
-    <group>
-      {buckets.flatMap((b, i) => b.meshes.map((m, j) => <primitive key={`${i}-${j}`} object={m} />))}
-    </group>
+    <>
+      <group ref={group} visible={shown}>
+        {buckets.flatMap((b, i) => b.meshes.map((m, j) => <primitive key={`${i}-${j}`} object={m} />))}
+      </group>
+      {!shown && def.impostor && <ImpostorsOnly id={id} items={items} />}
+    </>
   );
 }
 

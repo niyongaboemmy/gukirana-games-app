@@ -1,5 +1,7 @@
 "use client";
-import { useGLTF, useTexture } from "@react-three/drei";
+import { useGLTF } from "@react-three/drei";
+import { useLoader } from "@react-three/fiber";
+import { BitmapTextureLoader } from "@/world/bitmap-texture";
 import { INTERIOR_BASE, model, type PbrName } from "./interior-kit";
 import type { HallGame } from "./layouts";
 import { useStage } from "@/world/stage";
@@ -32,6 +34,6 @@ export function preloadHall(game: HallGame) {
   for (const m of a.models) useGLTF.preload(model(m));
   for (const [name, withMap] of a.pbr) {
     const urls = [`${INTERIOR_BASE}/tex/${name}_nor.webp`, `${INTERIOR_BASE}/tex/${name}_rough.webp`, ...(withMap ? [`${INTERIOR_BASE}/tex/${name}_diff.webp`] : [])];
-    useTexture.preload(urls);
+    useLoader.preload(BitmapTextureLoader, urls);
   }
 }

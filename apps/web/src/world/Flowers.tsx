@@ -7,6 +7,7 @@ import { AVENUE_BEDS, GATE_ARCS, LAWN_BEDS, PLAZA_ARCS, RING_PLANTERS, arcPoint,
 import { worldMaterials, type Tier } from "./materials";
 import { rng } from "./textures";
 import { addWind } from "./Vegetation";
+import { sessionMemo } from "./session-cache";
 
 /**
  * Modern compound landscaping (no trees inside the compound): raised planters and corten / concrete-edged beds with
@@ -458,7 +459,9 @@ function noiseTex(base: string, spots: string[], scale = 1, seed = 3): THREE.Can
 /* ---------------- component ---------------- */
 export function Flowers({ tier }: { tier: Tier }) {
   const lite = tier === "lite";
-  const plants = useMemo(() => {
+  // seeded placements, bed meshes and the flower cards are built once per session and shared by every mount (the
+  // plaza and the halls' window views); only the instanced meshes themselves are per mount
+  const plants = useMemo(() => sessionMemo(`flowers:plants:${lite}`, () => {
     const r = rng(2024);
     const out: Plant[] = [];
     const density = lite ? 0.45 : 1;
@@ -509,10 +512,10 @@ export function Flowers({ tier }: { tier: Tier }) {
         }
     });
     return out;
-  }, [lite]);
+  }), [lite]);
 
-  const structures = useMemo(() => bedStructures(tier), [tier]);
-  const mats = useMemo(() => {
+  const structures = useMemo(() => sessionMemo(`flowers:beds:${tier}`, () => bedStructures(tier)), [tier]);
+  const mats = useMemo(() => sessionMemo(`flowers:mats:${tier}`, () => {
     const w = worldMaterials(tier);
     return {
       edge: (w["concrete"] as THREE.MeshStandardMaterial | undefined) ?? new THREE.MeshStandardMaterial({ color: "#e4e0d8", roughness: 0.85 }),
@@ -523,10 +526,9 @@ export function Flowers({ tier }: { tier: Tier }) {
       trellis: new THREE.MeshStandardMaterial({ color: "#222326", roughness: 0.5, metalness: 0.6 }),
       light: new THREE.MeshStandardMaterial({ color: "#2a2a2a", emissive: new THREE.Color("#ffd9a0"), emissiveIntensity: 1.4, roughness: 0.4 }),
     };
-  }, [tier]);
-  useEffect(() => () => Object.values(structures).forEach((g) => g && "dispose" in g && (g as THREE.BufferGeometry).dispose()), [structures]);
+  }), [tier]);
 
-  const flowerMeshes = useMemo(() => {
+  const cards = useMemo(() => sessionMemo(`flowers:cards:${lite}`, () => {
     const atlas = flowerAtlas();
     const byId = new Map<CellId, Plant[]>();
     for (const p of plants) {
@@ -534,7 +536,7 @@ export function Flowers({ tier }: { tier: Tier }) {
       l.push(p);
       byId.set(p.id, l);
     }
-    const out: THREE.InstancedMesh[] = [];
+    const out: { geo: THREE.BufferGeometry; mat: THREE.Material; matrices: Float32Array; colors: Float32Array; count: number }[] = [];
     const m4 = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
@@ -543,29 +545,32 @@ export function Flowers({ tier }: { tier: Tier }) {
       const geo = plantGeometry(CELLS.indexOf(id), id === "grass" || id === "strelitzia" || id === "bougainvillea" ? 3 : 2);
       const mat = new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.45, alphaToCoverage: true, side: THREE.DoubleSide, roughness: 0.75, metalness: 0 });
       addWind(mat, id === "grass" ? 0.08 : id === "bougainvillea" ? 0.02 : 0.05);
-      const im = new THREE.InstancedMesh(geo, mat, list.length);
+      const matrices = new Float32Array(list.length * 16);
+      const colors = new Float32Array(list.length * 3);
       list.forEach((p, i) => {
         m4.compose(new THREE.Vector3(p.x, p.y, p.z), q.setFromAxisAngle(up, p.rot), new THREE.Vector3(p.w, p.h, p.w));
-        im.setMatrixAt(i, m4);
-        im.setColorAt(i, col.setHSL(0, 0, 0.88 + ((i * 7919) % 100) / 800));
+        m4.toArray(matrices, i * 16);
+        col.setHSL(0, 0, 0.88 + ((i * 7919) % 100) / 800).toArray(colors, i * 3);
       });
-      im.castShadow = false;
-      im.receiveShadow = !lite;
-      im.instanceMatrix.needsUpdate = true;
-      im.computeBoundingSphere();
-      out.push(im);
+      out.push({ geo, mat, matrices, colors, count: list.length });
     }
     return out;
-  }, [plants, lite]);
-  useEffect(
-    () => () =>
-      flowerMeshes.forEach((m) => {
-        m.geometry.dispose();
-        (m.material as THREE.Material).dispose();
-        m.dispose();
+  }), [plants, lite]);
+  const flowerMeshes = useMemo(
+    () =>
+      cards.map((c) => {
+        const im = new THREE.InstancedMesh(c.geo, c.mat, c.count);
+        im.instanceMatrix.array.set(c.matrices);
+        im.instanceColor = new THREE.InstancedBufferAttribute(c.colors.slice(), 3);
+        im.castShadow = false;
+        im.receiveShadow = !lite;
+        im.instanceMatrix.needsUpdate = true;
+        im.computeBoundingSphere();
+        return im;
       }),
-    [flowerMeshes],
+    [cards, lite],
   );
+  useEffect(() => () => flowerMeshes.forEach((m) => m.dispose()), [flowerMeshes]);
 
   const lights = useMemo(() => {
     const g = new THREE.CylinderGeometry(0.045, 0.06, 0.1, 10).translate(0, 0.05, 0);

@@ -7,14 +7,14 @@ import { useStore } from "zustand";
 import * as THREE from "three";
 import { Plaza } from "./Plaza";
 import { Effects } from "./Lighting";
-import { Avatar } from "./Avatar";
+import { Avatar, preloadHumans } from "./Avatar";
 import { Gate } from "./gate/Gate";
 import { GateActors } from "./gate/GateCanvas";
 import { PlazaActors, pickTier } from "./WorldCanvas";
 import { xrStore } from "./xr-store";
 import { PORTALS, portalTransform } from "./layout";
 import { doorOpen } from "./transition";
-import { AreaContext, areaOf, areaTopUp, getArea, hallOf, knownAreas, useStage, type Area } from "./stage";
+import { AreaContext, areaOf, areaTopUp, getArea, hallOf, isOnScreen, knownAreas, useStage, type Area } from "./stage";
 import { useDoorway } from "./doorway";
 import { HallActors, HallInterior } from "@/rooms/RoomCanvas";
 import { HALLS, type HallGame } from "@/rooms/layouts";
@@ -40,9 +40,14 @@ import { ANIM_SETS, HUMAN_MODELS } from "./human/meta";
  * shared loader cache; textures / fonts loaded by plain loaders are warmed in the HTTP cache.
  */
 function preloadFor(path: string) {
-  preloadVegetation();
+  // critical: what the first view shows up close: the guard, your own person (model + base motion set), ground,
+  // far-tree impostors, the sign font. Everything else (the other bodies for people who join, the everyday-life
+  // motion sets, the near-tree meshes) streams after the reveal (`DeferredAssets`), so it never competes with these.
   useGLTF.preload(HUMAN_MODELS.guard.url, false);
-  for (const s of Object.values(ANIM_SETS)) useGLTF.preload(s.lifeUrl, false);
+  useGLTF.preload(ANIM_SETS[HUMAN_MODELS.guard.anim].url, false);
+  const own = HUMAN_MODELS[useProfile.getState().bodyType] ?? HUMAN_MODELS.neutral;
+  useGLTF.preload(own.url, false);
+  useGLTF.preload(ANIM_SETS[own.anim].url, false);
   for (const url of ["/assets/env/ground-grass.webp", "/assets/env/ground-grass-n.webp", "/assets/env/acacia-imp.webp", "/assets/env/eucalyptus-imp.webp", "/fonts/Baloo2.ttf"])
     void fetch(url, { cache: "force-cache" }).catch(() => undefined);
   const hall = /^\/room\/(pool|ludo|igisoro)/.exec(path)?.[1] as HallGame | undefined;
@@ -123,98 +128,179 @@ function AreaWarm({ area, content }: { area: Area; content: RefObject<THREE.Grou
       });
     const prog = (v: number) =>
       useStage.setState((st) => (v > (st.warmProgress[area] ?? 0) ? { warmProgress: { ...st.warmProgress, [area]: v } } : st));
+    const isDrawable = (o: THREE.Object3D) => (o as THREE.Mesh).isMesh || (o as THREE.Points).isPoints || (o as THREE.Line).isLine || (o as THREE.Sprite).isSprite;
+    /** meshes whose programs have been created, set up (first use) and whose buffers / textures are on the GPU */
+    const warmed = new WeakSet<THREE.Object3D>();
+    const unwarmed = () => {
+      const out: THREE.Object3D[] = [];
+      scene.traverse((o) => isDrawable(o) && !warmed.has(o) && out.push(o));
+      return out;
+    };
+    const outputs = () => {
+      const st = useStage.getState();
+      // both output paths the frame can take (bloom composer → linear render target; no bloom → the canvas, which
+      // tone-maps itself): the performance monitor may switch bloom at any time, and either variant compiling later
+      // would stall a frame
+      return st.tier === "standard" ? [targetFor(st.fx), targetFor(!st.fx)] : [null];
+    };
+    /** booting this area on screen behind the boot screen (nobody walking yet): big batches */
+    const booting = () => {
+      const v = useStage.getState().view;
+      return !!v && areaOf(v) === area && !useStage.getState().ready[area];
+    };
+    /**
+     * Make `list` GPU-ready, spread over frames within `budgetMs` of main-thread work per frame:
+     *  1. create the programs a few meshes at a time (building + submitting a program is 1–3 ms of string work; the GPU
+     *     then links them in parallel) and wait for the links (compileAsync: all cache hits by then)
+     *  2. upload their textures (decoded off the main thread, see world/bitmap-texture)
+     *  3. draw them into one pixel in batches (uniform setup on first use, geometry buffers, shadow-depth programs),
+     *     for every output path, with frustum culling off (the area camera is not where you will stand)
+     */
+    const warmPass = async (list: THREE.Object3D[], budgetMs: number, progress: boolean) => {
+      if (!list.length) return true;
+      const outs = outputs();
+      for (const rt of outs) {
+        let i = 0;
+        while (i < list.length) {
+          const s0 = performance.now();
+          shown(() => {
+            const prev = gl.getRenderTarget();
+            const tm = gl.toneMapping;
+            gl.setRenderTarget(rt);
+            if (!rt) gl.toneMapping = THREE.ACESFilmicToneMapping;
+            try {
+              while (i < list.length && performance.now() - s0 < budgetMs) {
+                try {
+                  gl.compile(list[i]!, camera, scene);
+                } catch {
+                  /* compiled on first use instead */
+                }
+                i++;
+              }
+            } finally {
+              gl.toneMapping = tm;
+              gl.setRenderTarget(prev);
+            }
+          });
+          await nextFrame();
+          if (!alive) return false;
+        }
+      }
+      await Promise.all(outs.map((rt) => compileFor(rt)));
+      if (!alive) return false;
+      if (progress) {
+        prog(0.5);
+        mark(`${area}:compiled`);
+      }
+      const tex = new Set<THREE.Texture>();
+      for (const o of list) for (const t of texturesOf(o)) tex.add(t);
+      const texList = [...tex];
+      let slice = performance.now();
+      for (let i = 0; i < texList.length; i++) {
+        try {
+          gl.initTexture(texList[i]!);
+        } catch {
+          /* exotic texture: uploads on first use */
+        }
+        if (performance.now() - slice > budgetMs) {
+          if (progress) prog(0.5 + (0.4 * i) / texList.length);
+          await nextFrame();
+          if (!alive) return false;
+          slice = performance.now();
+        }
+      }
+      const all: THREE.Object3D[] = [];
+      scene.traverse((o) => isDrawable(o) && all.push(o));
+      // batch size adapts to what one batch actually costs (first uses vary from µs to ms): stay near the budget
+      let batch = budgetMs > 12 ? 1e9 : 6;
+      for (let i = 0; i < list.length; ) {
+        const part = list.slice(i, i + batch);
+        i += part.length;
+        await new Promise<void>((resolve) => {
+          warmDraws.push(() => {
+            const s0 = performance.now();
+            if (alive)
+              shown(() => {
+                // only this batch is drawn: everything else moves to an unused layer for the call (NOT hidden: a
+                // hidden lamp mesh would hide the light hanging under it, and programs keyed on fewer lights are useless)
+                const inPart = new Set(part);
+                const saved = all.map((o) => o.layers.mask);
+                all.forEach((o) => {
+                  if (!inPart.has(o)) o.layers.mask = 1 << 31;
+                });
+                const culled = part.map((o) => o.frustumCulled);
+                part.forEach((o) => (o.frustumCulled = false));
+                const prev = gl.getRenderTarget();
+                const sc = gl.getScissorTest();
+                const ac = gl.autoClear;
+                const tm = gl.toneMapping;
+                gl.autoClear = false;
+                try {
+                  for (const rt of outs) {
+                    if (rt) {
+                      gl.setScissorTest(false);
+                      gl.setRenderTarget(rt);
+                    } else {
+                      gl.setRenderTarget(null);
+                      gl.toneMapping = THREE.ACESFilmicToneMapping;
+                      gl.setScissorTest(true);
+                      gl.setScissor(0, 0, 1, 1);
+                    }
+                    gl.render(scene, camera);
+                    gl.toneMapping = tm;
+                  }
+                } finally {
+                  gl.toneMapping = tm;
+                  gl.setScissorTest(sc);
+                  gl.setRenderTarget(prev);
+                  gl.autoClear = ac;
+                  all.forEach((o, j) => (o.layers.mask = saved[j]!));
+                  part.forEach((o, j) => (o.frustumCulled = culled[j]!));
+                  part.forEach((o) => warmed.add(o));
+                }
+              });
+            const took = performance.now() - s0;
+            if (batch < 1e9) batch = took < budgetMs * 0.5 ? Math.min(96, batch * 2) : took > budgetMs * 1.5 ? Math.max(2, Math.floor(batch / 2)) : batch;
+            resolve();
+          });
+        });
+        if (!alive) return false;
+      }
+      return true;
+    };
     void (async () => {
       mark(`${area}:content`);
       await frames(4); // environment maps, the windows' cube capture and lazy children settle first
       if (!alive) return;
       const t0 = performance.now();
-      // compile for both paths the frame can take (bloom composer → render target; no bloom → screen): the
-      // performance monitor may switch bloom at any time, and either variant compiling later would stall a frame
-      const st = useStage.getState();
-      const targets = st.tier === "standard" ? [targetFor(st.fx), targetFor(!st.fx)] : [null];
-      const ps: Promise<unknown>[] = [];
-      for (const rt of targets) ps.push(compileFor(rt));
-      await Promise.all(ps);
-      if (!alive) return;
-      prog(0.5);
-      mark(`${area}:compiled`);
-      // upload textures within a per-frame time budget (no long frame while you are walking); while booting on
-      // screen behind the boot screen nobody is moving yet, so the budget is generous
-      const tex = texturesOf(scene);
-      const view = useStage.getState().view;
-      const budget = view && areaOf(view) === area && !useStage.getState().ready[area] ? 40 : 4;
-      let slice = performance.now();
-      for (let i = 0; i < tex.length; i++) {
-        try {
-          gl.initTexture(tex[i]!);
-        } catch {
-          /* exotic texture: uploads on first use */
-        }
-        if (performance.now() - slice > budget) {
-          prog(0.5 + (0.4 * i) / tex.length);
-          await nextFrame();
-          slice = performance.now();
-        }
-        if (!alive) return;
-      }
-      // draw the area into a single pixel, a batch of meshes per frame (geometry buffers, uniform reflection, shadow
-      // passes, late uploads): spread over frames so warming a hall while you walk never costs one long frame. While
-      // booting on screen (nobody walking) the batches are large.
-      const drawables: THREE.Object3D[] = [];
-      scene.traverse((o) => ((o as THREE.Mesh).isMesh || (o as THREE.Points).isPoints || (o as THREE.Line).isLine || (o as THREE.Sprite).isSprite) && drawables.push(o));
-      const batch = budget > 4 ? 1e9 : 6;
-      for (let i = 0; i < drawables.length; i += batch) {
-        await new Promise<void>((resolve) => {
-          warmDraws.push(() => {
-            if (alive)
-              shown(() => {
-                const saved = drawables.map((o) => o.visible);
-                drawables.forEach((o, j) => (o.visible = saved[j]! && j >= i && j < i + batch));
-                const fxRt = targetFor(useStage.getState().fx);
-                const prev = gl.getRenderTarget();
-                const sc = gl.getScissorTest();
-                const ac = gl.autoClear;
-                gl.autoClear = false;
-                if (fxRt) gl.setRenderTarget(fxRt);
-                else {
-                  gl.setScissorTest(true);
-                  gl.setScissor(0, 0, 1, 1);
-                }
-                try {
-                  gl.render(scene, camera);
-                } finally {
-                  gl.setScissorTest(sc);
-                  gl.setRenderTarget(prev);
-                  gl.autoClear = ac;
-                  drawables.forEach((o, j) => (o.visible = saved[j]!));
-                }
-              });
-            resolve();
-          });
-        });
-        if (!alive) return;
-      }
+      if (!(await warmPass(unwarmed(), booting() ? 40 : 4, true))) return;
       await nextFrame();
       if (!alive) return;
-      if (process.env.NODE_ENV !== "production") console.debug(`[stage] ${area} ready in ${(performance.now() - t0).toFixed(0)} ms (${tex.length} textures)`);
+      if (process.env.NODE_ENV !== "production") console.debug(`[stage] ${area} ready in ${(performance.now() - t0).toFixed(0)} ms`);
       prog(1);
       mark(`${area}:ready`);
       useStage.getState().setReady(area, true);
-      // top-up right before a crossing: parts that resolved after this warm-up (nested Suspense, late text
-      // atlases, props streamed in) get compiled + uploaded too; everything already warm is a cheap no-op
+      // parts that resolve after this warm-up (nested Suspense: props, people, text atlases streamed in) are warmed
+      // the same way as they appear, while the area is still off screen
+      let running = false;
+      const late = async (budgetMs: number) => {
+        if (running || !alive) return;
+        running = true;
+        try {
+          await warmPass(unwarmed(), budgetMs, false);
+        } finally {
+          running = false;
+        }
+      };
+      const watch = setInterval(() => {
+        if (!alive) return clearInterval(watch);
+        if (!isOnScreen(area)) void late(4);
+      }, 400);
+      // and right before a crossing: whatever is still left (cheap no-op when everything is warm)
       areaTopUp.set(area, async () => {
         if (!alive) return;
-        const st2 = useStage.getState();
-        const ts = st2.tier === "standard" ? [targetFor(st2.fx), targetFor(!st2.fx)] : [null];
-        const ps2: Promise<unknown>[] = [];
-        for (const rt of ts) ps2.push(compileFor(rt));
-        await Promise.all(ps2);
-        for (const t of texturesOf(scene))
-          try {
-            gl.initTexture(t);
-          } catch {
-            /* uploads on first use */
-          }
+        while (running) await nextFrame();
+        await late(8);
       });
     })();
     return () => {
@@ -475,12 +561,49 @@ function Stage() {
   );
 }
 
+/**
+ * Non-critical assets, requested once the first view is revealed and the HUD is in (usable): the other body models
+ * and motion sets (people who join), the everyday-life motion sets (idle fidgets, coffee, phone …: the Avatar adds
+ * them when they arrive), and the near-tree meshes (the distant trees already show as impostors).
+ */
+function DeferredAssets() {
+  const hud = useStage((s) => s.hud);
+  useEffect(() => {
+    if (!hud) return;
+    const t = setTimeout(() => {
+      preloadHumans();
+      for (const s of Object.values(ANIM_SETS)) useGLTF.preload(s.lifeUrl, false);
+      preloadVegetation();
+    }, 400);
+    return () => clearTimeout(t);
+  }, [hud]);
+  return null;
+}
+
 /** Publishes asset loading progress to the boot screen (which lives outside this lazily loaded chunk). */
 function ProgressBridge() {
-  const { progress, active } = useProgress();
+  // Not a React subscription: drei's progress store changes on every item a loader starts or finishes (dozens in a
+  // burst while the plaza builds behind a hall), and re-rendering + writing the stage store from a passive effect on
+  // each of them chained commit → effect → store write → commit … until React gave up with "Maximum update depth
+  // exceeded". The value is pushed at most once per frame, from requestAnimationFrame, and only when it changed.
   useEffect(() => {
-    useStage.setState({ assets: active ? progress / 100 : progress >= 100 ? 1 : useStage.getState().assets });
-  }, [progress, active]);
+    let raf = 0;
+    const push = () => {
+      raf = 0;
+      const { progress, active } = useProgress.getState();
+      const cur = useStage.getState().assets;
+      const v = active ? progress / 100 : progress >= 100 ? 1 : cur;
+      if (Math.abs(v - cur) > 0.002) useStage.setState({ assets: v });
+    };
+    const unsub = useProgress.subscribe(() => {
+      if (!raf) raf = requestAnimationFrame(push);
+    });
+    raf = requestAnimationFrame(push);
+    return () => {
+      unsub();
+      cancelAnimationFrame(raf);
+    };
+  }, []);
   return null;
 }
 
@@ -497,6 +620,7 @@ export default function SceneCanvas() {
   return (
     <>
     <ProgressBridge />
+    <DeferredAssets />
     <Canvas
       shadows={tier === "lite" ? false : "percentage"}
       dpr={tier === "lite" ? [1, 1.25] : [1, 1.75]}
