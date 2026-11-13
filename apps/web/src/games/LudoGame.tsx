@@ -1,15 +1,17 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { returnLabel, returnPath } from "@/lib/return-point";
 import { commitSeed, createFairRng, newSeed, type FairRng } from "@gukirana/fairness";
-import { initLudo, ludoBotMove, moveToken, movableTokens, rollDice, type LudoState } from "@gukirana/ludo";
-import { GameShell, Modal, ResultModal } from "./GameShell";
-import { Die, LudoBoard, SeatLabel } from "./LudoBoard";
+import { HOME, initLudo, ludoBotMove, moveToken, movableTokens, rollDice, type LudoState } from "@gukirana/ludo";
+import { GameShell, Modal, PrefToggle, ResultModal, TurnBanner } from "./GameShell";
+import { LudoBoard, LudoControls, SeatLabel, STEP_MS } from "./LudoBoard";
 import { settlePractice } from "./practice";
 import { SEAT_COLORS, SEAT_NAMES } from "./ludo-board";
 import { DieIcon } from "@/ui/game-icons";
 import { levelForXp, useProfile } from "@/lib/profile-store";
+import { useGamePrefs } from "./feedback";
+import { t } from "./i18n";
 
 interface Match {
   seed: string;
@@ -18,16 +20,32 @@ interface Match {
 }
 const newMatch = (): Match => {
   const seed = newSeed();
-  return { seed, commit: commitSeed(seed), rng: createFairRng(seed, [newSeed()], `practice-${Date.now()}`) };
+  return { seed, commit: commitSeed(seed), rng: createFairRng(seed, [newSeed()], `practice-${seed.slice(0, 12)}`) };
 };
+
+/** How long the last event takes to show (token hops), so the next action waits for it. */
+export const eventMs = (s: LudoState) => (s.lastEvent?.kind === "move" ? (s.lastEvent.from === -1 ? 1 : s.lastEvent.to - s.lastEvent.from) * STEP_MS : 0);
+
+/** Banner text for what just happened (no moves, three sixes, capture). */
+export function ludoNotice(s: LudoState, nameOf: (id: string) => string): { text: string; tone: "info" | "good" | "bad" } | null {
+  const ev = s.lastEvent;
+  if (!ev) return null;
+  if (ev.kind === "pass" && ev.reason === "three-sixes") return { text: `${nameOf(ev.player)}: ${t("ludo.threeSixes")}`, tone: "bad" };
+  if (ev.kind === "roll" && ev.movable.length === 0) return { text: `${nameOf(ev.player)}: ${t("ludo.noMoves", { dice: ev.dice })}`, tone: "info" };
+  if (ev.kind === "move" && ev.captured.length) return { text: `${nameOf(ev.player)}: ${t("ludo.captured")}`, tone: "good" };
+  return null;
+}
 
 export default function LudoGame() {
   const { name, color, xp } = useProfile();
+  const autoMove = useGamePrefs((s) => s.autoMove);
   const [mode, setMode] = useState<2 | 4 | null>(null);
   const [state, setState] = useState<LudoState | null>(null);
   const [match, setMatch] = useState<Match>(newMatch);
   const [rolling, setRolling] = useState(false);
   const [result, setResult] = useState<{ won: boolean; starsDelta: number; xp: number } | null>(null);
+  const [banner, setBanner] = useState<{ id: number; text: string; tone: "info" | "good" | "bad" } | null>(null);
+  const bannerId = useRef(0);
 
   const start = (m: 2 | 4) => {
     setMode(m);
@@ -39,6 +57,7 @@ export default function LudoGame() {
   const current = state?.players[state.turn];
   const myTurn = current?.id === "you" && !state?.winner;
   const movable = state && state.phase === "move" && current ? movableTokens(current, state.dice!) : [];
+  const nameOf = useCallback((id: string) => (id === "you" ? name || "You" : `${SEAT_NAMES[state?.players.find((p) => p.id === id)?.seat ?? 0]} AI`), [name, state?.players]);
 
   const doRoll = useCallback(() => {
     if (!state || rolling) return;
@@ -48,40 +67,56 @@ export default function LudoGame() {
       setState((s) => (s ? rollDice(s, match.rng) : s));
     }, 650);
   }, [match.rng, rolling, state]);
-  const doMove = useCallback((t: number) => setState((s) => (s && s.phase === "move" ? moveToken(s, t) : s)), []);
+  const doMove = useCallback((tok: number) => setState((s) => (s && s.phase === "move" ? moveToken(s, tok) : s)), []);
 
+  // banners for passes / captures
+  useEffect(() => {
+    if (!state) return;
+    const n = ludoNotice(state, nameOf);
+    if (n) setBanner({ id: ++bannerId.current, ...n });
+  }, [state?.lastEvent]);
+
+  // AI turns, and your auto-move when only one token can move (menu setting); waits for the hop animation
   useEffect(() => {
     if (!state || state.winner || rolling) return;
+    const wait = eventMs(state);
     if (myTurn) {
-      if (state.phase === "move" && movable.length === 1) {
-        const t = setTimeout(() => doMove(movable[0]!), 900);
-        return () => clearTimeout(t);
+      if (autoMove && state.phase === "move" && movable.length === 1) {
+        const tm = setTimeout(() => doMove(movable[0]!), 700 + wait);
+        return () => clearTimeout(tm);
       }
       return;
     }
-    const t = setTimeout(() => (state.phase === "roll" ? doRoll() : doMove(ludoBotMove(state))), state.phase === "roll" ? 550 : 650);
-    return () => clearTimeout(t);
-  }, [doMove, doRoll, movable, myTurn, rolling, state]);
+    const tm = setTimeout(() => (state.phase === "roll" ? doRoll() : doMove(ludoBotMove(state))), (state.phase === "roll" ? 600 : 650) + wait);
+    return () => clearTimeout(tm);
+  }, [autoMove, doMove, doRoll, movable, myTurn, rolling, state]);
 
   useEffect(() => {
     if (state?.winner && !result) {
       const won = state.winner === "you";
-      setResult({ won, starsDelta: 0, xp: 0 });
-      void settlePractice("ludo", won).then((r) => setResult({ won, ...r }));
+      const tm = setTimeout(() => {
+        setResult({ won, starsDelta: 0, xp: 0 });
+        void settlePractice("ludo", won).then((r) => setResult({ won, ...r }));
+      }, eventMs(state) + 300);
+      return () => clearTimeout(tm);
     }
-  }, [result, state?.winner]);
+  }, [result, state]);
 
   if (!mode || !state) {
     return (
-      <GameShell title="Ludo" icon={DieIcon} color="#FF8A1F" pot={0} you={{ name: name || "You", color, level: levelForXp(xp), active: false }} opponents={[]}>
-        <Modal>
-          <p className="text-center text-xl font-extrabold">Ludo practice</p>
-          <p className="mt-1 text-center text-sm text-white/70">Practice (no stake) · every dice roll is provably fair</p>
+      <GameShell game="ludo" title={t("ludo.title")} icon={DieIcon} color="#FF8A1F" pot={0} you={{ name: name || "You", color, level: levelForXp(xp), active: false }} opponents={[]}>
+        <Modal label={t("ludo.mode")}>
+          <p className="text-center font-display text-xl font-bold">{t("ludo.mode")}</p>
+          <p className="mt-1 text-center text-sm text-on-glass-muted">{t("ludo.modeHint")}</p>
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <button type="button" onClick={() => start(2)} className="press rounded-xl bg-game-ludo py-3 font-bold">1 vs 1</button>
-            <button type="button" onClick={() => start(4)} className="btn-secondary rounded-xl py-3 font-bold">4 players</button>
+            <button type="button" data-autofocus onClick={() => start(2)} className="press min-h-12 rounded-control bg-game-ludo font-bold text-white">
+              {t("ludo.oneVsOne")}
+            </button>
+            <button type="button" onClick={() => start(4)} className="btn-secondary min-h-12 rounded-control font-bold">
+              {t("ludo.four")}
+            </button>
           </div>
-          <Link href={returnPath()} className="mt-3 block text-center text-sm font-semibold text-white/60 hover:text-white">
+          <Link href={returnPath()} className="mt-3 block min-h-10 text-center text-sm font-semibold text-on-glass-muted hover:text-white">
             {returnLabel()}
           </Link>
         </Modal>
@@ -91,36 +126,26 @@ export default function LudoGame() {
 
   const panel = (id: string, label: string, bot: boolean) => {
     const p = state.players.find((x) => x.id === id)!;
-    return { name: label, color: SEAT_COLORS[p.seat]!, level: bot ? 8 : levelForXp(xp), isBot: bot, active: current?.id === id && !state.winner, detail: <SeatLabel seat={p.seat} home={p.tokens.filter((t) => t === 56).length} /> };
+    return { name: label, color: SEAT_COLORS[p.seat]!, level: bot ? 8 : levelForXp(xp), isBot: bot, active: current?.id === id && !state.winner, detail: <SeatLabel seat={p.seat} home={p.tokens.filter((x) => x === HOME).length} /> };
   };
+  const hint = myTurn ? (movable.length > 1 || !autoMove ? t("ludo.pickToken") : t("ludo.moving")) : t("game.theirTurn", { name: nameOf(current?.id ?? "") });
 
   return (
     <GameShell
-      title="Ludo"
+      game="ludo"
+      title={t("ludo.title")}
       icon={DieIcon}
       color="#FF8A1F"
       pot={0}
       fairness={{ commit: match.commit, reveal: state.winner ? match.seed : undefined, rolls: state.rolls }}
       you={panel("you", name || "You", false)}
       opponents={state.players.filter((p) => p.id !== "you").map((p) => panel(p.id, `${SEAT_NAMES[p.seat]} AI`, true))}
-      footer={
-        <div className="flex items-center justify-center gap-4">
-          <Die value={state.dice ?? (state.lastEvent?.kind === "roll" ? state.lastEvent.dice : null)} rolling={rolling} color={SEAT_COLORS[current?.seat ?? 0]!} />
-          {myTurn && state.phase === "roll" ? (
-            <button type="button" onClick={doRoll} disabled={rolling} className="flex items-center gap-2 press rounded-2xl bg-game-ludo px-8 py-3 text-lg font-extrabold shadow-[inset_0_1px_0_rgb(255_255_255/.3),0_10px_24px_-10px_rgb(255_138_31/.8)]">
-              <DieIcon size={20} /> {rolling ? "Rolling…" : "Roll"}
-            </button>
-          ) : (
-            <p className="text-sm text-white/70">
-              {myTurn ? (movable.length > 1 ? "Tap a glowing token to move" : "Moving…") : `${SEAT_NAMES[current?.seat ?? 0]} AI is playing…`}
-              {state.lastEvent?.kind === "pass" && state.lastEvent.reason === "three-sixes" ? " · three 6s, turn lost" : ""}
-            </p>
-          )}
-        </div>
-      }
+      menuExtras={() => <PrefToggle k="autoMove" label="game.autoMove" />}
+      footer={<LudoControls die={state.dice ?? (state.lastEvent?.kind === "roll" ? state.lastEvent.dice : null)} rolling={rolling} color={SEAT_COLORS[current?.seat ?? 0]!} canRoll={!!myTurn && state.phase === "roll"} onRoll={doRoll} hint={hint} />}
     >
       <LudoBoard state={state} movable={myTurn ? movable : []} onMove={doMove} myId="you" />
-      {result && <ResultModal {...result} summary={result.won ? "All four tokens home!" : `${state.winner} brought all tokens home.`} onRematch={() => start(mode)} />}
+      {banner && <TurnBanner key={banner.id} text={banner.text} tone={banner.tone} />}
+      {result && <ResultModal {...result} summary={result.won ? "All four tokens home!" : `${nameOf(state.winner ?? "")} brought all tokens home.`} onRematch={() => start(mode)} />}
     </GameShell>
   );
 }

@@ -1,0 +1,89 @@
+/* Game screens (practice + live): 10-foot scaling, controller focus, turn banners, small effects.
+   Scoped to pages that render .gk-game, so nothing leaks into the 3D world HUD. */
+
+/* TV / big screens: the game UI is rem-based, so a larger root size scales every control and text (10-foot UI). */
+@media (min-width: 1800px) and (min-height: 960px) {
+  html:has(.gk-game) { font-size: 20px; }
+}
+@media (min-width: 2500px) and (min-height: 1400px) {
+  html:has(.gk-game) { font-size: 27px; }
+}
+@media (min-width: 3400px) and (min-height: 1900px) {
+  html:has(.gk-game) { font-size: 34px; }
+}
+
+/* touch: no double-tap zoom (a quick second tap on a pit / token must register), no grey tap flash, no text
+   selection while dragging the cue */
+.gk-game {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* lucide icons are sized in px: on big screens scale them with the text */
+@media (min-width: 1800px) and (min-height: 960px) {
+  .gk-game svg.lucide, [aria-modal="true"] svg.lucide { width: 1.3em; height: 1.3em; }
+}
+
+/* keyboard / remote / gamepad: a bold, always-visible focus ring (programmatic focus included) */
+html[data-input="key"] .gk-game :focus,
+html[data-input="key"] [aria-modal="true"] :focus,
+.gk-game :focus-visible {
+  outline: 3px solid var(--color-ring);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 6px rgb(59 130 246 / 0.28);
+}
+.gk-game canvas:focus,
+.gk-game canvas:focus-visible { outline-offset: -3px; }
+html[data-input="pointer"] .gk-game :focus:not(:focus-visible) { outline: none; box-shadow: none; }
+
+/* turn banner: slides in, holds, fades */
+@keyframes gk-banner {
+  0% { opacity: 0; transform: translate(-50%, -40%) scale(0.92); }
+  12% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -56%) scale(0.98); }
+}
+.gk-banner { animation: gk-banner 1.9s var(--ease-soft) both; }
+
+@keyframes gk-burst {
+  0% { opacity: 0.95; transform: scale(0.3); }
+  100% { opacity: 0; transform: scale(2.4); }
+}
+.gk-burst { animation: gk-burst 0.7s ease-out both; }
+
+@keyframes gk-glow {
+  0%, 100% { box-shadow: 0 0 0 3px rgb(255 255 255 / 0.85), 0 0 14px 2px rgb(255 255 255 / 0.55); }
+  50% { box-shadow: 0 0 0 4px rgb(255 255 255 / 1), 0 0 22px 6px rgb(255 255 255 / 0.8); }
+}
+.gk-legal { animation: gk-glow 1.1s ease-in-out infinite; }
+
+@keyframes gk-flash {
+  0%, 100% { box-shadow: 0 0 0 3px rgb(239 68 68 / 0.9), 0 0 22px rgb(239 68 68 / 0.8); }
+  50% { box-shadow: 0 0 0 5px rgb(252 165 165 / 1), 0 0 30px rgb(239 68 68 / 1); }
+}
+.gk-captured { animation: gk-flash 0.35s ease-in-out 3; }
+
+@keyframes gk-die {
+  0% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(-18deg) scale(1.08) translateY(-6%); }
+  50% { transform: rotate(14deg) scale(0.96); }
+  75% { transform: rotate(-8deg) scale(1.04) translateY(-3%); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+.gk-die-roll { animation: gk-die 0.32s ease-in-out infinite; }
+
+@keyframes gk-pulse-ring {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.gk-pulse { animation: gk-pulse-ring 1.4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gk-banner { animation-duration: 1.6s; animation-name: none; opacity: 1; transform: translate(-50%, -50%); }
+  .gk-burst, .gk-die-roll, .gk-pulse { animation: none; }
+  .gk-legal { animation: none; box-shadow: 0 0 0 4px rgb(255 255 255 / 0.95); }
+  .gk-captured { animation: none; box-shadow: 0 0 0 4px rgb(239 68 68 / 0.95); }
+}

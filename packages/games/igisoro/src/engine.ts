@@ -13,10 +13,13 @@ import { stableStringify, type GameModule, type MatchResult, type PlayerRef } fr
  *   the next pit. Otherwise the pit is picked up and sowing continues (relay sowing).
  * - Last seed in an empty pit ends the turn.
  * - A player with no legal move on their turn loses.
+ * - Move cap (termination guarantee for live play): after MAX_MOVES moves the side holding more seeds wins;
+ *   equal seeds is a draw (the API splits the pot).
  */
 export const PITS_PER_PLAYER = 16;
 export const ROW = 8;
 export const MAX_SOW_STEPS = 4000; // termination guard for pathological relay loops
+export const MAX_MOVES = 300;
 
 export interface IgisoroConfig {
   seedsPerPit?: number;
@@ -32,6 +35,8 @@ export interface IgisoroState {
   pits: [number[], number[]];
   turn: 0 | 1;
   winner: 0 | 1 | null;
+  /** the move cap was reached with equal seeds */
+  draw?: boolean;
   moveCount: number;
   lastEvents: SowEvent[];
 }
@@ -116,6 +121,12 @@ export function playIgisoro(state: IgisoroState, pit: number): IgisoroState {
     lastEvents: events,
   };
   if (legalPits(next, opp).length === 0) next.winner = me;
+  else if (next.moveCount >= MAX_MOVES) {
+    const mineSeeds = pits[me].reduce((a, b) => a + b, 0);
+    const theirSeeds = pits[opp].reduce((a, b) => a + b, 0);
+    if (mineSeeds === theirSeeds) next.draw = true;
+    else next.winner = mineSeeds > theirSeeds ? me : opp;
+  }
   return next;
 }
 
@@ -132,7 +143,7 @@ export const igisoroModule: GameModule<IgisoroState, IgisoroIntent, IgisoroConfi
   intentSchema: IgisoroIntentSchema,
   init: (config, players: readonly PlayerRef[]) => initIgisoro([players[0]!.id, players[1]!.id], config),
   validate(state, player, intent) {
-    if (state.winner !== null) return { ok: false, reason: "GAME_OVER" };
+    if (state.winner !== null || state.draw) return { ok: false, reason: "GAME_OVER" };
     if (state.players[state.turn] !== player) return { ok: false, reason: "NOT_YOUR_TURN" };
     if ((state.pits[state.turn][intent.pit] ?? 0) < 2) return { ok: false, reason: "PIT_NEEDS_2_SEEDS" };
     return { ok: true };
@@ -142,14 +153,15 @@ export const igisoroModule: GameModule<IgisoroState, IgisoroIntent, IgisoroConfi
     const pits = legalPits(state);
     return pits.length ? playIgisoro(state, pits[0]!) : { ...state, winner: (1 - state.turn) as 0 | 1 };
   },
-  currentTurn: (s) => (s.winner === null ? s.players[s.turn] : null),
-  isTerminal: (s) => s.winner !== null,
+  currentTurn: (s) => (s.winner === null && !s.draw ? s.players[s.turn] : null),
+  isTerminal: (s) => s.winner !== null || s.draw === true,
   result(s): MatchResult {
+    if (s.draw) return { ranks: { [s.players[0]]: 1, [s.players[1]]: 1 }, reason: "normal" };
     const w = s.winner ?? 0;
     return { ranks: { [s.players[w]]: 1, [s.players[1 - w]!]: 2 }, reason: "normal" };
   },
   viewFor: (s) => s,
-  hash: (s) => stableStringify({ p: s.pits, t: s.turn, w: s.winner, m: s.moveCount }),
+  hash: (s) => stableStringify({ p: s.pits, t: s.turn, w: s.winner, d: s.draw ?? false, m: s.moveCount }),
 };
 
 export const totalSeeds = (s: IgisoroState) => [...s.pits[0], ...s.pits[1]].reduce((a, b) => a + b, 0);

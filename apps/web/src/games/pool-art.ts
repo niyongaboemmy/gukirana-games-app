@@ -239,6 +239,12 @@ export function drawCue(g: CanvasRenderingContext2D, x: number, y: number, angle
   g.restore();
 }
 
+/** Standard ball colours (solids 1–7, the 8, stripes 9–15 share the solid colours). */
+export const BALL_COLORS: Record<number, string> = {
+  0: "#ffffff", 1: "#f7c600", 2: "#1e5bd8", 3: "#d7262b", 4: "#5b2a86", 5: "#f07f1a", 6: "#178a43", 7: "#7a1f22", 8: "#111111",
+  9: "#f7c600", 10: "#1e5bd8", 11: "#d7262b", 12: "#5b2a86", 13: "#f07f1a", 14: "#178a43", 15: "#7a1f22",
+};
+
 function shade(hex: string, f: number) {
   const n = parseInt(hex.slice(1), 16);
   const ch = (v: number) => Math.max(0, Math.min(255, Math.round(v * f)));

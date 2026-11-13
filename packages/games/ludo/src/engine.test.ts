@@ -20,6 +20,45 @@ describe("ludo engine", () => {
     expect(s.turn).toBe(0);
   });
 
+  it("never captures on a safe square (star or start)", () => {
+    let s = initLudo([{ id: "a", seat: 0 }, { id: "b", seat: 2 }]);
+    s.players[0]!.tokens[0] = 5; // → 8 (star)
+    s.players[1]!.tokens[0] = 34; // seat 2: (26 + 34) % 52 = 8
+    s = moveToken({ ...s, phase: "move", dice: 3 }, 0);
+    expect(s.players[1]!.tokens[0]).toBe(34);
+    expect(s.turn).toBe(1); // no bonus
+  });
+
+  it("a 6 gives another roll; three 6s in a row lose the turn", () => {
+    const fixed = (values: number[]) => ({ int: () => values.shift()! });
+    let s = initLudo([{ id: "a", seat: 0 }, { id: "b", seat: 2 }]);
+    s = rollDice(s, fixed([6]));
+    expect(s.phase).toBe("move");
+    s = moveToken(s, 0);
+    expect(s.turn).toBe(0);
+    expect(s.phase).toBe("roll");
+    s = rollDice(s, fixed([6]));
+    s = moveToken(s, 0);
+    s = rollDice(s, fixed([6]));
+    expect(s.lastEvent).toEqual({ kind: "pass", player: "a", reason: "three-sixes" });
+    expect(s.turn).toBe(1);
+  });
+
+  it("needs the exact count to reach home and gets a bonus roll on arrival", () => {
+    let s = initLudo([{ id: "a", seat: 0 }, { id: "b", seat: 2 }]);
+    s.players[0]!.tokens = [53, -1, -1, -1];
+    expect(movableTokens(s.players[0]!, 4)).toEqual([]); // 53 + 4 > 56
+    s = moveToken({ ...s, phase: "move", dice: 3 }, 0);
+    expect(s.players[0]!.tokens[0]).toBe(HOME);
+    expect(s.turn).toBe(0);
+  });
+
+  it("passes the turn when no token can move", () => {
+    const s = rollDice(initLudo([{ id: "a", seat: 0 }, { id: "b", seat: 2 }]), { int: () => 3 });
+    expect(s.turn).toBe(1);
+    expect(s.lastEvent).toMatchObject({ kind: "roll", dice: 3, movable: [] });
+  });
+
   it("finishes bot-vs-bot games with fair dice (4 players)", () => {
     for (let g = 0; g < 30; g++) {
       const rng = createFairRng(`seed-${g}`, ["c1"], `m-${g}`);
