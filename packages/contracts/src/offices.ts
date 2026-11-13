@@ -67,10 +67,18 @@ export const OfficeEvt = {
   /** to people inside: someone is knocking */
   knock: "office-knock", // { office, knockId, from: { id, name, level } , expiresInMs }
   /** your knock was declined / expired / nobody with the role is inside */
-  refused: "office-refused", // { office, knockId?, reason: "DECLINED" | "EXPIRED" | "NOBODY_INSIDE" | "NOT_ALLOWED" }
+  refused: "office-refused", // { office, knockId?, reason: OfficeRefusal }
   /** occupancy changed (for door lamps + reception directory) */
   occupancy: "office-occupancy", // { office, occupants }
 } as const;
+
+/**
+ * Why a door stays shut. NOT_ALLOWED: unknown office; LOGIN_REQUIRED: guests can't enter offices;
+ * RATE_LIMITED: knocking too often (1 per 5 s per door, max 3 open knocks); NOBODY_INSIDE is also sent when the last
+ * staff member leaves while you knock.
+ */
+export const OFFICE_REFUSALS = ["DECLINED", "EXPIRED", "NOBODY_INSIDE", "NOT_ALLOWED", "LOGIN_REQUIRED", "RATE_LIMITED"] as const;
+export type OfficeRefusal = (typeof OFFICE_REFUSALS)[number];
 
 export const OfficeEnterSchema = z.object({ office: OfficeIdSchema });
 export const OfficeAnswerSchema = z.object({ knockId: z.string().min(1).max(40), allow: z.boolean() });

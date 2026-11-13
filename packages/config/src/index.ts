@@ -17,6 +17,8 @@ const EnvSchema = z.object({
   NATS_URL: z.string().default("nats://localhost:4222"),
   PAYMENTS_PROVIDER: z.enum(["fake", "momo", "airtel"]).default("fake"),
   COIN_VALUE_RWF: z.coerce.number().int().positive().default(10),
+  /** Dev / first-run bootstrap: comma-separated emails or phones that get the `super_admin` role at login. Unset = never. */
+  BOOTSTRAP_SUPER_ADMINS: z.string().max(2000).optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

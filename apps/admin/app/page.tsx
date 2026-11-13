@@ -1,4 +1,4 @@
-const MODULES = ["Users", "KYC review", "Finance", "Risk & fraud", "Games & config", "World & moderation", "Levels & awards", "Compliance"];
+const MODULES = ["Access", "Users", "KYC review", "Finance", "Risk & fraud", "Games & config", "World & moderation", "Levels & awards", "Compliance"];
 
 export default function AdminHome() {
   return (
@@ -8,7 +8,13 @@ export default function AdminHome() {
       <ul style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12, padding: 0, listStyle: "none" }}>
         {MODULES.map((m) => (
           <li key={m} style={{ background: "var(--surface)", borderRadius: 16, padding: 16 }}>
-            {m === "Finance" ? <a href="/finance" style={{ color: "inherit", fontWeight: 700 }}>Finance · economy settings + reports →</a> : m}
+            {m === "Finance" ? (
+              <a href="/finance" style={{ color: "inherit", fontWeight: 700 }}>Finance · economy settings + reports →</a>
+            ) : m === "Access" ? (
+              <a href="/access" style={{ color: "inherit", fontWeight: 700 }}>Access · roles, offices + grants →</a>
+            ) : (
+              m
+            )}
           </li>
         ))}
       </ul>

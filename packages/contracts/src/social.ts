@@ -58,9 +58,10 @@ export const HALL_SEATING = {
   pool: { tables: 12, chairs: 2 },
   ludo: { tables: 16, chairs: 2 }, // 1-v-1 live matches: two player armchairs per table (P1-WLD-05)
   igisoro: { tables: 16, chairs: 2 }, // 16 low Igisoro tables, two stools each (P1-WLD-05)
+  admin: { tables: 0, chairs: 0 }, // Administrative Block: offices, no game tables (P2-ADM-03)
 } as const;
 export type HallId = keyof typeof HALL_SEATING;
-export const isHallId = (g: unknown): g is HallId => g === "pool" || g === "ludo" || g === "igisoro";
+export const isHallId = (g: unknown): g is HallId => g === "pool" || g === "ludo" || g === "igisoro" || g === "admin";
 
 /** `plaza` → bench seats; a hall id → that hall's chairs. Anything else (or an unknown id) is rejected. */
 export function isValidSeat(place: "plaza" | HallId, seat: unknown): seat is string {

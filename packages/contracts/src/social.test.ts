@@ -58,5 +58,6 @@ describe("seats", () => {
     expect(isValidSeat("igisoro", "t15s1")).toBe(true); // 16-table court (P1-WLD-05)
     expect(isValidSeat("igisoro", "t16s0")).toBe(false);
     expect(isValidSeat("pool", 7)).toBe(false);
+    expect(isValidSeat("admin", "t0s0")).toBe(false); // Administrative Block: offices, no tables
   });
 });
