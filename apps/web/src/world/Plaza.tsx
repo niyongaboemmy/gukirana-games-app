@@ -8,7 +8,8 @@ import { Landscape } from "./Landscape";
 import { Lighting } from "./Lighting";
 import { DOOR, DOOR_OPEN_RADIUS, DOOR_RING, PORTALS, portalTransform, ringPoint, SERVICE_ANGLE, TOTEMS, type PortalDef } from "./layout";
 import { doorOpen } from "./transition";
-import { selfPose } from "@/lib/world-store";
+import { selfPose, useWorld } from "@/lib/world-store";
+import { plazaDoorSound, PlazaLife } from "./Ambience";
 import { EntryGate } from "./gate/EntryGate";
 import { GAME_COLORS, LED_BOOST, worldMaterials, type Tier } from "./materials";
 import { arenaScreenTexture, posterTexture } from "./textures";
@@ -122,6 +123,7 @@ function AutoDoors({ def, inset, tier, locked = false }: { def: PortalDef; inset
   const left = useRef<THREE.Group>(null);
   const right = useRef<THREE.Group>(null);
   const open = useRef(0);
+  const wasNear = useRef(false);
   const mats = useMemo(() => {
     const m = worldMaterials(tier);
     return {
@@ -134,7 +136,22 @@ function AutoDoors({ def, inset, tier, locked = false }: { def: PortalDef; inset
   useFrame((_, rawDt) => {
     if (locked) return; // not open yet (Tournament Arena): the doors stay shut
     const dt = Math.min(rawDt, 0.05);
-    const near = Math.hypot(selfPose.x - entryX, selfPose.z - entryZ) < DOOR_OPEN_RADIUS;
+    // a real sensor door opens for whoever walks up to it, not only for you
+    let near = Math.hypot(selfPose.x - entryX, selfPose.z - entryZ) < DOOR_OPEN_RADIUS;
+    if (!near) {
+      const ps = useWorld.getState().players;
+      for (const id in ps) {
+        const o = ps[id]!;
+        if (Math.hypot(o.x / 100 - entryX, o.z / 100 - entryZ) < DOOR_OPEN_RADIUS) {
+          near = true;
+          break;
+        }
+      }
+    }
+    if (near !== wasNear.current) {
+      wasNear.current = near;
+      plazaDoorSound(entryX, entryZ, near);
+    }
     // eased motion: opening a little quicker than closing, like a real sensor door
     const target = near ? 1 : 0;
     open.current += (target - open.current) * (1 - Math.exp(-dt * (near ? 3.2 : 2.2)));
@@ -372,6 +389,7 @@ export function Plaza({ nearPortal, tier = "standard" }: { nearPortal: string | 
       <Landscape tier={tier} />
       <District tier={tier} />
       <Fountain tier={tier} />
+      <PlazaLife tier={tier} />
       {PORTALS.map((p) => (
         <Door key={p.id} def={p} active={nearPortal === p.id} tier={tier} />
       ))}
