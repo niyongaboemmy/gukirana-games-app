@@ -10,6 +10,9 @@ import { ANIM_SETS, HUMAN_MODELS, type HumanModelId, type HumanModelMeta } from 
 import { makeHairCardMaterial, makeLookMaterial } from "./human/materials";
 import { buildAttachments, neutralFrame } from "./human/attachments";
 import { clipsFor, HumanAnimator } from "./human/animator";
+import { aimBone, ProceduralLayer, type ArmBones } from "./human/procedural";
+import { footstep } from "./human/footsteps";
+import { seedOf } from "./human/life";
 import { useVoice } from "@/voice/voice";
 
 /**
@@ -47,6 +50,16 @@ export interface AvatarProps {
   tagRange?: number;
   /** Hold a phone in both hands, forearms raised (signing in at the gate). */
   holdPhone?: boolean;
+  /** Person id (session / account): seeds this person's idle habits, timing and gait offsets. */
+  seedId?: string;
+  /** Sit / stand root motion: "clip" (plaza benches: origin on the seat / at the standing spot) or "inPlace" (default). */
+  rootMotion?: "clip" | "inPlace";
+  /** Someone talks nearby / stands close (more attentive idle: listening, nods). */
+  socialRef?: React.RefObject<{ listening: boolean; company: boolean }>;
+  /** 0 … 1 visibility (fading in / out at doors). */
+  fadeRef?: React.RefObject<number>;
+  /** Play footstep sounds from the foot plants. */
+  footsteps?: boolean;
 }
 
 const FONT = "/fonts/Baloo2.ttf";
@@ -97,10 +110,13 @@ interface Instance {
   full: THREE.Object3D[];
   lite: THREE.Object3D[];
   materials: THREE.Material[];
+  /** every material this person renders with (own copies), for fading in / out */
+  fadeable: THREE.Material[];
   extras: THREE.Object3D[];
   head: THREE.Bone | null;
   jaw: THREE.Bone | null;
-  arms: { upper: THREE.Bone; fore: THREE.Bone; hand: THREE.Bone; side: 1 | -1 }[];
+  arms: ArmBones[];
+  spine: THREE.Bone | null;
 }
 
 function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMeta, shadows: boolean, keepClothes: boolean): Instance {
@@ -119,8 +135,9 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
     if (!m) {
       if (base.name === "body" || base.name === "head") m = makeLookMaterial(base, look, meta, base.name === "head", keepClothes);
       else if (base.name === "haircards") m = makeHairCardMaterial(base, look, meta);
-      else m = base;
-      if (m !== base) materials.push(m);
+      // own copy (lashes, eyes …) so one person fading at a door never fades everyone's eyes
+      else m = base.clone();
+      materials.push(m);
       matCache.set(base, m);
     }
     mesh.material = m;
@@ -140,7 +157,7 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
   const handL = bone("Bip01_L_Hand");
   let extras: THREE.Object3D[] = [];
   if (head && pelvis && handL) extras = buildAttachments(look, { head: neutralFrame(head, root), pelvis: neutralFrame(pelvis, root), wristL: handL }, shadows);
-  const arms: Instance["arms"] = [];
+  const arms: ArmBones[] = [];
   for (const [k, side] of [
     ["R", 1],
     ["L", -1],
@@ -148,9 +165,16 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
     const upper = bone(`Bip01_${k}_UpperArm`);
     const fore = bone(`Bip01_${k}_Forearm`);
     const hand = bone(`Bip01_${k}_Hand`);
-    if (upper && fore && hand) arms.push({ upper, fore, hand, side });
+    const fingers: THREE.Bone[][] = [0, 1, 2, 3, 4].map((f) => [`Bip01_${k}_Finger${f}`, `Bip01_${k}_Finger${f}1`, `Bip01_${k}_Finger${f}2`].map(bone).filter((b): b is THREE.Bone => !!b));
+    if (upper && fore && hand) arms.push({ upper, fore, hand, side, fingers });
   }
-  return { root, full, lite, materials, extras, head, jaw: bone("Bip01_MJaw"), arms };
+  const fadeable = [...materials];
+  for (const e of extras)
+    e.traverse((c) => {
+      const m = (c as THREE.Mesh).material;
+      if ((c as THREE.Mesh).isMesh && m) (Array.isArray(m) ? m : [m]).forEach((x) => fadeable.push(x));
+    });
+  return { root, full, lite, materials, fadeable, extras, head, jaw: bone("Bip01_MJaw"), arms, spine: bone("Bip01_Spine1") };
 }
 
 function disposeInstance(inst: Instance) {
@@ -166,32 +190,70 @@ function disposeInstance(inst: Instance) {
   );
 }
 
+/** Small hand-held props (phone, coffee cup, pool cue + chalk), parented to the hands. */
+function buildProps() {
+  const mats: THREE.Material[] = [];
+  const mat = <T extends THREE.Material>(m: T) => (mats.push(m), m);
+  const phone = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.074, 0.152, 0.009), mat(new THREE.MeshStandardMaterial({ color: "#1b1d22", metalness: 0.6, roughness: 0.35 })));
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.066, 0.142), mat(new THREE.MeshBasicMaterial({ color: "#9fc8ff", toneMapped: true })));
+  screen.position.z = 0.0048;
+  phone.add(body, screen);
+  // in the palm: the phone's long side along the fingers, its screen facing out of the palm
+  const inHand = new THREE.Group();
+  inHand.add(phone);
+  phone.position.set(0, 0, 0);
+  inHand.visible = false;
+  // takeaway coffee cup: paper cup with a lid and a sleeve
+  const cup = new THREE.Group();
+  const paper = mat(new THREE.MeshStandardMaterial({ color: "#f1ece3", roughness: 0.8 }));
+  const sleeve = mat(new THREE.MeshStandardMaterial({ color: "#7a4b2a", roughness: 0.9 }));
+  const lid = mat(new THREE.MeshStandardMaterial({ color: "#2b2b2e", roughness: 0.5 }));
+  const c1 = new THREE.Mesh(new THREE.CylinderGeometry(0.041, 0.031, 0.12, 14), paper);
+  const c2 = new THREE.Mesh(new THREE.CylinderGeometry(0.0405, 0.035, 0.05, 14), sleeve);
+  c2.position.y = 0.005;
+  const c3 = new THREE.Mesh(new THREE.CylinderGeometry(0.043, 0.042, 0.014, 14), lid);
+  c3.position.y = 0.065;
+  cup.add(c1, c2, c3);
+  cup.visible = false;
+  // pool cue (held upright while chalking) + the chalk cube in the other hand
+  const cue = new THREE.Group();
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.0065, 0.0145, 1.45, 8), mat(new THREE.MeshStandardMaterial({ color: "#c8a26b", roughness: 0.45 })));
+  shaft.position.y = 0.42;
+  const butt = new THREE.Mesh(new THREE.CylinderGeometry(0.0145, 0.016, 0.45, 8), mat(new THREE.MeshStandardMaterial({ color: "#2a1a12", roughness: 0.4 })));
+  butt.position.y = -0.2;
+  cue.add(shaft, butt);
+  cue.visible = false;
+  const chalk = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.022, 0.022), mat(new THREE.MeshStandardMaterial({ color: "#2f6fd6", roughness: 0.9 })));
+  chalk.visible = false;
+  for (const o of [inHand, cup, cue, chalk]) o.traverse((c) => ((c as THREE.Mesh).isMesh ? ((c as THREE.Mesh).castShadow = true) : undefined));
+  return { phone: inHand, cup, cue, chalk, mats };
+}
+
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
+const _v3 = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _q2 = new THREE.Quaternion();
 const _e = new THREE.Euler();
 const UP = new THREE.Vector3(0, 1, 0);
-const _a = new THREE.Vector3();
-const _b = new THREE.Vector3();
-const _d = new THREE.Vector3();
-const _qa = new THREE.Quaternion();
-const _qb = new THREE.Quaternion();
+const _m = new THREE.Matrix4();
+const _bx = new THREE.Vector3();
+const _by = new THREE.Vector3();
+const _bz = new THREE.Vector3();
 
-/** Turn `bone` (world space) so the direction to `child` points along `dir` (world), blended by `w`. */
-function aimBone(bone: THREE.Bone, child: THREE.Object3D, dir: THREE.Vector3, w: number) {
-  if (!bone.parent) return;
-  bone.getWorldPosition(_a);
-  child.getWorldPosition(_b);
-  _d.subVectors(_b, _a).normalize();
-  _qa.setFromUnitVectors(_d, dir);
-  _qa.slerp(_qb.identity(), 1 - w);
-  bone.getWorldQuaternion(_qb);
-  _qb.premultiply(_qa);
-  bone.parent.getWorldQuaternion(_qa);
-  bone.quaternion.copy(_qa.invert().multiply(_qb));
-  bone.updateMatrixWorld(true);
+/** Lazily streamed everyday-life clips (idle fidgets, gestures, coffee, photo …): added to the animator when ready. */
+function LifeClips({ set, hipY, animator }: { set: "m" | "f"; hipY: number; animator: HumanAnimator }) {
+  const life = useGLTF(ANIM_SETS[set].lifeUrl, false);
+  useEffect(() => {
+    animator.addClips(clipsFor(set, life.animations, hipY, "life"));
+  }, [animator, life.animations, set, hipY]);
+  return null;
 }
+
+/** Leaning (anim 30): the whole body tilts back from the ankles against the wall / railing behind. */
+const LEAN = 30;
+const LEAN_TILT = -0.085;
 
 function HumanBody({
   look,
@@ -204,6 +266,11 @@ function HumanBody({
   talkingRef,
   lookAtRef,
   holdPhone = false,
+  seed,
+  rootMotion,
+  socialRef,
+  fadeRef,
+  footsteps,
 }: {
   holdPhone?: boolean;
   look: AvatarLook;
@@ -215,6 +282,11 @@ function HumanBody({
   keepClothes: boolean;
   talkingRef: React.RefObject<boolean>;
   lookAtRef?: React.RefObject<THREE.Vector3 | null>;
+  seed: number;
+  rootMotion: "clip" | "inPlace";
+  socialRef?: React.RefObject<{ listening: boolean; company: boolean }>;
+  fadeRef?: React.RefObject<number>;
+  footsteps: boolean;
 }) {
   const meta = HUMAN_MODELS[modelId];
   const model = useGLTF(meta.url, false);
@@ -222,7 +294,8 @@ function HumanBody({
   const key = encodeLook(look);
   // `key` (the encoded look) captures every look field, so `look` itself is not a dependency
   const inst = useMemo(() => buildInstance(model.scene, look, meta, shadows, keepClothes), [model.scene, key, meta, shadows, keepClothes]);
-  const animator = useMemo(() => new HumanAnimator(inst.root, clipsFor(meta.anim, anims.animations, meta.hipY), meta.anim), [inst, anims.animations, meta]);
+  const animator = useMemo(() => new HumanAnimator(inst.root, clipsFor(meta.anim, anims.animations, meta.hipY), meta.anim, seed), [inst, anims.animations, meta, seed]);
+  const proc = useMemo(() => new ProceduralLayer({ root: inst.root, arms: inst.arms, spine: inst.spine, head: inst.head }), [inst]);
   useEffect(() => {
     animator.start();
     return () => {
@@ -231,54 +304,79 @@ function HumanBody({
     };
   }, [inst, animator]);
 
-  const st = useRef({ last: new THREE.Vector3(), has: false, speed: 0, yaw: 0, yawRate: 0, frame: Math.floor(Math.random() * 8), acc: 0, jaw: 0, jawT: 0, look: 0, near: true, phone: 0 });
-  const phone = useMemo(() => {
-    const g = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.074, 0.152, 0.009), new THREE.MeshStandardMaterial({ color: "#1b1d22", metalness: 0.6, roughness: 0.35 }));
-    const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.066, 0.142), new THREE.MeshBasicMaterial({ color: "#9fc8ff", toneMapped: true }));
-    screen.position.z = 0.0048;
-    g.add(body, screen);
-    g.visible = false;
-    return g;
-  }, []);
+  const st = useRef({ last: new THREE.Vector3(), has: false, speed: 0, fwd: 0, yaw: 0, yawRate: 0, frame: seed % 8, acc: 0, jaw: 0, jawT: 0, look: 0, near: true, phone: 0, tilt: 0, fade: 1, faded: false });
+  const props = useMemo(buildProps, []);
+  const tilt = useRef<THREE.Group>(null);
   useEffect(() => {
-    inst.root.add(phone);
+    const r = inst.arms.find((a) => a.side === 1)?.hand;
+    const l = inst.arms.find((a) => a.side === -1)?.hand;
+    if (!r || !l) return;
+    // bones may carry a scale (cm rigs): props keep their real size
+    inst.root.updateMatrixWorld(true);
+    const s = 1 / Math.max(1e-4, r.getWorldScale(_v).x / inst.root.getWorldScale(_v2).x);
+    // phone in the right palm (bone x = along the fingers, bone y = out of the palm)
+    props.phone.scale.setScalar(s);
+    props.phone.position.set(0.085 / s, 0.028 / s, 0.0);
+    props.phone.quaternion.setFromRotationMatrix(_m.makeBasis(_bz.set(0, 0, 1), _bx.set(1, 0, 0), _by.set(0, 1, 0)));
+    // cup in the right hand, upright along the bone z axis when held at the waist
+    props.cup.scale.setScalar(s);
+    props.cup.position.set(0.07 / s, 0.05 / s, 0);
+    props.cup.rotation.set(Math.PI / 2, 0, 0);
+    props.chalk.scale.setScalar(s);
+    props.chalk.position.set(0.07 / s, 0.03 / s, 0);
+    r.add(props.phone, props.cup, props.chalk);
+    inst.root.add(props.cue);
     return () => {
-      inst.root.remove(phone);
+      r.remove(props.phone, props.cup, props.chalk);
+      inst.root.remove(props.cue);
     };
-  }, [inst, phone]);
+  }, [inst, props]);
   useEffect(
-    () => () =>
-      phone.traverse((c) => {
-        const m = c as THREE.Mesh;
-        if (m.isMesh) {
-          m.geometry.dispose();
-          (m.material as THREE.Material).dispose();
-        }
-      }),
-    [phone],
+    () => () => {
+      for (const o of [props.phone, props.cup, props.cue, props.chalk]) o.traverse((c) => ((c as THREE.Mesh).isMesh ? (c as THREE.Mesh).geometry.dispose() : undefined));
+      props.mats.forEach((m) => m.dispose());
+    },
+    [props],
   );
 
   useFrame(({ camera }, rawDt) => {
     const dt = Math.min(rawDt, 0.1);
     const s = st.current;
     const root = inst.root;
-    // measured ground speed + yaw rate from the avatar's own world transform (works for local, remote and seated)
+    // measured ground speed, forward speed (signed) + yaw rate from the avatar's own world transform
     root.getWorldPosition(_v);
-    if (s.has) {
-      const v = Math.min(9, Math.hypot(_v.x - s.last.x, _v.z - s.last.z) / Math.max(dt, 1e-3));
-      s.speed += (v - s.speed) * (1 - Math.exp(-dt * 12));
-    }
-    s.last.copy(_v);
     root.getWorldQuaternion(_q);
     _e.setFromQuaternion(_q, "YXZ");
     if (s.has) {
+      const vx = (_v.x - s.last.x) / Math.max(dt, 1e-3);
+      const vz = (_v.z - s.last.z) / Math.max(dt, 1e-3);
+      const v = Math.min(9, Math.hypot(vx, vz));
+      const k = 1 - Math.exp(-dt * 12);
+      s.speed += (v - s.speed) * k;
+      s.fwd += (Math.max(-9, Math.min(9, vx * Math.sin(_e.y) + vz * Math.cos(_e.y))) - s.fwd) * k;
       let d = _e.y - s.yaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));
       s.yawRate += (d / Math.max(dt, 1e-3) - s.yawRate) * (1 - Math.exp(-dt * 10));
     }
+    s.last.copy(_v);
     s.yaw = _e.y;
     s.has = true;
+
+    // fading in / out (doors, joining, leaving): dithered alpha, no sorting problems
+    const fade = fadeRef?.current ?? 1;
+    if (Math.abs(fade - s.fade) > 0.002 || (fade < 1) !== s.faded) {
+      const on = fade < 0.999;
+      for (const m of inst.fadeable) {
+        if ((m as THREE.Material & { alphaHash?: boolean }).alphaHash !== on) {
+          (m as THREE.Material & { alphaHash: boolean }).alphaHash = on;
+          m.needsUpdate = true;
+        }
+        m.opacity = on ? fade : 1;
+      }
+      s.fade = fade;
+      s.faded = on;
+      root.visible = fade > 0.01;
+    }
 
     // distance LOD + animation throttling (DESIGN-SPEC §16: cap animated mixers by distance)
     const dist = camera.position.distanceTo(_v);
@@ -295,7 +393,49 @@ function HumanBody({
     const step = s.acc;
     s.acc = 0;
     const talking = !!talkingRef.current;
-    animator.update(step, { anim: animRef.current ?? 0, speed: s.speed, yawRate: s.yawRate, talking });
+    const anim = animRef.current ?? 0;
+    const social = socialRef?.current;
+    animator.update(step, {
+      anim,
+      speed: s.speed,
+      forward: s.fwd,
+      yawRate: s.yawRate,
+      talking,
+      listening: social?.listening,
+      company: social?.company,
+      rootMotion,
+    });
+    // procedural hands (handshake, fist bump, hug, thumbs-up, pointing, chalk): close people only
+    if (dist < 25) proc.update(step, anim);
+
+    // footsteps from the real foot plants (near people only)
+    const steps = animator.takeSteps();
+    if (footsteps && steps.length && dist < 14) {
+      // pan: where the person is left / right of the camera
+      _v2.copy(_v).sub(camera.position);
+      camera.getWorldDirection(_v3);
+      const side = _v3.x * _v2.z - _v3.z * _v2.x;
+      const pan = THREE.MathUtils.clamp(side / Math.max(1, _v2.length()), -1, 1);
+      for (const f of steps) footstep(dist, pan, f.kind, f.level, seed);
+    }
+
+    // leaning back against a wall / railing
+    s.tilt += ((anim === LEAN ? LEAN_TILT : 0) - s.tilt) * (1 - Math.exp(-step * 4));
+    if (tilt.current) tilt.current.rotation.x = s.tilt;
+
+    // props
+    props.phone.visible = animator.out.phone > 0.5 || s.phone > 0.5;
+    props.cup.visible = animator.out.cup > 0.35;
+    const chalkW = proc.chalkWeight;
+    props.cue.visible = props.chalk.visible = chalkW > 0.4;
+    if (props.cue.visible) {
+      // the cue stands in the left hand, its tip by the right hand
+      root.worldToLocal(_v2.copy(proc.cueGrip));
+      root.worldToLocal(_v3.copy(proc.cueTip));
+      props.cue.position.copy(_v2);
+      _bx.subVectors(_v3, _v2).normalize();
+      props.cue.quaternion.setFromUnitVectors(UP, _bx);
+    }
 
     // holding a phone: upper arms down by the sides, forearms raised ~70° towards the chest, phone in the right hand
     s.phone += ((holdPhone ? 1 : 0) - s.phone) * (1 - Math.exp(-step * 6));
@@ -305,15 +445,7 @@ function HumanBody({
         aimBone(arm.upper, arm.fore, _v2.set(arm.side * -0.1, -0.96, 0.22).normalize().applyQuaternion(_q2), s.phone);
         aimBone(arm.fore, arm.hand, _v2.set(arm.side * 0.42, 0.34, 0.84).normalize().applyQuaternion(_q2), s.phone);
       }
-      const r = inst.arms.find((a) => a.side === 1);
-      if (r) {
-        r.hand.getWorldPosition(_v2);
-        root.worldToLocal(_v2);
-        phone.position.set(_v2.x + 0.05, _v2.y + 0.03, _v2.z + 0.05);
-        phone.rotation.set(-0.95, 0, 0);
-      }
-      phone.visible = s.phone > 0.5;
-    } else phone.visible = false;
+    }
 
     // jaw: syllable-like open/close while speaking
     if (inst.jaw) {
@@ -324,12 +456,12 @@ function HumanBody({
       inst.jaw.quaternion.copy(rest);
       if (s.jaw > 0.002) inst.jaw.rotateZ(-s.jaw);
     }
-    // head turn towards a point of interest (limited to ±55°, smoothed)
+    // head turn towards a point of interest (limited to ±55°, smoothed); not during contact actions
     const head = inst.head;
     if (head && head.parent && dist < 20) {
       let want = 0;
       const p = lookAtRef?.current;
-      if (p) {
+      if (p && proc.active < 0.2) {
         root.worldToLocal(_v2.copy(p));
         const a = Math.atan2(_v2.x, _v2.z);
         if (Math.abs(a) < 2.2) want = THREE.MathUtils.clamp(a, -0.95, 0.95);
@@ -346,7 +478,14 @@ function HumanBody({
     }
   });
 
-  return <primitive object={inst.root} />;
+  return (
+    <group ref={tilt}>
+      <primitive object={inst.root} />
+      <Suspense fallback={null}>
+        <LifeClips set={meta.anim} hipY={meta.hipY} animator={animator} />
+      </Suspense>
+    </group>
+  );
 }
 
 /** Tiny placeholder while the model streams in (a soft silhouette, never a "fake player"). */
@@ -411,6 +550,11 @@ export function Avatar({
   keepClothes = false,
   tagRange,
   holdPhone = false,
+  seedId,
+  rootMotion = "inPlace",
+  socialRef,
+  fadeRef,
+  footsteps = false,
 }: AvatarProps) {
   const blob = useMemo(() => blobTexture(), []);
   const talkingRef = useRef(false);
@@ -433,6 +577,7 @@ export function Avatar({
     talkingRef.current = self ? v.selfTalking : !!(voiceId && v.talking[voiceId]);
   });
   const modelId: HumanModelId = model ?? (HUMAN_MODELS[look.bodyType] ? look.bodyType : "neutral");
+  const seed = useMemo(() => seedOf(seedId ?? name ?? encodeLook(look)), [seedId, name, look]);
   const tagY = modelId === "feminine" ? 2.02 : 2.1;
   return (
     <group>
@@ -442,7 +587,23 @@ export function Avatar({
         <meshBasicMaterial map={blob} color="#000000" transparent opacity={quality === "lite" || !shadows ? 0.42 : 0.3} depthWrite={false} polygonOffset polygonOffsetFactor={-1} />
       </mesh>
       <Suspense fallback={<Placeholder />}>
-        <HumanBody look={look} animRef={animRef} shadows={shadows} quality={quality} lod={lod} modelId={modelId} keepClothes={keepClothes} talkingRef={talkingRef} lookAtRef={lookAtRef} holdPhone={holdPhone} />
+        <HumanBody
+          look={look}
+          animRef={animRef}
+          shadows={shadows}
+          quality={quality}
+          lod={lod}
+          modelId={modelId}
+          keepClothes={keepClothes}
+          talkingRef={talkingRef}
+          lookAtRef={lookAtRef}
+          holdPhone={holdPhone}
+          seed={seed}
+          rootMotion={rootMotion}
+          socialRef={socialRef}
+          fadeRef={fadeRef}
+          footsteps={footsteps}
+        />
       </Suspense>
       <group ref={tags}>
       {(voiceId || self) && <SpeakingBars talkingRef={talkingRef} y={showTag && name ? tagY + 0.27 : tagY - 0.05} />}

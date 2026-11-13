@@ -1,5 +1,5 @@
 "use client";
-import { PLAZA_SEATS, type SeatPose } from "@gukirana/contracts";
+import { isContactAction, PLAZA_SEATS, type SeatPose } from "@gukirana/contracts";
 import { selfPose, useWorld } from "@/lib/world-store";
 
 /**
@@ -32,7 +32,32 @@ export interface Track {
   emote: { id: number; until: number } | null;
   /** distance to the local player (m), refreshed every frame */
   dist: number;
+  /** 0 … 1 visibility: fades in on arrival (no pop at doors) */
+  fade: number;
+  /** until this time (ms) the newest pose is used directly (standing up from a bench: no interpolation glide) */
+  direct: number;
 }
+
+/** Someone who just left (through a door): keeps walking a few steps while fading out, then disappears. */
+export interface Ghost {
+  id: string;
+  name: string;
+  level: number;
+  color: string;
+  look?: string;
+  bodyType?: string;
+  uid?: string;
+  x: number;
+  z: number;
+  yaw: number;
+  vx: number;
+  vz: number;
+  t0: number;
+  fade: number;
+}
+export const ghosts = new Map<string, Ghost>();
+const GHOST_MS = 1300;
+const FADE_IN_S = 0.4;
 
 export const tracks = new Map<string, Track>();
 
@@ -40,7 +65,8 @@ const TELEPORT_M = 6;
 const MIN_DELAY = 90;
 const MAX_DELAY = 480;
 const EXTRAPOLATE_MS = 220;
-const PERSONAL_SPACE = 0.62;
+/** standing people keep a little more than shoulder-to-shoulder distance (soft, eased) */
+const PERSONAL_SPACE = 0.8;
 
 const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 const yawOf = (y16: number) => (y16 / 65535) * Math.PI * 2;
@@ -52,7 +78,7 @@ export function trackOf(id: string): Track {
     const x = (p?.x ?? 0) / 100;
     const z = (p?.z ?? 0) / 100;
     const yaw = yawOf(p?.yaw ?? 0);
-    t = { snaps: [], anim: p?.anim ?? 0, interval: 100, last: 0, x, z, yaw, ox: 0, oz: 0, seated: false, sit: 0, emote: null, dist: 99 };
+    t = { snaps: [], anim: p?.anim ?? 0, interval: 100, last: 0, x, z, yaw, ox: 0, oz: 0, seated: false, sit: 0, emote: null, dist: 99, fade: 0, direct: 0 };
     tracks.set(id, t);
   }
   return t;
@@ -84,6 +110,33 @@ export function setEmote(id: string, emote: number, ms = 2500): void {
 
 export function dropTrack(id: string): void {
   tracks.delete(id);
+}
+
+/**
+ * A person left: if they were walking (out through a door), keep them walking on for a moment while they fade,
+ * instead of vanishing mid-step. Call before the player entry is removed.
+ */
+export function ghostOf(id: string, now = performance.now()): void {
+  const t = tracks.get(id);
+  const p = useWorld.getState().players[id];
+  if (!t || !p || t.dist > 40) return;
+  const s = t.snaps;
+  let vx = 0;
+  let vz = 0;
+  if (s.length >= 2) {
+    const a = s[s.length - 2]!;
+    const b = s[s.length - 1]!;
+    const dt = Math.max(1, b.t - a.t) / 1000;
+    vx = (b.x - a.x) / dt;
+    vz = (b.z - a.z) / dt;
+    const v = Math.hypot(vx, vz);
+    // keep a calm walking pace (1.35 m/s) in the direction they were going; standing people just fade
+    if (v > 0.4) {
+      vx = (vx / v) * 1.35;
+      vz = (vz / v) * 1.35;
+    } else vx = vz = 0;
+  }
+  ghosts.set(id, { id, name: p.name, level: p.level, color: p.color, look: p.look, bodyType: p.bodyType, uid: p.uid, x: t.x + t.ox, z: t.z + t.oz, yaw: t.yaw, vx, vz, t0: now, fade: t.fade });
 }
 
 /** Interpolated (or briefly extrapolated) raw pose at `now`. */
@@ -136,14 +189,24 @@ export function stepMotion(dt: number, now = performance.now()): void {
     const raw = sample(t, now);
     const seatId = seatOf.get(id);
     const pose = seatId ? seatPose(seatId) : undefined;
+    const bench = !!seatId && seatId.startsWith("b");
+    // just stood up from a bench: follow their own staged stand-up exactly for a moment (no interpolation glide)
+    if (t.seated && !pose && t.snaps.length) t.direct = now + 1600;
     t.seated = !!pose;
     t.sit += ((pose ? 1 : 0) - t.sit) * Math.min(1, dt * 6);
+    t.fade = Math.min(1, t.fade + dt / FADE_IN_S);
     if (pose) {
-      // glide onto the seat (no pop), then hold the exact seat transform
-      const k = t.sit > 0.98 ? 1 : Math.min(1, dt * 8);
+      // plaza benches: they walked up, turned and stepped back to the bench themselves, so the origin goes straight
+      // to the seat and the sit-down clip carries the body onto it; hall chairs: glide onto the chair
+      const k = bench || t.sit > 0.98 ? 1 : Math.min(1, dt * 8);
       t.x += (pose.x - t.x) * k;
       t.z += (pose.z - t.z) * k;
       t.yaw += wrap(pose.yaw - t.yaw) * k;
+    } else if (now < t.direct) {
+      const n = t.snaps[t.snaps.length - 1]!;
+      t.x = n.x;
+      t.z = n.z;
+      t.yaw += wrap(n.yaw - t.yaw) * Math.min(1, dt * 14);
     } else {
       t.x = raw.x;
       t.z = raw.z;
@@ -156,10 +219,12 @@ export function stepMotion(dt: number, now = performance.now()): void {
     const [, a] = list[i]!;
     let px = 0;
     let pz = 0;
-    if (!a.seated) {
+    // people in a hug / handshake / fist bump stand close on purpose
+    if (!a.seated && !isContactAction(a.anim)) {
       for (let j = 0; j < list.length; j++) {
         if (i === j) continue;
         const b = list[j]![1];
+        if (isContactAction(b.anim)) continue;
         const dx = a.x - b.x;
         const dz = a.z - b.z;
         const d = Math.hypot(dx, dz);
@@ -172,7 +237,7 @@ export function stepMotion(dt: number, now = performance.now()): void {
       const dx = a.x - selfPose.x;
       const dz = a.z - selfPose.z;
       const d = Math.hypot(dx, dz);
-      if (d < PERSONAL_SPACE && d > 1e-4) {
+      if (d < PERSONAL_SPACE && d > 1e-4 && !selfContact.on) {
         px += (dx / d) * (PERSONAL_SPACE - d);
         pz += (dz / d) * (PERSONAL_SPACE - d);
       }
@@ -191,6 +256,20 @@ export function stepMotion(dt: number, now = performance.now()): void {
       p.x = Math.round(rx * 100);
       p.z = Math.round(rz * 100);
     }
+  }
+}
+
+/** The local player is in a contact action (set by the controller): no soft push from / towards me. */
+export const selfContact = { on: false };
+
+/** Ghosts: walk on and fade; returns true while any are left. */
+export function stepGhosts(dt: number, now = performance.now()): void {
+  for (const [id, g] of ghosts) {
+    const age = now - g.t0;
+    g.x += g.vx * dt;
+    g.z += g.vz * dt;
+    g.fade = Math.max(0, g.fade - dt / 0.45 * (age > 350 ? 1 : 0.3));
+    if (age > GHOST_MS || g.fade <= 0 || useWorld.getState().players[id]) ghosts.delete(id);
   }
 }
 

@@ -8,7 +8,7 @@ Licence policy: CC0 or permissive (MIT / CC-BY with attribution) only. Not allow
 redistributing the raw asset (Mixamo downloads, Ready Player Me, MetaHuman, paid-store assets) or anything with an
 unclear licence.
 
-## Characters — `apps/web/public/assets/characters/` (payload 4.06 MB)
+## Characters — `apps/web/public/assets/characters/` (payload 4.06 MB + 1.22 MB lazy life clips)
 
 | File | Source asset | Author | Licence |
 | --- | --- | --- | --- |
@@ -41,6 +41,43 @@ Modifications (pipeline run with FBX2glTF 0.9.7, `@gltf-transform/*` 4.x, `mesho
    are kept; locomotion root motion removed (in place) after measuring each clip's native ground speed; looping
    clips trimmed to 5–11 s with a 0.6 s blend back to the first frame; seated clips re-based so the pelvis sits on a
    0.46 m seat centred on the avatar origin; keyframes resampled and meshopt-compressed.
+
+### Everyday-life clips: `life-m.glb` (0.61 MB) and `life-f.glb` (0.61 MB)
+
+These load lazily, after the base set: avatars run on the base set until the life clips have streamed in.
+See docs/PEOPLE-BEHAVIOUR.md.
+
+| Key | Source clip, from `Assets/Animations/all_animations_max_motextr_static/` (m_ / f_) | Use |
+| --- | --- | --- |
+| `idle2` | `idle_neutral_02` | weight-shift idle variant |
+| `look` | `idle_look_around_01` | look around |
+| `phone` | `cell_phone_textmessage` (start and end spliced) | phone check |
+| `stretch` | `idle_stretch_arms_01` | stretch |
+| `dust` | `idle_dust_01` | brush down clothes |
+| `fold` | `idle_angry_01` (arms-folded section only) | arms folded, watching, leaning |
+| `nod` / `shake` | `gestic_listen_accept_01` / `gestic_listen_deny_01` | nod / shake head |
+| `laugh` | `gestic_laugh_loud` (trimmed) | laugh |
+| `shrug` | `gestic_shrug_01` | shrug |
+| `think` | `gestic_thoughtful_01` | thinking |
+| `cheer` | `cheer_03` | celebrate |
+| `listen` | `gestic_listen_neutral_01` (first 16 / 12 s) | listening in a conversation |
+| `drink` | `drink_drinking` | coffee |
+| `photo` | `take_picture` | photo with the phone |
+| `sitb` / `sitlook` | `sit_chair_idle_relaxed_01` / `sit_chair_idle_look_around` | seated variants |
+
+- Source, author and licence are the same as above: Microsoft Rocketbox Avatar Library, MIT.
+- **Pipeline:**
+  1. Parse the FBX with three.js `FBXLoader` (Node).
+  2. Keep the body bones only: no face bones, no `MotionExtractionHelper`.
+  3. Convert cm to m. Cut segments and splice them with 0.25 s cross-fades. Loops ease back to their first frame
+     over 0.6 s.
+  4. Re-base the seated clips onto the 0.46 m seat (the same offset as `sit`).
+  5. Sample at 30 fps, build a glTF with gltf-transform, then `resample` (lossy keyframe reduction, tolerance
+     1e-3) and `meshopt` (quantised, EXT_meshopt_compression).
+- **No new assets for the procedural actions.** The handshake, fist bump, hug, thumbs-up, pointing and cue
+  chalking are procedural layers on the same skeleton, and the props (phone, paper cup, cue, chalk) are built
+  from primitives at runtime.
+- **No new assets for footsteps.** Footsteps are synthesised at runtime from noise; no samples.
 
 ## Environment — `apps/web/public/assets/env/` (payload 5.3 MB)
 
