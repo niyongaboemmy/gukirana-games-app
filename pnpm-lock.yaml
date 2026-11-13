@@ -176,6 +176,9 @@ importers:
       '@gukirana/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
+      colyseus.js:
+        specifier: ^0.16.22
+        version: 0.16.22
       tsx:
         specifier: ^4.20.6
         version: 4.23.15

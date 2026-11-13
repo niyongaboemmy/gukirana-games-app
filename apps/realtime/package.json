@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@gukirana/tsconfig": "workspace:*",
+    "colyseus.js": "^0.16.22",
     "tsx": "^4.20.6"
   }
 }

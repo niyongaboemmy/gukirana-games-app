@@ -34,3 +34,5 @@ export const ProposalSchema = z.object({
   tableId: z.string().uuid().optional(),
 });
 export type Proposal = z.infer<typeof ProposalSchema>;
+
+export * from "./social.js";

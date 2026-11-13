@@ -8,12 +8,14 @@ import { LevelsService } from "./modules/levels/levels.service.js";
 import { WalletController } from "./modules/wallet/wallet.controller.js";
 import { GamesController } from "./modules/games/games.controller.js";
 import { GamesService } from "./modules/games/games.service.js";
+import { SocialController } from "./modules/social/social.controller.js";
+import { SocialService } from "./modules/social/social.service.js";
 import { AuthGuard, InternalGuard } from "./common/auth.js";
 
 /** Modular monolith root (plan §3). */
 @Module({
   imports: [DbModule, LedgerModule],
-  controllers: [HealthController, IdentityController, WalletController, GamesController],
-  providers: [IdentityService, LevelsService, GamesService, AuthGuard, InternalGuard],
+  controllers: [HealthController, IdentityController, WalletController, GamesController, SocialController],
+  providers: [IdentityService, LevelsService, GamesService, SocialService, AuthGuard, InternalGuard],
 })
 export class AppModule {}
