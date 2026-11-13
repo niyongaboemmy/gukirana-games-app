@@ -56,7 +56,10 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   const anim = useRef(0);
   const walletOpen = useWalletSheet((s) => s.open);
   // back from a game → same spot / same chair; otherwise appear in the open doorway and walk in automatically
-  const back = useRef(typeof window !== "undefined" ? takeReturnFor(`/room/${layout.game}`) : null);
+  // read once on mount (a useRef(initial) argument is evaluated on EVERY render: a re-render just after "Practice vs
+  // AI" wrote the return point consumed it, so the game said "Back to the plaza" and you were not re-seated)
+  const [backOnce] = useState(() => (typeof window !== "undefined" ? takeReturnFor(`/room/${layout.game}`) : null));
+  const back = useRef(backOnce);
   // walked in through the plaza door: the exact spot / heading / pace you crossed the door line with (world/stage.ts
   // maps the plaza door frame onto this door); otherwise (reload, deep link) just inside the open doors
   const [hand] = useState(() => (typeof window !== "undefined" ? peekHandoff(`hall:${layout.game}`) : null));
@@ -187,7 +190,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   const routeTo = (tx: number, tz: number, zs: number) => {
     const px = pos.current.x;
     const pz = pos.current.z;
-    if (layout.game !== "pool" || !layout.aisles.length) return [{ x: tx, z: tz }];
+    if ((layout.game !== "pool" && !layout.lanes?.length) || !layout.aisles.length) return [{ x: tx, z: tz }];
     const a0 = layout.aisles.reduce((b, x) => (Math.abs(x - px) < Math.abs(b - px) ? x : b), layout.aisles[0]!);
     const out: { x: number; z: number }[] = [];
     if (Math.abs(pz - zs) > 0.6) {
@@ -212,11 +215,28 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     const W = useWorld.getState();
     const s = freeChair(layout, t.id, W.seats, W.you, pos.current.x, pos.current.z);
     pick.table = t.id;
+    /** halls with cross aisles (Ludo): walk along the cross aisle on that side of the table (nearest to z) */
+    const laneOf = (z: number, side: number) => {
+      const ls = layout.lanes ?? [];
+      const own = ls.filter((l) => (l - t.z) * side > 0);
+      const from = own.length ? own : ls;
+      return from.reduce((b, l) => (Math.abs(l - z) < Math.abs(b - z) ? l : b), from[0] ?? z);
+    };
     if (s) {
       pick.seat = s.id;
       pick.face = null;
       const st = standOf(s);
-      startRoute(routeTo(st.x, st.z, t.z + Math.sign(s.z - t.z || 1) * (t.d / 2 + 0.75)));
+      const side = Math.sign(s.z - t.z || 1);
+      if (Math.abs(st.x - t.x) < t.w / 2 + 0.32 && Math.abs(st.z - t.z) < t.d / 2 + 0.32) {
+        // a café armchair tucked up to a small table: its stand point is under the table edge, so walk up beside the
+        // chair (the side you come from) and let the staged sit step in from there
+        const ox = -Math.sin(s.yaw);
+        const oz = -Math.cos(s.yaw);
+        const lat = Math.sign((pos.current.x - s.x) * oz - (pos.current.z - s.z) * ox || 1);
+        const ax = s.x + ox * 0.3 + oz * lat * 0.8;
+        const az = s.z + oz * 0.3 - ox * lat * 0.8;
+        startRoute(routeTo(ax, az, layout.lanes?.length ? laneOf(az, side) : az));
+      } else startRoute(routeTo(st.x, st.z, layout.lanes?.length ? laneOf(st.z, side) : t.z + side * (t.d / 2 + 0.75)));
     } else {
       // all chairs taken: a match in progress → watch from beside the table (spectators stand in the open strip)
       pick.seat = null;
@@ -224,7 +244,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       const sx = t.x + Math.sign(pos.current.x - t.x || 1) * 1.6;
       const sz = t.z + side * (t.d / 2 + 0.75);
       pick.face = Math.atan2(t.x - sx, t.z - sz);
-      startRoute(routeTo(sx, sz, sz));
+      startRoute(routeTo(sx, sz, layout.lanes?.length ? laneOf(sz, side) : sz));
     }
   };
   const followPick = () => {
@@ -528,10 +548,19 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       const k = THREE.MathUtils.smoothstep(1 - intro.current / INTRO_S, 0, 1);
       target.set(pos.current.x, THREE.MathUtils.lerp(1.2, 1.55, k), pos.current.z - (1 - k) * 3.4);
     } else if (seat) {
-      cx = pos.current.x - Math.sin(seat.yaw) * 2.2;
-      cz = pos.current.z - Math.cos(seat.yaw) * 2.2;
-      cy = 2.2;
-      target.set(seat.x + Math.sin(seat.yaw) * 0.9, 0.8, seat.z + Math.cos(seat.yaw) * 0.9);
+      const tb = layout.tables.find((t) => t.id === seat.table);
+      if (tb && tb.w < 1.5 && tb.d < 1.5) {
+        // a small board-game table (Ludo): high over the shoulder, looking down onto the board over your own head
+        cx = pos.current.x - Math.sin(seat.yaw) * 1.3;
+        cz = pos.current.z - Math.cos(seat.yaw) * 1.3;
+        cy = 2.55;
+        target.set(tb.x, tb.h, tb.z);
+      } else {
+        cx = pos.current.x - Math.sin(seat.yaw) * 2.2;
+        cz = pos.current.z - Math.cos(seat.yaw) * 2.2;
+        cy = 2.2;
+        target.set(seat.x + Math.sin(seat.yaw) * 0.9, 0.8, seat.z + Math.cos(seat.yaw) * 0.9);
+      }
     } else {
       const dd = cameraState.distance;
       cx = pos.current.x + Math.sin(cameraState.yaw) * Math.cos(cameraState.pitch) * dd;

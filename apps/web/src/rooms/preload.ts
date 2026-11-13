@@ -3,7 +3,8 @@ import { useGLTF } from "@react-three/drei";
 import { useLoader } from "@react-three/fiber";
 import { BitmapTextureLoader } from "@/world/bitmap-texture";
 import { INTERIOR_BASE, model, type PbrName } from "./interior-kit";
-import { ballAtlas, diceAtlas, feltTexture, imigongo, imigongoPanel, kitenge, leafCard, loungeRug, ludoBoard, menuBoard } from "./room-textures";
+import { ballAtlas, diceAtlas, feltTexture, imigongo, imigongoPanel, leafCard, loungeRug } from "./room-textures";
+import { calmKitenge, KITENGE_ART, KITENGE_RUG, ludoMenu, ludoTableBoard, tableNumbers } from "./ludo-textures";
 import type { HallGame } from "./layouts";
 import { useStage } from "@/world/stage";
 
@@ -14,8 +15,8 @@ const HALL_ASSETS: Record<HallGame, { models: string[]; pbr: [PbrName, boolean][
     pbr: [["oak_veneer_01", true], ["velour_velvet", false], ["white_plaster_02", true]],
   },
   ludo: {
-    models: ["modern_arm_chair_01", "modern_ceiling_lamp_01", "potted_plant_02", "potted_plant_04", "throw_pillows_01"],
-    pbr: [["herringbone_parquet", true], ["oak_veneer_01", true], ["velour_velvet", false], ["white_plaster_02", true]],
+    models: ["modern_arm_chair_01", "Ottoman_01", "potted_plant_02", "potted_plant_04"],
+    pbr: [["herringbone_parquet", true], ["oak_veneer_01", true], ["velour_velvet", false], ["white_plaster_02", false]],
   },
   igisoro: {
     models: ["potted_plant_02", "wicker_basket_01", "wicker_basket_02", "wooden_bowl_01", "wooden_stool_02"],
@@ -48,11 +49,12 @@ export function prewarmRoomTextures() {
     () => feltTexture("#1a4e85"),
     () => ballAtlas(),
     () => loungeRug(),
-    () => ludoBoard(),
+    () => ludoTableBoard(),
     () => diceAtlas(),
-    () => kitenge(["#f3e3c3", "#e2621b", "#0f7c7a", "#f2b632", "#2b2d6e"]),
-    () => kitenge(["#2b2d6e", "#f2b632", "#e2621b", "#0f7c7a", "#f3e3c3"], [2, 2]),
-    () => menuBoard(),
+    () => calmKitenge(KITENGE_RUG),
+    () => calmKitenge(KITENGE_ART, [1, 1]),
+    () => ludoMenu(),
+    () => tableNumbers(),
     () => leafCard(),
     () => imigongoPanel(0),
     () => imigongoPanel(1),

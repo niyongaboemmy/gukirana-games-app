@@ -48,7 +48,10 @@ describe("seats", () => {
     expect(isValidSeat("pool", "t11s1")).toBe(true);
     expect(isValidSeat("pool", "t11s2")).toBe(false);
     expect(isValidSeat("pool", "t12s0")).toBe(false);
-    expect(isValidSeat("ludo", "t5s3")).toBe(true);
+    expect(isValidSeat("ludo", "t5s1")).toBe(true);
+    expect(isValidSeat("ludo", "t15s0")).toBe(true); // 16-table lounge, two player chairs each (P1-WLD-05)
+    expect(isValidSeat("ludo", "t16s0")).toBe(false);
+    expect(isValidSeat("ludo", "t5s2")).toBe(false);
     expect(isValidSeat("igisoro", "t0s2")).toBe(false);
     expect(isValidSeat("pool", 7)).toBe(false);
   });

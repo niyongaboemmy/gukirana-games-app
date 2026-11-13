@@ -29,10 +29,14 @@ describe("SeatRegistry", () => {
     expect(pool.claim("t12s0", "C")).toBe("invalid");
     expect(pool.claim("t5s2", "C")).toBe("invalid");
     expect(pool.claim("b0s0", "B")).toBe("invalid");
+    const ludo = new SeatRegistry("ludo");
+    expect(ludo.claim("t15s1", "A")).toBe("ok"); // 16-table lounge, two player chairs per table (P1-WLD-05)
+    expect(ludo.claim("t16s0", "B")).toBe("invalid");
+    expect(ludo.claim("t2s3", "B")).toBe("invalid");
   });
   it("releases on stand / leave", () => {
     const s = new SeatRegistry("ludo");
-    s.claim("t5s3", "A");
+    expect(s.claim("t5s1", "A")).toBe("ok");
     expect(s.release("A")).toBe(true);
     expect(s.release("A")).toBe(false);
     expect(s.snapshot()).toEqual({});

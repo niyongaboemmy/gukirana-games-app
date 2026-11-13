@@ -4,7 +4,7 @@ import type { HallLayout } from "./layouts";
 /** Instant stand-in while a hall's props/materials finish loading: lit floor + walls in the hall's tones (no assets). */
 export function QuickShell({ layout }: { layout: HallLayout }) {
   const { w, d, h } = layout.size;
-  const tone = layout.game === "pool" ? { floor: "#4a3426", wall: "#5a4438", light: 0.9 } : layout.game === "ludo" ? { floor: "#b8916a", wall: "#efe6d6", light: 1.2 } : { floor: "#a5583a", wall: "#d8c3a0", light: 1.0 };
+  const tone = layout.game === "pool" ? { floor: "#4a3426", wall: "#5a4438", light: 0.9 } : layout.game === "ludo" ? { floor: "#b3a493", wall: "#f1ebe1", light: 1.2 } : { floor: "#a5583a", wall: "#d8c3a0", light: 1.0 };
   return (
     <group>
       <ambientLight intensity={tone.light * 1.1} />
