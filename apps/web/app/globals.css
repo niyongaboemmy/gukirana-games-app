@@ -411,3 +411,12 @@ body {
 @keyframes gk-frame-push { from { transform: scale(1); filter: blur(0); } to { transform: scale(1.06); filter: blur(1.6px); } }
 .gk-frame-push { animation: gk-frame-push 3.2s cubic-bezier(.2,.6,.3,1) both; transform-origin: 50% 55%; }
 @media (prefers-reduced-motion: reduce) { .gk-frame-push { animation: none; } }
+
+/* persistent 3D stage (world/SceneHost.tsx): a morning sky behind the canvas until its first frame (never blank) */
+.gk-sky { background: linear-gradient(180deg, #6f9fd0 0%, #9cc0e0 42%, #c9dbe6 64%, #b9c7a6 78%, #7f9461 100%); }
+/* HUD fades in once you are inside (after the walk-in), instead of popping over the scene */
+@keyframes gk-hud-in { from { opacity: 0; } to { opacity: 1; } }
+.gk-hud-in { animation: gk-hud-in 0.6s ease-out 0.35s both; }
+@keyframes gk-farewell { 0% { opacity: 0; transform: translate(-50%, 8px); } 12%, 78% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; } }
+.gk-farewell { animation: gk-farewell 4.6s ease-out 0.4s both; }
+@media (prefers-reduced-motion: reduce) { .gk-hud-in, .gk-farewell { animation-duration: 0.01s; } }

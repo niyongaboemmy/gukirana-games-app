@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
 import { Ban, Footprints, Gift, LogOut, Mic, MicOff, Shirt, Sparkles, Star, Trophy, X } from "lucide-react";
 import { claimDailyStars, logout, useSession } from "@/lib/session";
 import { totalXpForLevel, useProfile } from "@/lib/profile-store";
@@ -10,6 +9,7 @@ import { disableVoice, enableVoice, useVoice } from "@/voice/voice";
 import { DieIcon, PoolBallIcon, SeedsIcon } from "@/ui/game-icons";
 import { useSocial } from "@/social/social-store";
 import { unblockKey } from "@/lib/realtime";
+import { signOut as walkOut } from "@/world/stage";
 
 const GAMES = [
   { id: "pool", label: "Pool", icon: PoolBallIcon, color: "#2F80ED" },
@@ -23,7 +23,6 @@ const PACES = ["slow", "normal", "fast"] as const;
  * walking pace, voice, edit avatar, sign out. Opens over the 3D world; Esc / backdrop closes.
  */
 export function SettingsModal({ onClose, onEditAvatar }: { onClose: () => void; onEditAvatar: () => void }) {
-  const router = useRouter();
   const me = useSession((s) => s.me);
   const color = useProfile((s) => s.color);
   const speed = useWorld((s) => s.speed);
@@ -172,7 +171,9 @@ export function SettingsModal({ onClose, onEditAvatar }: { onClose: () => void; 
               type="button"
               onClick={() => {
                 disableVoice();
-                void logout().then(() => router.push("/gate"));
+                // the person turns and walks out through the gate (world/stage.ts), then the session ends
+                onClose();
+                walkOut("menu", logout);
               }}
               className="btn-danger flex items-center justify-center gap-2 rounded-2xl py-3 font-bold"
             >

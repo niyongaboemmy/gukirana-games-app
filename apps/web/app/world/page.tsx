@@ -1,5 +1,4 @@
 "use client";
-import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { WorldHud } from "@/hud/WorldHud";
@@ -11,19 +10,17 @@ import { useWorld } from "@/lib/world-store";
 import { useSession } from "@/lib/session";
 import { MatchmakingPanel } from "@/match/MatchmakingPanel";
 import { WorldControls } from "@/hud/WorldControls";
-import { useDoorway } from "@/world/doorway";
+import { WorldOverlays } from "@/world/GateExitPrompt";
 
-const WorldCanvas = dynamic(() => import("@/world/WorldCanvas"), {
-  ssr: false,
-  // preloaded at the gate; if anything is still loading, show a calm sky + hills instead of a spinner screen
-  loading: () => <div className="h-full bg-[#1c1d22]" />, // hidden behind the closed doors
-});
-
+/**
+ * The plaza. The 3D scene lives in the persistent stage (world/SceneHost in the root layout), which already shows
+ * the plaza when you walk in from the gate or out of a hall; this page owns the plaza's realtime room and its HUD.
+ */
 export default function WorldPage() {
   const router = useRouter();
   const profile = useProfile();
   const [ready, setReady] = useState(false);
-  // fade in from black only when stepping out of a hall (the gate hand-off stays seamless)
+  // a short note only when stepping out of a hall
   const [fromRoom] = useState(() => {
     try {
       const v = typeof window !== "undefined" && sessionStorage.getItem("gk-from-room") === "1";
@@ -35,10 +32,7 @@ export default function WorldPage() {
   });
   const session = useSession();
 
-  useEffect(() => {
-    setReady(true);
-    useDoorway.getState().hold("Gukirana Plaza"); // no-op when you just walked through a door (frame already frozen)
-  }, []);
+  useEffect(() => setReady(true), []);
   useEffect(() => {
     if (!ready || session.status === "loading") return;
     if (session.status === "anonymous" || !profile.onboarded) {
@@ -54,10 +48,9 @@ export default function WorldPage() {
     };
   }, [ready, session.status, profile.onboarded, router]);
 
-  if (!ready || !profile.onboarded) return <div className="fixed inset-0 bg-[#1c1d22]" />;
+  if (!ready || !profile.onboarded) return null;
   return (
-    <div className="fixed inset-0 overflow-hidden bg-[#1c1d22]">
-      <WorldCanvas profile={{ name: profile.name, color: profile.color, level: levelForXp(profile.xp) }} />
+    <div className="gk-hud-in">
       <WorldHud />
       <MatchmakingPanel />
       {fromRoom && (
@@ -66,6 +59,7 @@ export default function WorldPage() {
         </div>
       )}
       <WorldControls />
+      <WorldOverlays />
       <RotateGuard />
     </div>
   );

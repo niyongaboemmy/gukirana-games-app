@@ -9,6 +9,7 @@ import type { HallLayout } from "./layouts";
 import { GltfInstances, Instanced, model, type Xform } from "./interior-kit";
 import { uiAudio } from "@/lib/audio";
 import { PlazaGlimpse } from "./PlazaGlimpse";
+import { isOnScreen, useArea } from "@/world/stage";
 
 const FONT = "/fonts/Baloo2.ttf";
 /**
@@ -71,9 +72,12 @@ export function AutoDoor({ x, z, w, color }: { x: number; z: number; w: number; 
   const left = useRef<THREE.Group>(null);
   const right = useRef<THREE.Group>(null);
   const op = useRef({ latched: false, progress: 0, init: false, farFor: 0, lastDist: 0, approach: 0, lastWhoosh: -99, t: 0 });
+  const area = useArea();
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.05);
     const o = op.current;
+    // a pre-warmed hall (not on screen) has no sensor: it starts fresh (open behind you) as you walk in
+    if (!isOnScreen(area)) return void (o.init = false);
     o.t += dt;
     const dist = Math.hypot(selfPose.x - x, selfPose.z - z);
     // other people use the door too: it opens for anyone near it, and only closes once nobody is

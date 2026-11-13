@@ -1,21 +1,19 @@
 "use client";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { AdaptiveDpr, PerformanceMonitor, Text } from "@react-three/drei";
-import { XR, XROrigin, useXR } from "@react-three/xr";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import { Text } from "@react-three/drei";
+import { XROrigin, useXR } from "@react-three/xr";
 import * as THREE from "three";
-import { Plaza } from "../Plaza";
-import { Effects } from "../Lighting";
 import { Avatar } from "../Avatar";
 import { BODY_TYPES } from "../outfits";
-import type { Tier } from "../materials";
-import { xrStore } from "../WorldCanvas";
-import { Gate, GATE_Z, INSIDE, KIOSK, STAND, WARDROBE } from "./Gate";
+import { clearHandoff, crossTo, GATE_TO_PLAZA_DZ, peekHandoff } from "../stage";
+import { GATE_Z, INSIDE, KIOSK, STAND, WARDROBE } from "./Gate";
 import { useGate } from "./gate-store";
 import { freePoint, GATE_OBSTACLES, resolve } from "../obstacles";
 import { VirtualKeyboard } from "./VirtualKeyboard";
 import { lookOf, useProfile } from "@/lib/profile-store";
-import { useWorld } from "@/lib/world-store";
+import { selfPose, useWorld } from "@/lib/world-store";
+import { clearPositions } from "@/lib/return-point";
 import { autoFollow, nav, pointerNav, steer, TargetMarker } from "../navigation";
 
 const FONT = "/fonts/Baloo2.ttf";
@@ -25,7 +23,14 @@ const SHOTS = {
   arriveFrom: { cam: new THREE.Vector3(18, 26, GATE_Z + 52), look: new THREE.Vector3(0, 4, GATE_Z) },
   kiosk: { cam: new THREE.Vector3(0.55, 1.8, GATE_Z + 4.5), look: new THREE.Vector3(-0.75, 1.22, GATE_Z + 1.9) },
   wardrobe: { cam: new THREE.Vector3(1.6, 1.75, GATE_Z - 5.4), look: new THREE.Vector3(4.6, 1.05, GATE_Z - 6.5) },
+  /** signing out: the gate seen from the avenue once the person is through the turnstiles */
+  farewell: { cam: new THREE.Vector3(-2.3, 2.0, GATE_Z + 10.8), look: new THREE.Vector3(0.9, 1.35, GATE_Z + 3.0) },
 };
+/** where the departing person stops, beside the guard post, ready to be the next visitor at the tablet */
+const LEAVE_STOP = new THREE.Vector3(2.3, 0, GATE_Z + 5.2);
+/** walking pace through the gate (m/s); the plaza step-out carries the same stride on across the cut */
+const GATE_WALK = 2.4;
+const LEAVE_WALK = 1.4;
 
 function useLocalLook() {
   const p = useProfile();
@@ -49,11 +54,19 @@ function Rig() {
   const avatar = useRef<THREE.Group>(null);
   const origin = useRef<THREE.Group>(null);
   const anim = useRef(0);
-  const pos = useRef(new THREE.Vector3(STAND.x + 0.3, 0, GATE_Z + 17));
+  // signing out arrives with a hand-off: the person mid-walk towards / through the turnstiles, camera behind
+  const [hand] = useState(() => peekHandoff("gate"));
+  useEffect(() => clearHandoff("gate"), []);
+  const pos = useRef(hand ? new THREE.Vector3(hand.x, 0, hand.z) : new THREE.Vector3(STAND.x + 0.3, 0, GATE_Z + 17));
   const t0 = useRef(performance.now());
-  const camPos = useRef(SHOTS.arriveFrom.cam.clone());
-  const camLook = useRef(SHOTS.arriveFrom.look.clone());
-  const facing = useRef(Math.PI);
+  const camPos = useRef(hand?.cam ? new THREE.Vector3(...hand.cam) : SHOTS.arriveFrom.cam.clone());
+  const camLook = useRef(hand?.look ? new THREE.Vector3(...hand.look) : SHOTS.arriveFrom.look.clone());
+  const facing = useRef(hand?.yaw ?? Math.PI);
+  /** the walk-in has been handed to the plaza (match cut at the turnstile line) */
+  const handed = useRef(false);
+  const lastSpeed = useRef(0);
+  /** sign-out camera swing round the departing person */
+  const swing = useRef({ on: false, ang: 0, r: 0, y: 0 });
   const orbit = useRef({ yaw: 0, pitch: 0.38, dist: 6.5 });
   const { gl } = useThree();
 
@@ -109,6 +122,13 @@ function Rig() {
     }
   }, [step, isNew, set]);
 
+  // the first frame already shows the hand-off camera (no ease from the default fly-in shot)
+  useEffect(() => {
+    if (!hand) return;
+    camera.position.copy(camPos.current);
+    camera.lookAt(camLook.current);
+  }, [hand, camera]);
+
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
     const since = (performance.now() - t0.current) / 1000;
@@ -149,6 +169,9 @@ function Rig() {
       camLook.current.lerp(new THREE.Vector3(pos.current.x, 1.35, pos.current.z), Math.min(1, dt * 6));
       camera.position.copy(camPos.current);
       camera.lookAt(camLook.current);
+      selfPose.x = pos.current.x;
+      selfPose.z = pos.current.z;
+      selfPose.yaw = facing.current;
       return;
     }
     // avatar waypoint for this step
@@ -156,27 +179,75 @@ function Rig() {
     let face = Math.PI; // facing north (−z)
     if (step === "arrive") target = new THREE.Vector3(STAND.x, 0, STAND.z);
     if (step === "id" || step === "code") face = Math.atan2(KIOSK.x - STAND.x, KIOSK.z - STAND.z);
-    if (step === "opening") target = since > 0.9 ? new THREE.Vector3(INSIDE.x, 0, INSIDE.z) : new THREE.Vector3(0, 0, GATE_Z + 2.2);
+    // returning players walk straight on through (the plaza takes over at the turnstile line); new ones stop inside
+    if (step === "opening") target = since > 0.9 ? (isNew ? new THREE.Vector3(INSIDE.x, 0, INSIDE.z) : new THREE.Vector3(0, 0, GATE_Z - 8)) : new THREE.Vector3(0, 0, GATE_Z + 2.2);
     if (step === "setup") {
       target = new THREE.Vector3(WARDROBE.stand.x, 0, WARDROBE.stand.z);
       face = -Math.PI / 2; // face the camera, back to the lockers
     }
     if (step === "entering") target = new THREE.Vector3(0, 0, GATE_Z - 26);
+    if (step === "leaving") {
+      // signing out: line up with the centre lane, out through the (outward-opening) flaps, then beside the guard
+      const p = pos.current;
+      if (p.z < GATE_Z - 0.5 && Math.abs(p.x) > 0.25) target = new THREE.Vector3(0, 0, GATE_Z - 1.0);
+      else if (p.z < GATE_Z + 2.4) target = new THREE.Vector3(0, 0, GATE_Z + 3.0);
+      else target = LEAVE_STOP;
+      face = Math.atan2(KIOSK.x - LEAVE_STOP.x, KIOSK.z - LEAVE_STOP.z + 2); // at the stop: half turned back to the tablet
+    }
     const d = target.clone().sub(pos.current);
     d.y = 0;
     const dist = d.length();
-    const speed = step === "entering" ? 3.2 : 2.4;
+    const speed = step === "leaving" ? LEAVE_WALK : GATE_WALK;
     if (dist > 0.05) {
-      pos.current.addScaledVector(d.normalize(), Math.min(dist, speed * dt));
+      const stepLen = Math.min(dist, speed * dt);
+      pos.current.addScaledVector(d.normalize(), stepLen);
+      lastSpeed.current = stepLen / Math.max(dt, 1e-3);
       face = Math.atan2(d.x, d.z);
       anim.current = 1;
-    } else anim.current = 0;
+    } else {
+      anim.current = 0;
+      lastSpeed.current = 0;
+    }
     if (avatar.current) {
       avatar.current.position.copy(pos.current);
       let diff = face - avatar.current.rotation.y;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
       avatar.current.rotation.y += diff * Math.min(1, dt * 8);
       facing.current = avatar.current.rotation.y;
+    }
+    selfPose.x = pos.current.x;
+    selfPose.z = pos.current.z;
+    selfPose.yaw = facing.current;
+
+    // walk-in: past the turnstiles the same walk continues in the plaza, at its entry gate (the same structure
+    // 64.5 m up the avenue): person and camera shift together in the same scene, the stride carries on
+    if (
+      !handed.current &&
+      pos.current.z < GATE_Z - 3.6 &&
+      ((step === "entering" && since > 0.45) || (step === "opening" && !isNew && since > 0.9))
+    ) {
+      handed.current = true;
+      clearPositions(); // coming in through the gate: no stale "where you were"
+      const dz = GATE_TO_PLAZA_DZ;
+      crossTo("plaza", "/world", () => ({
+        x: pos.current.x,
+        z: pos.current.z - dz,
+        yaw: facing.current,
+        speed: Math.max(1.2, lastSpeed.current),
+        walk: 1.3,
+        cam: [camera.position.x, camera.position.y, camera.position.z - dz],
+        look: [camLook.current.x, camLook.current.y, camLook.current.z - dz],
+      }));
+    }
+    // signing out: once beside the guard, the tablet comes up for the next visitor (free roam from right here)
+    if (step === "leaving" && ((dist <= 0.05 && since > 3) || since > 10)) {
+      const o = orbit.current;
+      const dx = camera.position.x - pos.current.x;
+      const dz = camera.position.z - pos.current.z;
+      o.yaw = Math.atan2(dx, dz);
+      o.dist = THREE.MathUtils.clamp(Math.hypot(dx, dz, camera.position.y - 1.6), 2.5, 14);
+      o.pitch = THREE.MathUtils.clamp(Math.asin((camera.position.y - 1.6) / o.dist), 0.1, 1.1);
+      set({ step: "id" });
     }
 
     if (inXR) {
@@ -200,6 +271,33 @@ function Rig() {
     } else if (step === "opening" || step === "entering") {
       wantPos = pos.current.clone().add(new THREE.Vector3(0.8, 2.3, 4.6));
       wantLook = pos.current.clone().add(new THREE.Vector3(0, 1.3, -2));
+    } else if (step === "leaving") {
+      // follow from behind while they walk out through the lane; once through, the camera swings round them (an
+      // orbit on the west side, never through the turnstiles) and settles on the gate as seen from the avenue
+      const p = pos.current;
+      const sw = swing.current;
+      if (p.z < GATE_Z + 2.6 && !sw.on) {
+        wantPos = p.clone().add(new THREE.Vector3(-0.5, 2.25, -4.4));
+        wantLook = p.clone().add(new THREE.Vector3(0, 1.25, 2.6));
+        k = 3;
+      } else {
+        if (!sw.on) {
+          const dx = camPos.current.x - p.x;
+          const dz = camPos.current.z - p.z;
+          Object.assign(sw, { on: true, ang: Math.atan2(dx, dz), r: Math.hypot(dx, dz), y: camPos.current.y });
+        }
+        const fx = SHOTS.farewell.cam.x - LEAVE_STOP.x;
+        const fz = SHOTS.farewell.cam.z - LEAVE_STOP.z;
+        const wantAng = Math.atan2(fx, fz);
+        const e = 1 - Math.exp(-dt * 1.5);
+        sw.ang += Math.atan2(Math.sin(wantAng - sw.ang), Math.cos(wantAng - sw.ang)) * e;
+        sw.r += (Math.hypot(fx, fz) - sw.r) * e;
+        sw.y += (SHOTS.farewell.cam.y - sw.y) * e;
+        camPos.current.set(p.x + Math.sin(sw.ang) * sw.r, sw.y, p.z + Math.cos(sw.ang) * sw.r);
+        wantPos = camPos.current;
+        wantLook = p.clone().add(new THREE.Vector3(0, 1.3, 0));
+        k = 4;
+      }
     } else if (step === "setup") {
       wantPos = SHOTS.wardrobe.cam;
       wantLook = SHOTS.wardrobe.look;
@@ -214,7 +312,7 @@ function Rig() {
   return (
     <>
       {(step === "id" || step === "code") && <TargetMarker />}
-      <group ref={avatar} position={pos.current.toArray()}>
+      <group ref={avatar} position={pos.current.toArray()} rotation={[0, facing.current, 0]}>
         <Avatar look={look} name={name || undefined} animRef={anim} showTag={false} holdPhone={step === "id" || step === "code"} />
       </group>
       <XROrigin ref={origin} position={[STAND.x, 0, STAND.z]} />
@@ -283,50 +381,13 @@ function XRWatch() {
   return null;
 }
 
-function MaybeEffects({ enabled }: { enabled: boolean }) {
-  const inXR = useXR((s) => s.session != null);
-  return enabled && !inXR ? <Effects /> : null;
-}
-
-function pickTier(): Tier {
-  const q = new URLSearchParams(location.search).get("tier");
-  if (q === "lite" || q === "standard") return q;
-  const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8;
-  return mem <= 3 || (navigator.hardwareConcurrency ?? 8) <= 4 ? "lite" : "standard";
-}
-
-function GateScene({ tier }: { tier: Tier }) {
-  const inXR = useXR((s) => s.session != null);
+/** The gate's people + controls inside the persistent stage (the gate structure itself stays in the outdoor area). */
+export function GateActors() {
   return (
     <>
-      <Plaza nearPortal={null} tier={tier} />
-      <Gate tier={tier} inXR={inXR} />
       <Rig />
       <VRSetup />
       <XRWatch />
     </>
-  );
-}
-
-export default function GateCanvas() {
-  const tier = useMemo(pickTier, []);
-  const [fx, setFx] = useState(tier === "standard");
-  return (
-    <Canvas
-      shadows={tier === "lite" ? false : "percentage"}
-      dpr={tier === "lite" ? [1, 1.25] : [1, 1.75]}
-      camera={{ fov: 55, near: 0.1, far: 3200, position: SHOTS.arriveFrom.cam.toArray() }}
-      gl={{ antialias: tier !== "lite", powerPreference: "high-performance", toneMapping: THREE.ACESFilmicToneMapping }}
-      style={{ touchAction: "none" }}
-    >
-      <PerformanceMonitor onDecline={() => setFx(false)} onIncline={() => setFx(tier === "standard")} flipflops={3} onFallback={() => setFx(false)} />
-      <AdaptiveDpr pixelated={false} />
-      <XR store={xrStore}>
-        <Suspense fallback={null}>
-          <GateScene tier={tier} />
-        </Suspense>
-        <MaybeEffects enabled={fx} />
-      </XR>
-    </Canvas>
   );
 }

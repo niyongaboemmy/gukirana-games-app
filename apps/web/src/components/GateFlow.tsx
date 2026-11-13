@@ -6,7 +6,7 @@ import { useGate, USERNAME_RE } from "@/world/gate/gate-store";
 import { lookOf, useProfile } from "@/lib/profile-store";
 import { BODY_TYPE_HINT, BODY_TYPES } from "@/world/outfits";
 import { Joystick } from "@/hud/Joystick";
-import { xrStore } from "@/world/WorldCanvas";
+import { xrStore } from "@/world/xr-store";
 
 const AvatarCreator = dynamic(() => import("./AvatarCreator").then((m) => m.AvatarCreator), { ssr: false });
 
@@ -26,6 +26,9 @@ function useClock() {
  * status bar with Kigali time, signal and battery.
  */
 let tabletShown = false; // the tablet slides into the hands once; later screens only swap content
+
+/** UI strings (to move to @gukirana/i18n keys `gate.farewell`). */
+const STR_FAREWELL = (name: string) => (name ? `See you soon, ${name}` : "See you soon");
 
 function Card({ children, label, busy = false }: { children: React.ReactNode; label: string; busy?: boolean }) {
   const time = useClock();
@@ -147,6 +150,7 @@ export function GateFlow() {
     if (g.step === "id" || g.step === "code" || g.step === "setup") setTimeout(() => ref.current?.focus(), 50);
   }, [g.step]);
 
+  if (g.step === "leaving") tabletShown = false; // the next visitor gets the tablet slid into their hands again
   if (g.inXR) return null;
   const busyIcon = <Loader2 size={18} className="animate-spin" />;
 
@@ -363,10 +367,10 @@ export function GateFlow() {
         </Card>
       )}
 
-      {g.step === "entering" && (
-        // never cover the player: a small status pill while they keep walking into the playground
-        <div role="status" className="toast absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 px-4 py-2 text-sm font-bold">
-          <Loader2 size={16} className="animate-spin text-ring" /> Entering the playground…
+      {g.step === "leaving" && (
+        // signing out: the person walks back out through the turnstiles; a short farewell, then the tablet for the next visitor
+        <div role="status" className="gk-farewell absolute bottom-[16%] left-1/2 flex -translate-x-1/2 items-center gap-2 toast px-5 py-2.5 text-lg font-bold">
+          {STR_FAREWELL(profile.name)}
         </div>
       )}
       {styling && (

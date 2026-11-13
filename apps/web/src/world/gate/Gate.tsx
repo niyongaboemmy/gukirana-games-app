@@ -104,14 +104,16 @@ export function buildGate(tier: Tier, Z: number = GATE_Z, variant: "arrival" | "
 
 function Flaps() {
   const step = useGate((s) => s.step);
-  const open = step === "opening" || step === "setup" || step === "entering";
+  const open = step === "opening" || step === "setup" || step === "entering" || step === "leaving";
+  // leaving: the flaps swing outward, towards the avenue, ahead of the person walking out
+  const out = step === "leaving" ? -1 : 1;
   const l = useRef<THREE.Group>(null);
   const r = useRef<THREE.Group>(null);
   const led = useMemo(() => new THREE.MeshBasicMaterial({ toneMapped: false }), []);
   const red = useMemo(() => new THREE.Color("#ff3b3b").multiplyScalar(2), []);
   const green = useMemo(() => new THREE.Color(GAME_COLORS.igisoro).multiplyScalar(2.4), []);
   useFrame((_, dt) => {
-    const target = open ? Math.PI / 2 - 0.05 : 0;
+    const target = open ? out * (Math.PI / 2 - 0.05) : 0;
     for (const [g, s] of [
       [l.current, 1],
       [r.current, -1],

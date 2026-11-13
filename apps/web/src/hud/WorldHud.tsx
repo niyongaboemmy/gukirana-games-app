@@ -8,7 +8,7 @@ import { nav } from "@/world/navigation";
 import { saveDoorPose } from "@/lib/return-point";
 import { useWorld } from "@/lib/world-store";
 import { levelForXp, totalXpForLevel, useProfile } from "@/lib/profile-store";
-import { xrStore } from "@/world/WorldCanvas";
+import { xrStore } from "@/world/xr-store";
 import { Armchair, DoorOpen, Ellipsis, Glasses, Hand, Loader2, MessageCircle, Settings, Shirt, Smile, Star, UserRound, Users, Zap, type LucideIcon } from "lucide-react";
 import { AvatarCreator } from "@/components/AvatarCreator";
 import { SettingsModal } from "@/components/SettingsModal";
