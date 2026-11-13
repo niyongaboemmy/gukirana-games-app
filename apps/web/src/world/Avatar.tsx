@@ -14,6 +14,7 @@ import { aimBone, ProceduralLayer, type ArmBones } from "./human/procedural";
 import { footstep } from "./human/footsteps";
 import { seedOf } from "./human/life";
 import { useVoice } from "@/voice/voice";
+import { useDeferredReady } from "./deferred";
 
 /**
  * Realistic human avatar (DESIGN-SPEC §7): photographic, rigged Rocketbox bodies (MIT) — feminine, masculine and
@@ -300,6 +301,7 @@ function HumanBody({
   const meta = HUMAN_MODELS[modelId];
   const model = useGLTF(meta.url, false);
   const anims = useGLTF(ANIM_SETS[meta.anim].url, false);
+  const lifeOk = useDeferredReady();
   const key = encodeLook(look);
   // `key` (the encoded look) captures every look field, so `look` itself is not a dependency
   const inst = useMemo(() => buildInstance(model.scene, look, meta, shadows, keepClothes), [model.scene, key, meta, shadows, keepClothes]);
@@ -484,9 +486,12 @@ function HumanBody({
   return (
     <group ref={tilt}>
       <primitive object={inst.root} />
-      <Suspense fallback={null}>
-        <LifeClips set={meta.anim} hipY={meta.hipY} animator={animator} />
-      </Suspense>
+      {/* the everyday-life clips stream once the first view is up (they never delay it) */}
+      {lifeOk && (
+        <Suspense fallback={null}>
+          <LifeClips set={meta.anim} hipY={meta.hipY} animator={animator} />
+        </Suspense>
+      )}
     </group>
   );
 }

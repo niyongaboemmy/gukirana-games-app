@@ -4,6 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { sessionMemo } from "./session-cache";
+import { useDeferredReady } from "./deferred";
 import { BitmapTextureLoader } from "./bitmap-texture";
 
 /**
@@ -142,6 +143,9 @@ function impostorSheet(imp: NonNullable<SpeciesDef["impostor"]>) {
  */
 export function InstancedSpecies(props: SpeciesProps) {
   const def: SpeciesDef = SPECIES[props.id];
+  // the meshes are not requested before the first view is up (critical download): impostors until then
+  const ok = useDeferredReady();
+  if (!ok) return def.impostor ? <ImpostorsOnly {...props} /> : null;
   return (
     <Suspense fallback={def.impostor ? <ImpostorsOnly {...props} /> : null}>
       <SpeciesLods {...props} />

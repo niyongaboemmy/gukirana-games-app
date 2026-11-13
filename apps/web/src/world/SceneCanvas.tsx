@@ -22,6 +22,7 @@ import { selfPose, useWorld } from "@/lib/world-store";
 import { lookOf, useProfile } from "@/lib/profile-store";
 import { preloadHall, prewarmRoomTextures } from "@/rooms/preload";
 import { preloadVegetation } from "./Vegetation";
+import { releaseDeferred } from "./deferred";
 import { ANIM_SETS, HUMAN_MODELS } from "./human/meta";
 
 /**
@@ -571,6 +572,7 @@ function DeferredAssets() {
   useEffect(() => {
     if (!hud) return;
     const t = setTimeout(() => {
+      releaseDeferred();
       preloadHumans();
       for (const s of Object.values(ANIM_SETS)) useGLTF.preload(s.lifeUrl, false);
       preloadVegetation();
