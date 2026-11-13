@@ -32,6 +32,8 @@ const WALK_MS = 800; // the person walks on through the door before the frame fr
 const DISSOLVE_MS = 400;
 const HAZE_MS = 300;
 const MAX_CLOSED_MS = 9000; // never trap anyone behind a frozen frame if a scene is slow or fails
+/** Reload / first load: show the live scene (the person and the room shell are ready early) rather than a long haze. */
+const MAX_HOLD_MS = 2500;
 
 let openTimer: ReturnType<typeof setTimeout> | undefined;
 let safety: ReturnType<typeof setTimeout> | undefined;
@@ -92,7 +94,7 @@ export const useDoorway = create<DoorwayState>()((set, get) => ({
     fromPath = "";
     set({ phase: "closed", label, frame: null });
     clearTimeout(safety);
-    safety = setTimeout(() => get().ready(), MAX_CLOSED_MS);
+    safety = setTimeout(() => get().ready(), MAX_HOLD_MS);
   },
   ready: () => {
     if (get().phase !== "closed") return;
@@ -154,7 +156,8 @@ export function DoorTransition() {
     const t = setTimeout(() => useDoorway.getState().ready(), 120);
     return () => clearTimeout(t);
   }, [phase, path]);
-  useEffect(() => () => clearTimeout(safety), []);
+  // (no timer cleanup on unmount: this overlay lives in the root layout, and StrictMode's mount→unmount→mount in
+  // dev would otherwise cancel the safety reveal that the page's hold() just armed → stuck on the haze forever)
   useEffect(() => {
     const el = host.current;
     if (!el || !frame) return;
