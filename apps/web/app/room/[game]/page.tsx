@@ -12,6 +12,7 @@ import { useRoom } from "@/rooms/room-store";
 import { levelForXp, useProfile } from "@/lib/profile-store";
 import { connectPlaza, leavePlaza } from "@/lib/realtime";
 import { useSession } from "@/lib/session";
+import { useWorld } from "@/lib/world-store";
 
 const RoomCanvas = dynamic(() => import("@/rooms/RoomCanvas"), {
   ssr: false,
@@ -31,6 +32,8 @@ export default function RoomPage() {
     if (!ready || session.status === "loading" || !isHallGame(game)) return;
     if (session.status === "anonymous" || !profile.onboarded) return void router.replace("/gate");
     useRoom.getState().set({ seated: null, nearSeat: null, doorOpen: false });
+    // plaza proximity state must not leak into the hall ("Enter Pool Hall" prompt while already inside)
+    useWorld.getState().set({ nearPortal: null, nearPlayer: null });
     void connectPlaza({ name: profile.name, color: profile.color, level: levelForXp(profile.xp), token: session.accessToken, look: session.me?.look ?? undefined }, { name: "hall", game });
     return () => leavePlaza();
   }, [ready, session.status, profile.onboarded, game]);
