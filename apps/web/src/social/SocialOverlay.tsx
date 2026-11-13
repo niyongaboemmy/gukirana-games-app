@@ -8,6 +8,7 @@ import { answerCall, hangUp } from "@/voice/call";
 import { tracks } from "./motion";
 import { PersonMenu } from "./PersonMenu";
 import { useSocial } from "./social-store";
+import { PairInvitePrompt, PairPendingChip, SpotPrompt } from "./ActionPrompts";
 
 /**
  * Screen-space social UI shared by the plaza and the halls: person menu, call bar (incoming / calling / in call),
@@ -161,7 +162,10 @@ export function SocialOverlay() {
     <div className="text-white">
       <div className="pointer-events-none fixed left-1/2 top-[max(116px,calc(env(safe-area-inset-top)+108px))] z-30 flex -translate-x-1/2 flex-col items-center gap-2">
         <CallBar />
+        <PairInvitePrompt />
+        <PairPendingChip />
         <Notices />
+        <SpotPrompt />
       </div>
       <PeopleSheet />
       <PersonMenu />

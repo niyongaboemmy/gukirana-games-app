@@ -7,16 +7,16 @@ import { DOOR_RING, PORTALS } from "@/world/layout";
 import { nav } from "@/world/navigation";
 import { saveDoorPose } from "@/lib/return-point";
 import { useWorld } from "@/lib/world-store";
-import { playEmote } from "@/lib/realtime";
 import { levelForXp, totalXpForLevel, useProfile } from "@/lib/profile-store";
 import { xrStore } from "@/world/WorldCanvas";
-import { Armchair, DoorOpen, Ellipsis, Glasses, Hand, Loader2, MessageCircle, Music, PartyPopper, Settings, Shirt, Smile, Star, UserRound, Users, Zap, type LucideIcon } from "lucide-react";
+import { Armchair, DoorOpen, Ellipsis, Glasses, Hand, Loader2, MessageCircle, Settings, Shirt, Smile, Star, UserRound, Users, Zap, type LucideIcon } from "lucide-react";
 import { AvatarCreator } from "@/components/AvatarCreator";
 import { SettingsModal } from "@/components/SettingsModal";
 import { ChatPanel } from "@/social/ChatPanel";
 import { SocialOverlay } from "@/social/SocialOverlay";
 import { totalUnread, useSocial } from "@/social/social-store";
 import { sitNearest, standFromBench } from "@/social/bench";
+import { EmotePicker } from "@/social/ActionPrompts";
 import { useRoom } from "@/rooms/room-store";
 import { useMatch } from "@/lib/match-store";
 import { quickMatchLeave } from "@/lib/realtime";
@@ -24,11 +24,6 @@ import { useSession } from "@/lib/session";
 import { KeyHint, PROMPT_BTN, promptWrap } from "./Prompt";
 import { openQuickMatch, usePhoneHud } from "./usePhoneHud";
 
-const EMOTES = [
-  { id: 10, icon: Hand, label: "Wave" },
-  { id: 11, icon: Music, label: "Dance" },
-  { id: 12, icon: PartyPopper, label: "Clap" },
-];
 
 function RoundButton({ icon: Icon, label, onPress, onRelease, big, active, badge, hint, disabled, compact }: { icon: LucideIcon; label: string; onPress?: () => void; onRelease?: () => void; big?: boolean; active?: boolean; badge?: number; hint?: number; disabled?: boolean; compact?: boolean }) {
   // compact = phone landscape: 48 px buttons (52 px for the main action), smaller icons
@@ -87,10 +82,6 @@ export function WorldHud() {
     void navigator.xr?.isSessionSupported("immersive-vr").then(setVr).catch(() => setVr(false));
   }, []);
 
-  const emote = (id: number) => {
-    playEmote(id);
-    setEmotesOpen(false);
-  };
   // E / the big button: door → bench place (stand up when seated) → the person in front of you (person menu)
   const interact = () => {
     if (portal?.href) {
@@ -269,12 +260,8 @@ export function WorldHud() {
                     <Users size={16} /> People · {nearby} nearby
                   </button>
                 )}
-                <div className="flex gap-1 border-t border-white/10 pt-1">
-                  {EMOTES.map((e) => (
-                    <button key={e.id} type="button" onClick={() => (emote(e.id), setMore(false))} className="grid size-10 place-items-center rounded-xl bg-white/10" aria-label={e.label} title={e.label}>
-                      <e.icon size={20} strokeWidth={1.85} />
-                    </button>
-                  ))}
+                <div className="border-t border-white/10 pt-1">
+                  <EmotePicker bare onPick={() => setMore(false)} />
                 </div>
               </div>
             )}
@@ -290,12 +277,8 @@ export function WorldHud() {
         <RoundButton icon={Zap} label="Run" onPress={() => setRun(true)} onRelease={() => setRun(false)} />
         <div className="relative">
           {emotesOpen && (
-            <div className="pointer-events-auto absolute bottom-20 left-1/2 flex -translate-x-1/2 gap-2 rounded-2xl bg-[#22266E]/85 p-2 backdrop-blur-md">
-              {EMOTES.map((e) => (
-                <button key={e.id} type="button" onClick={() => emote(e.id)} className="grid size-12 place-items-center rounded-xl bg-white/10" aria-label={e.label} title={e.label}>
-                  <e.icon size={24} strokeWidth={1.85} />
-                </button>
-              ))}
+            <div className="absolute bottom-20 left-1/2 -translate-x-1/2">
+              <EmotePicker onPick={() => setEmotesOpen(false)} />
             </div>
           )}
           <RoundButton icon={Smile} label="Emote" onPress={() => setEmotesOpen((v) => !v)} />

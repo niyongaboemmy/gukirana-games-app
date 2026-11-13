@@ -10,6 +10,9 @@ import { headTop, tagHover } from "@/world/Avatar";
 import { tracks } from "./motion";
 import { SpeechBubble } from "./RemotePlayers";
 import { useSocial } from "./social-store";
+import { doAction, goToSpot, reactToOutcome, SPOTS } from "./people";
+import { requestPair } from "@/lib/realtime";
+import { sitNearest, sitOnBench, standFromBench } from "./bench";
 import { useRoom } from "@/rooms/room-store";
 
 /**
@@ -78,6 +81,10 @@ export function SocialLayer() {
   const bodyType = useProfile((s) => s.bodyType);
   const selfGroup = useRef<THREE.Group>(null);
   const tick = useRef(0);
+  // just back from a match: react to the result among people (cheer / head shake)
+  useEffect(() => {
+    if (you) reactToOutcome();
+  }, [you]);
 
   useEffect(() => {
     const el = gl.domElement;
@@ -148,9 +155,12 @@ export function SocialLayer() {
             players: Object.values(w.players).map((p) => ({ id: p.id, name: p.name, x: p.x, z: p.z })),
             seats: w.seats,
             self: { ...selfPose },
-            social: { nearSeat: so.nearSeat, seated: so.seated, menu: so.menu, call: so.call.status, nearbyCount: so.nearbyCount },
+            social: { nearSeat: so.nearSeat, seated: so.seated, menu: so.menu, call: so.call.status, nearbyCount: so.nearbyCount, pairInvite: so.pairInvite, nearSpot: so.nearSpot },
+            anims: Object.fromEntries([...tracks.entries()].map(([id, t]) => [id, { anim: t.anim, seated: t.seated, fade: t.fade, x: t.x, z: t.z, yaw: t.yaw }])),
           };
         },
+        // people actions for QA scripts: play an action, ask for a contact action, use a context place
+        __gkAct: { doAction, requestPair, goToSpot, sitNearest, standFromBench, sitOn: (id: string) => sitOnBench(id, selfPose), spots: SPOTS },
       });
     el.addEventListener("pointerdown", pd);
     window.addEventListener("pointerup", pu, true);

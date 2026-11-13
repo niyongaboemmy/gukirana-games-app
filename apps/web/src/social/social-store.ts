@@ -65,6 +65,11 @@ interface SocialState {
   nearbyCount: number;
   /** someone to challenge (opens the MatchmakingPanel sheet) */
   challenge: { id: string; name: string } | null;
+  /** contact action invitation for me (accept / decline), and the one I sent */
+  pairInvite: { id: string; kind: "handshake" | "fistBump" | "hug"; from: { id: string; name: string } } | null;
+  pairPending: { id: string; to: string; kind: "handshake" | "fistBump" | "hug" } | null;
+  /** context place near me (lamp post, café) for the action prompt */
+  nearSpot: number | null;
   set: (p: Partial<SocialState>) => void;
 }
 
@@ -85,6 +90,9 @@ export const useSocial = create<SocialState>()((set) => ({
   nearSeat: null,
   nearbyCount: 0,
   challenge: null,
+  pairInvite: null,
+  pairPending: null,
+  nearSpot: null,
   set: (p) => set(p),
 }));
 

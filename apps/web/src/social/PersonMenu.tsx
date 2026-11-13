@@ -3,7 +3,10 @@ import { useEffect, useState } from "react";
 import { Ban, Flag, Hand, Loader2, MessageCircle, Mic, Phone, Star, Swords, Trophy, UserRound, Volume2, VolumeX, X, type LucideIcon } from "lucide-react";
 import type { ReportReason } from "@gukirana/contracts";
 import { useWorld } from "@/lib/world-store";
-import { blockPerson, waveAt } from "@/lib/realtime";
+import { blockPerson, requestPair } from "@/lib/realtime";
+import { ACT } from "@gukirana/contracts";
+import { ACTIONS, PAIR_ACTIONS } from "./actions";
+import { doAction } from "./people";
 import { useSession } from "@/lib/session";
 import { GAME_LABEL } from "@/lib/match-store";
 import { setMuted, setVolume, useVoice } from "@/voice/voice";
@@ -56,6 +59,7 @@ export function PersonMenu() {
   const hasVoice = useVoice((s) => (id ? !!s.available[id] : false));
   const callStatus = useSocial((s) => s.call.status);
   const seated = useWorld((s) => (id ? Object.values(s.seats).includes(id) : false));
+  const meSeated = useWorld((s) => !!s.you && Object.values(s.seats).includes(s.you));
   const [panel, setPanel] = useState<null | "profile" | "volume" | "block" | "report">(null);
   const [profile, setProfile] = useState<PublicProfile | "loading" | "error" | null>(null);
   const [reason, setReason] = useState<ReportReason | null>(null);
@@ -136,12 +140,37 @@ export function PersonMenu() {
           </button>
         </div>
 
+        {/* greetings: gestures go straight away; contact (handshake, fist bump, hug) asks them first */}
+        <div className="mb-2 grid grid-cols-4 gap-2">
+          {PAIR_ACTIONS.map((a) => (
+            <Action
+              key={a.kind}
+              icon={a.icon}
+              label={a.label}
+              disabled={!!signedInOnly || seated || meSeated || (dist != null && dist > 3)}
+              hint={signedInOnly ?? (seated || meSeated ? "Stand up first" : dist != null && dist > 3 ? "Walk a little closer" : `Ask ${p.name} to ${a.verb}`)}
+              onClick={() => {
+                requestPair(p.id, a.kind);
+                close();
+              }}
+            />
+          ))}
+          <Action
+            icon={ACTIONS.thumbsUp!.icon}
+            label="Thumbs up"
+            onClick={() => {
+              if (!doAction(ACT.thumbsUp, p.id)) notify("One moment…", undefined, 1200);
+              close();
+            }}
+          />
+        </div>
+
         <div className="grid grid-cols-4 gap-2">
           <Action
             icon={Hand}
             label="Wave"
             onClick={() => {
-              if (!waveAt(p.id)) notify("One moment…", undefined, 1200);
+              if (!doAction(ACT.wave, p.id)) notify("One moment…", undefined, 1200);
               close();
             }}
           />

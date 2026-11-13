@@ -11,7 +11,9 @@ import { decodeLook, seededLook } from "@/world/outfits";
 import type { Tier } from "@/world/materials";
 import { selfPose, useWorld } from "@/lib/world-store";
 import { useVoice } from "@/voice/voice";
-import { renderPose, setHallSeats, stepMotion, tracks } from "./motion";
+import { ghosts, renderPose, setHallSeats, stepGhosts, stepMotion, tracks, type Ghost } from "./motion";
+import { SEATED_WORD } from "./actions";
+import { hallLife } from "./people";
 import { useSocial } from "./social-store";
 
 /** Name tags + speaking bars are drawn up to this distance (DESIGN-SPEC §7.5: ≤ 12 m on screen; a bit more here). */
@@ -26,7 +28,6 @@ const FONT = "/fonts/Baloo2.ttf";
 /** id → use the light body (crowd budget), recomputed twice a second. */
 const useCrowd = create<{ lite: Record<string, boolean> }>()(() => ({ lite: {} }));
 
-const EMOTE_WORD: Record<number, string> = { 10: "waves", 11: "dances", 12: "claps" };
 
 function bubbleText(text: string): string {
   const t = text.trim();
@@ -160,7 +161,7 @@ function TalkRing({ id }: { id: string }) {
   );
 }
 
-function RemoteAvatar({ id, tier }: { id: string; tier: Tier }) {
+function RemoteAvatar({ id, tier, hall }: { id: string; tier: Tier; hall: boolean }) {
   const meta = useWorld(
     useShallow((s) => {
       const p = s.players[id];
@@ -181,6 +182,8 @@ function RemoteAvatar({ id, tier }: { id: string; tier: Tier }) {
   const group = useRef<THREE.Group>(null);
   const anim = useRef(0);
   const lookAt = useRef<THREE.Vector3 | null>(null);
+  const social = useRef({ listening: false, company: false });
+  const fade = useRef(0);
   const lookTarget = useMemo(() => new THREE.Vector3(), []);
   const seed = useMemo(() => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7), [id]);
   const glance = useRef({ next: 0, until: 0, at: "" });
@@ -194,9 +197,10 @@ function RemoteAvatar({ id, tier }: { id: string; tier: Tier }) {
     group.current.position.set(pose.x, 0, pose.z);
     group.current.rotation.y = pose.yaw;
     anim.current = pose.anim;
+    fade.current = fadeOf(id);
     if (bubbleLift.current) bubbleLift.current.position.y += ((pose.seated ? -0.72 : 0) - bubbleLift.current.position.y) * 0.12;
     const t = tracks.get(id);
-    const word = pose.seated && t?.emote && t.emote.until > Date.now() ? (EMOTE_WORD[t.emote.id] ?? "") : "";
+    const word = pose.seated && t?.emote && t.emote.until > Date.now() ? (SEATED_WORD[t.emote.id] ?? "") : "";
     if (word !== seatedEmote) setSeatedEmote(word);
 
     // where to look: the nearest person speaking within 5 m (me or someone else) — otherwise an occasional
@@ -250,6 +254,8 @@ function RemoteAvatar({ id, tier }: { id: string; tier: Tier }) {
       }
     }
     lookAt.current = target ? lookTarget.set(target.x, 1.55, target.z) : null;
+    social.current.listening = best < 4 && !!target && (v.selfTalking || Object.values(v.talking).some(Boolean));
+    social.current.company = dSelf < 1.8 || nearOther(id, pose.x, pose.z);
   });
 
   if (!meta) return null;
@@ -267,11 +273,84 @@ function RemoteAvatar({ id, tier }: { id: string; tier: Tier }) {
         voiceId={id}
         lookAtRef={lookAt}
         tagRange={TAG_RANGE}
+        seedId={id}
+        rootMotion={hall ? "inPlace" : "clip"}
+        socialRef={social}
+        fadeRef={fade}
+        footsteps
       />
       <TalkRing id={id} />
       <group ref={bubbleLift}>
         <SpeechBubble id={id} head={headTop(look.bodyType)} tag emote={seatedEmote} />
       </group>
+    </group>
+  );
+}
+
+const fadeOf = (id: string) => tracks.get(id)?.fade ?? 1;
+/** another person standing within conversation distance of (x, z) */
+function nearOther(id: string, x: number, z: number): boolean {
+  const players = useWorld.getState().players;
+  for (const sid in players) {
+    if (sid === id) continue;
+    const o = players[sid]!;
+    if (Math.abs(o.x / 100 - x) < 1.8 && Math.abs(o.z / 100 - z) < 1.8 && Math.hypot(o.x / 100 - x, o.z / 100 - z) < 1.8) return true;
+  }
+  return false;
+}
+
+const TABLE_OF = /^t(\d+)s/;
+/** Hall tables from the chair list (`t{table}s{chair}`): centre of each table's chairs, busy when someone sits. */
+function hallTables(seats: readonly SeatPose[]) {
+  const occupied = new Set(Object.keys(useWorld.getState().seats));
+  const by = new Map<string, { x: number; z: number; n: number; busy: boolean }>();
+  for (const s of seats) {
+    const t = TABLE_OF.exec(s.id)?.[1] ?? s.id;
+    const e = by.get(t) ?? { x: 0, z: 0, n: 0, busy: false };
+    e.x += s.x;
+    e.z += s.z;
+    e.n++;
+    if (occupied.has(s.id)) e.busy = true;
+    by.set(t, e);
+  }
+  const pool = typeof window !== "undefined" && window.location.pathname.includes("pool");
+  return [...by.values()].map((e) => ({ x: e.x / e.n, z: e.z / e.n, busy: e.busy, pool }));
+}
+
+/** People who just left keep walking a step or two through the door while they fade (no vanishing mid-stride). */
+function Ghosts({ tier }: { tier: Tier }) {
+  const [list, setList] = useState<string[]>([]);
+  useFrame(() => {
+    const ids = [...ghosts.keys()];
+    if (ids.join(",") !== list.join(",")) setList(ids);
+  });
+  return (
+    <>
+      {list.map((id) => {
+        const g = ghosts.get(id);
+        return g ? <GhostAvatar key={id} g={g} tier={tier} /> : null;
+      })}
+    </>
+  );
+}
+
+function GhostAvatar({ g, tier }: { g: Ghost; tier: Tier }) {
+  const group = useRef<THREE.Group>(null);
+  const anim = useRef(g.vx || g.vz ? 1 : 0);
+  const fade = useRef(g.fade);
+  const look = useMemo(() => {
+    const body = g.bodyType === "feminine" || g.bodyType === "masculine" ? g.bodyType : null;
+    return g.look ? decodeLook(g.look, g.color) : seededLook(g.uid ?? g.id, g.color, body);
+  }, [g]);
+  useFrame(() => {
+    if (!group.current) return;
+    group.current.position.set(g.x, 0, g.z);
+    group.current.rotation.y = g.vx || g.vz ? Math.atan2(g.vx, g.vz) : g.yaw;
+    fade.current = g.fade;
+  });
+  return (
+    <group ref={group}>
+      <Avatar look={look} name={g.name} level={g.level} animRef={anim} lod shadows={tier !== "lite"} quality={tier === "lite" ? "lite" : "standard"} seedId={g.id} fadeRef={fade} tagRange={TAG_RANGE} showTag={false} />
     </group>
   );
 }
@@ -290,6 +369,8 @@ export function RemotePlayers({ tier = "standard", hallSeats }: { tier?: Tier; h
   // runs before the avatars' own frame callbacks (priority −1): one motion step for everyone
   useFrame((_, dt) => {
     stepMotion(Math.min(dt, 0.1));
+    stepGhosts(Math.min(dt, 0.1));
+    if (hallSeats) hallLife(hallTables(hallSeats));
     budget.current += dt;
     if (budget.current < 0.5) return;
     budget.current = 0;
@@ -306,8 +387,9 @@ export function RemotePlayers({ tier = "standard", hallSeats }: { tier?: Tier; h
         .split(",")
         .filter(Boolean)
         .map((id) => (
-          <RemoteAvatar key={id} id={id} tier={tier} />
+          <RemoteAvatar key={id} id={id} tier={tier} hall={!!hallSeats} />
         ))}
+      <Ghosts tier={tier} />
     </>
   );
 }

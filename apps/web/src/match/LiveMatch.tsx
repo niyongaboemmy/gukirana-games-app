@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { rememberOutcome } from "@/social/people";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Client, type Room } from "colyseus.js";
 import { Clock, WifiOff } from "lucide-react";
@@ -151,6 +152,8 @@ export function LiveMatch({ roomId }: { roomId: string }) {
 
   const won = result ? result.ranks[myId] === 1 && Object.values(result.ranks).filter((r) => r === 1).length === 1 : false;
   const draw = result ? Object.values(result.ranks).every((r) => r === 1) : false;
+  // back among people after the match, the avatar celebrates / shakes its head (social/people.ts)
+  useEffect(() => void (result && rememberOutcome(won ? "win" : draw ? "draw" : "loss")), [result, won, draw]);
   const starsDelta = result ? (won ? stake : draw ? 0 : -stake) : 0;
 
   let board: React.ReactNode = <p className="text-white/70">Waiting for both players…</p>;

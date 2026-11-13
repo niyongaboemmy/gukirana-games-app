@@ -28,7 +28,10 @@ import { saveDoorPose, takeWorldPose } from "@/lib/return-point";
 import { preloadHall } from "@/rooms/preload";
 import { autoFollow, nav, pointerNav, steer, TargetMarker } from "./navigation";
 import { useVoice } from "@/voice/voice";
-import { applyBenchSeat } from "@/social/bench";
+import { applyBenchSeat, benchBusy } from "@/social/bench";
+import { applyPeople, lookTarget as personLook, nearSpot, people, SPOTS } from "@/social/people";
+import { useSocial } from "@/social/social-store";
+import { HUMAN_MODELS } from "./human/meta";
 
 /** Walking speeds (m/s): real walking pace by default; the player can change it (HUD speed control). */
 export const WALK_SPEEDS = { slow: 1.4, normal: 2.2, fast: 3.2 } as const;
@@ -94,11 +97,18 @@ export function LocalPlayer({
     cameraState.distance = Math.min(cameraState.distance, 4.2); // stays in front of the facade
   }
   const lookAt = useRef<THREE.Vector3 | null>(null);
+  const social = useRef({ listening: false, company: false });
+  const seatCam = useRef(0);
+  const spotScan = useRef(0);
+  const you = useWorld((s) => s.you);
+  const animSet = HUMAN_MODELS[look.bodyType]?.anim ?? "m";
   const lookTarget = useMemo(() => new THREE.Vector3(), []);
   const armLen = useRef(cameraState.distance);
   /** remaining click-to-walk waypoints (routed around benches, beds, planters …) */
   const route = useRef<{ x: number; z: number }[]>([]);
   const stuck = useRef({ t: 0, x: 0, z: 0 });
+  const manual = useRef(false);
+  const still = useRef(true);
   const { camera, gl } = useThree();
   const inXR = useXR((s) => s.session != null);
 
@@ -210,11 +220,16 @@ export function LocalPlayer({
           st.z = pos.current.z;
         }
       } else st.t = 0;
-      if (s.moving) anim.current = run || s.speed > 2.6 ? 2 : 1;
-      else {
+      if (s.moving) {
+        anim.current = run || s.speed > 2.6 ? 2 : 1;
+        // walking off ends what you were doing (coffee, leaning, a gesture)
+        if (w.emote) w.set({ emote: null });
+      } else {
         const e = w.emote;
         anim.current = e && e.until > Date.now() ? e.id : 0;
       }
+      manual.current = s.mode === "keys" || s.mode === "joy" || s.mode === "click" || s.turning;
+      still.current = !s.moving && !s.turning;
     }
 
     // collisions: plaza edge (except through an open arena doorway), then round obstacles
@@ -236,8 +251,9 @@ export function LocalPlayer({
       }
     }
     if (r > limit) pos.current.multiplyScalar(limit / r);
-    // other people are solid: walk around them (soft push, no passing through)
+    // other people are solid: walk around them (soft push, no passing through) — except my partner in a hug
     for (const op of Object.values(w.players)) {
+      if (op.id === people.partner) continue;
       const dx = pos.current.x - op.x / 100;
       const dz = pos.current.z - op.z / 100;
       const dist = Math.hypot(dx, dz);
@@ -250,7 +266,9 @@ export function LocalPlayer({
     resolve(pos.current, plazaObstacles());
 
     // plaza benches: seated / sitting down / standing up overrides the pose (social/bench.ts)
-    applyBenchSeat(pos.current, facing, anim);
+    const onBench = applyBenchSeat(pos.current, facing, anim, animSet, dt);
+    // person-level behaviour: gestures turn to their target, contact actions, leaning / coffee, social facing
+    if (!onBench && !inXR) applyPeople(pos.current, facing, anim, dt, manual.current, still.current);
 
     if (group.current) {
       group.current.position.copy(pos.current);
@@ -259,7 +277,7 @@ export function LocalPlayer({
 
     // third-person camera (DESIGN-SPEC §8.1)
     if (!inXR) {
-      const want = cameraState.distance;
+      const want = seatCam.current > 0.01 ? THREE.MathUtils.lerp(cameraState.distance, Math.min(cameraState.distance, 3.6), seatCam.current) : cameraState.distance;
       // spring arm: pull the camera in front of anything solid between the head and the wanted position
       // (buildings around the plaza, sign totems, lamp posts, kiosks, the gate canopy); snap in, ease out
       const d = cameraArm(pos.current.x, pos.current.z, cameraState.yaw, cameraState.pitch, want);
@@ -271,12 +289,15 @@ export function LocalPlayer({
       const rz = -Math.sin(cameraState.yaw) * sh;
       const cx = pos.current.x + Math.sin(cameraState.yaw) * Math.cos(cameraState.pitch) * L + rx;
       const cz = pos.current.z + Math.cos(cameraState.yaw) * Math.cos(cameraState.pitch) * L + rz;
-      let cy = 1.6 + Math.sin(cameraState.pitch) * L;
+      // seated: frame the seated person (look lower, come a little closer) instead of aiming over their head
+      seatCam.current += ((benchBusy() ? 1 : 0) - seatCam.current) * Math.min(1, dt * 3);
+      const aimY = 1.5 - 0.5 * seatCam.current;
+      let cy = aimY + 0.1 + Math.sin(cameraState.pitch) * L;
       // keep the camera below the entry gate canopy (soffit at ~5.2 m) instead of clipping through it
       if (Math.abs(cx) < 10 && Math.abs(cz - ENTRY_Z) < 4.6) cy = Math.min(cy, 4.6);
       // going through a door: the camera stays on the plaza side and watches you walk in (it never follows into the wall)
       if (!entering) camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * (d < L + 0.01 ? 14 : 8)));
-      camera.lookAt(pos.current.x + rx, 1.5, pos.current.z + rz);
+      camera.lookAt(pos.current.x + rx, aimY, pos.current.z + rz);
     }
 
     // proximity: portals and players
@@ -320,7 +341,17 @@ export function LocalPlayer({
         speaker = op;
       }
     }
-    lookAt.current = speaker ? lookTarget.set(speaker.x / 100, 1.6, speaker.z / 100) : null;
+    lookAt.current = personLook(pos.current.x, pos.current.z, speaker ? { x: speaker.x / 100, z: speaker.z / 100 } : null, lookTarget);
+    // idle mood: someone talking within 4 m (listen, nod) / standing with me (attentive)
+    social.current.listening = !!speaker && sd < 4;
+    social.current.company = nearPlayer != null && best < 1.8;
+    // context places (lamp posts, café) for the action prompt
+    if (performance.now() - spotScan.current > 200) {
+      spotScan.current = performance.now();
+      const sp = onBench ? null : nearSpot(pos.current.x, pos.current.z);
+      const idx = sp ? SPOTS.indexOf(sp) : null;
+      if (useSocial.getState().nearSpot !== idx) useSocial.setState({ nearSpot: idx });
+    }
 
     sendMove(pos.current.x, pos.current.z, facing.current, anim.current);
     selfPose.x = pos.current.x;
@@ -342,6 +373,10 @@ export function LocalPlayer({
           self
           lookAtRef={lookAt}
           showTag={false}
+          seedId={you ?? name}
+          rootMotion="clip"
+          socialRef={social}
+          footsteps
         />
       </group>
     </>

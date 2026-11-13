@@ -6,9 +6,11 @@ import { bindVoiceTransport, disableVoice, handleSignal, handleVoiceState, onPla
 import { bindCallTransport, hangUp, onCallEnded, onCallFailed, onCallIncoming, onCallRinging, onCallStart } from "@/voice/call";
 import { lookOf, useProfile } from "./profile-store";
 import { encodeLook } from "@/world/outfits";
-import { dropTrack, pushPose, setEmote, tracks } from "@/social/motion";
+import { dropTrack, ghostOf, pushPose, setEmote, tracks } from "@/social/motion";
 import { addDm, notify, showBubble, useSocial } from "@/social/social-store";
 import { loadBlocks, persistBlock, persistUnblock } from "@/social/api";
+import { AT_YOU, type PAIR_ACTIONS } from "@/social/actions";
+import { onPairStart } from "@/social/people";
 
 /** Realtime connection to the plaza / hall room (plan P1-WLD-01/02, P1-COM-01). Works over LAN for phone testing. */
 let room: Room | null = null;
@@ -21,6 +23,19 @@ function realtimeUrl(): string {
 }
 
 const sysLine = (text: string) => useWorld.getState().pushChat({ id: "sys", name: "", color: "", text, t: Date.now(), system: true });
+
+const PAIR_REASONS: Record<string, string> = {
+  DECLINED: "{name} said no this time.",
+  EXPIRED: "No answer from {name}.",
+  FAR: "Walk a little closer first.",
+  BUSY: "Finish what you are doing first.",
+  TARGET_BUSY: "{name} is busy right now.",
+  SEATED: "Stand up first.",
+  LOGIN_REQUIRED: "Sign in at the gate first.",
+  RATE_LIMITED: "Slow down a little.",
+  UNAVAILABLE: "That person can't do that right now.",
+  LEFT: "{name} left.",
+};
 
 const DM_REASONS: Record<string, string> = {
   WAITING: "Wait until they accept your chat request.",
@@ -62,6 +77,7 @@ export async function connectPlaza(
       if (!known) sysLine(`${p.name} joined`);
     });
     room.onMessage("left", (m: { id: string }) => {
+      ghostOf(m.id);
       useWorld.getState().removePlayer(m.id);
       dropTrack(m.id);
       onPlayerLeft(m.id);
@@ -98,10 +114,24 @@ export async function connectPlaza(
     room.onMessage("seats", (m: Record<string, string>) => useWorld.setState({ seats: m }));
     room.onMessage("seat-taken", () => useWorld.setState({ seatTaken: Date.now() }));
     room.onMessage("emote", (m: { id: string; emote: number }) => setEmote(m.id, m.emote));
-    room.onMessage("waved", (m: { from: { id: string; name: string } | null }) => {
+    room.onMessage("waved", (m: { from: { id: string; name: string } | null; emote?: number }) => {
       if (!m.from) return;
       const from = m.from;
-      notify(`${from.name} waved at you`, { label: "Wave back", run: () => waveAt(from.id) });
+      const what = AT_YOU[m.emote ?? 10] ?? AT_YOU[10];
+      notify(`${from.name} ${what}`, m.emote === 10 || m.emote == null ? { label: "Wave back", run: () => waveAt(from.id) } : undefined);
+    });
+    // two-person contact actions: an invitation to accept, then both people are placed face to face
+    room.onMessage("pair-invite", (m: { id: string; kind: (typeof PAIR_ACTIONS)[number]["kind"]; from: { id: string; name: string } | null }) => {
+      if (m.from) useSocial.setState({ pairInvite: { id: m.id, kind: m.kind, from: m.from } });
+    });
+    room.onMessage("pair-pending", (m: { id: string; to: string; kind: (typeof PAIR_ACTIONS)[number]["kind"] }) => useSocial.setState({ pairPending: m }));
+    room.onMessage("pair-start", onPairStart);
+    room.onMessage("pair-closed", (m: { id: string | null; to?: string; reason: string }) => {
+      const s = useSocial.getState();
+      if (s.pairInvite && s.pairInvite.id === m.id) useSocial.setState({ pairInvite: null });
+      if (s.pairPending && (s.pairPending.id === m.id || m.id === null)) useSocial.setState({ pairPending: null });
+      const text = PAIR_REASONS[m.reason];
+      if (text) notify(text.replace("{name}", name(m.to ?? "")));
     });
     room.onMessage("chat", (c: { id: string; name: string; color: string; text: string; t: number; masked?: boolean; scope?: "nearby" | "room" }) => {
       useWorld.getState().pushChat({ ...c, scope: c.scope ?? "room" });
@@ -155,7 +185,7 @@ export async function connectPlaza(
 /** Session-scoped social state (threads, calls, bubbles) does not carry over to another room. */
 function resetSocial() {
   tracks.clear();
-  useSocial.setState({ threads: {}, thread: null, bubbles: {}, menu: null, call: { status: "idle" }, seated: null, nearSeat: null, challenge: null });
+  useSocial.setState({ threads: {}, thread: null, bubbles: {}, menu: null, call: { status: "idle" }, seated: null, nearSeat: null, challenge: null, pairInvite: null, pairPending: null });
 }
 
 export function leavePlaza(): void {
@@ -198,12 +228,18 @@ export const quickMatchLeave = () => room?.send("quickmatch-leave");
 export const sendEmote = (emote: number, to?: string) => room?.send("emote", to ? { emote, to } : { emote });
 
 /** Local emote (my avatar) + broadcast, respecting the server's short cooldown. Returns false while cooling down. */
-export function playEmote(emote: number, to?: string): boolean {
+export function playEmote(emote: number, to?: string, ms = 2500): boolean {
   const now = Date.now();
   if (now < useSocial.getState().emoteReadyAt) return false;
   useSocial.setState({ emoteReadyAt: now + 1500 });
-  useWorld.getState().set({ emote: { id: emote, until: now + 2500 } });
+  useWorld.getState().set({ emote: { id: emote, until: now + ms } });
   sendEmote(emote, to);
   return true;
 }
-export const waveAt = (id: string) => playEmote(10, id);
+export const waveAt = (id: string) => playEmote(10, id, 2600);
+/** Ask someone for a handshake / fist bump / hug (they get an accept prompt). */
+export const requestPair = (to: string, kind: (typeof PAIR_ACTIONS)[number]["kind"]) => room?.send("pair-request", { to, kind });
+export const respondPair = (id: string, accept: boolean) => {
+  room?.send("pair-respond", { id, accept });
+  useSocial.setState({ pairInvite: null });
+};
