@@ -1,4 +1,5 @@
 "use client";
+import { useWalletSheet, WalletSheet } from "@/wallet/WalletSheet";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -166,6 +167,7 @@ export function WorldHud() {
           <AvatarCreator onClose={() => setStyling(false)} />
         </div>
       )}
+      <WalletSheet />
       {settingsOpen && (
         <div className="pointer-events-auto">
           <SettingsModal
@@ -201,12 +203,12 @@ export function WorldHud() {
 
       {/* top-right currency + settings */}
       <div className="absolute right-[max(12px,env(safe-area-inset-right))] top-3 flex items-center gap-2 phone:top-2">
-        <div className="glass num pointer-events-auto flex items-center gap-2 rounded-card px-4 py-2.5 text-lg font-extrabold tabular-nums phone:gap-1.5 phone:rounded-full phone:py-1 phone:pl-1 phone:pr-3 phone:text-sm" title="Stars: practice currency, no cash value">
+        <button type="button" onClick={() => useWalletSheet.getState().set(true)} aria-label={`Open your wallet: ${stars} Stars`} className="glass press num pointer-events-auto flex items-center gap-2 rounded-card px-4 py-2.5 text-lg font-extrabold tabular-nums phone:gap-1.5 phone:rounded-full phone:py-1 phone:pl-1 phone:pr-3 phone:text-sm" title="Your wallet (B) · Stars are practice currency with no cash value">
           <span className="grid size-7 place-items-center rounded-full bg-gradient-to-b from-gold to-warning text-ink-900 shadow-[inset_0_1px_0_rgb(255_255_255/.5)] phone:size-6">
             <Star size={15} strokeWidth={2} fill="currentColor" />
           </span>
           {stars.toLocaleString()}
-        </div>
+        </button>
         {vr && (
           <button type="button" onClick={() => void xrStore.enterVR()} className="glass press pointer-events-auto flex items-center gap-2 rounded-card bg-game-arena/70! px-3 py-2.5 text-sm font-bold">
             <Glasses size={18} strokeWidth={1.85} /> Enter VR
