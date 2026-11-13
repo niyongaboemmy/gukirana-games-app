@@ -1,14 +1,14 @@
 import { matchMaker } from "@colyseus/core";
 import { api } from "./api-client.js";
 
-export const GAMES = ["igisoro", "ludo"] as const;
+export const GAMES = ["igisoro", "ludo", "pool"] as const;
 export type GameId = (typeof GAMES)[number];
 export const STAKES = [0, 25, 50, 100, 200] as const;
 
 export const isGame = (g: unknown): g is GameId => typeof g === "string" && (GAMES as readonly string[]).includes(g);
 export const isStake = (s: unknown): s is number => typeof s === "number" && (STAKES as readonly number[]).includes(s);
 
-const SEATS: Record<GameId, [number, number]> = { igisoro: [0, 1], ludo: [0, 2] };
+const SEATS: Record<GameId, [number, number]> = { igisoro: [0, 1], ludo: [0, 2], pool: [0, 1] };
 
 /** Creates the API match (locks Stars in escrow) and the authoritative room. */
 export async function startMatch(game: GameId, stake: number, userIds: [string, string]): Promise<{ roomId: string; matchId: string }> {

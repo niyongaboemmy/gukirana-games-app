@@ -18,6 +18,7 @@
     "@gukirana/igisoro": "workspace:*",
     "@gukirana/ludo": "workspace:*",
     "@gukirana/money": "workspace:*",
+    "@gukirana/pool": "workspace:*",
     "@gukirana/ui": "workspace:*",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",

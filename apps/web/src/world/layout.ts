@@ -25,10 +25,10 @@ export interface PortalDef {
 
 export const PORTALS: PortalDef[] = [
   { id: "soon-left", label: "Coming Soon", sub: "Draughts", color: "#8A94A6", href: null, angleDeg: -112, kind: "soon" },
-  { id: "igisoro", label: "Igisoro Court", sub: "Strategy", color: "#27AE60", href: "/play/igisoro", angleDeg: -76, kind: "igisoro" },
-  { id: "pool", label: "Pool Hall", sub: "8-Ball", color: "#2F80ED", href: "/play/pool", angleDeg: -38, kind: "pool" },
+  { id: "igisoro", label: "Igisoro Court", sub: "Strategy", color: "#27AE60", href: "/room/igisoro", angleDeg: -76, kind: "igisoro" },
+  { id: "pool", label: "Pool Hall", sub: "8-Ball", color: "#2F80ED", href: "/room/pool", angleDeg: -38, kind: "pool" },
   { id: "arena", label: "Tournament Arena", sub: "Tournaments", color: "#9B51E0", href: null, angleDeg: 0, kind: "arena" },
-  { id: "ludo", label: "Ludo Lounge", sub: "Dice & tactics", color: "#FF8A1F", href: "/play/ludo", angleDeg: 38, kind: "ludo" },
+  { id: "ludo", label: "Ludo Lounge", sub: "Dice & tactics", color: "#FF8A1F", href: "/room/ludo", angleDeg: 38, kind: "ludo" },
   { id: "soon-right", label: "Coming Soon", sub: "Chess", color: "#8A94A6", href: null, angleDeg: 76, kind: "soon" },
 ];
 

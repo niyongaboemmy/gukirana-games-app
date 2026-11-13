@@ -10,7 +10,9 @@ import { GameShell, Modal, ResultModal } from "@/games/GameShell";
 import { IgisoroBoard, useSowAnimation } from "@/games/IgisoroBoard";
 import { Die, LudoBoard, SeatLabel } from "@/games/LudoBoard";
 import { SEAT_COLORS } from "@/games/ludo-board";
-import { DieIcon, SeedsIcon } from "@/ui/game-icons";
+import type { PoolState } from "@gukirana/pool";
+import { PoolLiveBoard } from "./PoolLiveBoard";
+import { DieIcon, PoolBallIcon, SeedsIcon } from "@/ui/game-icons";
 import { loadMe, refreshSession, useSession } from "@/lib/session";
 import { levelForXp } from "@/lib/profile-store";
 
@@ -23,7 +25,7 @@ interface PlayerInfo {
 }
 interface Init {
   you: string;
-  game: "igisoro" | "ludo";
+  game: "igisoro" | "ludo" | "pool";
   stake: number;
   players: PlayerInfo[];
   commit: string;
@@ -137,7 +139,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
     room.current?.send("intent", intent);
   }, []);
 
-  const game = (init?.game ?? params.get("game")) as "igisoro" | "ludo";
+  const game = (init?.game ?? params.get("game")) as "igisoro" | "ludo" | "pool";
   const stake = init?.stake ?? Number(params.get("stake") ?? 0);
   const myId = init?.you ?? me?.id ?? "";
   const myTurn = turn === myId && !result;
@@ -188,6 +190,19 @@ export function LiveMatch({ roomId }: { roomId: string }) {
     );
   }
 
+  if (state && game === "pool") {
+    const s = state as PoolState;
+    const mySide = s.players.indexOf(myId) === 1 ? 1 : 0;
+    const label = (side: 0 | 1) => {
+      const gr = s.groups[side];
+      return <p className="text-xs font-semibold capitalize">{gr ? `${gr} · ${s.balls.filter((b) => !b.in && (gr === "solids" ? b.n >= 1 && b.n <= 7 : b.n >= 9)).length} left` : "Open table"}</p>;
+    };
+    board = <PoolLiveBoard state={s} myTurn={myTurn} onShoot={(i) => send(i)} />;
+    detailMe = label(mySide as 0 | 1);
+    for (const o of opp) detailOpp[o.userId] = label((1 - mySide) as 0 | 1);
+    footer = s.lastShot ? <p className="text-center text-xs text-white/75">{s.lastShot.message}</p> : null;
+  }
+
   const timer = (
     <p className={`flex items-center justify-center gap-1.5 text-xs font-semibold ${secs <= 10 ? "text-[#F59E0B]" : "text-white/70"}`}>
       <Clock size={14} /> {myTurn ? `Your turn · ${secs}s` : turn ? `Opponent's turn · ${secs}s` : "Starting…"}
@@ -198,9 +213,9 @@ export function LiveMatch({ roomId }: { roomId: string }) {
 
   return (
     <GameShell
-      title={game === "ludo" ? "Ludo" : "Igisoro"}
-      icon={game === "ludo" ? DieIcon : SeedsIcon}
-      color={game === "ludo" ? "#FF8A1F" : "#27AE60"}
+      title={game === "ludo" ? "Ludo" : game === "pool" ? "8-Ball Pool" : "Igisoro"}
+      icon={game === "ludo" ? DieIcon : game === "pool" ? PoolBallIcon : SeedsIcon}
+      color={game === "ludo" ? "#FF8A1F" : game === "pool" ? "#2F80ED" : "#27AE60"}
       pot={stake * 2}
       mode="Live match"
       onLeave={() => {

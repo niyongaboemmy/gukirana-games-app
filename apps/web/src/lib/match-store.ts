@@ -1,7 +1,7 @@
 "use client";
 import { create } from "zustand";
 
-export type GameId = "igisoro" | "ludo";
+export type GameId = "igisoro" | "ludo" | "pool";
 export const STAKES = [0, 25, 50, 100, 200] as const;
 
 export interface IncomingProposal {
@@ -22,7 +22,7 @@ interface MatchState {
 
 export const useMatch = create<MatchState>()(() => ({ incoming: [], outgoing: null, quick: { status: "idle" }, ready: null, notice: null }));
 
-export const GAME_LABEL: Record<GameId, string> = { igisoro: "Igisoro", ludo: "Ludo" };
+export const GAME_LABEL: Record<GameId, string> = { igisoro: "Igisoro", ludo: "Ludo", pool: "8-Ball Pool" };
 const REASONS: Record<string, string> = {
   INSUFFICIENT_FUNDS: "Not enough Stars for that stake.",
   LOGIN_REQUIRED: "Sign in to challenge players.",

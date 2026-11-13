@@ -21,7 +21,9 @@ const keys = new Set<string>();
 export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExit: () => void; tier: "lite" | "standard" }) {
   const group = useRef<THREE.Group>(null);
   const anim = useRef(0);
-  const pos = useRef(new THREE.Vector3(layout.spawn.x + (Math.random() - 0.5) * 1.5, 0, layout.spawn.z));
+  // arrive OUTSIDE the entrance: the glass doors slide open as you walk up, then you step inside
+  const pos = useRef(new THREE.Vector3(layout.door.x + (Math.random() - 0.5) * 0.8, 0, layout.size.d / 2 + 3.2));
+  const insideOnce = useRef(false);
   const facing = useRef(Math.PI); // facing into the room (−z)
   const exited = useRef(false);
   const { camera, gl } = useThree();
@@ -122,12 +124,22 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
           else pos.current.z = t.z + Math.sign(dz || 1) * hz;
         }
       }
-      // walls; the south wall opens where the auto door is
-      const inDoor = Math.abs(pos.current.x - layout.door.x) < layout.door.w / 2 - 0.3 && R.doorOpen;
-      pos.current.x = THREE.MathUtils.clamp(pos.current.x, -w / 2 + 0.4, w / 2 - 0.4);
-      pos.current.z = Math.max(pos.current.z, -d / 2 + 0.5);
-      if (!inDoor) pos.current.z = Math.min(pos.current.z, d / 2 - 0.4);
-      if (inDoor && pos.current.z > d / 2 + 0.3 && !exited.current) {
+      // walls; the south wall only opens where the auto door is (and only while it is open)
+      const outside = pos.current.z > d / 2;
+      const inDoorway = Math.abs(pos.current.x - layout.door.x) < layout.door.w / 2 - 0.3;
+      if (outside) {
+        // entrance porch in front of the door
+        pos.current.x = THREE.MathUtils.clamp(pos.current.x, layout.door.x - 2.6, layout.door.x + 2.6);
+        pos.current.z = Math.min(pos.current.z, d / 2 + 4.2);
+        if (pos.current.z < d / 2 + 0.35 && !(inDoorway && R.doorOpen)) pos.current.z = d / 2 + 0.35;
+      } else {
+        insideOnce.current ||= pos.current.z < d / 2 - 1.2;
+        pos.current.x = THREE.MathUtils.clamp(pos.current.x, -w / 2 + 0.4, w / 2 - 0.4);
+        pos.current.z = Math.max(pos.current.z, -d / 2 + 0.5);
+        if (!(inDoorway && R.doorOpen)) pos.current.z = Math.min(pos.current.z, d / 2 - 0.4);
+      }
+      // walking back out through the door (after having been inside) returns to the plaza
+      if (insideOnce.current && pos.current.z > d / 2 + 2.4 && !exited.current) {
         exited.current = true;
         onExit();
       }
@@ -155,8 +167,9 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       cy = 1.6 + Math.sin(cameraState.pitch) * dd;
     }
     // keep the camera inside the room
-    cx = THREE.MathUtils.clamp(cx, -w / 2 + 0.3, w / 2 - 0.3);
-    cz = THREE.MathUtils.clamp(cz, -d / 2 + 0.3, d / 2 - 0.35); // never behind the door header
+    cx = pos.current.z > d / 2 - 0.5 ? THREE.MathUtils.clamp(cx, layout.door.x - 5, layout.door.x + 5) : THREE.MathUtils.clamp(cx, -w / 2 + 0.3, w / 2 - 0.3);
+    // inside: never behind the door header; on the porch the camera may stand outside
+    cz = pos.current.z > d / 2 - 0.5 ? Math.min(cz, d / 2 + 7) : THREE.MathUtils.clamp(cz, -d / 2 + 0.3, d / 2 - 0.35);
     cy = Math.min(cy, layout.size.h - 0.3);
     camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * 6));
     camera.lookAt(target);

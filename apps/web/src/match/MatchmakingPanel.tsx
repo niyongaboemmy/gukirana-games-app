@@ -7,11 +7,12 @@ import { useWorld } from "@/lib/world-store";
 import { GAME_LABEL, STAKES, useMatch, type GameId } from "@/lib/match-store";
 import { propose, quickMatchJoin, quickMatchLeave, respondProposal } from "@/lib/realtime";
 import { useSession } from "@/lib/session";
-import { DieIcon, SeedsIcon } from "@/ui/game-icons";
+import { DieIcon, PoolBallIcon, SeedsIcon } from "@/ui/game-icons";
 
 const GAMES: { id: GameId; icon: typeof DieIcon; color: string }[] = [
   { id: "igisoro", icon: SeedsIcon, color: "#27AE60" },
   { id: "ludo", icon: DieIcon, color: "#FF8A1F" },
+  { id: "pool", icon: PoolBallIcon, color: "#2F80ED" },
 ];
 
 function useCountdown(until?: number) {
@@ -32,7 +33,7 @@ function GameStakePicker({ onConfirm, confirmLabel, onCancel }: { onConfirm: (g:
   const stars = useSession((s) => s.me?.stars ?? 0);
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {GAMES.map((g) => (
           <button key={g.id} type="button" onClick={() => setGame(g.id)} className={`flex items-center gap-2 rounded-xl border-2 px-3 py-2.5 font-semibold transition ${game === g.id ? "border-white bg-white/10" : "border-white/10"}`}>
             <span className="grid size-8 place-items-center rounded-lg" style={{ background: `${g.color}33`, color: g.color }}><g.icon size={18} /></span>

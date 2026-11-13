@@ -160,6 +160,9 @@ importers:
       '@gukirana/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@gukirana/pool':
+        specifier: workspace:*
+        version: link:../../packages/games/pool
       '@gukirana/signing':
         specifier: workspace:*
         version: link:../../packages/signing
@@ -197,6 +200,9 @@ importers:
       '@gukirana/money':
         specifier: workspace:*
         version: link:../../packages/money
+      '@gukirana/pool':
+        specifier: workspace:*
+        version: link:../../packages/games/pool
       '@gukirana/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -354,6 +360,22 @@ importers:
         version: link:../../tsconfig
 
   packages/games/ludo:
+    dependencies:
+      '@gukirana/game-kit':
+        specifier: workspace:*
+        version: link:../../game-kit
+      zod:
+        specifier: ^4.1.12
+        version: 4.6.7
+    devDependencies:
+      '@gukirana/fairness':
+        specifier: workspace:*
+        version: link:../../fairness
+      '@gukirana/tsconfig':
+        specifier: workspace:*
+        version: link:../../tsconfig
+
+  packages/games/pool:
     dependencies:
       '@gukirana/game-kit':
         specifier: workspace:*

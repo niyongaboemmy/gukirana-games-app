@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { ContactShadows, Environment, Lightformer, RoundedBox, Text } from "@react-three/drei";
+import { ContactShadows, Environment, Lightformer, RoundedBox, Sky, Text } from "@react-three/drei";
 import type * as THREE from "three";
 import { selfPose } from "@/lib/world-store";
 import { useRoom } from "./room-store";
@@ -348,13 +348,13 @@ export function RoomScene({ layout, lite }: { layout: HallLayout; lite: boolean 
       {/* south wall with the entrance door opening */}
       <group position={[0, h / 2, d / 2]} rotation={[0, Math.PI, 0]}>
         {[-1, 1].map((s) => (
-          <mesh key={s} position={[s * (half + seg / 2), 0, 0]} receiveShadow>
-            <planeGeometry args={[seg, h]} />
+          <mesh key={s} position={[s * (half + seg / 2), 0, -0.15]} receiveShadow castShadow>
+            <boxGeometry args={[seg, h, 0.3]} />
             <meshStandardMaterial map={wall} color={wallColor} roughness={0.85} />
           </mesh>
         ))}
-        <mesh position={[0, 1.45, 0]}>
-          <planeGeometry args={[layout.door.w, h - 2.9]} />
+        <mesh position={[0, 1.45, -0.15]}>
+          <boxGeometry args={[layout.door.w, h - 2.9, 0.3]} />
           <meshStandardMaterial map={wall} color={wallColor} roughness={0.85} />
         </mesh>
         {/* live screen beside the door */}
@@ -370,11 +370,46 @@ export function RoomScene({ layout, lite }: { layout: HallLayout; lite: boolean 
         </Text>
       </group>
       <AutoDoor x={layout.door.x} z={d / 2 - 0.05} w={layout.door.w} color={layout.color} />
-      {/* outside the door: a glimpse of the plaza */}
-      <mesh position={[0, 0.001, d / 2 + 2]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[6, 4]} />
-        <meshStandardMaterial color="#cfd3dc" roughness={0.8} />
+      {/* ---- exterior: facade, porch, canopy, sign (you arrive here and walk in) ---- */}
+      <Sky distance={300} sunPosition={[30, 18, 40]} turbidity={3} rayleigh={0.8} />
+      <mesh position={[0, -0.01, d / 2 + 12]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[60, 24]} />
+        <meshStandardMaterial color="#c9ccd3" roughness={0.85} />
       </mesh>
+      <mesh position={[0, -0.02, d / 2 + 40]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[200, 40]} />
+        <meshStandardMaterial color="#5e9a55" roughness={1} />
+      </mesh>
+      {/* facade cladding (outer skin) with the door opening */}
+      {[-1, 1].map((s) => (
+        <mesh key={`f${s}`} position={[s * (half + seg / 2), h / 2, d / 2 + 0.02]} castShadow>
+          <boxGeometry args={[seg, h + 0.6, 0.06]} />
+          <meshStandardMaterial map={g === "igisoro" ? frieze : undefined} color={g === "pool" ? "#23262f" : g === "ludo" ? "#d7c5a6" : "#ffffff"} roughness={0.6} metalness={g === "pool" ? 0.4 : 0} />
+        </mesh>
+      ))}
+      <mesh position={[0, h - 0.7 + 0.3, d / 2 + 0.02]}>
+        <boxGeometry args={[layout.door.w, 2.0, 0.06]} />
+        <meshStandardMaterial color={g === "pool" ? "#23262f" : g === "ludo" ? "#d7c5a6" : "#ffffff"} roughness={0.6} />
+      </mesh>
+      {/* canopy + LED edge */}
+      <mesh position={[layout.door.x, 3.15, d / 2 + 1.4]} castShadow>
+        <boxGeometry args={[layout.door.w + 2.4, 0.16, 2.8]} />
+        <meshStandardMaterial color="#2a2d3a" metalness={0.6} roughness={0.35} />
+      </mesh>
+      <mesh position={[layout.door.x, 3.06, d / 2 + 2.8]}>
+        <boxGeometry args={[layout.door.w + 2.4, 0.05, 0.05]} />
+        <meshBasicMaterial color={layout.color} toneMapped={false} />
+      </mesh>
+      {/* illuminated sign above the entrance */}
+      <Text font={FONT} fontSize={0.7} position={[layout.door.x, 3.9, d / 2 + 0.1]} color="#ffffff" anchorX="center" anchorY="middle" outlineWidth={0.02} outlineColor={layout.color}>
+        {layout.title.toUpperCase()}
+      </Text>
+      <Text font={FONT} fontSize={0.22} position={[layout.door.x, 2.7, d / 2 + 2.85]} color="#ffffff" anchorX="center" anchorY="middle">
+        WALK IN · DOORS OPEN AUTOMATICALLY
+      </Text>
+      {/* entrance planters */}
+      <Plant x={layout.door.x - 2.4} z={d / 2 + 1.0} s={1.2} />
+      <Plant x={layout.door.x + 2.4} z={d / 2 + 1.0} s={1.2} />
 
       {/* tables + seats */}
       {layout.tables.map((t) =>

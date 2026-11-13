@@ -2,10 +2,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Armchair, Bot, ChevronLeft, Loader2, Star, Users, X, Zap } from "lucide-react";
+import { Armchair, Bot, ChevronLeft, Loader2, Mic, Star, Swords, Users, X, Zap } from "lucide-react";
 import { useWorld } from "@/lib/world-store";
 import { useMatch, STAKES } from "@/lib/match-store";
-import { quickMatchJoin, quickMatchLeave } from "@/lib/realtime";
+import { propose, quickMatchJoin, quickMatchLeave } from "@/lib/realtime";
+import { useVoice } from "@/voice/voice";
 import { useSession } from "@/lib/session";
 import { useRoom } from "./room-store";
 import { getUp, sitDown } from "./RoomPlayer";
@@ -25,7 +26,16 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
   const authed = useSession((s) => s.status === "authenticated");
   const stars = useSession((s) => s.me?.stars ?? 0);
   const [stake, setStake] = useState(25);
-  const livePlay = layout.game !== "pool"; // live Pool needs the deterministic physics engine (P1-POOL-01)
+  const players = useWorld((s) => s.players);
+  const talking = useVoice((s) => s.talking);
+  const [peopleOpen, setPeopleOpen] = useState(true);
+  const [challenge, setChallenge] = useState<{ id: string; name: string } | null>(null);
+  const seatOf = (id: string) => {
+    const seatId = Object.entries(seats).find(([, sid]) => sid === id)?.[0];
+    return seatId ? Number(seatId.slice(1, seatId.indexOf("s"))) + 1 : null;
+  };
+  const people = Object.values(players).sort((a, b) => a.name.localeCompare(b.name));
+  const livePlay = true; // all three halls support live matches (Pool via the deterministic integer engine)
 
   // the server refused our chair (someone sat first) → stand back up
   useEffect(() => {
@@ -62,6 +72,72 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
         </div>
       </div>
 
+      {/* people in this room: decide who to play with */}
+      <div className="absolute left-[max(12px,env(safe-area-inset-left))] top-[136px] w-[min(260px,40vw)]">
+        <button type="button" onClick={() => setPeopleOpen((v) => !v)} className={`${glass} pointer-events-auto flex w-full items-center gap-2 px-3 py-2 text-sm font-bold`}>
+          <Users size={16} style={{ color: layout.color }} /> In this room · {people.length + 1}
+          <span className="ml-auto text-xs text-white/50">{peopleOpen ? "Hide" : "Show"}</span>
+        </button>
+        {peopleOpen && (
+          <div className={`${glass} pointer-events-auto mt-1.5 max-h-[38vh] overflow-y-auto p-1.5`}>
+            {people.length === 0 && <p className="px-2 py-3 text-xs text-white/60">Nobody else here yet. Sit at a table and find an opponent, or invite a friend.</p>}
+            {people.map((p) => {
+              const table = seatOf(p.id);
+              return (
+                <div key={p.id} className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-white/5">
+                  <span className="relative grid size-8 shrink-0 place-items-center rounded-full text-xs font-black" style={{ background: p.color }}>
+                    {p.name.slice(0, 1).toUpperCase()}
+                    {talking[p.id] && <Mic size={11} className="absolute -bottom-0.5 -right-0.5 rounded-full bg-[#22C55E] p-0.5 text-white" />}
+                  </span>
+                  <div className="min-w-0 flex-1 leading-tight">
+                    <p className="truncate text-sm font-semibold">{p.name}</p>
+                    <p className="text-[11px] text-white/55">Lvl {p.level} · {table ? `seated at table ${table}` : "walking"}</p>
+                  </div>
+                  {p.verified && authed && (
+                    <button type="button" onClick={() => setChallenge({ id: p.id, name: p.name })} className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold" style={{ background: `${layout.color}33`, color: "#fff" }}>
+                      <Swords size={12} /> Play
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* challenge someone in the room: choose the stake (game = this hall) */}
+      {challenge && (
+        <div className="pointer-events-auto absolute inset-0 grid place-items-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setChallenge(null)}>
+          <div className={`${glass} w-[min(400px,94vw)] p-5`} onClick={(e) => e.stopPropagation()}>
+            <p className="mb-1 flex items-center gap-2 text-lg font-extrabold">
+              <Swords size={20} style={{ color: layout.color }} /> Play {challenge.name}
+            </p>
+            <p className="mb-3 text-sm text-white/60">{layout.title} · the server holds both stakes in escrow and pays the winner 2×.</p>
+            <div className="mb-4 flex flex-wrap gap-1.5">
+              {STAKES.map((s) => (
+                <button key={s} type="button" disabled={s > stars} onClick={() => setStake(s)} className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-bold disabled:opacity-30 ${stake === s ? "bg-[#7CC4FF] text-[#0b0d1a]" : "bg-white/10"}`}>
+                  {s === 0 ? "Friendly" : <>{s} <Star size={12} className="fill-current" /></>}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setChallenge(null)} className="flex-1 rounded-xl bg-white/10 py-2.5 font-semibold">Cancel</button>
+              <button
+                type="button"
+                onClick={() => {
+                  propose(challenge.id, layout.game, stake);
+                  setChallenge(null);
+                }}
+                className="flex-1 rounded-xl py-2.5 font-extrabold"
+                style={{ background: layout.color }}
+              >
+                Send challenge
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* sit prompt */}
       {nearSeat && !seated && (
         <div className="absolute bottom-[34%] left-1/2 -translate-x-1/2">
@@ -93,7 +169,7 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
                 <Bot size={18} /> Practice vs AI
               </button>
               {livePlay && authed ? (
-                <button type="button" onClick={() => quickMatchJoin(layout.game as "igisoro" | "ludo", stake)} className="flex items-center justify-center gap-2 rounded-xl py-3 font-extrabold" style={{ background: layout.color }}>
+                <button type="button" onClick={() => quickMatchJoin(layout.game, stake)} className="flex items-center justify-center gap-2 rounded-xl py-3 font-extrabold" style={{ background: layout.color }}>
                   <Zap size={18} /> Find an opponent
                 </button>
               ) : (

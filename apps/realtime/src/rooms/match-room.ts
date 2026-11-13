@@ -3,6 +3,7 @@ import { createFairRng, commitSeed, newSeed, type FairRng } from "@gukirana/fair
 import type { GameModule } from "@gukirana/game-kit";
 import { igisoroModule } from "@gukirana/igisoro";
 import { ludoModule } from "@gukirana/ludo";
+import { poolModule } from "@gukirana/pool";
 import { keyFromSeed, signResult } from "@gukirana/signing";
 import { loadEnv } from "@gukirana/config";
 import { createLogger } from "@gukirana/observability";
@@ -17,7 +18,7 @@ const RECONNECT_S = 60;
 const MAX_STRIKES = 3;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const MODULES: Record<string, GameModule<any, any, any>> = { igisoro: igisoroModule, ludo: ludoModule };
+const MODULES: Record<string, GameModule<any, any, any>> = { igisoro: igisoroModule, ludo: ludoModule, pool: poolModule };
 
 export interface MatchPlayerInfo {
   userId: string;
@@ -29,7 +30,7 @@ export interface MatchPlayerInfo {
 
 export interface MatchOptions {
   matchId: string;
-  game: "igisoro" | "ludo";
+  game: "igisoro" | "ludo" | "pool";
   variant: string;
   stake: number;
   players: MatchPlayerInfo[];

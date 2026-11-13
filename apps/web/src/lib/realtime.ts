@@ -76,7 +76,7 @@ export async function connectPlaza(
         notice: s.outgoing?.id === m.id || m.reason !== "EXPIRED" ? reasonText(m.reason) : s.notice,
       })),
     );
-    room.onMessage("quickmatch", (m: { status: "idle" | "waiting" | "error"; game?: "igisoro" | "ludo"; stake?: number; reason?: string }) =>
+    room.onMessage("quickmatch", (m: { status: "idle" | "waiting" | "error"; game?: "igisoro" | "ludo" | "pool"; stake?: number; reason?: string }) =>
       useMatch.setState({ quick: m, notice: m.status === "error" ? reasonText(m.reason) : null }),
     );
     room.onMessage("match-ready", (m) => useMatch.setState({ ready: m, incoming: [], outgoing: null, quick: { status: "idle" } }));
@@ -109,11 +109,11 @@ export function sendMove(x: number, z: number, yaw: number, anim: number): void 
 export const sendChat = (text: string) => room?.send("chat", { text });
 export const sitAt = (seat: string) => room?.send("sit", { seat });
 export const standUp = () => room?.send("stand");
-export const propose = (to: string, game: "igisoro" | "ludo", stake: number) => room?.send("propose", { to, game, stake });
+export const propose = (to: string, game: "igisoro" | "ludo" | "pool", stake: number) => room?.send("propose", { to, game, stake });
 export const respondProposal = (id: string, accept: boolean) => {
   room?.send("proposal-respond", { id, accept });
   useMatch.setState((s) => ({ incoming: s.incoming.filter((x) => x.id !== id) }));
 };
-export const quickMatchJoin = (game: "igisoro" | "ludo", stake: number) => room?.send("quickmatch-join", { game, stake });
+export const quickMatchJoin = (game: "igisoro" | "ludo" | "pool", stake: number) => room?.send("quickmatch-join", { game, stake });
 export const quickMatchLeave = () => room?.send("quickmatch-leave");
 export const sendEmote = (emote: number) => room?.send("emote", { emote });
