@@ -133,3 +133,14 @@ Press **B**, or tap the Stars chip, to open it. Your person takes out a leather 
 - the daily claim.
 
 Adding funds and cash-out appear only when the licensed pilot is enabled for the player. Payments are never simulated.
+
+## 7. Added since: rewards, quotes, responsible play, back office
+
+- **Streak bonus:** each consecutive Kigali day with a claim adds `streakStars` (+20 → +100), posted as `stars_streak`.
+- **Level-up gift:** `levelUpStars` per level reached, posted once per level (`levelup:<user>:<level>`).
+- **`POST /wallet/quote`** `{kind: buy|cashout, currency, amount}` returns an honest breakdown (pay / get / fee / exchange margin) and the rate version. Executing a buy or cash-out is the **remaining payment-provider integration**.
+- **Responsible play:** `GET/PUT /wallet/limits`, `POST /wallet/break`. The server enforces these before any stake is locked:
+  - **Daily stake limit:** lowering it is immediate; raising it only after 24 h.
+  - **Play-time reminder:** off, or every 30, 60, 90 or 120 min.
+  - **Take a break:** 1, 7 or 30 days. It can't be shortened, and practice stays open.
+- **Back office:** `apps/admin` → `/finance` shows the reports, reconciliation, CSV export and the versioned settings editor (publish with a change note).
