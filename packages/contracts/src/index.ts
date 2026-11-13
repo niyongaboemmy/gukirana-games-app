@@ -36,3 +36,4 @@ export const ProposalSchema = z.object({
 export type Proposal = z.infer<typeof ProposalSchema>;
 
 export * from "./social.js";
+export * from "./offices.js";
