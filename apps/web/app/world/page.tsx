@@ -22,6 +22,16 @@ export default function WorldPage() {
   const router = useRouter();
   const profile = useProfile();
   const [ready, setReady] = useState(false);
+  // fade in from black only when stepping out of a hall (the gate hand-off stays seamless)
+  const [fromRoom] = useState(() => {
+    try {
+      const v = typeof window !== "undefined" && sessionStorage.getItem("gk-from-room") === "1";
+      if (v) sessionStorage.removeItem("gk-from-room");
+      return v;
+    } catch {
+      return false;
+    }
+  });
   const session = useSession();
 
   useEffect(() => {
@@ -47,6 +57,7 @@ export default function WorldPage() {
       <WorldCanvas profile={{ name: profile.name, color: profile.color, level: levelForXp(profile.xp) }} />
       <WorldHud />
       <MatchmakingPanel />
+      {fromRoom && <div className="gk-fade-in pointer-events-none fixed inset-0 z-50 bg-black" aria-hidden />}
       <WorldControls />
       <RotateGuard />
     </div>

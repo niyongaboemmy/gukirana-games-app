@@ -24,7 +24,7 @@ import { useWorld } from "@/lib/world-store";
 import { lookOf, useProfile } from "@/lib/profile-store";
 import { sendMove } from "@/lib/realtime";
 import { selfPose } from "@/lib/world-store";
-import { saveWorldPose, takeWorldPose } from "@/lib/return-point";
+import { saveDoorPose, takeWorldPose } from "@/lib/return-point";
 import { autoFollow, nav, pointerNav, steer, TargetMarker } from "./navigation";
 import { useVoice } from "@/voice/voice";
 
@@ -79,6 +79,13 @@ export function LocalPlayer({
     restored.current ? new THREE.Vector3(restored.current.x, 0, restored.current.z) : spawnPoint(name),
   );
   const facing = useRef(restored.current?.yaw ?? Math.PI);
+  const stepOut = useRef(restored.current?.fromDoor ? 1.6 : 0);
+  /** don't pull the player straight back through the door they just came out of */
+  const reentryAfter = useRef(restored.current?.fromDoor ? performance.now() + 2500 : 0);
+  if (restored.current?.fromDoor && typeof window !== "undefined") {
+    cameraState.yaw = (restored.current.yaw ?? 0) + Math.PI; // behind the player, between them and the hall
+    cameraState.distance = Math.min(cameraState.distance, 4.2); // stays in front of the facade
+  }
   const lookAt = useRef<THREE.Vector3 | null>(null);
   const lookTarget = useMemo(() => new THREE.Vector3(), []);
   const { camera, gl } = useThree();
@@ -136,7 +143,15 @@ export function LocalPlayer({
     // run only on purpose (Run button / Shift) — never just because the joystick hits its edge
     const run = w.input.run || keys.has("ShiftLeft") || keys.has("ShiftRight");
     const entering = useTransition.getState().entering;
-    if (!inXR && !entering) {
+    if (!inXR && !entering && stepOut.current > 0 && !keys.size && Math.hypot(w.input.x, w.input.y) < 0.1 && !nav.target) {
+      // stepping out of a hall: a few natural steps towards the plaza while the door closes behind
+      stepOut.current -= dt;
+      const sp = 1.35 * Math.min(1, stepOut.current / 0.4 + 0.2);
+      pos.current.x += Math.sin(facing.current) * sp * dt;
+      pos.current.z += Math.cos(facing.current) * sp * dt;
+      anim.current = stepOut.current > 0.05 ? 1 : 0;
+    } else if (!inXR && !entering) {
+      stepOut.current = 0;
       const s = steer({
         keys,
         joyX: w.input.x,
@@ -170,10 +185,10 @@ export function LocalPlayer({
       if (lateral < DOOR.w / 2 - 0.35 && pos.current.x * Math.sin(a) - pos.current.z * Math.cos(a) > 0) {
         limit = DOOR_RING + 0.4;
         // crossing the threshold of an open door: fade and go inside (no button needed; E stays as a fallback)
-        if (r > DOOR_RING - 0.9 && !entering) {
+        if (r > DOOR_RING - 0.9 && !entering && performance.now() > reentryAfter.current) {
           // coming back from the room puts you just outside this door, facing the plaza
-          Object.assign(selfPose, { x: Math.sin(a) * (PLAZA_RADIUS - 1.5), z: -Math.cos(a) * (PLAZA_RADIUS - 1.5), yaw: -a });
-          saveWorldPose();
+          // a few steps out from the door (camera stays on the plaza side, no prompt to walk straight back in)
+          saveDoorPose({ x: Math.sin(a) * (DOOR_RING - 4.5), z: -Math.cos(a) * (DOOR_RING - 4.5), yaw: -a });
           useTransition.getState().enter(p.href);
         }
       }
@@ -211,7 +226,13 @@ export function LocalPlayer({
     let nearPortal: (typeof PORTALS)[number]["id"] | null = null;
     for (const p of PORTALS) {
       const t = portalTransform(p);
-      if (Math.hypot(t.entryX - pos.current.x, t.entryZ - pos.current.z) < INTERACT_RADIUS) nearPortal = p.id;
+      if (Math.hypot(t.entryX - pos.current.x, t.entryZ - pos.current.z) >= INTERACT_RADIUS) continue;
+      // no "Enter …" prompt while stepping out of a hall or when walking away from that door
+      if (performance.now() < reentryAfter.current) continue;
+      const towardX = t.entryX - pos.current.x;
+      const towardZ = t.entryZ - pos.current.z;
+      const facingDoor = Math.sin(facing.current) * towardX + Math.cos(facing.current) * towardZ > -0.2;
+      if (facingDoor) nearPortal = p.id;
     }
     // nearest verified player within reach (players without the field — older servers — count as eligible)
     let nearPlayer: string | null = null;

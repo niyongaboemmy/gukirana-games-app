@@ -59,9 +59,23 @@ export function takeReturnFor(path: string): ReturnPoint | null {
   return r;
 }
 
+/** Set when the player walks through an arena door: the spot just outside that door must not be overwritten. */
+let doorPoseLocked = false;
+
 /** The plaza always remembers the last position (e.g. outside the door you walked into). */
-export const saveWorldPose = () => write(WORLD_KEY, { x: selfPose.x, z: selfPose.z, yaw: selfPose.yaw, at: Date.now() });
-export function takeWorldPose(): Pose | null {
+export const saveWorldPose = () => {
+  if (doorPoseLocked) return;
+  write(WORLD_KEY, { x: selfPose.x, z: selfPose.z, yaw: selfPose.yaw, at: Date.now() });
+};
+
+/** Walking into a hall: come back just outside this door, facing the plaza. */
+export function saveDoorPose(p: Pose) {
+  write(WORLD_KEY, { ...p, fromDoor: true, at: Date.now() });
+  doorPoseLocked = true;
+}
+
+export function takeWorldPose(): (Pose & { fromDoor?: boolean }) | null {
+  doorPoseLocked = false;
   const game = read<ReturnPoint>(GAME_KEY);
   if (game?.path === "/world") {
     try {
@@ -71,5 +85,7 @@ export function takeWorldPose(): Pose | null {
     }
     return game;
   }
-  return read<Pose>(WORLD_KEY);
+  const p = read<Pose & { fromDoor?: boolean }>(WORLD_KEY);
+  if (p?.fromDoor) write(WORLD_KEY, { ...p, fromDoor: false }); // the step-out plays once
+  return p;
 }

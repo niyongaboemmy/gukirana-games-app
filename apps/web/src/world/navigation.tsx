@@ -16,6 +16,9 @@ export const nav = {
   target: null as { x: number; z: number } | null,
 };
 
+// dev-only hook for automated walk-through tests (like window.__gkCam)
+if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") (window as unknown as { __gkNav: typeof nav }).__gkNav = nav;
+
 const TURN_RATE = 2.4; // rad/s for keyboard turning
 const ARRIVE = 0.3; // m
 

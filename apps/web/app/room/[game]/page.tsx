@@ -26,6 +26,7 @@ export default function RoomPage() {
   const session = useSession();
   const profile = useProfile();
   const [ready, setReady] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   useEffect(() => setReady(true), []);
 
   useEffect(() => {
@@ -42,13 +43,25 @@ export default function RoomPage() {
   const layout = HALLS[game];
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#0b0d1a]">
-      <RoomCanvas layout={layout} onExit={() => router.push("/world")} />
+      <RoomCanvas
+        layout={layout}
+        onExit={() => {
+          setLeaving(true); // fade out as you step through the door, then the plaza fades in outside it
+          try {
+            sessionStorage.setItem("gk-from-room", "1");
+          } catch {
+            /* private mode */
+          }
+          setTimeout(() => router.push("/world"), 650);
+        }}
+      />
       <WorldHud />
       <MatchmakingPanel />
       <WorldControls />
       <RoomOverlay layout={layout} />
       <RotateGuard />
       <div className="gk-fade-in pointer-events-none fixed inset-0 z-50 bg-black" aria-hidden />
+      <div className="pointer-events-none fixed inset-0 z-50 bg-black transition-opacity duration-500" style={{ opacity: leaving ? 1 : 0 }} aria-hidden />
     </div>
   );
 }
