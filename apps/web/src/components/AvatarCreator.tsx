@@ -68,7 +68,7 @@ function Chip({ active, onClick, children, label }: { active: boolean; onClick: 
       aria-label={label}
       onClick={onClick}
       className={`press relative flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm font-semibold ${
-        active ? "border-accent bg-primary/25 text-white shadow-[0_0_0_3px_rgb(96_165_250/.15)]" : "border-white/12 bg-white/5 text-white/85 hover:bg-white/10"
+        active ? "border-[#7a5638] bg-[#7a5638]/90 text-[#fbf3e6] shadow-[0_0_0_3px_rgb(201_162_39/.35)]" : "border-[rgb(70_50_25/.16)] bg-white/60 text-[#3a3228] hover:bg-white/85"
       }`}
     >
       {children}
@@ -84,7 +84,7 @@ function ItemGrid({ slot, look, showAll, onPick }: { slot: Slot; look: AvatarLoo
     <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
       {list.map(({ item, suggested }) => (
         <Chip key={item.id} active={current === item.id} onClick={() => onPick(item.id)}>
-          {item.kind !== "none" && <span className="size-6 shrink-0 rounded-md border border-white/20" style={swatchStyle(item, look.accent)} />}
+          {item.kind !== "none" && <span className="size-6 shrink-0 rounded-md border border-black/20" style={swatchStyle(item, look.accent)} />}
           <span className="min-w-0">
             <span className="block truncate">{item.label}</span>
             {showAll && suggested && (
@@ -109,7 +109,7 @@ function Swatches({ colors, value, onPick, round = true }: { colors: string[]; v
           aria-label={`Colour ${c}`}
           aria-pressed={value === c}
           onClick={() => onPick(c)}
-          className={`press size-10 border-2 ${round ? "rounded-full" : "rounded-xl"} ${value === c ? "scale-110 border-white ring-4 ring-primary-400/45" : "border-white/20"}`}
+          className={`press size-10 border-2 ${round ? "rounded-full" : "rounded-xl"} ${value === c ? "scale-110 border-white ring-4 ring-[#7a5638]/45" : "border-black/15"}`}
           style={{ background: c }}
         />
       ))}
@@ -143,8 +143,8 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
 
   // portal: ancestors with backdrop-filter would otherwise trap `position: fixed`
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label={STR.title} className="scrim fixed inset-0 z-50 grid place-items-center bg-ink-950/75! p-2 sm:p-4">
-      <div className="grid h-full max-h-[720px] w-full max-w-5xl grid-rows-[minmax(0,38%)_minmax(0,1fr)] overflow-hidden rounded-3xl glass-elevated bg-ink-900/85! sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] sm:grid-rows-1 landscape:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] landscape:grid-rows-1">
+    <div role="dialog" aria-modal="true" aria-label={STR.title} className="pscrim z-50 grid place-items-center !bg-black/45 p-2 sm:p-4">
+      <div className="grid h-full max-h-[720px] w-full max-w-5xl grid-rows-[minmax(0,38%)_minmax(0,1fr)] pcard !grid overflow-hidden sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] sm:grid-rows-1 landscape:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] landscape:grid-rows-1">
         <div className="relative min-h-0 bg-[radial-gradient(ellipse_at_50%_35%,#2a2b2f_0%,var(--color-ink-900)_75%)]">
           <AvatarPreview look={look} emote={emote} />
           <button
@@ -155,21 +155,22 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
             <Hand size={14} strokeWidth={1.85} /> {STR.wave}
           </button>
         </div>
-        <div className="flex min-h-0 flex-col">
-          <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
-            <h2 className="text-lg font-extrabold">{STR.title}</h2>
-            <button type="button" onClick={onClose} aria-label={STR.cancel} className="btn-secondary grid size-9 place-items-center rounded-full">
+        <div className="relative flex min-h-0 flex-col">
+          <div className="pcard-head">
+            <span className="pcard-icon" aria-hidden><Shirt size={20} /></span>
+            <h2>{STR.title}</h2>
+            <button type="button" onClick={onClose} aria-label={STR.cancel} className="pcard-hbtn">
               <X size={18} strokeWidth={1.85} />
             </button>
           </div>
-          <nav className="flex gap-1 overflow-x-auto border-b border-white/10 px-3 py-2" aria-label="Avatar sections">
+          <nav className="flex gap-1.5 overflow-x-auto border-b border-[rgb(70_50_25/.14)] px-3 py-2.5" aria-label="Avatar sections">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setTab(t.id)}
                 aria-current={tab === t.id}
-                className={`press flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold ${tab === t.id ? "bg-primary text-white shadow-[inset_0_1px_0_rgb(255_255_255/.25),var(--shadow-glow)]" : "text-white/70 hover:bg-white/10"}`}
+                className={`ptab flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold ${tab === t.id ? "is-on" : ""}`}
               >
                 <t.icon size={15} strokeWidth={1.85} /> {t.label}
               </button>
@@ -177,25 +178,25 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
           </nav>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
             {garmentTab && (
-              <label className="flex w-fit cursor-pointer items-center gap-2 text-sm font-semibold text-white/80">
-                <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} className="size-4 accent-primary" />
+              <label className="flex w-fit cursor-pointer items-center gap-2 text-sm font-semibold text-[#3a3228]">
+                <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} className="size-4 accent-[#7a5638]" />
                 {STR.showAll}
               </label>
             )}
             {tab === "body" && (
               <>
-                <p className="text-sm text-white/65">{STR.bodyNote}</p>
+                <p className="text-sm pmuted">{STR.bodyNote}</p>
                 <div className="grid gap-2 sm:grid-cols-3">
                   {BODY_TYPES.map((b) => (
                     <Chip key={b.id} active={draft.bodyType === b.id} onClick={() => set({ bodyType: b.id })}>
                       <span>
                         <span className="block">{b.label}</span>
-                        <span className="block text-xs font-normal text-white/55">{BODY_TYPE_HINT[b.id]}</span>
+                        <span className="block text-xs font-normal pmuted">{BODY_TYPE_HINT[b.id]}</span>
                       </span>
                     </Chip>
                   ))}
                 </div>
-                <p className="pt-2 text-sm font-semibold text-white/80">{STR.accent}</p>
+                <p className="pt-2 text-sm font-semibold text-[#3a3228]">{STR.accent}</p>
                 <Swatches colors={AVATAR_COLORS} value={draft.accent} onPick={(accent) => set({ accent, topColor: undefined })} />
               </>
             )}
@@ -209,22 +210,22 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
                     </Chip>
                   ))}
                 </div>
-                <p className="text-sm font-semibold text-white/80">{STR.hairColour}</p>
+                <p className="text-sm font-semibold text-[#3a3228]">{STR.hairColour}</p>
                 <Swatches colors={HAIR_COLORS} value={draft.hairColor} onPick={(hairColor) => set({ hairColor })} />
               </>
             )}
             {(tab === "top" || tab === "bottom" || tab === "shoes") && <ItemGrid slot={tab} look={look} showAll={showAll} onPick={(id) => setItem(tab, id)} />}
             {tab === "extras" && (
               <>
-                <p className="text-sm font-semibold text-white/80">{STR.headwear}</p>
+                <p className="text-sm font-semibold text-[#3a3228]">{STR.headwear}</p>
                 <ItemGrid slot="headwear" look={look} showAll={showAll} onPick={(id) => setItem("headwear", id)} />
-                <p className="text-sm font-semibold text-white/80">{STR.accessory}</p>
+                <p className="text-sm font-semibold text-[#3a3228]">{STR.accessory}</p>
                 <ItemGrid slot="accessory" look={look} showAll={showAll} onPick={(id) => setItem("accessory", id)} />
               </>
             )}
           </div>
-          <div className="flex gap-2 border-t border-white/10 p-3">
-            <button type="button" onClick={onClose} className="press flex-1 rounded-xl border border-white/20 py-2.5 font-bold text-white/85 hover:bg-white/6">
+          <div className="relative flex gap-2 border-t border-[rgb(70_50_25/.14)] p-3">
+            <button type="button" onClick={onClose} className="pbtn pbtn-secondary flex-1">
               {STR.cancel}
             </button>
             <button
@@ -236,7 +237,7 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
                 onSaved?.(draft);
                 onClose();
               }}
-              className="btn-primary flex flex-[2] items-center justify-center gap-2 rounded-xl py-2.5 font-extrabold"
+              className="pbtn pbtn-primary flex-[2]"
             >
               <Check size={18} strokeWidth={2} /> {STR.save}
             </button>

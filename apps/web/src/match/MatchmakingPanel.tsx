@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, Loader2, Star, Swords, X, Zap } from "lucide-react";
 import { useWorld } from "@/lib/world-store";
 import { GAME_LABEL, STAKES, useMatch, type GameId } from "@/lib/match-store";
+import { PaperCard } from "@/ui/PaperCard";
 import { propose, quickMatchJoin, quickMatchLeave, respondProposal } from "@/lib/realtime";
 import { useSession } from "@/lib/session";
 import { DieIcon, PoolBallIcon, SeedsIcon } from "@/ui/game-icons";
@@ -42,26 +43,26 @@ function GameStakePicker({ onConfirm, confirmLabel, onCancel, initialGame = "igi
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-3 gap-2">
         {GAMES.map((g) => (
-          <button key={g.id} type="button" onClick={() => setGame(g.id)} className={`press flex min-h-12 items-center gap-2 rounded-xl border-2 px-3 py-2.5 font-semibold ${game === g.id ? "border-accent bg-primary/25 shadow-[0_0_0_3px_rgb(96_165_250/.18)]" : "border-white/10 bg-white/4 hover:bg-white/8"}`}>
+          <button key={g.id} type="button" onClick={() => setGame(g.id)} aria-pressed={game === g.id} className={`ptab min-h-12! justify-start! ${game === g.id ? "is-on" : ""}`}>
             <span className="grid size-8 place-items-center rounded-lg" style={{ background: `${g.color}33`, color: g.color }}><g.icon size={18} /></span>
             {GAME_LABEL[g.id]}
           </button>
         ))}
       </div>
       <div>
-        <p className="mb-1.5 text-xs label text-on-glass-muted">Stake each</p>
+        <p className="plabel mb-1.5">Stake each</p>
         <div className="flex flex-wrap gap-1.5">
           {STAKES.map((s) => (
-            <button key={s} type="button" disabled={s > stars} onClick={() => setStake(s)} className={`press flex min-h-10 items-center gap-1 rounded-full px-3.5 py-1.5 text-sm font-bold tabular-nums transition disabled:opacity-30 ${stake === s ? "bg-primary text-white shadow-[inset_0_1px_0_rgb(255_255_255/.28),var(--shadow-glow)]" : "btn-secondary"}`}>
+            <button key={s} type="button" disabled={s > stars} onClick={() => setStake(s)} className={`ptab num min-h-10! flex-none! rounded-full! px-3.5! text-sm! disabled:opacity-30 ${stake === s ? "is-on" : ""}`}>
               {s === 0 ? "Friendly" : <>{s} <Star size={12} className="fill-current" /></>}
             </button>
           ))}
         </div>
-        <p className="mt-2 text-xs text-on-glass-muted">{stake > 0 ? `Winner gets ${stake * 2} Stars. Stakes are held in escrow by the server.` : "No stake: just for fun and rating."}</p>
+        <p className="pmuted mt-2 text-xs">{stake > 0 ? `Winner gets ${stake * 2} Stars. Stakes are held in escrow by the server.` : "No stake: just for fun and rating."}</p>
       </div>
       <div className="flex gap-2">
-        <button type="button" onClick={onCancel} className="btn-secondary min-h-11 flex-1 rounded-xl py-2.5 font-semibold">Cancel</button>
-        <button type="button" disabled={!affordable} onClick={() => onConfirm(game, stake)} className="btn-primary min-h-11 flex-1 rounded-xl py-2.5 font-extrabold disabled:opacity-40">{confirmLabel}</button>
+        <button type="button" onClick={onCancel} className="pbtn pbtn-secondary flex-1">Cancel</button>
+        <button type="button" disabled={!affordable} onClick={() => onConfirm(game, stake)} className="pbtn pbtn-primary flex-1">{confirmLabel}</button>
       </div>
     </div>
   );
@@ -71,17 +72,17 @@ function IncomingCard({ p }: { p: ReturnType<typeof useMatch.getState>["incoming
   const left = useCountdown(p.expires);
   const g = GAMES.find((x) => x.id === p.game)!;
   return (
-    <div className="sheet pointer-events-auto w-[min(360px,90vw)] p-3">
-      <div className="flex items-center gap-3">
+    <div className="pcard pcard-sm pointer-events-auto w-[min(380px,92vw)] p-3">
+      <div className="relative flex items-center gap-3">
         <span className="grid size-11 place-items-center rounded-xl" style={{ background: `${g.color}33`, color: g.color }}><g.icon size={22} /></span>
         <div className="min-w-0 flex-1 leading-tight">
           <p className="truncate font-bold"><span style={{ color: p.from.color }}>{p.from.name}</span> challenges you</p>
-          <p className="flex items-center gap-1 text-sm text-on-glass-muted">{GAME_LABEL[p.game]} · {p.stake ? <>{p.stake} <Star size={12} className="fill-current" /> each</> : "Friendly"} · {left}s</p>
+          <p className="pmuted flex items-center gap-1 text-sm">{GAME_LABEL[p.game]} · {p.stake ? <>{p.stake} <Star size={12} className="fill-current" /> each</> : "Friendly"} · {left}s</p>
         </div>
       </div>
-      <div className="mt-3 flex gap-2">
-        <button type="button" onClick={() => respondProposal(p.id, false)} className="btn-secondary flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 font-semibold"><X size={16} /> Decline</button>
-        <button type="button" onClick={() => respondProposal(p.id, true)} className="btn-success flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 font-bold"><Check size={16} /> Accept</button>
+      <div className="relative mt-3 flex gap-2">
+        <button type="button" onClick={() => respondProposal(p.id, false)} className="pbtn pbtn-secondary min-h-11! flex-1"><X size={16} /> Decline</button>
+        <button type="button" onClick={() => respondProposal(p.id, true)} className="pbtn pbtn-success min-h-11! flex-1"><Check size={16} /> Accept</button>
       </div>
     </div>
   );
@@ -196,25 +197,23 @@ export function MatchmakingPanel() {
 
       {/* Sheets */}
       {sheet && (
-        <div className="scrim pointer-events-auto absolute inset-0 grid place-items-center p-4" onClick={() => setSheet(null)}>
-          <div className={`sheet w-[min(420px,94vw)] p-5 phone:max-h-[92vh] phone:overflow-y-auto phone:p-3.5`} onClick={(e) => e.stopPropagation()}>
-            <p className="mb-3 flex items-center gap-2 text-lg font-extrabold">
-              {sheet === "quick" ? <><Zap size={20} className="text-gold" /> Quick Match</> : <><Swords size={20} className="text-gold" /> Challenge {challengeTarget?.name}</>}
-            </p>
+        <div className="pscrim pointer-events-auto z-30 grid place-items-center p-4" onClick={() => setSheet(null)}>
+          <div className="w-[min(460px,94vw)]" onClick={(e) => e.stopPropagation()}>
+          <PaperCard title={sheet === "quick" ? "Quick Match" : `Challenge ${challengeTarget?.name ?? ""}`} icon={sheet === "quick" ? Zap : Swords} onClose={() => setSheet(null)} className="max-h-[92vh]">
             {sheet === "challenge" && (
               <div className="mb-3">
-                <p className="mb-1.5 text-xs label text-on-glass-muted">Player</p>
+                <p className="plabel mb-1.5">Player</p>
                 <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
                   {challengeable.map((p) => (
                     <button
                       key={p.id}
                       type="button"
                       onClick={() => setChallengeTarget({ id: p.id, name: p.name })}
-                      className={`press flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold ${challengeTarget?.id === p.id ? "border-accent bg-primary/25" : "border-white/15 hover:bg-white/8"}`}
+                      className={`ptab min-h-10! flex-none! rounded-full! px-3! text-sm! ${challengeTarget?.id === p.id ? "is-on" : ""}`}
                     >
                       <span className="size-2.5 rounded-full" style={{ background: p.color }} />
                       {p.name}
-                      <span className="text-xs text-on-glass-muted">Lvl {p.level}</span>
+                      <span className="text-xs opacity-70">Lvl {p.level}</span>
                     </button>
                   ))}
                 </div>
@@ -230,6 +229,7 @@ export function MatchmakingPanel() {
                 setSheet(null);
               }}
             />
+          </PaperCard>
           </div>
         </div>
       )}

@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Armchair, Mic, MicOff, Phone, PhoneOff, Users, X } from "lucide-react";
+import { PaperCard } from "@/ui/PaperCard";
+import { Armchair, Mic, MicOff, Phone, PhoneOff, Users } from "lucide-react";
 import { useWorld } from "@/lib/world-store";
 import { setCallMuted, useVoice } from "@/voice/voice";
 import { answerCall, hangUp } from "@/voice/call";
@@ -45,7 +46,7 @@ function CallBar() {
   );
   if (call.status === "incoming")
     return (
-      <div role="alertdialog" aria-label={`${peer.name} is calling you`} className={`${glass} pointer-events-auto flex w-[min(380px,92vw)] items-center gap-3 p-3`}>
+      <div role="alertdialog" aria-label={`${peer.name} is calling you`} className="pcard pcard-sm pointer-events-auto !flex-row w-[min(380px,92vw)] items-center gap-3 p-3">
         {dot}
         <div className="min-w-0 flex-1 leading-tight">
           <p className="truncate font-bold">{peer.name} is calling you</p>
@@ -118,36 +119,36 @@ function PeopleSheet() {
     .sort((a, b) => a.d - b.d);
   const close = () => useSocial.setState({ peopleOpen: false });
   return (
-    <div className="scrim pointer-events-auto fixed inset-0 z-30 flex items-start justify-start bg-ink-950/25! p-3 pt-[72px]" onClick={close}>
-      <div role="dialog" aria-label="People here" className={`${glass} max-h-[78vh] w-[min(320px,90vw)] overflow-y-auto p-2`} onClick={(e) => e.stopPropagation()}>
-        <div className="mb-1 flex items-center gap-2 px-2 py-1">
-          <Users size={16} />
-          <p className="flex-1 text-sm font-extrabold">People here · {people.length + 1}</p>
-          <button type="button" onClick={close} aria-label="Close" className="btn-secondary grid size-8 place-items-center rounded-lg">
-            <X size={16} />
-          </button>
-        </div>
-        {people.length === 0 && <p className="px-2 py-3 text-xs text-on-glass-muted">Nobody else is here right now.</p>}
-        {people.map(({ p, d }) => (
-          <button key={p.id} type="button" onClick={() => useSocial.setState({ menu: p.id, peopleOpen: false })} className="menu-item flex w-full items-center gap-2 px-2 py-1.5 text-left">
-            <span className="relative grid size-8 shrink-0 place-items-center rounded-full text-xs font-black" style={{ background: p.color }}>
-              {p.name.slice(0, 1).toUpperCase()}
-              {talking[p.id] && <Mic size={11} className="absolute -bottom-0.5 -right-0.5 rounded-full bg-success p-0.5 text-white" />}
-            </span>
-            <span className="min-w-0 flex-1 leading-tight">
-              <span className="block truncate text-sm font-semibold">{p.name}</span>
-              <span className="flex items-center gap-1 text-[11px] text-on-glass-muted">
-                Lvl {p.level} · {d < 999 ? `${Math.round(d)} m` : "—"}
-                {seated.has(p.id) && (
-                  <>
-                    {" "}
-                    · <Armchair size={11} /> seated
-                  </>
-                )}
-              </span>
-            </span>
-          </button>
-        ))}
+    <div className="pscrim pointer-events-auto z-30 flex items-start justify-start !bg-black/15 p-3 pt-[72px]" onClick={close}>
+      <div role="dialog" aria-label="People here" className="w-[min(340px,90vw)]" onClick={(e) => e.stopPropagation()}>
+        <PaperCard size="sm" title={`People here · ${people.length + 1}`} icon={Users} onClose={close} className="max-h-[78vh]" bodyClassName="!p-2.5">
+          {people.length === 0 ? (
+            <p className="pnote text-xs">Nobody else is here right now.</p>
+          ) : (
+            <div className="plist">
+              {people.map(({ p, d }) => (
+                <button key={p.id} type="button" onClick={() => useSocial.setState({ menu: p.id, peopleOpen: false })} className="prow w-full text-left">
+                  <span className="relative grid size-9 shrink-0 place-items-center rounded-full text-xs font-black text-white" style={{ background: p.color }}>
+                    {p.name.slice(0, 1).toUpperCase()}
+                    {talking[p.id] && <Mic size={11} className="absolute -bottom-0.5 -right-0.5 rounded-full bg-success p-0.5 text-white" />}
+                  </span>
+                  <span className="min-w-0 flex-1 leading-tight">
+                    <span className="prow-title block truncate">{p.name}</span>
+                    <span className="prow-sub flex items-center gap-1">
+                      Lvl {p.level} · {d < 999 ? `${Math.round(d)} m` : "—"}
+                      {seated.has(p.id) && (
+                        <>
+                          {" "}
+                          · <Armchair size={11} /> seated
+                        </>
+                      )}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </PaperCard>
       </div>
     </div>
   );

@@ -1,0 +1,508 @@
+/*
+ * Paper card — the platform's popup / window style (the same look as the wallet's cards):
+ * cream card stock with a faint grain and a stitched inner edge, a leather header band with stitching,
+ * cream segmented tabs with a pressed-leather selected state, rounded list rows, honest +/− colours.
+ * Use <PaperCard> (src/ui/PaperCard.tsx) or these classes directly. Matte, no glare.
+ */
+.pcard {
+  --ink: #1f1b16;
+  --ink-2: #3a3228;
+  --muted: #6b6153;
+  --line: rgb(70 50 25 / 0.16);
+  --paper: #efe8da;
+  --paper-2: #f7f2e8;
+  --plus: #15803d;
+  --minus: #b42318;
+  --accent: #2563eb;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 24px;
+  color: var(--ink);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  backdrop-filter: blur(22px) saturate(140%);
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .27 0 0 0 0 .16 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    linear-gradient(180deg, rgb(251 248 241 / 0.9), rgb(241 234 220 / 0.86));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.75),
+    0 0 0 1px rgb(255 255 255 / 0.35),
+    0 0 0 1.5px rgb(90 65 35 / 0.12),
+    0 18px 50px -18px rgb(0 0 0 / 0.45),
+    0 4px 14px -6px rgb(0 0 0 / 0.18);
+  font-size: 16px;
+  line-height: 1.35;
+  text-shadow: none;
+  animation: pcard-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.pcard::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border-radius: 19px;
+  border: 1.5px dashed rgb(110 80 45 / 0.2);
+  pointer-events: none;
+}
+.pcard.pcard-sm {
+  border-radius: 18px;
+  font-size: 15px;
+}
+.pcard.pcard-sm::after {
+  inset: 5px;
+  border-radius: 14px;
+}
+@keyframes pcard-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pcard {
+    animation: none;
+  }
+}
+
+/* leather header band */
+.pcard-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 12px;
+  color: #fbf3e6;
+  background: linear-gradient(180deg, rgb(132 98 70 / 0.94), rgb(106 76 52 / 0.94));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.16),
+    0 2px 8px -2px rgb(60 35 15 / 0.35);
+}
+.pcard-head::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 5px;
+  border-bottom: 1.5px dashed rgb(246 228 200 / 0.4);
+  pointer-events: none;
+}
+.pcard-head h2 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display, inherit);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 0.45);
+}
+.pcard-sm .pcard-head h2 {
+  font-size: 18px;
+}
+.pcard-icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  color: #f3d9a4;
+  background: rgb(0 0 0 / 0.2);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.35);
+}
+/* leather icon buttons in the band (back / close) */
+.pcard-hbtn {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  color: #fbf3e6;
+  background: linear-gradient(180deg, rgb(150 113 82 / 0.9), rgb(120 87 60 / 0.9));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.2),
+    0 2px 6px -2px rgb(50 30 12 / 0.45);
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+.pcard-sm .pcard-hbtn {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+}
+@media (hover: hover) {
+  .pcard-hbtn:hover {
+    background: linear-gradient(180deg, rgb(162 124 92 / 0.95), rgb(130 95 66 / 0.95));
+  }
+}
+.pcard-hbtn:active {
+  transform: translateY(1px) scale(0.97);
+  box-shadow: 0 1px 3px -1px rgb(50 30 12 / 0.45);
+}
+.pcard-hbtn:focus-visible,
+.pcard :focus-visible {
+  outline: 3px solid var(--color-ring, #60a5fa);
+  outline-offset: 2px;
+}
+.pcard-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px 18px 16px;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(80 60 30 / 0.3) transparent;
+}
+.pcard-foot {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  padding: 0 18px 16px;
+}
+
+/* text */
+.pcard .pmuted,
+.pcard .text-on-glass-muted {
+  color: var(--muted) !important;
+}
+.pcard .plabel {
+  font-family: var(--font-display, inherit);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pcard .pplus {
+  color: var(--plus);
+}
+.pcard .pminus {
+  color: var(--minus);
+}
+.pnote {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  color: var(--ink-2);
+  background: rgb(70 50 25 / 0.07);
+}
+
+/* cream segmented tabs; selected = pressed leather */
+.pseg {
+  display: flex;
+  gap: 8px;
+}
+.pseg button,
+.ptab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-family: var(--font-display, inherit);
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--ink-2);
+  background: rgb(255 255 255 / 0.62);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.8),
+    0 0 0 1px rgb(70 50 25 / 0.14),
+    0 3px 10px -6px rgb(60 40 20 / 0.35);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+@media (hover: hover) {
+  .pseg button:hover:not([aria-pressed="true"]):not([aria-checked="true"]):not([aria-selected="true"]),
+  .ptab:hover:not(.is-on) {
+    background: #fffaf1;
+  }
+}
+.pseg button:active,
+.ptab:active {
+  transform: translateY(2px);
+  box-shadow: inset 0 0 0 1px rgb(70 50 25 / 0.22);
+}
+.pseg button[aria-pressed="true"],
+.pseg button[aria-checked="true"],
+.pseg button[aria-selected="true"],
+.ptab.is-on {
+  color: #fbf3e6;
+  background: linear-gradient(180deg, rgb(120 87 60 / 0.95), rgb(140 104 74 / 0.95));
+  box-shadow:
+    inset 0 1px 3px rgb(0 0 0 / 0.25),
+    0 0 0 2px rgb(224 184 90 / 0.85);
+}
+
+/* rounded list group + rows */
+.plist {
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.55);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.6), 0 0 0 1px var(--line), 0 6px 18px -12px rgb(60 40 20 / 0.35);
+}
+.prow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+.prow:last-child {
+  border-bottom: 0;
+}
+button.prow,
+a.prow {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  button.prow:hover,
+  a.prow:hover {
+    background: rgb(255 255 255 / 0.55);
+  }
+}
+.prow-icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  color: #5d412c;
+  background: rgb(70 50 25 / 0.1);
+}
+.prow-icon.is-plus {
+  color: var(--plus);
+  background: rgb(21 128 61 / 0.12);
+}
+.prow-icon.is-minus {
+  color: var(--minus);
+  background: rgb(180 35 24 / 0.1);
+}
+.prow-title {
+  font-weight: 700;
+  color: var(--ink);
+}
+.prow-sub {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* buttons on paper */
+.pbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 13px;
+  font-family: var(--font-display, inherit);
+  font-weight: 800;
+  font-size: 16px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease, background 160ms ease;
+}
+.pbtn:active:not(:disabled) {
+  transform: translateY(2px);
+}
+.pbtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+/* primary: the app's blue accent (one per card) */
+.pbtn-primary {
+  color: #fff;
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25), 0 8px 20px -10px rgb(37 99 235 / 0.8);
+}
+.pbtn-primary:active:not(:disabled) {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 3px 8px -4px rgb(37 99 235 / 0.7);
+}
+/* secondary: cream with a soft edge */
+.pbtn-secondary {
+  color: var(--ink-2);
+  background: rgb(255 255 255 / 0.66);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.85),
+    0 0 0 1px rgb(70 50 25 / 0.16),
+    0 4px 12px -6px rgb(60 40 20 / 0.35);
+}
+@media (hover: hover) {
+  .pbtn-secondary:hover:not(:disabled) {
+    background: #fffaf1;
+  }
+}
+/* leather */
+.pbtn-leather {
+  color: #fbf3e6;
+  background: linear-gradient(180deg, rgb(150 113 82 / 0.92), rgb(120 87 60 / 0.92));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18), 0 6px 16px -8px rgb(50 30 12 / 0.55);
+}
+.pbtn-danger {
+  color: #fff;
+  background: linear-gradient(180deg, #dc3b2f, #b42318);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 8px 18px -10px rgb(180 35 24 / 0.8);
+}
+.pbtn-success {
+  color: #fff;
+  background: linear-gradient(180deg, #22a052, #15803d);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 8px 18px -10px rgb(21 128 61 / 0.8);
+}
+
+/* fields on paper */
+.pfield {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 12px;
+  color: var(--ink);
+  background: rgb(255 255 255 / 0.7);
+  box-shadow: inset 0 0 0 1px rgb(70 50 25 / 0.25), inset 0 2px 3px rgb(70 50 25 / 0.08);
+}
+.pfield input,
+.pfield select,
+.pfield textarea,
+input.pfield,
+select.pfield,
+textarea.pfield {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+}
+.pcard input::placeholder,
+.pcard textarea::placeholder {
+  color: #9a8e7c;
+}
+/* switch on paper */
+.pswitch {
+  position: relative;
+  width: 52px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgb(70 50 25 / 0.2);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.2);
+  transition: background 150ms ease;
+  cursor: pointer;
+}
+.pswitch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #fffaf1;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  transition: transform 150ms ease;
+}
+.pswitch[aria-checked="true"] {
+  background: #15803d;
+}
+.pswitch[aria-checked="true"]::after {
+  transform: translateX(22px);
+}
+
+/* dim layer behind modal cards */
+.pscrim {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.28);
+}
+
+/* legacy controls placed inside a paper card (game modals, older panels) take the paper look */
+.pcard .btn-primary {
+  color: #fff;
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25), 0 8px 20px -10px rgb(37 99 235 / 0.8);
+  border: 0;
+}
+.pcard .btn-secondary {
+  color: var(--ink-2);
+  background: rgb(255 255 255 / 0.66);
+  border: 0;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.85),
+    0 0 0 1px rgb(70 50 25 / 0.16),
+    0 4px 12px -6px rgb(60 40 20 / 0.35);
+}
+.pcard .btn-danger {
+  color: #fff;
+  border: 0;
+  background: linear-gradient(180deg, #dc3b2f, #b42318);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 8px 18px -10px rgb(180 35 24 / 0.8);
+}
+.pcard .text-white,
+.pcard .text-on-glass {
+  color: var(--ink) !important;
+}
+.pcard .text-success {
+  color: var(--plus) !important;
+}
+.pcard .text-gold {
+  color: #a16207 !important;
+}
+.pcard code {
+  color: var(--ink-2);
+  background: rgb(70 50 25 / 0.08) !important;
+}
+/* a cream tile (stat boxes etc.) */
+.ptile {
+  padding: 12px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.55);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.8), 0 0 0 1px rgb(70 50 25 / 0.12);
+}
+.pcard .btn-success {
+  color: #fff;
+  border: 0;
+  background: linear-gradient(180deg, #22a052, #15803d);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 8px 18px -10px rgb(21 128 61 / 0.8);
+}
+
+/* short screens (phone landscape): a slimmer band so the content gets the room */
+@media (max-height: 500px) {
+  .pcard-head {
+    gap: 8px;
+    padding: 6px 10px 9px;
+  }
+  .pcard-head h2 {
+    font-size: 18px;
+  }
+  .pcard-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+  .pcard-hbtn {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+  }
+  .pcard-body {
+    padding: 10px 14px 12px;
+  }
+}

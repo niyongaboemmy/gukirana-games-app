@@ -15,6 +15,7 @@ import { KeyHint, PROMPT_BTN, promptWrap } from "@/hud/Prompt";
 import { usePhoneHud } from "@/hud/usePhoneHud";
 import type { HallLayout } from "./layouts";
 import { TablePicker } from "./TablePicker";
+import { PaperCard } from "@/ui/PaperCard";
 
 const glass = "glass rounded-card";
 
@@ -132,33 +133,38 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
 
       {/* challenge someone in the room: choose the stake (game = this hall) */}
       {challenge && (
-        <div className="scrim pointer-events-auto absolute inset-0 grid place-items-center p-4" onClick={() => setChallenge(null)}>
-          <div className={`sheet w-[min(400px,94vw)] p-5`} onClick={(e) => e.stopPropagation()}>
-            <p className="mb-1 flex items-center gap-2 text-lg font-extrabold">
-              <Swords size={20} style={{ color: layout.color }} /> Play {challenge.name}
-            </p>
-            <p className="mb-3 text-sm text-on-glass-muted">{layout.title} · the server holds both stakes in escrow and pays the winner 2×.</p>
-            <div className="mb-4 flex flex-wrap gap-1.5">
-              {STAKES.map((s) => (
-                <button key={s} type="button" disabled={s > stars} onClick={() => setStake(s)} className={`press flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-bold disabled:opacity-30 ${stake === s ? "bg-primary text-white shadow-[inset_0_1px_0_rgb(255_255_255/.28),var(--shadow-glow)]" : "btn-secondary"}`}>
-                  {s === 0 ? "Friendly" : <>{s} <Star size={12} className="fill-current" /></>}
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setChallenge(null)} className="btn-secondary flex-1 rounded-xl py-2.5 font-semibold">Cancel</button>
-              <button
-                type="button"
-                onClick={() => {
-                  propose(challenge.id, layout.game, stake);
-                  setChallenge(null);
-                }}
-                className="press flex-1 rounded-xl py-2.5 font-extrabold shadow-[inset_0_1px_0_rgb(255_255_255/.28),0_8px_20px_-8px_rgb(2_6_23/.6)]"
-                style={{ background: layout.color }}
-              >
-                Send challenge
-              </button>
-            </div>
+        <div className="pscrim pointer-events-auto grid place-items-center p-4" onClick={() => setChallenge(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="w-[min(400px,94vw)]">
+            <PaperCard
+              title={`Play ${challenge.name}`}
+              icon={Swords}
+              onClose={() => setChallenge(null)}
+              footer={
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setChallenge(null)} className="pbtn pbtn-secondary flex-1">Cancel</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      propose(challenge.id, layout.game, stake);
+                      setChallenge(null);
+                    }}
+                    className="pbtn pbtn-primary flex-1"
+                  >
+                    <Swords size={16} /> Send challenge
+                  </button>
+                </div>
+              }
+            >
+              <p className="pmuted mb-3 text-sm">{layout.title} · the server holds both stakes in escrow and pays the winner 2×.</p>
+              <p className="plabel mb-1.5">Stake</p>
+              <div className="flex flex-wrap gap-1.5">
+                {STAKES.map((s) => (
+                  <button key={s} type="button" disabled={s > stars} aria-pressed={stake === s} onClick={() => setStake(s)} className={`ptab flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-bold disabled:opacity-30 ${stake === s ? "is-on" : ""}`}>
+                    {s === 0 ? "Friendly" : <>{s} <Star size={12} className="fill-current" /></>}
+                  </button>
+                ))}
+              </div>
+            </PaperCard>
           </div>
         </div>
       )}
@@ -194,47 +200,52 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
       {/* seat panel */}
       {seated && (
         // phone: a slim bottom sheet (<= 38% of the height) between the joystick and the action bar; the table stays visible
-        <div className={`sheet pointer-events-auto absolute bottom-[max(16px,env(safe-area-inset-bottom))] left-1/2 w-[min(520px,92vw)] -translate-x-1/2 p-4 phone:bottom-0 phone:max-h-[38vh] phone:w-[min(480px,54vw)] phone:rounded-b-none phone:p-2.5 phone:pb-[max(10px,env(safe-area-inset-bottom))]`}>
-          <div className="mb-3 flex items-center justify-between phone:mb-2">
-            <p className="text-lg font-extrabold phone:text-sm">
-              Table {tableNo} · {layout.title}
-            </p>
-            <button type="button" onClick={getUp} className="btn-secondary flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-semibold phone:px-2 phone:py-1 phone:text-xs">
-              <X size={14} /> Stand up
-            </button>
-          </div>
-          {quick.status === "waiting" ? (
-            <button type="button" onClick={quickMatchLeave} className="btn-secondary flex w-full items-center justify-center gap-2 rounded-xl py-3 font-bold phone:py-2 phone:text-sm">
-              <Loader2 size={18} className="animate-spin" /> Waiting for an opponent at your table… (cancel)
-            </button>
-          ) : (
-            <div className="grid gap-2 sm:grid-cols-2 phone:grid-cols-2 phone:gap-1.5">
-              <button type="button" onClick={() => {
-                  rememberBeforeGame(seated);
-                  router.push(`/play/${layout.game}`);
-                }} className="btn-secondary flex items-center justify-center gap-2 rounded-xl py-3 font-bold phone:py-2 phone:text-sm">
-                <Bot size={18} /> Practice vs AI
+        <div className="pointer-events-auto absolute bottom-[max(16px,env(safe-area-inset-bottom))] left-1/2 w-[min(520px,92vw)] -translate-x-1/2 phone:bottom-0 phone:w-[min(480px,54vw)]">
+          <PaperCard
+            size={phone ? "sm" : "md"}
+            title={`Table ${tableNo} · ${layout.title}`}
+            icon={Armchair}
+            className="phone:max-h-[38vh] phone:rounded-b-none"
+            bodyClassName="phone:!p-2.5 phone:pb-[max(10px,env(safe-area-inset-bottom))]"
+            headExtra={
+              <button type="button" onClick={getUp} className="pcard-hbtn !flex !w-auto items-center gap-1 px-2.5 text-sm font-semibold phone:text-xs">
+                <X size={14} /> Stand up
               </button>
-              {livePlay && authed ? (
-                <button type="button" onClick={() => quickMatchJoin(layout.game, stake)} className="press flex items-center justify-center gap-2 rounded-xl py-3 font-extrabold shadow-[inset_0_1px_0_rgb(255_255_255/.28),0_8px_20px_-8px_rgb(2_6_23/.6)] phone:py-2 phone:text-sm" style={{ background: layout.color }}>
-                  <Zap size={18} /> Find an opponent
+            }
+          >
+            {quick.status === "waiting" ? (
+              <button type="button" onClick={quickMatchLeave} className="pbtn pbtn-secondary w-full phone:text-sm">
+                <Loader2 size={18} className="animate-spin" /> Waiting for an opponent at your table… (cancel)
+              </button>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2 phone:grid-cols-2 phone:gap-1.5">
+                <button type="button" onClick={() => {
+                    rememberBeforeGame(seated);
+                    router.push(`/play/${layout.game}`);
+                  }} className="pbtn pbtn-secondary phone:text-sm">
+                  <Bot size={18} /> Practice vs AI
                 </button>
-              ) : (
-                <div className="grid place-items-center rounded-xl bg-white/6 px-3 py-3 text-center text-xs text-on-glass-muted">{livePlay ? "Sign in at the gate to play people" : "Live Pool matches arrive with the server physics engine. Practice now."}</div>
-              )}
-            </div>
-          )}
-          {livePlay && authed && quick.status !== "waiting" && (
-            <div className="mt-3 flex flex-wrap items-center gap-1.5 text-sm phone:mt-2 phone:flex-nowrap phone:gap-1 phone:overflow-x-auto phone:text-xs">
-              <span className="mr-1 text-xs label text-on-glass-muted phone:text-[10px]">Stake</span>
-              {STAKES.map((s) => (
-                <button key={s} type="button" disabled={s > stars} onClick={() => setStake(s)} className={`press flex shrink-0 items-center gap-1 rounded-full px-3 py-1 font-bold disabled:opacity-30 phone:px-2.5 ${stake === s ? "bg-primary text-white shadow-[inset_0_1px_0_rgb(255_255_255/.28),var(--shadow-glow)]" : "btn-secondary"}`}>
-                  {s === 0 ? "Friendly" : <>{s} <Star size={11} className="fill-current" /></>}
-                </button>
-              ))}
-            </div>
-          )}
-          <p className="mt-2 text-xs text-on-glass-muted phone:hidden">Tip: stand near another player and use Challenge to play them directly.</p>
+                {livePlay && authed ? (
+                  <button type="button" onClick={() => quickMatchJoin(layout.game, stake)} className="pbtn pbtn-primary phone:text-sm">
+                    <Zap size={18} /> Find an opponent
+                  </button>
+                ) : (
+                  <div className="pnote grid place-items-center text-center text-xs">{livePlay ? "Sign in at the gate to play people" : "Live Pool matches arrive with the server physics engine. Practice now."}</div>
+                )}
+              </div>
+            )}
+            {livePlay && authed && quick.status !== "waiting" && (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5 text-sm phone:mt-2 phone:flex-nowrap phone:gap-1 phone:overflow-x-auto phone:text-xs">
+                <span className="plabel mr-1 phone:text-[10px]">Stake</span>
+                {STAKES.map((s) => (
+                  <button key={s} type="button" disabled={s > stars} aria-pressed={stake === s} onClick={() => setStake(s)} className={`ptab flex shrink-0 items-center gap-1 rounded-full px-3 py-1 font-bold disabled:opacity-30 phone:px-2.5 ${stake === s ? "is-on" : ""}`}>
+                    {s === 0 ? "Friendly" : <>{s} <Star size={11} className="fill-current" /></>}
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="pmuted mt-2 text-xs phone:hidden">Tip: stand near another player and use Challenge to play them directly.</p>
+          </PaperCard>
         </div>
       )}
     </div>

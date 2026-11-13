@@ -48,8 +48,8 @@ export function PairInvitePrompt() {
   const def = PAIR_ACTIONS.find((p) => p.kind === inv.kind);
   const Icon = def?.icon ?? Check;
   return (
-    <div role="alertdialog" aria-label={`${inv.from.name} wants to ${def?.verb ?? "greet you"}`} className={`${glass} pointer-events-auto flex w-[min(360px,92vw)] items-center gap-3 p-2.5`}>
-      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/30 text-primary-300">
+    <div role="alertdialog" aria-label={`${inv.from.name} wants to ${def?.verb ?? "greet you"}`} className="pcard pcard-sm pointer-events-auto !flex-row w-[min(360px,92vw)] items-center gap-3 p-2.5 pl-3">
+      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#7a5638] text-[#fbf3e6]">
         <Icon size={19} />
       </span>
       <p className="min-w-0 flex-1 truncate text-sm font-bold">

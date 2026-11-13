@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Chakra_Petch, Inter } from "next/font/google";
 import "./globals.css";
+import "./paper.css";
 import { SessionBoot } from "@/auth/SessionBoot";
 import { DoorTransition } from "@/world/doorway";
 import { SceneHost } from "@/world/SceneHost";

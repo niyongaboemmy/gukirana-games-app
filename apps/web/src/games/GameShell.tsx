@@ -2,7 +2,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { returnLabel, returnPath } from "@/lib/return-point";
-import { Bot, CircleHelp, Handshake, LogOut, Menu, Play, ShieldCheck, Star, Trophy, User, Volume2, VolumeX } from "lucide-react";
+import { Bot, CircleHelp, Handshake, LogOut, Menu, Pause, Play, ShieldCheck, Star, Trophy, User, Volume2, VolumeX, type LucideIcon } from "lucide-react";
+import { PaperCard } from "@/ui/PaperCard";
 import { haptic, sfx, useGamePrefs } from "./feedback";
 import { useGameInput } from "./input";
 import { t, type GameKey } from "./i18n";
@@ -154,9 +155,8 @@ export function GameShell({
       {footer && <footer className="px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))]">{footer}</footer>}
 
       {menu && !leaving && (
-        <Modal onClose={() => setMenu(false)} label={t("game.paused")}>
-          <p className="font-display text-lg font-bold">{t("game.paused")}</p>
-          <div className="mt-3 flex flex-col gap-2">
+        <Modal onClose={() => setMenu(false)} label={t("game.paused")} title={t("game.paused")} icon={Pause}>
+          <div className="flex flex-col gap-2">
             <button type="button" data-autofocus onClick={() => setMenu(false)} className="btn-primary flex min-h-12 items-center justify-center gap-2 rounded-control font-bold">
               <Play size={18} /> {t("game.resume")}
             </button>
@@ -173,9 +173,8 @@ export function GameShell({
         </Modal>
       )}
       {leaving && (
-        <Modal onClose={() => setLeaving(false)} label={t("game.leaveTitle")}>
-          <p className="font-display text-lg font-bold">{t("game.leaveTitle")}</p>
-          <p className="mt-1 text-sm text-on-glass-muted">{pot > 0 ? t("game.leaveStake", { stake: pot / 2 }) : live ? t("game.leaveLive") : t("game.leavePractice")}</p>
+        <Modal onClose={() => setLeaving(false)} label={t("game.leaveTitle")} title={t("game.leaveTitle")} icon={LogOut}>
+          <p className="text-sm text-on-glass-muted">{pot > 0 ? t("game.leaveStake", { stake: pot / 2 }) : live ? t("game.leaveLive") : t("game.leavePractice")}</p>
           <div className="mt-4 flex gap-2">
             <button type="button" data-autofocus onClick={() => (setLeaving(false), setMenu(false))} className="btn-secondary min-h-12 flex-1 rounded-control font-semibold">
               {t("game.stay")}
@@ -196,11 +195,8 @@ export function GameShell({
         />
       )}
       {fairOpen && fairness && (
-        <Modal onClose={() => setFairOpen(false)} label="Provably fair">
-          <p className="flex items-center gap-2 font-display text-lg font-bold">
-            <ShieldCheck size={20} className="text-success" /> Provably fair
-          </p>
-          <p className="mt-1 text-sm text-on-glass-muted">Every roll comes from HMAC-SHA256(server seed, client seed, match, roll #). The seed is revealed after the match so you can verify every roll.</p>
+        <Modal onClose={() => setFairOpen(false)} label="Provably fair" title="Provably fair" icon={ShieldCheck}>
+          <p className="text-sm text-on-glass-muted">Every roll comes from HMAC-SHA256(server seed, client seed, match, roll #). The seed is revealed after the match so you can verify every roll.</p>
           <p className="mt-3 text-xs text-on-glass-muted">Commit (SHA-256 of the seed)</p>
           <code className="block break-all rounded-lg bg-black/40 p-2 text-xs">{fairness.commit}</code>
           <p className="mt-2 text-xs text-on-glass-muted">Seed {fairness.reveal ? "(revealed)" : "(revealed when the match ends)"}</p>
@@ -221,7 +217,7 @@ function PrefToggle({ k, label }: { k: "sound" | "haptics" | "autoMove" | "fullG
   return (
     <button type="button" role="switch" aria-checked={on} onClick={() => set({ [k]: !on })} className="btn-secondary flex min-h-12 items-center justify-between gap-3 rounded-control px-4 font-semibold">
       <span>{t(label)}</span>
-      <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${on ? "bg-primary" : "bg-white/15"}`}>
+      <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${on ? "bg-primary" : "bg-black/15"}`}>
         <span className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${on ? "left-[1.375rem]" : "left-0.5"}`} />
       </span>
     </button>
@@ -291,7 +287,7 @@ function PlayerPanel({ p, label }: { p: PanelPlayer; label: string }) {
 }
 
 /** Accessible dialog: focus moves in (first [data-autofocus]), Esc closes, focus returns to the opener. */
-export function Modal({ children, onClose, label }: { children: React.ReactNode; onClose?: () => void; label?: string }) {
+export function Modal({ children, onClose, label, title, icon }: { children: React.ReactNode; onClose?: () => void; label?: string; title?: React.ReactNode; icon?: LucideIcon }) {
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
@@ -312,9 +308,17 @@ export function Modal({ children, onClose, label }: { children: React.ReactNode;
     return () => window.removeEventListener("keydown", onKey, { capture: true });
   }, [onClose]);
   return (
-    <div className="scrim fixed inset-0 z-40 grid place-items-center p-4" onClick={onClose}>
-      <div ref={box} role="dialog" aria-modal="true" aria-label={label} className="sheet max-h-[92dvh] w-full max-w-sm overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
-        {children}
+    <div className="pscrim z-40 grid place-items-center p-4" onClick={onClose}>
+      <div ref={box} role="dialog" aria-modal="true" aria-label={label} className="max-h-[92dvh] w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+        {title ? (
+          <PaperCard title={title} icon={icon} onClose={onClose} className="max-h-[92dvh]">
+            {children}
+          </PaperCard>
+        ) : (
+          <div className="pcard max-h-[92dvh]">
+            <div className="pcard-body !p-5">{children}</div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -329,15 +333,14 @@ const HELP: Record<GameId, { rules: GameKey[]; touch: GameKey; keys: GameKey; pa
 export function HowToPlay({ game, onClose }: { game: GameId; onClose: () => void }) {
   const h = HELP[game];
   return (
-    <Modal onClose={onClose} label={t("game.howToPlay")}>
-      <p className="label text-xs text-on-glass-muted">{t("game.howToPlay")}</p>
+    <Modal onClose={onClose} label={t("game.howToPlay")} title={t("game.howToPlay")} icon={CircleHelp}>
       <p className="font-display text-xl font-bold">{t(h.title)}</p>
       <ol className="mt-2 flex list-decimal flex-col gap-1.5 pl-5 text-sm">
         {h.rules.map((k) => (
           <li key={k}>{t(k)}</li>
         ))}
       </ol>
-      <p className="label mt-4 text-xs text-on-glass-muted">{t("game.controls")}</p>
+      <p className="plabel mt-4">{t("game.controls")}</p>
       <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm">
         <dt className="font-semibold">{t("game.touch")}</dt>
         <dd className="text-on-glass-muted">{t(h.touch)}</dd>
@@ -372,18 +375,18 @@ export function ResultModal({ won, draw = false, starsDelta, xp, summary, onRema
   return (
     <Modal label={won ? "You won" : "Game over"}>
       <div className="text-center">
-        <div className={`mx-auto grid size-20 place-items-center rounded-full ${won ? "bg-gold/20 text-gold" : "bg-white/10 text-white"}`}>{won ? <Trophy size={40} /> : <Handshake size={40} />}</div>
+        <div className={`mx-auto grid size-20 place-items-center rounded-full ${won ? "bg-gold/25 text-gold" : "bg-black/8 text-white"}`}>{won ? <Trophy size={40} /> : <Handshake size={40} />}</div>
         <p className="mt-2 font-display text-2xl font-bold">{won ? "You won!" : draw ? "Draw" : "Good game"}</p>
         <p className="mt-1 text-sm text-on-glass-muted">{summary}</p>
         <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-          <div className="rounded-control bg-white/6 p-3 ring-1 ring-white/8">
+          <div className="ptile">
             <p className="text-on-glass-muted">Stars</p>
             <p className={`num text-xl font-bold ${starsDelta > 0 ? "text-success" : "text-white"}`}>
               {starsDelta >= 0 ? "+" : ""}
               {starsDelta} <Star size={16} className="inline fill-current align-[-2px]" />
             </p>
           </div>
-          <div className="rounded-control bg-white/6 p-3 ring-1 ring-white/8">
+          <div className="ptile">
             <p className="text-on-glass-muted">XP</p>
             <p className="num text-xl font-bold text-gold">+{xp}</p>
           </div>
