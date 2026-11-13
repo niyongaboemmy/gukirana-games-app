@@ -16,6 +16,7 @@ const STR = {
   plaza: "Loading the plaza…",
   hall: (title: string) => `Preparing the ${title}…`,
   last: "Almost there…",
+  tip: "Murakaza neza! While the playground loads: tap the ground to walk there, and walk up to any lit door to enter a hall.",
 } as const;
 
 const FADE_MS = 520;
@@ -38,6 +39,13 @@ function BootScreen({ pathView }: { pathView: View | null }) {
   const progress = useStage((s) => s.assets); // 0 … 1, published by the lazily loaded canvas (drei loading manager)
   const [state, setState] = useState<"on" | "fading" | "off">(() => (pathView ? "on" : "off"));
   const [shown, setShown] = useState(0);
+  // on a slow network a friendly line appears after ~4 s (the bar keeps moving; never a frozen screen)
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (state !== "on") return void setSlow(false);
+    const t = setTimeout(() => setSlow(true), 4000);
+    return () => clearTimeout(t);
+  }, [state]);
 
   // (re)enter boot when the area on screen is not ready (and no crossing is holding a frame)
   useEffect(() => {
@@ -98,7 +106,7 @@ function BootScreen({ pathView }: { pathView: View | null }) {
       role="status"
       aria-live="polite"
       aria-label={status}
-      className="gk-boot fixed inset-0 z-[55] grid place-items-center text-white"
+      className="gk-boot fixed inset-0 z-55 grid place-items-center text-white"
       style={{ opacity: state === "fading" ? 0 : 1, transition: `opacity ${FADE_MS}ms ease-out`, pointerEvents: state === "fading" ? "none" : "auto" }}
     >
       <div className="gk-boot-sweep pointer-events-none absolute inset-0" />
@@ -110,11 +118,32 @@ function BootScreen({ pathView }: { pathView: View | null }) {
             <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.32em] text-[#7CC4FF]">{STR.sub}</p>
           </div>
         </div>
-        <div className="mt-7 h-[3px] w-56 overflow-hidden rounded-full bg-white/12">
-          <div className="h-full rounded-full bg-gradient-to-r from-[#3DA9FC] to-[#FFC83D]" style={{ width: `${Math.round(value * 100)}%`, transition: "width 220ms ease-out" }} />
+        <div className="mt-7 h-0.75 w-56 overflow-hidden rounded-full bg-white/12">
+          <div className="h-full rounded-full bg-linear-to-r from-[#3DA9FC] to-[#FFC83D]" style={{ width: `${Math.round(value * 100)}%`, transition: "width 220ms ease-out" }} />
         </div>
         <p className="mt-3 text-xs font-semibold text-white/70">{status}</p>
+        {slow && <p className="gk-fade-up mt-5 max-w-xs text-center text-xs text-white/55">{STR.tip}</p>}
       </div>
+      {/* layout skeletons where the real UI will appear, so nothing jumps when it arrives */}
+      {view === "gate" ? (
+        <>
+          <div className="gk-skel absolute left-[max(12px,env(safe-area-inset-left))] top-3 h-8 w-64 rounded-full phone:w-52" />
+          <div className="absolute right-[max(16px,env(safe-area-inset-right))] top-1/2 hidden w-[min(340px,40vw)] -translate-y-1/2 flex-col gap-3 rounded-[28px] border border-white/10 bg-white/[0.04] p-5 sm:flex phone:flex phone:w-[min(300px,42vw)] phone:gap-2 phone:p-3">
+            <div className="gk-skel h-4 w-24 rounded-full" />
+            <div className="gk-skel h-6 w-48 rounded-lg" />
+            <div className="gk-skel h-11 w-full rounded-xl" />
+            <div className="gk-skel h-11 w-full rounded-xl" />
+            <div className="gk-skel h-3 w-40 rounded-full" />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="gk-skel absolute left-3 top-3 h-16 w-52 rounded-2xl phone:h-11 phone:w-40" />
+          <div className="gk-skel absolute left-1/2 top-3 h-8 w-48 -translate-x-1/2 rounded-full" />
+          <div className="gk-skel absolute right-3 top-3 h-12 w-36 rounded-2xl phone:h-8 phone:w-28" />
+          <div className="gk-skel absolute bottom-[max(14px,env(safe-area-inset-bottom))] left-[max(14px,env(safe-area-inset-left))] size-28 rounded-full phone:size-20" />
+        </>
+      )}
     </div>
   );
 }

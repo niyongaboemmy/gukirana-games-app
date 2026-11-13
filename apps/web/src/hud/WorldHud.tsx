@@ -1,17 +1,17 @@
 "use client";
-import { useDoorway } from "@/world/doorway";
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Joystick } from "./Joystick";
 import { DOOR_RING, PORTALS } from "@/world/layout";
 import { nav } from "@/world/navigation";
-import { saveDoorPose } from "@/lib/return-point";
 import { useWorld } from "@/lib/world-store";
 import { levelForXp, totalXpForLevel, useProfile } from "@/lib/profile-store";
 import { xrStore } from "@/world/xr-store";
 import { Armchair, DoorOpen, Ellipsis, Glasses, Hand, Loader2, MessageCircle, Settings, Shirt, Smile, Star, UserRound, Users, Zap, type LucideIcon } from "lucide-react";
-import { AvatarCreator } from "@/components/AvatarCreator";
-import { SettingsModal } from "@/components/SettingsModal";
+// modals load on first open (not on the critical path of the first frame)
+const AvatarCreator = dynamic(() => import("@/components/AvatarCreator").then((m) => m.AvatarCreator), { ssr: false });
+const SettingsModal = dynamic(() => import("@/components/SettingsModal").then((m) => m.SettingsModal), { ssr: false });
 import { ChatPanel } from "@/social/ChatPanel";
 import { SocialOverlay } from "@/social/SocialOverlay";
 import { totalUnread, useSocial } from "@/social/social-store";
@@ -51,7 +51,6 @@ function RoundButton({ icon: Icon, label, onPress, onRelease, big, active, badge
 
 export function WorldHud() {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const router = useRouter();
   const { name, color, xp, stars } = useProfile();
   const level = levelForXp(xp);
   const progress = (xp - totalXpForLevel(level)) / (totalXpForLevel(level + 1) - totalXpForLevel(level));
@@ -85,13 +84,13 @@ export function WorldHud() {
   // E / the big button: door → bench place (stand up when seated) → the person in front of you (person menu)
   const interact = () => {
     if (portal?.href) {
-      const href = portal.href;
-      // walk on in through the real door (the camera watches), then the frame freezes and the hall loads
+      // walk on in through the real door: crossing its line hands you to the (pre-warmed) hall mid-stride,
+      // exactly like walking in by hand (world/stage.ts enterHall)
       const a = (portal.angleDeg * Math.PI) / 180;
+      nav.goal = null;
+      nav.progress = { best: Infinity, since: performance.now(), detours: 0 };
       nav.target = { x: Math.sin(a) * (DOOR_RING + 1.5), z: -Math.cos(a) * (DOOR_RING + 1.5) };
-      // coming back out puts you a few steps outside this door, stepping out towards the plaza (same as walking in)
-      saveDoorPose({ x: Math.sin(a) * (DOOR_RING - 4.5), z: -Math.cos(a) * (DOOR_RING - 4.5), yaw: -a });
-      return useDoorway.getState().pass(portal.label, () => router.push(href));
+      return;
     }
     if (seatedOnBench) return standFromBench();
     if (benchSeat && !portal) return sitNearest();
