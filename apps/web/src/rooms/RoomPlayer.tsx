@@ -36,6 +36,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   const look = lookOf(profile);
   const { w, d } = layout.size;
   const solids = useMemo(() => [...layout.tables, ...layout.colliders], [layout]);
+  /** chairs / stools are solid too (round footprint at the seat, sized per hall's furniture) */
+  const chairR = layout.game === "pool" ? 0.42 : layout.game === "ludo" ? 0.38 : 0.26;
 
   // re-take the same chair once the hall connection is up (server confirms the seat)
   useEffect(() => {
@@ -92,9 +94,16 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       }
       insideOnce.current = true;
       intro.current = 0;
-      // line up with the door first (avoids cutting through tables), then straight out
-      const lined = Math.abs(pos.current.x - layout.door.x) < 0.6;
-      nav.target = lined || pos.current.z > d / 2 - 2.2 ? { x: layout.door.x, z: d / 2 + 1.2 } : { x: layout.door.x, z: Math.max(pos.current.z, d / 2 - 2.6) };
+      // route around furniture: walk to the nearest table-free aisle, along it to the open area by the door, then out
+      const px = pos.current.x;
+      const pz = pos.current.z;
+      const free = (x: number) => layout.tables.every((tb) => Math.abs(tb.x - x) > tb.w / 2 + 1.05);
+      const aisles = [-9, -6, -4.5, -3, -1.5, 0, 1.5, 3, 4.5, 6, 9].filter(free);
+      const aisle = aisles.reduce((best, x) => (Math.abs(x - px) < Math.abs(best - px) ? x : best), aisles[0] ?? layout.door.x);
+      const frontZ = d / 2 - 2.4; // open band between the last tables and the door
+      if (pz > frontZ - 0.2) nav.target = { x: layout.door.x, z: d / 2 + 1.2 };
+      else if (Math.abs(px - aisle) > 0.45) nav.target = { x: aisle, z: pz };
+      else nav.target = { x: aisle, z: frontZ + 0.3 };
     }
     const seat = R.seated ? layout.seats.find((s) => s.id === R.seated) : undefined;
     const run = W.input.run || keys.has("ShiftLeft") || keys.has("ShiftRight");
@@ -143,6 +152,24 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
           else pos.current.z = t.z + Math.sign(dz || 1) * hz;
         }
       }
+      // chairs (except the one you're about to take — you can walk right up to it) and other people
+      const BODY = 0.32;
+      const pushOut = (cx: number, cz: number, r: number) => {
+        const dx = pos.current.x - cx;
+        const dz = pos.current.z - cz;
+        const dist = Math.hypot(dx, dz);
+        if (dist < r && dist > 1e-4) {
+          pos.current.x = cx + (dx / dist) * r;
+          pos.current.z = cz + (dz / dist) * r;
+        }
+      };
+      for (const s of layout.seats) {
+        // the chair body sits slightly behind the seat point (away from the table)
+        const cx = s.x - Math.sin(s.yaw) * 0.1;
+        const cz = s.z - Math.cos(s.yaw) * 0.1;
+        pushOut(cx, cz, chairR + BODY - 0.08);
+      }
+      for (const op of Object.values(W.players)) pushOut(op.x / 100, op.z / 100, BODY * 2);
       // walls; the south wall only opens where the auto door is (and only while it is open)
       const outside = pos.current.z > d / 2;
       const inDoorway = Math.abs(pos.current.x - layout.door.x) < layout.door.w / 2 - 0.3;

@@ -195,6 +195,16 @@ export function LocalPlayer({
       }
     }
     if (r > limit) pos.current.multiplyScalar(limit / r);
+    // other people are solid: walk around them (soft push, no passing through)
+    for (const op of Object.values(w.players)) {
+      const dx = pos.current.x - op.x / 100;
+      const dz = pos.current.z - op.z / 100;
+      const dist = Math.hypot(dx, dz);
+      if (dist < 0.64 && dist > 1e-4) {
+        pos.current.x = op.x / 100 + (dx / dist) * 0.64;
+        pos.current.z = op.z / 100 + (dz / dist) * 0.64;
+      }
+    }
     for (const c of COLLIDERS) {
       const dx = pos.current.x - c.x;
       const dz = pos.current.z - c.z;
