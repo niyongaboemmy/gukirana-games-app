@@ -1,6 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { areaOf, hallOf, stageNav, useStage, viewForPath, type View } from "./stage";
 import { useDoorway } from "./doorway";
@@ -39,7 +39,8 @@ function BootScreen({ pathView }: { pathView: View | null }) {
   const holding = useDoorway((s) => s.phase !== "idle"); // a cold crossing holds its own frame instead
   const progress = useStage((s) => s.assets); // 0 … 1, published by the lazily loaded canvas (drei loading manager)
   const [state, setState] = useState<"on" | "fading" | "off">(() => (pathView ? "on" : "off"));
-  const [shown, setShown] = useState(0);
+  /** highest progress shown so far (the bar never runs backwards); a ref, not state: no effect → setState round trip per asset */
+  const shown = useRef(0);
   // on a slow network a friendly line appears after ~4 s (the bar keeps moving; never a frozen screen)
   const [slow, setSlow] = useState(false);
   useEffect(() => {
@@ -51,7 +52,7 @@ function BootScreen({ pathView }: { pathView: View | null }) {
   // (re)enter boot when the area on screen is not ready (and no crossing is holding a frame)
   useEffect(() => {
     if (!area || ready || holding) return;
-    setShown(0);
+    shown.current = 0;
     setState("on");
     useStage.setState({ hud: false });
   }, [area, ready, holding]);
@@ -95,10 +96,8 @@ function BootScreen({ pathView }: { pathView: View | null }) {
   }, [area, state]);
 
   // the bar never runs backwards
-  const value = Math.max(shown, 0.06 + 0.62 * (warm > 0 ? 1 : progress) + 0.32 * warm);
-  useEffect(() => {
-    if (value > shown) setShown(value);
-  }, [value, shown]);
+  const value = Math.max(shown.current, 0.06 + 0.62 * (warm > 0 ? 1 : progress) + 0.32 * warm);
+  shown.current = value;
 
   if (state === "off") return null;
   const g = hallOf(view);
