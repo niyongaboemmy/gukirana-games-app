@@ -193,3 +193,13 @@ plaza wear map, curtain-wall glazing, grass thatch, brushed aluminium, hall-glim
 (`src/world/textures.ts`); fountain ripple normal map, water streams and droplets (`src/world/Fountain.tsx`); cumulus
 cloud billboards (`src/world/Clouds.tsx`). Default avatar looks are a deterministic hash of the account id over the
 existing outfit catalogue (`src/world/outfits.ts`, `apps/api/src/modules/identity/default-look.ts`).
+
+### UI fonts (P1-HUD)
+
+| Font | Source | Licence | Use |
+| --- | --- | --- | --- |
+| Chakra Petch (500, 600, 700; latin, latin-ext) | https://fonts.google.com/specimen/Chakra+Petch (Cadson Demak) | SIL Open Font License 1.1 | display: titles, chips, buttons, numerals |
+| Inter (variable; latin, latin-ext) | https://fonts.google.com/specimen/Inter (Rasmus Andersson) | SIL Open Font License 1.1 | UI / body text |
+
+Fetched by `next/font/google` at build time and served from the app's own origin (no runtime request to Google).
+Unmodified. OFL allows bundling and redistribution with the app; the fonts are not sold on their own.

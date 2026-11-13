@@ -16,6 +16,349 @@
   --color-game-soon: var(--game-soon);
 }
 
+/* ───────────────────────── UI design system (docs/UI-DESIGN-SYSTEM.md) ─────────────────────────
+   Dark gaming UI: graphite glass surfaces, one blue accent used sparingly, gold for Stars. Tokens are Tailwind v4
+   theme variables (bg-primary, text-on-glass, ring-ring, rounded-card, font-display…); surfaces and controls are
+   component classes (@layer components, below), so utilities on the same element always win. */
+@theme {
+  /* type: Chakra Petch (display: titles, chips, buttons, numerals) + Inter (UI / body); loaded in app/layout.tsx */
+  --font-display: var(--font-chakra), "Rajdhani", ui-sans-serif, system-ui, sans-serif;
+  --font-ui: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: var(--font-ui);
+
+  /* accent (the only vivid colour): primary buttons, focus, active tabs, progress, selection */
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary: #3b82f6;
+  --color-accent: #60a5fa;
+  --color-ring: #60a5fa;
+  /* graphite neutrals (near-black base → raised surfaces) */
+  --color-ink-950: #0b0d10;
+  --color-ink-900: #121418;
+  --color-ink-800: #16191f;
+  --color-ink-700: #1c2027;
+  --color-ink-600: #232832;
+  --color-ink-500: #2c323d;
+  /* semantic, tuned for dark backgrounds */
+  --color-success: #22c55e;
+  --color-success-soft: #86efac;
+  --color-success-ink: #052e16;
+  --color-warning: #f59e0b;
+  --color-warning-soft: #fcd34d;
+  --color-danger: #ef4444;
+  --color-danger-soft: #fca5a5;
+  --color-gold: #fbbf24;
+  --color-star: #fbbf24;
+  /* text on glass */
+  --color-on-glass: #f3f4f6;
+  --color-on-glass-muted: rgb(209 213 219 / 0.78);
+
+  --radius-card: 14px;
+  --radius-control: 10px;
+  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.35), 0 10px 28px -10px rgb(0 0 0 / 0.65);
+  --shadow-elevated: 0 2px 8px rgb(0 0 0 / 0.4), 0 32px 72px -18px rgb(0 0 0 / 0.85);
+  --shadow-glow: 0 0 0 1px rgb(96 165 250 / 0.35), 0 6px 18px -6px rgb(59 130 246 / 0.6);
+  --ease-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+:root {
+  /* glass-1: graphite frost (chips, buttons, prompts) */
+  --glass-1: linear-gradient(180deg, rgb(255 255 255 / 0.06), rgb(255 255 255 / 0) 60%), rgb(22 25 31 / 0.74);
+  --glass-1-hover: linear-gradient(180deg, rgb(255 255 255 / 0.09), rgb(255 255 255 / 0.01) 60%), rgb(35 40 50 / 0.82);
+  /* glass-2: elevated (menus, sheets, dialogs, chat) */
+  --glass-2: linear-gradient(180deg, rgb(255 255 255 / 0.05), rgb(255 255 255 / 0) 40%), rgb(18 20 24 / 0.84);
+  /* solid fallbacks (Lite tier, no backdrop-filter, reduced transparency) */
+  --glass-solid-1: linear-gradient(180deg, rgb(255 255 255 / 0.05), rgb(255 255 255 / 0) 60%), rgb(22 25 31 / 0.94);
+  --glass-solid-2: linear-gradient(180deg, rgb(255 255 255 / 0.04), rgb(255 255 255 / 0) 40%), rgb(16 18 22 / 0.97);
+  --glass-edge: rgb(255 255 255 / 0.09);
+  --glass-edge-top: rgb(255 255 255 / 0.18);
+  --glass-hi: inset 0 1px 0 rgb(255 255 255 / 0.07);
+  --glass-filter: blur(18px) saturate(140%);
+  --glass-filter-2: blur(22px) saturate(140%);
+  /* thin accent edge line for key panels */
+  --edge-accent: linear-gradient(90deg, transparent, rgb(96 165 250 / 0.9) 30%, rgb(96 165 250 / 0.9) 70%, transparent);
+}
+/* phones: lighter blur over WebGL */
+@media (pointer: coarse) {
+  :root {
+    --glass-filter: blur(10px) saturate(130%);
+    --glass-filter-2: blur(12px) saturate(130%);
+  }
+}
+html[data-glass="lite"] {
+  --glass-1: var(--glass-solid-1);
+  --glass-1-hover: var(--glass-solid-1);
+  --glass-2: var(--glass-solid-2);
+  --glass-filter: none;
+  --glass-filter-2: none;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --glass-1: var(--glass-solid-1);
+    --glass-1-hover: var(--glass-solid-1);
+    --glass-2: var(--glass-solid-2);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-1: var(--glass-solid-1);
+    --glass-1-hover: var(--glass-solid-1);
+    --glass-2: var(--glass-solid-2);
+    --glass-filter: none;
+    --glass-filter-2: none;
+  }
+}
+
+@layer base {
+  :where(button, a, input, select, textarea, summary, [role="menuitem"], [role="tab"], [tabindex]):focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+  :where(h1, h2, h3) {
+    font-family: var(--font-display);
+    letter-spacing: 0.01em;
+  }
+}
+
+/* Surfaces + controls live in the components layer, so any Tailwind utility on the same element (size, radius,
+   border width, display, bg-*!) still wins: these classes restyle, they never change layout. */
+@layer components {
+  /* micro-interactions: 160 ms colour / scale, press = 0.97 */
+  .press,
+  .chip,
+  .icon-button,
+  .menu-item,
+  .tile,
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger,
+  .btn-success {
+    transition-property: color, background-color, background, border-color, box-shadow, opacity, scale, translate;
+    transition-duration: 160ms;
+    transition-timing-function: var(--ease-soft);
+    &:active:not(:disabled) {
+      scale: 0.97;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      transition-duration: 0ms;
+      &:active:not(:disabled) {
+        scale: none;
+      }
+    }
+  }
+
+  /* display face: chips, buttons, tiles, keycaps, labels, numerals */
+  .chip,
+  .icon-button,
+  .toast,
+  .tile,
+  .kbd,
+  .label,
+  .num,
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger,
+  .btn-success {
+    font-family: var(--font-display);
+    letter-spacing: 0.01em;
+  }
+  /* section titles / small caps */
+  .label {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 600;
+  }
+  /* Stars, levels, timers */
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+  }
+
+  /* glass-1: graphite frost (chips, pills, round buttons, prompts, toasts) */
+  .glass,
+  .chip,
+  .icon-button,
+  .toast {
+    color: var(--color-on-glass);
+    background: var(--glass-1);
+    border: 1px solid var(--glass-edge);
+    border-top-color: var(--glass-edge-top);
+    box-shadow: var(--glass-hi), var(--shadow-float);
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
+    text-shadow: 0 1px 1px rgb(0 0 0 / 0.45);
+  }
+  /* glass-2: elevated (menus, sheets, dialogs, chat) */
+  .glass-elevated,
+  .menu,
+  .sheet {
+    color: var(--color-on-glass);
+    background: var(--glass-2);
+    border: 1px solid var(--glass-edge);
+    border-top-color: var(--glass-edge-top);
+    box-shadow: var(--glass-hi), var(--shadow-elevated);
+    -webkit-backdrop-filter: var(--glass-filter-2);
+    backdrop-filter: var(--glass-filter-2);
+  }
+  /* key panels (dialogs, sheets): a thin accent line along the top edge */
+  .sheet {
+    background: var(--edge-accent) top center / 72% 1px no-repeat, var(--glass-2);
+  }
+  /* same look, no blur: nested surfaces, static backdrops */
+  .glass-solid {
+    color: var(--color-on-glass);
+    background: var(--glass-solid-1);
+    border: 1px solid var(--glass-edge);
+    border-top-color: var(--glass-edge-top);
+    box-shadow: var(--glass-hi), var(--shadow-float);
+  }
+  .chip,
+  .toast {
+    border-radius: 9999px;
+  }
+  .menu {
+    border-radius: var(--radius-card);
+  }
+  .sheet {
+    border-radius: 16px;
+  }
+  .icon-button {
+    display: grid;
+    place-items: center;
+  }
+  @media (hover: hover) {
+    .icon-button:hover:not(:disabled),
+    .chip:is(button, a):hover:not(:disabled) {
+      background: var(--glass-1-hover);
+      border-color: rgb(255 255 255 / 0.16);
+    }
+  }
+  /* controller-style round action button (phone action bar, desktop action cluster) */
+  .controller {
+    background:
+      radial-gradient(circle at 50% 28%, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0) 62%),
+      rgb(22 25 31 / 0.78);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.1),
+      inset 0 -3px 8px rgb(0 0 0 / 0.4),
+      0 0 0 3px rgb(0 0 0 / 0.18),
+      var(--shadow-float);
+  }
+  .controller-active,
+  .controller-active:hover:not(:disabled) {
+    background:
+      radial-gradient(circle at 50% 28%, rgb(147 197 253 / 0.28), rgb(59 130 246 / 0) 65%),
+      rgb(29 50 92 / 0.85);
+    border-color: rgb(96 165 250 / 0.85);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.14),
+      0 0 0 3px rgb(59 130 246 / 0.22),
+      0 0 18px -2px rgb(59 130 246 / 0.55),
+      var(--shadow-float);
+  }
+
+  .menu-item {
+    border-radius: 8px;
+    @media (hover: hover) {
+      &:hover:not(:disabled) {
+        background-color: rgb(255 255 255 / 0.07);
+      }
+    }
+    &:active:not(:disabled) {
+      background-color: rgb(255 255 255 / 0.11);
+    }
+  }
+
+  /* option tiles inside a glass surface (no blur of their own) */
+  .tile {
+    background-color: rgb(255 255 255 / 0.05);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07), inset 0 1px 0 rgb(255 255 255 / 0.06);
+    @media (hover: hover) {
+      &:hover:not(:disabled) {
+        background-color: rgb(255 255 255 / 0.1);
+        box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12), inset 0 1px 0 rgb(255 255 255 / 0.08);
+      }
+    }
+    &:active:not(:disabled) {
+      background-color: rgb(59 130 246 / 0.18);
+      box-shadow: inset 0 0 0 1px rgb(96 165 250 / 0.55);
+    }
+  }
+  .tile-active,
+  .tile-active:hover:not(:disabled) {
+    background-color: rgb(59 130 246 / 0.2);
+    box-shadow: inset 0 0 0 1px rgb(96 165 250 / 0.8), 0 0 14px -4px rgb(59 130 246 / 0.6);
+  }
+
+  /* buttons */
+  .btn-primary {
+    color: #fff;
+    background: linear-gradient(180deg, var(--color-primary-500), var(--color-primary-600));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22), inset 0 -1px 0 rgb(0 0 0 / 0.25), 0 6px 16px -8px rgb(59 130 246 / 0.75);
+    text-shadow: 0 1px 1px rgb(0 0 0 / 0.3);
+    @media (hover: hover) {
+      &:hover:not(:disabled) {
+        background: linear-gradient(180deg, #4f8ff7, #2e6cf0);
+        box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25), inset 0 -1px 0 rgb(0 0 0 / 0.25), 0 0 0 3px rgb(59 130 246 / 0.18), 0 8px 20px -8px rgb(59 130 246 / 0.85);
+      }
+    }
+    &:disabled {
+      opacity: 0.45;
+      box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.15);
+    }
+  }
+  .btn-secondary {
+    color: var(--color-on-glass);
+    background-color: rgb(255 255 255 / 0.06);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1), inset 0 1px 0 rgb(255 255 255 / 0.06);
+    @media (hover: hover) {
+      &:hover:not(:disabled) {
+        background-color: rgb(255 255 255 / 0.11);
+        box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16), inset 0 1px 0 rgb(255 255 255 / 0.08);
+      }
+    }
+  }
+  .btn-danger {
+    color: #fff;
+    background: linear-gradient(180deg, #ef5350, #dc2626);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 6px 16px -8px rgb(239 68 68 / 0.7);
+    @media (hover: hover) {
+      &:hover:not(:disabled) {
+        background: linear-gradient(180deg, #f26361, #e23131);
+      }
+    }
+  }
+  .btn-success {
+    color: var(--color-success-ink);
+    background: linear-gradient(180deg, #34d27a, #16a34a);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25), 0 6px 16px -8px rgb(34 197 94 / 0.7);
+    text-shadow: none;
+  }
+
+  /* modal backdrop: deliberately no blur (a full-screen blur over WebGL is the most expensive layer) */
+  .scrim {
+    background-color: rgb(5 6 8 / 0.6);
+  }
+  /* keycap hint ("E", "T", "V") */
+  .kbd {
+    color: #f3f4f6;
+    background: linear-gradient(180deg, #3a404c, #252a33);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.16),
+      inset 0 0 0 1px rgb(255 255 255 / 0.06),
+      0 2px 0 #0b0d10,
+      0 3px 6px rgb(0 0 0 / 0.45);
+    text-shadow: none;
+  }
+  /* readable text straight on the 3D scene (hints, captions) */
+  .scene-text {
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.75), 0 0 8px rgb(0 0 0 / 0.4);
+  }
+}
+
 html,
 body {
   background: var(--bg);
