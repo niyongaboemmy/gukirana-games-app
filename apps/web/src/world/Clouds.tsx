@@ -69,7 +69,7 @@ export function Clouds({ tier }: { tier: Tier }) {
     const r = rng(73);
     const list: CloudDef[] = [];
     // banks over the volcano azimuths (north-west … north-east)
-    for (const az of [-50, -38, -24, -10, 6, 20, 32])
+    for (const az of [-48, -30, -8, 14, 30])
       list.push({
         az: az + (r() - 0.5) * 6,
         dist: 1250 + r() * 250,
@@ -103,7 +103,7 @@ export function Clouds({ tier }: { tier: Tier }) {
             fog: false,
             toneMapped: false,
             color: "#f4f6f8",
-            opacity: 0.8,
+            opacity: 0.62,
           }),
       ),
     [],
@@ -127,7 +127,7 @@ export function Clouds({ tier }: { tier: Tier }) {
           <mesh
             key={i}
             position={[x, d.y, z]}
-            rotation={[0, Math.atan2(-x, -z) + Math.PI, 0]}
+            rotation={[0, Math.atan2(-x, -z), 0]}
             material={m}
             renderOrder={-2}
           >

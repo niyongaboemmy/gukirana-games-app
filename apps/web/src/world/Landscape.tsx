@@ -670,7 +670,7 @@ function Mist({ tier }: { tier: Tier }) {
             refs.current[i] = m;
           }}
           position={[d.x, d.y, d.z]}
-          rotation={[0, Math.atan2(-d.x, -d.z) + Math.PI, 0]}
+          rotation={[0, Math.atan2(-d.x, -d.z), 0]} // face the plaza (front side)
           renderOrder={-1}
         >
           <planeGeometry args={[d.w, d.h]} />

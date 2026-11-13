@@ -238,6 +238,28 @@ function igisoroCourt(b: GeoBatch, tier: string) {
   b.box("wood", 6.4, 0.3, 3.4, { p: [0, 4.6, -0.9], tile: 1 });
   for (const x of [-2.9, 2.9]) b.cyl("woodDark", 0.16, 0.18, 4.45, 10, { p: [x, 2.22, 0.5] });
   doorSurround(b, "led-igisoro", -2.1);
+  // lettered timber fascia board hung under the porch roof (the lettering is drawn in Plaza.tsx)
+  b.box("woodDark", 4.6, 0.62, 0.08, { p: [0, 4.14, 0.84], tile: 1 });
+  for (const x of [-2.0, 2.0]) b.box("steel", 0.03, 0.12, 0.03, { p: [x, 4.5, 0.84] });
+  // windows: timber-framed 0.9 × 1.6 m, sill at 0.9 m, every ~3 m on all walls; neutral glass in front of a warm
+  // out-of-focus view of the hall (columns, lamps, tables) for depth
+  const win = (x: number, z: number, rotY: number) => {
+    b.frame([x, 0, z], rotY, () => {
+      b.box("windowGlimpse", 0.9, 1.6, 0.02, { p: [0, 1.7, 0.02] });
+      b.box("glassClear", 0.9, 1.6, 0.02, { p: [0, 1.7, 0.1] });
+      for (const s of [-1, 1]) b.box("woodDark", 0.1, 1.8, 0.16, { p: [s * 0.5, 1.7, 0.08], tile: 1 });
+      b.box("woodDark", 1.1, 0.1, 0.16, { p: [0, 2.55, 0.08], tile: 1 });
+      b.box("woodDark", 1.2, 0.08, 0.26, { p: [0, 0.86, 0.12], tile: 1 }); // sill
+      b.box("woodDark", 0.9, 0.05, 0.05, { p: [0, 2.05, 0.11], tile: 1 }); // transom bar
+    });
+  };
+  for (let x = x0 + 1.8; x <= -fw / 2 - 1.0; x += 3) win(x, z0 + t / 2, 0);
+  for (let x = fw / 2 + 1.2; x <= x1 - 1.0; x += 3) win(x, z0 + t / 2, 0);
+  for (let z = z0 - 2.0; z >= z1 + 1.0; z -= 3) {
+    win(x0 - 0.0, z, -Math.PI / 2);
+    win(x1 + 0.0, z, Math.PI / 2);
+  }
+  for (let x = x0 + 1.8; x <= x1 - 1.0; x += 3) win(x, z1, Math.PI);
   // carved benches either side of the porch
   for (const x of [-2.2, 2.2]) b.box("woodDark", 1.4, 0.45, 0.5, { p: [x, 0.23, -1.6], tile: 1 });
 }

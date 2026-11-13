@@ -7,6 +7,7 @@ import {
   agasekeTexture,
   curtainWallTextures,
   grassTexture,
+  hallGlimpseTexture,
   hoardingTexture,
   imigongoDiamondTexture,
   imigongoTexture,
@@ -94,7 +95,8 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     paving: pavingMaterial(),
     // flush sawn-basalt band under the wayfinding LEDs, granite + brass spawn medallion
     basalt: std({ map: concreteTexture(), color: "#4a4844", roughness: 0.72 }),
-    granite: std({ map: pavingTexture(), color: "#a39c92", roughness: 0.7 }),
+    granite: std({ map: concreteTexture(), color: "#a8a196", roughness: 0.7 }),
+    windowGlimpse: new THREE.MeshBasicMaterial({ map: hallGlimpseTexture("igisoro"), color: new THREE.Color("#ffffff").multiplyScalar(tier === "lite" ? 0.5 : 0.62) }),
     basinFloor: std({ map: concreteTexture(), color: "#6d6a64", roughness: 0.9 }),
     brass: std({ color: "#9a7a45", metalness: 1, roughness: 0.45 }),
     aluBrushed: std({ map: brushedAluTexture(), color: "#d4d8de", metalness: 0.85, roughness: 0.42 }),

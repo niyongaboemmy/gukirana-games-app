@@ -51,7 +51,7 @@ function District({ tier }: { tier: Tier }) {
 const BADGE: Record<PortalDef["kind"], [number, number] | null> = {
   pool: [4.62, -0.28],
   ludo: [5.0, 0.87],
-  igisoro: [4.6, 0.97],
+  igisoro: null, // the lettered timber fascia board on the porch is its sign
   arena: [4.62, -0.93],
   soon: null,
 };
@@ -68,7 +68,7 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
   const ledColor = useMemo(() => new THREE.Color(def.color).multiplyScalar(LED_BOOST[tier]), [def.color, tier]);
   const hoarding = worldMaterials(tier)["hoarding"];
   useFrame(({ clock }) => {
-    if (ring.current) ring.current.opacity = (active ? 0.7 : 0.4) + Math.sin(clock.elapsedTime * 2.2 + def.angleDeg) * 0.04;
+    if (ring.current) ring.current.opacity = (active ? 0.5 : 0.3) + Math.sin(clock.elapsedTime * 2.2 + def.angleDeg) * 0.04;
   });
   const signY = def.kind === "pool" ? 8.0 : def.kind === "ludo" ? 6.75 : def.kind === "igisoro" ? 5.35 : def.kind === "arena" ? 6.98 : 4.9;
   const signZ = def.kind === "pool" ? 1.44 : def.kind === "ludo" ? 0.3 : def.kind === "igisoro" ? 0.82 : def.kind === "arena" ? 2.08 : -0.28;
@@ -91,10 +91,17 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
         <ringGeometry args={[0.85, 1.1, 48]} />
         <meshBasicMaterial ref={ring} color={ledColor} transparent opacity={0.5} toneMapped={false} depthWrite={false} />
       </mesh>
-      <Text font={FONT} fontSize={def.kind === "arena" ? 0.4 : 0.5} color={ledColor} position={[0, signY, signZ]} anchorX="center" anchorY="middle" letterSpacing={0.06}>
-        {def.label.toUpperCase()}
-        <meshBasicMaterial color={ledColor} toneMapped={false} />
-      </Text>
+      {def.kind === "igisoro" ? (
+        // carved lettering on the timber fascia board hung under the porch roof (District.ts igisoroCourt)
+        <Text font={FONT} fontSize={0.36} color="#f1e3c4" position={[0, 4.16, 0.9]} anchorX="center" anchorY="middle" letterSpacing={0.1}>
+          {def.label.toUpperCase()}
+        </Text>
+      ) : (
+        <Text font={FONT} fontSize={def.kind === "arena" ? 0.4 : 0.5} color={ledColor} position={[0, signY, signZ]} anchorX="center" anchorY="middle" letterSpacing={0.06}>
+          {def.label.toUpperCase()}
+          <meshBasicMaterial color={ledColor} toneMapped={false} />
+        </Text>
+      )}
       {soon && (
         <Text font={FONT} fontSize={0.26} color="#1b1b1b" position={[0, 2.6, inset + 0.1]} anchorX="center" anchorY="middle">
           {`${def.sub} · coming soon`}
@@ -134,8 +141,9 @@ function AutoDoors({ def, inset, tier, locked = false }: { def: PortalDef; inset
     doorOpen[def.id] = open.current;
     const e = open.current * open.current * (3 - 2 * open.current);
     if (wooden) {
-      if (left.current) left.current.rotation.y = -e * 1.55;
-      if (right.current) right.current.rotation.y = e * 1.55;
+      // hinged at the jambs, swinging INTO the vestibule (−z), clear of the porch posts
+      if (left.current) left.current.rotation.y = e * 1.5;
+      if (right.current) right.current.rotation.y = -e * 1.5;
     } else {
       if (left.current) left.current.position.x = -DOOR.w / 4 - e * (DOOR.w / 2 - 0.08);
       if (right.current) right.current.position.x = DOOR.w / 4 + e * (DOOR.w / 2 - 0.08);
