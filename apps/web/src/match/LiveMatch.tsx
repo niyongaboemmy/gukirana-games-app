@@ -89,9 +89,19 @@ async function connect(roomId: string): Promise<Room> {
       /* the window passed or the server restarted: join fresh below */
     }
   }
-  await refreshSession(); // fresh access token for the join
-  const token = useSession.getState().accessToken;
-  return client.joinById(roomId, { token, clientSeed: newSeed().slice(0, 32) });
+  // use the current access token; refresh only when there is none or the server refuses it (an extra refresh
+  // racing the session bootstrap could rotate the refresh token out from under it and sign the player out)
+  const join = () => client.joinById(roomId, { token: useSession.getState().accessToken, clientSeed: newSeed().slice(0, 32) });
+  if (!useSession.getState().accessToken) await refreshSession();
+  try {
+    return await join();
+  } catch (e) {
+    // only an auth refusal is worth a token refresh; a network failure must never touch the session
+    // (a failed refresh marks the player signed out and sends them to the gate mid-match)
+    if (!/NOT_A_PLAYER|auth|token|unauthori/i.test(String((e as Error)?.message ?? e)) || !navigator.onLine) throw e;
+    await refreshSession();
+    return join();
+  }
 }
 
 /** Live, server-authoritative match (plan P0-GMK-04). The client renders state and sends intents only. */
@@ -191,7 +201,9 @@ export function LiveMatch({ roomId }: { roomId: string }) {
         joins.delete(roomId);
         void (async () => {
           for (let i = 0; i < 12 && alive.current && !resultRef.current; i++) {
-            await new Promise((res) => setTimeout(res, Math.min(5000, 500 * 2 ** i)));
+            await new Promise((res) => setTimeout(res, Math.min(3000, 500 * 2 ** i)));
+            // offline: wait for the network to come back (up to the server's 60 s window) without spending a retry
+            for (let w = 0; w < 120 && !navigator.onLine && alive.current; w++) await new Promise((res) => setTimeout(res, 500));
             try {
               const nr = await connect(roomId);
               joins.set(roomId, Promise.resolve(nr));
@@ -215,7 +227,8 @@ export function LiveMatch({ roomId }: { roomId: string }) {
   useEffect(() => {
     alive.current = true;
     if (status === "loading") return;
-    if (status === "anonymous") return void router.replace("/gate");
+    if (status === "anonymous" && !room.current) return void router.replace("/gate");
+    if (status === "anonymous") return void (room.current ? undefined : router.replace("/gate"));
     let cancelled = false;
     const pending = pendingLeave.get(roomId);
     if (pending) {
@@ -260,15 +273,16 @@ export function LiveMatch({ roomId }: { roomId: string }) {
   const game = (init?.game ?? params.get("game")) as "igisoro" | "ludo" | "pool";
   const stake = init?.stake ?? Number(params.get("stake") ?? 0);
   const myId = init?.you ?? me?.id ?? "";
-  const myTurn = turn === myId && !result;
+  const myTurn = turn === myId && !result && !reconnecting; // no input into a dead socket
   const players = init?.players ?? [];
   const opp = players.filter((p) => p.userId !== myId);
   const meInfo = players.find((p) => p.userId === myId);
   const nameOf = useCallback((id: string) => (id === myId ? "You" : (players.find((p) => p.userId === id)?.name ?? "Opponent")), [myId, players]);
 
   const ranks = result ? Object.values(result.ranks) : [];
-  const draw = !!result && ranks.length > 1 && ranks.every((r) => r === 1);
-  const won = !!result && result.ranks[myId] === 1 && !draw;
+  // a voided match (no-show, server error) also has equal ranks, but it is a refund, not a draw
+  const draw = !!result && result.reason !== "void" && ranks.length > 1 && ranks.every((r) => r === 1);
+  const won = !!result && result.reason !== "void" && result.ranks[myId] === 1 && !draw;
   // back among people after the match, the avatar celebrates / shakes its head (social/people.ts)
   useEffect(() => void (result && rememberOutcome(won ? "win" : draw ? "draw" : "loss")), [result, won, draw]);
   const starsDelta = result ? (won ? stake : draw ? 0 : result.reason === "void" ? 0 : -stake) : 0;
