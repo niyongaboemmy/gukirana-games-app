@@ -6,6 +6,7 @@ import { Bloom, EffectComposer, ToneMapping } from "@react-three/postprocessing"
 import { ToneMappingMode } from "postprocessing";
 import * as THREE from "three";
 import type { Tier } from "./materials";
+import { Clouds } from "./Clouds";
 
 /**
  * Morning in Musanze: low sun from the east-south-east, cool hazy sky, mist in the valleys.
@@ -20,7 +21,8 @@ export const FOG_COLOR = "#c4d2dc";
 
 function SkyDome() {
   const sun = useMemo(() => SUN_DIR.clone().multiplyScalar(400), []);
-  return <Sky distance={2400} sunPosition={sun} turbidity={5} rayleigh={2.3} mieCoefficient={0.005} mieDirectionalG={0.84} />;
+  // clearer, deeper highland blue (Musanze at ~1,850 m): less Rayleigh haze and turbidity than a lowland sky
+  return <Sky distance={2400} sunPosition={sun} turbidity={2.4} rayleigh={2.0} mieCoefficient={0.004} mieDirectionalG={0.84} />;
 }
 
 /** Sun with a shadow frustum that follows the player (crisp shadows near you, texel-snapped to avoid shimmer). */
@@ -49,8 +51,8 @@ function Sun({ tier }: { tier: Tier }) {
   return (
     <directionalLight
       ref={light}
-      color="#ffd8ad"
-      intensity={3.3}
+      color="#fff0dc"
+      intensity={2.6}
       castShadow={tier !== "lite"}
       shadow-mapSize={[map, map]}
       shadow-bias={-0.0004}
@@ -71,9 +73,9 @@ export function Lighting({ tier }: { tier: Tier }) {
     <>
       <SkyDome />
       <fogExp2 attach="fog" args={[FOG_COLOR, tier === "lite" ? 0.0012 : 0.00085]} />
-      <hemisphereLight args={["#c9def0", "#56643a", 0.32]} />
+      <hemisphereLight args={["#c9def0", "#4a5236", 0.45]} />
       <Sun tier={tier} />
-      <Environment frames={1} near={1} far={3000} resolution={tier === "lite" ? 32 : 128} environmentIntensity={0.7}>
+      <Environment frames={1} near={1} far={3000} resolution={tier === "lite" ? 32 : 128} environmentIntensity={0.55}>
         <SkyDome />
         {/* sun disc + warm bounce from the east, cool sky panels, dark-green ground */}
         <Lightformer form="circle" intensity={6} color="#ffe2b8" position={SUN_DIR.clone().multiplyScalar(50).toArray()} scale={10} target={[0, 0, 0]} />
@@ -84,6 +86,7 @@ export function Lighting({ tier }: { tier: Tier }) {
           <meshBasicMaterial color="#3e4a33" />
         </mesh>
       </Environment>
+      <Clouds tier={tier} />
     </>
   );
 }

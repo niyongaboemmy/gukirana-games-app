@@ -98,7 +98,7 @@ export function terrainHeight(x: number, z: number): number {
   h += smooth(500, 1100, r) * (1 - north) * 40; // far southern ridges close the horizon
   const t = h / TERRACE;
   const terr = (Math.floor(t) + smooth(0.72, 1, t - Math.floor(t))) * TERRACE;
-  h = lerp(h, terr, 0.62) * ramp;
+  h = lerp(h, terr, 0.62 * (1 - smooth(380, 620, r))) * ramp;
   for (const l of LAKES) {
     const d = lakeDist(l, x, z);
     if (d < 1.4) h = lerp(l.level - 5, Math.max(h, l.level + 1.5), smooth(0.92, 1.4, d));
@@ -108,10 +108,54 @@ export function terrainHeight(x: number, z: number): number {
 
 const FIELD_COLORS = ["#5f9d3c", "#86ad45", "#3f7b35", "#6e9f46", "#9cb455", "#4f8a3a", "#6b4b33", "#a39a52"].map((c) => new THREE.Color(c));
 
+const PLOT = 27; // mean plot size (m): jittered Voronoi cells give irregular 15–40 m fields
+const _lawn = new THREE.Color();
+const _c2 = new THREE.Color();
+const HEDGE = new THREE.Color("#3e5e2c");
+
+/** Colour of the irregular field plot at (x, z), softly blended into its neighbour over the last 3–6 m. */
+function plotColor(x: number, z: number, out: THREE.Color) {
+  // warp the lookup so plot edges wander like real field boundaries
+  const wx = x + (fbm(x * 0.018 + 3.1, z * 0.018, 2) - 0.5) * 14;
+  const wz = z + (fbm(x * 0.018, z * 0.018 + 8.7, 2) - 0.5) * 14;
+  const ci = Math.floor(wx / PLOT);
+  const cj = Math.floor(wz / PLOT);
+  let d1 = 1e9;
+  let d2 = 1e9;
+  let k1 = 0;
+  let k2 = 0;
+  for (let j = cj - 1; j <= cj + 1; j++)
+    for (let i = ci - 1; i <= ci + 1; i++) {
+      const px = (i + 0.15 + hash(i, j * 3 + 1) * 0.7) * PLOT;
+      const pz = (j + 0.15 + hash(i * 5 + 2, j) * 0.7) * PLOT;
+      const d = Math.hypot(wx - px, wz - pz);
+      const k = Math.floor(hash(i * 13 + 7, j * 17 + 3) * FIELD_COLORS.length);
+      if (d < d1) {
+        d2 = d1;
+        k2 = k1;
+        d1 = d;
+        k1 = k;
+      } else if (d < d2) {
+        d2 = d;
+        k2 = k;
+      }
+    }
+  const edge = (d2 - d1) / 2; // distance to the plot boundary
+  const soft = 3 + hash(ci, cj) * 3;
+  out.copy(FIELD_COLORS[k1] ?? FIELD_COLORS[0]!);
+  if (edge < soft) {
+    _c2.copy(FIELD_COLORS[k2] ?? FIELD_COLORS[0]!);
+    out.lerp(_c2, 0.5 * (1 - edge / soft));
+    // boundary paths / grass strips between plots
+    out.lerp(HEDGE, 0.35 * (1 - smooth(0, 1.6, edge)));
+  }
+}
+
 function terrainColor(x: number, z: number, h: number, out: THREE.Color) {
   const r = Math.hypot(x, z);
-  if (r < 92) {
-    out.set("#5b9442").lerp(new THREE.Color("#73a650"), fbm(x * 0.05, z * 0.05, 2));
+  _lawn.set("#5b9442").lerp(_c2.set("#73a650"), fbm(x * 0.05, z * 0.05, 2));
+  if (r < 88) {
+    out.copy(_lawn);
     return;
   }
   for (const l of LAKES)
@@ -119,12 +163,13 @@ function terrainColor(x: number, z: number, h: number, out: THREE.Color) {
       out.set("#4a4031");
       return;
     }
+  plotColor(x, z, out);
   const band = Math.floor((h + 0.06) / TERRACE);
   const f = (h + 0.06) / TERRACE - band;
-  const idx = Math.floor(hash(Math.floor(x / 26) + band * 7, Math.floor(z / 19) - band * 3) * FIELD_COLORS.length);
-  out.copy(FIELD_COLORS[idx] ?? FIELD_COLORS[0]!);
-  if (f > 0.7) out.multiplyScalar(0.72); // terrace riser shadow line
-  out.lerp(new THREE.Color("#3e6b30"), 0.25 * fbm(x * 0.03, z * 0.03, 2));
+  if (f > 0.7 && r < 600) out.multiplyScalar(lerp(0.78, 1, smooth(380, 600, r))); // terrace riser shadow line
+  out.lerp(_c2.set("#3e6b30"), 0.25 * fbm(x * 0.03, z * 0.03, 2));
+  // the compound lawn runs out softly into the farmland (no hard seam behind the gate)
+  out.lerp(_lawn, 1 - smooth(88, 118, r));
 }
 
 function buildTerrain(tier: Tier): THREE.BufferGeometry {
@@ -179,11 +224,12 @@ interface Volcano {
 /** Real summits: Karisimbi 4,507 m · Muhabura 4,127 m · Bisoke 3,711 m · Sabyinyo 3,674 m · Gahinga 3,474 m (plain ≈ 1,850 m). */
 export const VOLCANOES: Volcano[] = [
   // pushed back to ~1.7–2.3 km (inside the sky dome) and kept to the real 5–8° of elevation seen from Musanze
-  { name: "Karisimbi", az: -58, dist: 2250, h: 355, r: 1750, p: 1.55 },
-  { name: "Bisoke", az: -36, dist: 1900, h: 230, r: 1150, p: 1.35, crater: 0.05 },
-  { name: "Sabyinyo", az: -8, dist: 1800, h: 225, r: 1100, p: 1.5, teeth: true, elong: 1.3 },
-  { name: "Gahinga", az: 13, dist: 1700, h: 185, r: 900, p: 1.3, crater: 0.04 },
-  { name: "Muhabura", az: 27, dist: 2000, h: 320, r: 1300, p: 1.12 },
+  // azimuths frame the open sight-lines either side of the arena drum (Bisoke ≈ −22°, Muhabura ≈ +22°)
+  { name: "Karisimbi", az: -46, dist: 2250, h: 420, r: 1750, p: 1.55 },
+  { name: "Bisoke", az: -23, dist: 1900, h: 300, r: 1150, p: 1.35, crater: 0.05 },
+  { name: "Sabyinyo", az: -6, dist: 1800, h: 275, r: 1100, p: 1.5, teeth: true, elong: 1.3 },
+  { name: "Gahinga", az: 9, dist: 1700, h: 230, r: 900, p: 1.3, crater: 0.04 },
+  { name: "Muhabura", az: 22, dist: 2000, h: 385, r: 1300, p: 1.12 },
 ];
 
 const BAND = {
@@ -202,7 +248,7 @@ function volcanoHeight(v: Volcano, lx: number, lz: number): number {
   // rounded summit
   h -= v.h * 0.06 * Math.exp(-u * u * 900);
   // erosion gullies, stronger low on the flanks
-  h *= 1 - 0.07 * Math.pow(Math.abs(Math.sin(a * 11 + fbm(lx * 0.01, lz * 0.01, 2) * 6)), 3) * smooth(0.05, 0.6, u);
+  h *= 1 - 0.045 * Math.pow(Math.abs(Math.sin(a * 11 + fbm(lx * 0.01, lz * 0.01, 2) * 6)), 3) * smooth(0.05, 0.6, u);
   h += (fbm(lx * 0.02, lz * 0.02, 3) - 0.5) * v.h * 0.05 * (1 - u);
   if (v.crater) {
     const c = v.crater;
@@ -269,7 +315,7 @@ function buildVolcanoes(tier: Tier): { geo: THREE.BufferGeometry; craters: THREE
         const u = Math.min(1, rr / v.r);
         // ridged lava flows and gullies: strongest on the mid flanks
         const det = ridged(lx * 0.0065 + v.az, lz * 0.0065 - v.az, tier === "lite" ? 3 : 5);
-        h += (det - 0.35) * v.h * 0.07 * Math.sin(Math.PI * Math.min(1, u * 1.15)) * (1 - u * 0.3);
+        h += (det - 0.35) * v.h * 0.045 * Math.sin(Math.PI * Math.min(1, u * 1.15)) * (1 - u * 0.3);
         h *= 1 - smooth(0.92, 1, u); // feather into the plain
         pos.push(centre.x + lx, h - 7, centre.z + lz);
         hn.push(h / v.h);
@@ -660,9 +706,9 @@ export function Landscape({ tier }: { tier: Tier }) {
         `#include <fog_fragment>
         {
           float gkD = length(vViewPosition);
-          float gkK = 1.0 - exp(-gkD * 0.00036);
+          float gkK = 1.0 - exp(-gkD * 0.00046);
           vec3 gkG = vec3(dot(gl_FragColor.rgb, vec3(0.3, 0.59, 0.11)));
-          gl_FragColor.rgb = mix(mix(gl_FragColor.rgb, gkG, 0.45 * gkK), vec3(0.66, 0.73, 0.79), gkK * 0.8);
+          gl_FragColor.rgb = mix(mix(gl_FragColor.rgb, gkG, 0.45 * gkK), vec3(0.706, 0.765, 0.812), gkK);
         }`,
       );
     };
