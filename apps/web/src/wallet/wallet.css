@@ -1,0 +1,380 @@
+/* The 3D wallet's on-leather controls (DOM placed in 3D with drei <Html transform>). Matte, no glare.
+   Sizes are in CSS px of the 3D surface (400 px = 1 world unit); the camera fit keeps them readable on phones. */
+
+/* embossed, stitched leather button */
+.wbtn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  border-radius: 20px;
+  color: #f6ead8;
+  background: linear-gradient(180deg, #6a4a33, #503624);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.07),
+    inset 0 -4px 8px rgb(0 0 0 / 0.3),
+    0 4px 0 #2b1b11,
+    0 8px 14px -6px rgb(0 0 0 / 0.6);
+  font-family: var(--font-display, inherit);
+  font-weight: 800;
+  font-size: 24px;
+  line-height: 1.1;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 0.45);
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.wbtn::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border-radius: 14px;
+  border: 2px dashed rgb(236 214 182 / 0.42);
+  pointer-events: none;
+}
+.wbtn small {
+  font-family: var(--font-sans, inherit);
+  font-size: 16px;
+  font-weight: 600;
+  color: #dcc8ab;
+  text-shadow: none;
+}
+.wbtn svg {
+  width: 34px;
+  height: 34px;
+  color: #f3d9a4;
+}
+@media (hover: hover) {
+  .wbtn:hover:not(:disabled) {
+    background: linear-gradient(180deg, #78553b, #5b3e2a);
+  }
+}
+.wbtn:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.05),
+    inset 0 -2px 6px rgb(0 0 0 / 0.3),
+    0 1px 0 #2b1b11;
+}
+.wbtn:focus-visible {
+  outline: 3px solid var(--color-ring, #60a5fa);
+  outline-offset: 3px;
+}
+.wbtn:disabled {
+  cursor: default;
+  color: #cbbba4;
+  background: linear-gradient(180deg, #4d3727, #3f2c1f);
+  box-shadow: inset 0 3px 8px rgb(0 0 0 / 0.4);
+}
+.wbtn:disabled svg {
+  color: #a8d5b4;
+}
+.wbtn-row {
+  flex-direction: row;
+  gap: 14px;
+  padding: 0 22px;
+  text-align: left;
+}
+.wbtn-row > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wbtn-gold:not(:disabled) {
+  color: #2a1d0b;
+  text-shadow: none;
+  background: linear-gradient(180deg, #e7bf5c, #c99a33);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.35),
+    inset 0 -4px 8px rgb(90 56 10 / 0.35),
+    0 4px 0 #6d4c17,
+    0 8px 14px -6px rgb(0 0 0 / 0.6);
+}
+.wbtn-gold:not(:disabled)::before {
+  border-color: rgb(90 60 20 / 0.45);
+}
+.wbtn-gold:not(:disabled) small {
+  color: #4a3410;
+}
+.wbtn-gold:not(:disabled) svg {
+  color: #3b2a0c;
+}
+@media (hover: hover) {
+  .wbtn-gold:hover:not(:disabled) {
+    background: linear-gradient(180deg, #efc966, #d2a43b);
+  }
+}
+
+/* leather currency tabs sticking out above the balance card */
+.wtabs {
+  display: flex;
+  gap: 8px;
+  height: 100%;
+  align-items: flex-end;
+}
+.wtab {
+  flex: 1;
+  height: 100%;
+  border-radius: 14px 14px 4px 4px;
+  font-family: var(--font-display, inherit);
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: 0.04em;
+  color: #e9d8bf;
+  background: linear-gradient(180deg, #6a4a33, #4d3423);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.07),
+    inset 0 -3px 6px rgb(0 0 0 / 0.3);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.wtab[aria-checked="true"] {
+  color: #16171a;
+  background: linear-gradient(180deg, #f3eee2, #e2dac8);
+  box-shadow:
+    inset 0 2px 0 #fff,
+    0 0 0 2px #d9ab3c;
+}
+.wtab:focus-visible {
+  outline: 3px solid var(--color-ring, #60a5fa);
+  outline-offset: 2px;
+}
+
+/* an opened card: flat, centred, fitted to the screen, dark neutral grey; grows out of the wallet's right half */
+.wcard-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: rgb(14 15 17 / 0.7);
+  animation: wfade 220ms ease-out both;
+}
+.wcard {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: min(780px, 94vw);
+  max-height: min(620px, 92dvh);
+  border-radius: 24px;
+  color: var(--color-on-glass, #f2f3f5);
+  background: var(--color-ink-800, #18191c);
+  border: 1px solid rgb(255 255 255 / 0.1);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    0 24px 60px -20px rgb(0 0 0 / 0.8);
+  font-size: 18px;
+  line-height: 1.35;
+  animation: wcard-in 260ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+.wcard-layer.is-closing {
+  animation: wfade 200ms ease-in reverse both;
+}
+.wcard-layer.is-closing .wcard {
+  animation: wcard-in 200ms ease-in reverse both;
+}
+.wcard-layer.is-still,
+.wcard-layer.is-still .wcard {
+  animation: none;
+}
+@keyframes wfade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes wcard-in {
+  from {
+    opacity: 0;
+    transform: translate(24%, 4%) scale(0.42);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wcard-layer,
+  .wcard {
+    animation: none !important;
+  }
+}
+.wfunds {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 600px) {
+  .wfunds {
+    grid-template-columns: 1fr;
+  }
+}
+/* phone landscape: same layout, slightly tighter */
+@media (max-height: 500px) {
+  .wcard {
+    max-height: 94dvh;
+    font-size: 16px;
+    border-radius: 18px;
+  }
+  .wcard-head {
+    padding: 6px 8px 6px 10px !important;
+  }
+  .wcard-head h2 {
+    font-size: 20px !important;
+  }
+  .wcard-close {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .wcard-icon {
+    width: 36px !important;
+    height: 36px !important;
+  }
+  .wcard-body {
+    padding: 10px 12px 12px !important;
+  }
+  .wseg button {
+    min-height: 44px !important;
+    font-size: 16px !important;
+  }
+  .winput {
+    min-height: 48px !important;
+  }
+  .winput input {
+    font-size: 22px !important;
+  }
+}
+.wcard-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px 12px 14px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.08);
+  background: var(--color-ink-700, #1e1f23);
+}
+.wcard-head h2 {
+  flex: 1;
+  font-size: 24px;
+  font-weight: 800;
+}
+.wcard-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.06);
+  color: var(--color-accent, #60a5fa);
+}
+.wcard-close {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  color: var(--color-on-glass, #f2f3f5);
+  background: rgb(255 255 255 / 0.07);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+  cursor: pointer;
+}
+.wcard-close:hover {
+  background: rgb(255 255 255 / 0.13);
+}
+.wcard-close:focus-visible {
+  outline: 3px solid var(--color-ring, #60a5fa);
+  outline-offset: 2px;
+}
+.wcard-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px 16px 16px;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.2) transparent;
+}
+.wmuted {
+  color: var(--color-on-glass-muted, #a7abb2);
+}
+.wseg {
+  display: flex;
+  gap: 8px;
+}
+.wseg button {
+  flex: 1;
+  min-height: 48px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 18px;
+  background: rgb(255 255 255 / 0.05);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+  cursor: pointer;
+}
+.wseg button[aria-pressed="true"],
+.wseg button[aria-checked="true"] {
+  background: rgb(59 130 246 / 0.2);
+  box-shadow: inset 0 0 0 2px rgb(96 165 250 / 0.85);
+}
+.wseg button:focus-visible,
+.winput:focus-within {
+  outline: 3px solid var(--color-ring, #60a5fa);
+  outline-offset: 2px;
+}
+.winput {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 0 14px;
+  border-radius: 14px;
+  background: rgb(0 0 0 / 0.3);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+}
+.winput input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  outline: none;
+  font-size: 26px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.wquote {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.04);
+  font-variant-numeric: tabular-nums;
+}
+.wquote dd {
+  text-align: right;
+  font-weight: 800;
+}
+.wrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgb(255 255 255 / 0.06);
+}
+.wrow:last-child {
+  border-bottom: 0;
+}
+
+/* overlay controls around the 3D wallet */
+.wfloat {
+  font-size: 15px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wbtn,
+  .wtab {
+    transition: none;
+  }
+}

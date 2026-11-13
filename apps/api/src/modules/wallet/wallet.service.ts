@@ -62,6 +62,15 @@ export class WalletService {
     return { granted: r.replayed ? 0 : s.dailyStars, streak, streakBonus: bonusGranted, nextStreakBonus: streakBonus(streak + 1, s), stars: await this.ledger.balance(userStars(userId)) };
   }
 
+  /** Has today's (Kigali day) daily claim been taken, and when does the next one open (next Kigali midnight, UTC+2)? */
+  async claimStatus(userId: string, now = new Date()): Promise<{ claimedToday: boolean; nextClaimAt: string }> {
+    const key = `daily:${userId}:${kigaliDay(now)}`;
+    const rows = await this.db.select({ id: journalEntries.id }).from(journalEntries).where(eq(journalEntries.idempotencyKey, key)).limit(1);
+    // Kigali has no DST: its midnight is 22:00 UTC of the previous calendar day
+    const next = new Date(`${kigaliDay(new Date(now.getTime() + DAY_MS))}T00:00:00+02:00`);
+    return { claimedToday: rows.length > 0, nextClaimAt: next.toISOString() };
+  }
+
   /** Consecutive Kigali days (ending today or yesterday) with a daily claim. */
   async streakDays(userId: string): Promise<number> {
     const rows = await this.db.execute(sql`

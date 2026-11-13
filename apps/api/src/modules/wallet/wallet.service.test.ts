@@ -21,6 +21,7 @@ const u = "55555555-5555-5555-5555-555555555555";
 
 describe("WalletService", () => {
   it("daily claim is idempotent; the first day has no streak bonus", async () => {
+    expect((await wallet.claimStatus(u)).claimedToday).toBe(false);
     const a = await wallet.claimDaily(u);
     expect(a.granted).toBe(200);
     expect(a.streak).toBe(1);
@@ -29,6 +30,12 @@ describe("WalletService", () => {
     const b = await wallet.claimDaily(u);
     expect(b.granted).toBe(0);
     expect(await ledger.balance(userStars(u))).toBe(200);
+    const st = await wallet.claimStatus(u);
+    expect(st.claimedToday).toBe(true);
+    const wait = new Date(st.nextClaimAt).getTime() - Date.now();
+    expect(wait).toBeGreaterThan(0);
+    expect(wait).toBeLessThanOrEqual(86_400_000);
+    expect(new Date(st.nextClaimAt).getUTCHours()).toBe(22); // Kigali midnight
   });
 
   it("level-up gifts once per level", async () => {
