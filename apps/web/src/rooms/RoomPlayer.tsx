@@ -100,6 +100,10 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   const facing = useRef(back.current?.yaw ?? hand?.yaw ?? Math.PI); // facing into the room (−z)
   const exited = useRef(false);
   const leaveStart = useRef(0);
+  /** fail-safe time for this Leave: the aisle route length at a brisk walk + slack (big halls are > 8 s from the door) */
+  const leaveLimit = useRef(8000);
+  /** progress watchdog: if the walk out makes no headway for 3 s (someone blocking the aisle), the fail-safe fires early */
+  const leaveProgress = useRef({ best: Infinity, at: 0 });
   const sitStage = useRef<SitStage | null>(null);
   const standStage = useRef<StandStage | null>(null);
   /** after standing up, the chair you left is not offered again until you have moved away or 1.5 s passed */
@@ -263,7 +267,19 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     const W = useWorld.getState();
     const R = useRoom.getState();
     if (!R.leaving) leaveStart.current = 0;
-    if (R.leaving && !exited.current && (leaveStart.current ||= performance.now()) && performance.now() - leaveStart.current > 8000) {
+    if (R.leaving && !exited.current && !leaveStart.current) {
+      leaveStart.current = performance.now();
+      // Manhattan route along the aisles to the door, walked at ~2.3 m/s, + 3 s slack; never less than 8 s
+      const route = Math.abs(pos.current.x - layout.door.x) + Math.abs(d / 2 - pos.current.z) + 2;
+      leaveLimit.current = Math.max(8000, (route / 2.3) * 1000 + 3000);
+      leaveProgress.current = { best: Infinity, at: leaveStart.current };
+    }
+    if (R.leaving && !exited.current) {
+      const toDoor = Math.hypot(pos.current.x - layout.door.x, pos.current.z - d / 2);
+      if (toDoor < leaveProgress.current.best - 0.3) leaveProgress.current = { best: toDoor, at: performance.now() };
+    }
+    const stalled = R.leaving && performance.now() - leaveProgress.current.at > 3000;
+    if (R.leaving && !exited.current && (stalled || performance.now() - leaveStart.current > leaveLimit.current)) {
       // fail-safe: whatever blocks the way out (a person in the aisle, a chair), Leave always gets you out
       exited.current = true;
       // a big hall can be further than 8 s from the door: step through it now, so the plaza hand-off (mapped through
