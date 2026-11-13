@@ -97,6 +97,20 @@ export function MatchmakingPanel() {
   const [sheet, setSheet] = useState<null | "challenge" | "quick">(null);
   const [challengeTarget, setChallengeTarget] = useState<{ id: string; name: string } | null>(null);
   const outLeft = useCountdown(outgoing?.expires);
+  // safety net: if the server's "expired" message never arrives (a reconnect, a room switch), close a challenge
+  // ourselves shortly after its time is up instead of waiting at "0s" forever
+  useEffect(() => {
+    const t = setInterval(() => {
+      const now = Date.now();
+      useMatch.setState((s) => {
+        const outDone = s.outgoing && now > s.outgoing.expires + 2000;
+        const inc = s.incoming.filter((x) => now <= x.expires + 2000);
+        if (!outDone && inc.length === s.incoming.length) return s;
+        return { ...s, outgoing: outDone ? null : s.outgoing, incoming: inc, notice: outDone ? `No answer from ${s.outgoing?.to ?? "them"} — the challenge expired` : s.notice };
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
   // Quick Match: how long we've been waiting (feedback that the search is alive)
   const [waitStart, setWaitStart] = useState(0);
   useEffect(() => setWaitStart(quick.status === "waiting" ? Date.now() : 0), [quick.status]);

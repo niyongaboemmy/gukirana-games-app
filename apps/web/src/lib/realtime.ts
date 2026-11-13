@@ -156,14 +156,21 @@ export async function connectPlaza(
     });
     room.onMessage("blocked", (m: { key: string; name: string; uid?: string }) => void persistBlock({ key: m.key, name: m.name, uid: m.uid }));
     // in-world proposals + Quick Match (SRS §8.4.2)
-    room.onMessage("proposal", (p: IncomingProposal) => useMatch.setState((s) => ({ incoming: [...s.incoming.filter((x) => x.id !== p.id), p] })));
-    room.onMessage("proposal-sent", (p) => useMatch.setState({ outgoing: p, notice: null }));
+    // count down on this device's clock: re-base `expires` on the TTL the server sent
+    const local = <T extends { expires: number; ttlMs?: number }>(p: T): T => (p.ttlMs ? { ...p, expires: Date.now() + p.ttlMs } : p);
+    room.onMessage("proposal", (p: IncomingProposal & { ttlMs?: number }) => useMatch.setState((s) => ({ incoming: [...s.incoming.filter((x) => x.id !== p.id), local(p)] })));
+    room.onMessage("proposal-sent", (p: { id: string; to?: string; game: "igisoro" | "ludo" | "pool"; stake: number; expires: number; ttlMs?: number }) => useMatch.setState({ outgoing: local(p), notice: null }));
     room.onMessage("proposal-failed", (m: { reason: string }) => useMatch.setState({ notice: reasonText(m.reason) }));
     room.onMessage("proposal-closed", (m: { id: string; reason: string }) =>
       useMatch.setState((s) => ({
         incoming: s.incoming.filter((x) => x.id !== m.id),
         outgoing: s.outgoing?.id === m.id ? null : s.outgoing,
-        notice: s.outgoing?.id === m.id || m.reason !== "EXPIRED" ? reasonText(m.reason) : s.notice,
+        notice:
+          s.outgoing?.id === m.id && m.reason === "EXPIRED"
+            ? `No answer from ${s.outgoing.to ?? "them"} — the challenge expired`
+            : s.outgoing?.id === m.id || m.reason !== "EXPIRED"
+              ? reasonText(m.reason)
+              : s.notice,
       })),
     );
     room.onMessage("quickmatch", (m: { status: "idle" | "waiting" | "error"; game?: "igisoro" | "ludo" | "pool"; stake?: number; reason?: string }) =>

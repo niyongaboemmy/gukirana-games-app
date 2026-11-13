@@ -392,12 +392,15 @@ export class WorldRoom extends Room {
       const proposal: Proposal = { id, from: client.sessionId, to: target.sessionId, game: raw.game, stake: raw.stake, expires: Date.now() + PROPOSAL_TTL };
       this.proposals.set(id, proposal);
       const from = this.players.get(client.sessionId)!;
-      target.send("proposal", { id, from: { id: from.id, name: from.name, level: from.level, color: from.color }, game: proposal.game, stake: proposal.stake, expires: proposal.expires });
-      client.send("proposal-sent", { id, to: this.players.get(target.sessionId)?.name, game: proposal.game, stake: proposal.stake, expires: proposal.expires });
+      // ttlMs lets clients count down on their own clock (device clocks drift from the server's)
+      target.send("proposal", { id, from: { id: from.id, name: from.name, level: from.level, color: from.color }, game: proposal.game, stake: proposal.stake, expires: proposal.expires, ttlMs: PROPOSAL_TTL });
+      client.send("proposal-sent", { id, to: this.players.get(target.sessionId)?.name, game: proposal.game, stake: proposal.stake, expires: proposal.expires, ttlMs: PROPOSAL_TTL });
       this.clock.setTimeout(() => {
-        if (this.proposals.delete(id)) {
-          client.send("proposal-closed", { id, reason: "EXPIRED" });
-          target.send("proposal-closed", { id, reason: "EXPIRED" });
+        const p = this.proposals.get(id);
+        if (p && this.proposals.delete(id)) {
+          // look the sessions up now (not the client objects captured at send time)
+          this.client(p.from)?.send("proposal-closed", { id, reason: "EXPIRED" });
+          this.client(p.to)?.send("proposal-closed", { id, reason: "EXPIRED" });
         }
       }, PROPOSAL_TTL);
     });
