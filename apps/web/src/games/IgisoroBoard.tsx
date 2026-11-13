@@ -93,9 +93,11 @@ export function IgisoroBoard({
       className="aspect-[2/1] w-full max-w-[min(100%,calc((100dvh-150px)*2))] rounded-[28px] border-[6px] border-[#4a2e17] p-[2.2%] shadow-[0_20px_60px_-10px_rgba(0,0,0,.8),inset_0_2px_0_rgba(255,255,255,.15)]"
       style={{ background: "repeating-linear-gradient(95deg,#9a6534 0 18px,#8b5a2d 18px 30px,#a36d3a 30px 44px)" }}
     >
-      <div className="grid h-full grid-rows-4 gap-[3%]">
-        {rowsFor(me).map((row, r) => (
-          <div key={r} className={`grid grid-cols-8 gap-[2%] ${r === 2 ? "border-t-4 border-dashed border-[#B5532A]/60 pt-[1.5%]" : ""}`}>
+      {/* four equal pit rows; the centre line is its own thin row between the two sides (it never eats into a row) */}
+      <div className="grid h-full grid-rows-[1fr_1fr_auto_1fr_1fr] gap-y-[2.4%]">
+        {rowsFor(me).flatMap((row, r) => [
+          ...(r === 2 ? [<div key="divider" aria-hidden className="mx-[1%] h-0 border-t-[3px] border-dashed border-[#5a3416]/55" />] : []),
+          <div key={r} className="grid min-h-0 grid-cols-8 gap-x-[2%]">
             {row.map((cell) => {
               const n = pits[cell.side][cell.idx]!;
               const isLegal = cell.side === me && legal.includes(cell.idx);
@@ -109,7 +111,7 @@ export function IgisoroBoard({
                   onMouseEnter={() => isLegal && onHover?.(cell.idx)}
                   onMouseLeave={() => onHover?.(null)}
                   onClick={() => onPick(cell.idx)}
-                  className={`relative rounded-full transition-all duration-150 ${isLegal ? "cursor-pointer hover:scale-105" : "cursor-default"}`}
+                  className={`relative aspect-square w-[92%] max-h-full self-center justify-self-center rounded-full transition-all duration-150 ${isLegal ? "cursor-pointer hover:scale-105" : "cursor-default"}`}
                   style={{
                     background: "radial-gradient(circle at 50% 40%, #3b2410 0%, #5a3818 60%, #7a4c22 100%)",
                     boxShadow: isHl ? "0 0 0 3px #FFC83D, 0 0 18px #FFC83D" : isSel ? "0 0 0 3px #22C55E, 0 0 16px #22C55E" : isLegal ? "0 0 0 2px rgba(124,255,170,.55), inset 0 4px 10px rgba(0,0,0,.6)" : "inset 0 4px 10px rgba(0,0,0,.6)",
@@ -121,8 +123,8 @@ export function IgisoroBoard({
                 </button>
               );
             })}
-          </div>
-        ))}
+          </div>,
+        ])}
       </div>
     </div>
   );
