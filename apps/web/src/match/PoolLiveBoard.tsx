@@ -168,7 +168,7 @@ export function PoolLiveBoard({ state, myTurn, onShoot }: { state: PoolState; my
             setPower(0);
           }}
         >
-          <div className="absolute inset-x-0 top-0 rounded-full bg-gradient-to-b from-[#22C55E] via-[#F59E0B] to-[#EF4444]" style={{ height: `${power * 100}%` }} />
+          <div className="absolute inset-x-0 top-0 rounded-full bg-gradient-to-b from-success via-warning to-danger" style={{ height: `${power * 100}%` }} />
         </div>
         <span className="text-xs font-bold tabular-nums">{Math.round(power * 100)}%</span>
         <div className="flex flex-col items-center gap-1 text-[10px] font-bold uppercase text-white/60">

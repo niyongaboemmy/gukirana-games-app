@@ -20,7 +20,7 @@ import { notify, openThread, useSocial } from "./social-store";
  * Voice call, Challenge, Profile, Mute + volume, Block, Report. Works in the plaza and in the halls.
  * UI strings to move to @gukirana/i18n keys `person.*`.
  */
-const glass = "rounded-2xl border border-white/20 bg-[#151935]/92 text-white shadow-2xl backdrop-blur-xl";
+const glass = "sheet";
 const REPORT_REASONS: { id: ReportReason; label: string }[] = [
   { id: "harassment", label: "Harassment or bullying" },
   { id: "scam", label: "Scam or payment outside Gukirana" },
@@ -38,8 +38,8 @@ function Action({ icon: Icon, label, onClick, disabled, active, danger, hint }: 
       disabled={disabled}
       aria-label={label}
       title={hint ?? label}
-      className={`flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[12px] font-bold transition active:scale-95 disabled:opacity-35 ${
-        active ? "bg-white/20 ring-2 ring-white/40" : danger ? "bg-[#EF4444]/15 text-[#ffb4b4] hover:bg-[#EF4444]/25" : "bg-white/10 hover:bg-white/15"
+      className={`tile flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-control px-1 py-2 text-[12px] font-bold disabled:opacity-35 ${
+        active ? "tile-active" : danger ? "bg-danger/14! text-danger-soft hover:bg-danger/24!" : ""
       }`}
     >
       <Icon size={20} strokeWidth={1.85} />
@@ -119,23 +119,23 @@ export function PersonMenu() {
   };
 
   return (
-    <div className="pointer-events-auto fixed inset-0 z-40 flex items-end justify-center bg-black/25 p-3 sm:items-center" onClick={close}>
+    <div className="scrim pointer-events-auto fixed inset-0 z-40 flex items-end justify-center bg-ink-950/30! p-3 sm:items-center" onClick={close}>
       <div role="dialog" aria-modal="true" aria-label={`${p.name}: actions`} className={`${glass} max-h-[92vh] w-[min(440px,96vw)] overflow-y-auto p-4`} onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center gap-3">
           <span className="relative grid size-12 shrink-0 place-items-center rounded-full text-lg font-black" style={{ background: p.color }}>
             {p.name.slice(0, 1).toUpperCase()}
-            {talking && <Mic size={14} className="absolute -bottom-0.5 -right-0.5 rounded-full bg-[#22C55E] p-0.5" />}
+            {talking && <Mic size={14} className="absolute -bottom-0.5 -right-0.5 rounded-full bg-success p-0.5" />}
           </span>
           <div className="min-w-0 flex-1 leading-tight">
             <p className="truncate text-lg font-extrabold">{p.name}</p>
-            <p className="flex items-center gap-1 text-sm text-white/65">
-              <Star size={12} className="fill-[#FFC83D] text-[#FFC83D]" /> Level {p.level}
+            <p className="flex items-center gap-1 text-sm text-on-glass-muted">
+              <Star size={12} className="fill-gold text-gold" /> Level {p.level}
               {dist != null && <> · {dist < 1.5 ? "right here" : `${Math.round(dist)} m away`}</>}
               {seated && <> · seated</>}
               {!verified && <> · guest</>}
             </p>
           </div>
-          <button type="button" onClick={close} aria-label="Close" className="grid size-9 place-items-center rounded-xl bg-white/10">
+          <button type="button" onClick={close} aria-label="Close" className="btn-secondary grid size-9 place-items-center rounded-xl">
             <X size={18} />
           </button>
         </div>
@@ -208,7 +208,7 @@ export function PersonMenu() {
         </div>
 
         {panel === "profile" && (
-          <div id="person-panel" className="mt-3 rounded-xl bg-white/5 p-3 text-sm">
+          <div id="person-panel" className="mt-3 rounded-xl bg-white/6 p-3 text-sm ring-1 ring-white/8">
             {profile === "loading" && (
               <p className="flex items-center gap-2 text-white/60">
                 <Loader2 size={14} className="animate-spin" /> Loading profile…
@@ -226,7 +226,7 @@ export function PersonMenu() {
                   <div className="grid gap-1.5">
                     {Object.entries(profile.ratings).map(([g, r]) => (
                       <p key={g} className="flex items-center gap-2">
-                        <Trophy size={14} className="text-[#FFC83D]" />
+                        <Trophy size={14} className="text-gold" />
                         <span className="flex-1 font-semibold">{GAME_LABEL[g as keyof typeof GAME_LABEL] ?? g}</span>
                         <span className="tabular-nums">{r.rating}</span>
                         <span className="text-xs text-white/50">
@@ -242,25 +242,25 @@ export function PersonMenu() {
         )}
 
         {panel === "volume" && (
-          <div id="person-panel" className="mt-3 rounded-xl bg-white/5 p-3 text-sm">
+          <div id="person-panel" className="mt-3 rounded-xl bg-white/6 p-3 text-sm ring-1 ring-white/8">
             {!voiceOn || !hasVoice ? (
               <p className="mb-2 text-white/60">{!voiceOn ? "Turn on Voice to hear people nearby." : `${p.name} has voice off.`}</p>
             ) : (
               <label className="mb-2 flex items-center gap-3">
                 <Volume2 size={16} />
                 <span className="sr-only">Volume for {p.name}</span>
-                <input type="range" min={0} max={150} step={5} value={Math.round(volume * 100)} onChange={(e) => setVolume(p.id, Number(e.target.value) / 100)} className="flex-1 accent-[#7CC4FF]" />
+                <input type="range" min={0} max={150} step={5} value={Math.round(volume * 100)} onChange={(e) => setVolume(p.id, Number(e.target.value) / 100)} className="flex-1 accent-primary-400" />
                 <span className="w-10 text-right tabular-nums">{Math.round(volume * 100)}%</span>
               </label>
             )}
-            <button type="button" onClick={() => setMuted(p.id, !muted)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-white/10 py-2 font-semibold">
+            <button type="button" onClick={() => setMuted(p.id, !muted)} className="btn-secondary flex w-full items-center justify-center gap-2 rounded-lg py-2 font-semibold">
               {muted ? <Volume2 size={16} /> : <VolumeX size={16} />} {muted ? `Unmute ${p.name}` : `Mute ${p.name}`}
             </button>
           </div>
         )}
 
         {panel === "block" && (
-          <div id="person-panel" className="mt-3 rounded-xl bg-[#EF4444]/10 p-3 text-sm">
+          <div id="person-panel" className="mt-3 rounded-xl bg-danger/10 p-3 text-sm ring-1 ring-danger/20">
             <p className="mb-2 text-white/80">
               Block {p.name}? You become invisible and silent to each other: no chat, private messages, calls or challenges. You can unblock in Settings.
             </p>
@@ -271,7 +271,7 @@ export function PersonMenu() {
                 notify(`${p.name} is blocked.`);
                 close();
               }}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#EF4444] py-2 font-extrabold"
+              className="btn-danger flex w-full items-center justify-center gap-2 rounded-lg py-2 font-extrabold"
             >
               <Ban size={16} /> Block {p.name}
             </button>
@@ -279,17 +279,17 @@ export function PersonMenu() {
         )}
 
         {panel === "report" && (
-          <div id="person-panel" className="mt-3 rounded-xl bg-white/5 p-3 text-sm">
+          <div id="person-panel" className="mt-3 rounded-xl bg-white/6 p-3 text-sm ring-1 ring-white/8">
             <p className="mb-2 text-white/70">What happened? Recent chat lines are attached for our safety team.</p>
             <div className="mb-2 grid gap-1">
               {REPORT_REASONS.map((r) => (
                 <label key={r.id} className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 ${reason === r.id ? "bg-white/15" : "hover:bg-white/5"}`}>
-                  <input type="radio" name="report-reason" checked={reason === r.id} onChange={() => setReason(r.id)} className="accent-[#EF4444]" />
+                  <input type="radio" name="report-reason" checked={reason === r.id} onChange={() => setReason(r.id)} className="accent-danger" />
                   {r.label}
                 </label>
               ))}
             </div>
-            <button type="button" disabled={!reason || sending} onClick={() => void doReport()} className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#EF4444] py-2 font-extrabold disabled:opacity-40">
+            <button type="button" disabled={!reason || sending} onClick={() => void doReport()} className="btn-danger flex w-full items-center justify-center gap-2 rounded-lg py-2 font-extrabold disabled:opacity-40">
               {sending ? <Loader2 size={16} className="animate-spin" /> : <Flag size={16} />} Send report
             </button>
           </div>

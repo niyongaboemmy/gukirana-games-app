@@ -185,7 +185,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
       <div className="flex items-center justify-center gap-4">
         <Die value={s.dice ?? (s.lastEvent?.kind === "roll" ? s.lastEvent.dice : null)} rolling={rolling} color={SEAT_COLORS[cur?.seat ?? 0]!} />
         {myTurn && s.phase === "roll" && (
-          <button type="button" disabled={rolling} onClick={() => (setRolling(true), send({ type: "roll" }))} className="flex items-center gap-2 rounded-2xl bg-[#FF8A1F] px-8 py-3 text-lg font-extrabold shadow-lg active:scale-95">
+          <button type="button" disabled={rolling} onClick={() => (setRolling(true), send({ type: "roll" }))} className="flex items-center gap-2 press rounded-2xl bg-game-ludo px-8 py-3 text-lg font-extrabold shadow-[inset_0_1px_0_rgb(255_255_255/.3),0_10px_24px_-10px_rgb(255_138_31/.8)]">
             <DieIcon size={20} /> {rolling ? "Rolling…" : "Roll"}
           </button>
         )}
@@ -208,10 +208,10 @@ export function LiveMatch({ roomId }: { roomId: string }) {
   }
 
   const timer = (
-    <p className={`flex items-center justify-center gap-1.5 text-xs font-semibold ${secs <= 10 ? "text-[#F59E0B]" : "text-white/70"}`}>
+    <p className={`flex items-center justify-center gap-1.5 text-xs font-semibold ${secs <= 10 ? "text-warning" : "text-white/70"}`}>
       <Clock size={14} /> {myTurn ? `Your turn · ${secs}s` : turn ? `Opponent's turn · ${secs}s` : "Starting…"}
-      {offline && offline !== myId && <span className="ml-2 flex items-center gap-1 text-[#ff8a8a]"><WifiOff size={14} /> Opponent reconnecting (60s)</span>}
-      {error && <span className="ml-2 text-[#ff8a8a]">{error}</span>}
+      {offline && offline !== myId && <span className="ml-2 flex items-center gap-1 text-danger-soft"><WifiOff size={14} /> Opponent reconnecting (60s)</span>}
+      {error && <span className="ml-2 text-danger-soft">{error}</span>}
     </p>
   );
 
@@ -244,7 +244,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
       {error && !state && (
         <Modal>
           <p className="text-lg font-bold">{error}</p>
-          <button type="button" onClick={() => router.push(returnPath())} className="mt-4 w-full rounded-xl bg-white/10 py-2 font-semibold">Go back</button>
+          <button type="button" onClick={() => router.push(returnPath())} className="btn-secondary mt-4 w-full rounded-xl py-2 font-semibold">Go back</button>
         </Modal>
       )}
     </GameShell>

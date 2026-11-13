@@ -14,7 +14,7 @@ export function RotateGuard() {
   }, []);
   if (!show) return null;
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-[#0b0d1a]/95 p-8 text-center text-white">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-ink-950/95 p-8 text-center text-white">
       <div className="flex flex-col items-center gap-5">
         <div className="animate-[spin_2.4s_ease-in-out_infinite]">
           <Smartphone size={64} strokeWidth={1.75} />

@@ -39,12 +39,12 @@ function Card({ children, label, busy = false }: { children: React.ReactNode; la
         aria-label={label}
         className={`${first ? "gk-tablet-in" : "[transform:rotateX(8deg)_rotateZ(-2deg)]"} relative w-[min(400px,48vw)] rounded-[34px] bg-gradient-to-b from-[#d9dde5] via-[#9aa1ad] to-[#6d7380] p-[7px] shadow-[0_40px_80px_-20px_rgba(0,0,0,.75),0_0_0_1px_rgba(255,255,255,.35)_inset] max-sm:w-[min(360px,56vw)] [@media(max-height:430px)]:w-[min(340px,44vw)] phone:w-[min(290px,34vw)]! phone:rounded-[26px]! phone:p-[5px]!`}
       >
-        <div className="relative overflow-hidden rounded-[28px] bg-[#0b0d1a] ring-1 ring-black phone:rounded-[21px]!" aria-busy={busy}>
-          {busy && <div className="gk-progress absolute inset-x-0 top-0 h-[3px] bg-[#3DA9FC]" role="progressbar" aria-label="Loading" />}
+        <div className="relative overflow-hidden rounded-[28px] bg-[radial-gradient(ellipse_at_30%_0%,#232832_0%,var(--color-ink-950)_70%)] ring-1 ring-black phone:rounded-[21px]!" aria-busy={busy}>
+          {busy && <div className="gk-progress absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-primary-500 to-ring" role="progressbar" aria-label="Loading" />}
           {/* status bar */}
           <div className="flex items-center justify-between px-5 pb-1 pt-2 text-[11px] font-semibold text-white/85 phone:px-3.5! phone:pt-1.5! phone:text-[10px]!">
             <span className="tabular-nums">{time}</span>
-            <span className="absolute left-1/2 top-2 size-2 -translate-x-1/2 rounded-full bg-[#1d2233] ring-1 ring-white/10" aria-hidden />
+            <span className="absolute left-1/2 top-2 size-2 -translate-x-1/2 rounded-full bg-ink-800 ring-1 ring-white/10" aria-hidden />
             <span className="flex items-center gap-1.5">
               <Signal size={12} strokeWidth={2.2} />
               <Wifi size={12} strokeWidth={2.2} />
@@ -82,7 +82,7 @@ function Keypad({ value, onChange }: { value: string; onChange: (v: string) => v
             type="button"
             onClick={() => press(k)}
             aria-label={k === "del" ? "Delete digit" : `Digit ${k}`}
-            className="grid h-11 place-items-center rounded-2xl bg-white/[.08] text-xl font-semibold transition active:scale-95 active:bg-white/20 [@media(max-height:430px)]:h-8 [@media(max-height:430px)]:text-base phone:h-7! phone:rounded-xl!"
+            className="tile grid h-11 place-items-center rounded-2xl text-xl font-semibold [@media(max-height:430px)]:h-8 [@media(max-height:430px)]:text-base phone:h-7! phone:rounded-xl!"
           >
             {k === "del" ? <Delete size={20} strokeWidth={1.85} /> : k}
           </button>
@@ -100,7 +100,7 @@ function CodeBoxes({ code, onFocus }: { code: string; onFocus: () => void }) {
         <span
           key={i}
           className={`grid h-12 place-items-center rounded-xl border text-2xl font-bold tabular-nums transition [@media(max-height:430px)]:h-9 [@media(max-height:430px)]:text-lg phone:h-8! phone:rounded-lg! phone:text-base! ${
-            i === code.length ? "border-[#3DA9FC] bg-[#3DA9FC]/10" : code[i] ? "border-white/30 bg-white/10" : "border-white/15 bg-white/5"
+            i === code.length ? "border-accent bg-primary/15 shadow-[0_0_0_3px_rgb(96_165_250/.18)]" : code[i] ? "border-white/30 bg-white/10" : "border-white/15 bg-white/5"
           }`}
         >
           {code[i] ?? ""}
@@ -111,9 +111,9 @@ function CodeBoxes({ code, onFocus }: { code: string; onFocus: () => void }) {
 }
 
 const input =
-  "w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-lg font-semibold outline-none placeholder:text-white/35 focus:border-[#3DA9FC] [@media(max-height:430px)]:py-2 [@media(max-height:430px)]:text-base phone:px-3! phone:py-1.5! phone:text-sm!";
+  "w-full rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-lg font-semibold outline-none transition placeholder:text-white/35 focus:border-accent focus:bg-white/10 focus:shadow-[0_0_0_3px_rgb(96_165_250/.22)] [@media(max-height:430px)]:py-2 [@media(max-height:430px)]:text-base phone:px-3! phone:py-1.5! phone:text-sm!";
 const primary =
-  "flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#3DA9FC] to-[#2F80ED] py-3 text-base font-extrabold shadow-lg disabled:opacity-40 [@media(max-height:430px)]:py-2 phone:py-1.5! phone:text-sm!";
+  "btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-3 text-base font-extrabold [@media(max-height:430px)]:py-2 phone:py-1.5! phone:text-sm!";
 
 /** Keeps a loading state visible for at least `min` ms so fast responses don't just flicker. */
 function useVisibleBusy(busy: boolean, min = 550) {
@@ -152,12 +152,12 @@ export function GateFlow() {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-10 flex items-center justify-end p-[max(12px,env(safe-area-inset-right))] pr-[max(16px,env(safe-area-inset-right))] text-white">
-      <div className="absolute left-[max(12px,env(safe-area-inset-left))] top-3 flex items-center gap-2 rounded-full bg-[#22266E]/60 px-4 py-1.5 text-sm font-semibold backdrop-blur-md">
-        <ShieldCheck size={16} strokeWidth={1.85} className="text-[#7CC4FF]" /> Gukirana Playground · Entrance
+      <div className="toast absolute left-[max(12px,env(safe-area-inset-left))] top-3 flex items-center gap-2 px-4 py-1.5 text-sm font-semibold">
+        <ShieldCheck size={16} strokeWidth={1.85} className="text-ring" /> Gukirana Playground · Entrance
       </div>
       {busyShown && (
-        <div role="status" aria-live="polite" className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-full border border-[#3DA9FC]/50 bg-[#0f1222]/85 px-4 py-2 text-sm font-bold shadow-xl backdrop-blur-md">
-          <Loader2 size={16} className="animate-spin text-[#7CC4FF]" />
+        <div role="status" aria-live="polite" className="toast absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 border-accent/50! px-4 py-2 text-sm font-bold">
+          <Loader2 size={16} className="animate-spin text-ring" />
           {g.step === "id" || (g.step === "code" && !g.code) ? "Sending your code…" : g.step === "code" ? "Checking your code…" : g.step === "opening" ? "Verified · opening the gate…" : "Saving your player…"}
         </div>
       )}
@@ -175,7 +175,7 @@ export function GateFlow() {
         <button
           type="button"
           onClick={() => void xrStore.enterVR()}
-          className="pointer-events-auto absolute right-[max(12px,env(safe-area-inset-right))] top-3 flex items-center gap-2 rounded-2xl border border-white/30 bg-[#9B51E0]/80 px-3 py-2 text-sm font-bold backdrop-blur-md"
+          className="glass press pointer-events-auto absolute right-[max(12px,env(safe-area-inset-right))] top-3 flex items-center gap-2 rounded-card bg-game-arena/70! px-3 py-2 text-sm font-bold"
         >
           <Glasses size={18} strokeWidth={1.85} /> Enter in VR
         </button>
@@ -185,7 +185,7 @@ export function GateFlow() {
         <button
           type="button"
           onClick={() => g.set({ step: "id" })}
-          className="pointer-events-auto absolute bottom-6 right-6 flex items-center gap-2 rounded-full border border-white/30 bg-white/15 px-4 py-2 text-sm font-bold backdrop-blur-xl"
+          className="chip pointer-events-auto absolute bottom-6 right-6 flex items-center gap-2 px-4 py-2 text-sm font-bold"
         >
           <SkipForward size={16} strokeWidth={1.85} /> Skip intro
         </button>
@@ -201,7 +201,7 @@ export function GateFlow() {
             }}
           >
             <div className="flex items-center gap-2">
-              <span className="grid size-9 place-items-center rounded-full bg-[#3DA9FC]/25 text-[#7CC4FF] phone:size-7!">
+              <span className="grid size-9 place-items-center rounded-full bg-primary/25 text-primary-300 phone:size-7!">
                 <UserRound size={18} strokeWidth={1.85} />
               </span>
               <h1 className="text-xl font-extrabold phone:text-base!">Show your ID</h1>
@@ -224,7 +224,7 @@ export function GateFlow() {
               aria-describedby={g.error ? "gate-err" : undefined}
             />
             {g.error && (
-              <p id="gate-err" role="alert" className="text-sm text-[#ff9b9b]">
+              <p id="gate-err" role="alert" className="text-sm text-danger-soft">
                 {g.error}
               </p>
             )}
@@ -245,7 +245,7 @@ export function GateFlow() {
             }}
           >
             <div className="flex items-center gap-2">
-              <span className="grid size-9 place-items-center rounded-full bg-[#3DA9FC]/25 text-[#7CC4FF] phone:size-7!">
+              <span className="grid size-9 place-items-center rounded-full bg-primary/25 text-primary-300 phone:size-7!">
                 <KeyRound size={18} strokeWidth={1.85} />
               </span>
               <h1 className="text-xl font-extrabold phone:text-base!">Enter your code</h1>
@@ -257,7 +257,7 @@ export function GateFlow() {
               <button type="button" onClick={() => {
                   g.set({ code: g.devCode ?? "" });
                   setTimeout(() => void useGate.getState().submitCode(), 120);
-                }} className="w-fit rounded-lg bg-[#7CC4FF]/15 px-2 py-1 text-xs font-bold text-[#7CC4FF]">
+                }} className="press w-fit rounded-lg bg-primary/20 px-2 py-1 text-xs font-bold text-primary-300 hover:bg-primary/30">
                 Dev code: {g.devCode} (tap to fill)
               </button>
             )}
@@ -289,7 +289,7 @@ export function GateFlow() {
               }}
             />
             {g.error && (
-              <p id="gate-err" role="alert" className="text-sm text-[#ff9b9b]">
+              <p id="gate-err" role="alert" className="text-sm text-danger-soft">
                 {g.error}
               </p>
             )}
@@ -304,8 +304,8 @@ export function GateFlow() {
       )}
 
       {g.step === "opening" && (
-        <div role="status" className="absolute bottom-[18%] left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-[#27AE60]/60 bg-[#0f3a26]/80 px-5 py-2.5 text-lg font-bold backdrop-blur-xl">
-          <ShieldCheck size={22} strokeWidth={1.85} className="text-[#6fe39b]" /> Access granted. Welcome!
+        <div role="status" className="toast absolute bottom-[18%] left-1/2 flex -translate-x-1/2 items-center gap-2 border-success/55! bg-success/25! px-5 py-2.5 text-lg font-bold">
+          <ShieldCheck size={22} strokeWidth={1.85} className="text-success-soft" /> Access granted. Welcome!
         </div>
       )}
 
@@ -340,19 +340,19 @@ export function GateFlow() {
                     title={BODY_TYPE_HINT[b.id]}
                     aria-pressed={profile.bodyType === b.id}
                     onClick={() => profile.setBodyType(b.id)}
-                    className={`rounded-lg border px-2 py-2 text-sm font-bold ${profile.bodyType === b.id ? "border-[#3DA9FC] bg-[#3DA9FC]/20" : "border-white/15 bg-white/5"}`}
+                    className={`rounded-lg border px-2 py-2 text-sm font-bold ${profile.bodyType === b.id ? "border-accent bg-primary/25" : "border-white/15 bg-white/5 hover:bg-white/10"}`}
                   >
                     {b.label}
                   </button>
                 ))}
               </div>
             </fieldset>
-            <button type="button" onClick={() => setStyling(true)} className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-3 py-2.5 text-sm font-bold hover:bg-white/10">
+            <button type="button" onClick={() => setStyling(true)} className="press flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm font-bold hover:bg-white/10">
               <Shirt size={18} strokeWidth={1.85} /> Skin, hair &amp; outfit
               <ArrowRight size={15} className="ml-auto" />
             </button>
             {g.error && (
-              <p role="alert" className="text-sm text-[#ff9b9b]">
+              <p role="alert" className="text-sm text-danger-soft">
                 {g.error}
               </p>
             )}
@@ -365,8 +365,8 @@ export function GateFlow() {
 
       {g.step === "entering" && (
         // never cover the player: a small status pill while they keep walking into the playground
-        <div role="status" className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/25 bg-[#0f1222]/80 px-4 py-2 text-sm font-bold shadow-xl backdrop-blur-md">
-          <Loader2 size={16} className="animate-spin text-[#7CC4FF]" /> Entering the playground…
+        <div role="status" className="toast absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 px-4 py-2 text-sm font-bold">
+          <Loader2 size={16} className="animate-spin text-ring" /> Entering the playground…
         </div>
       )}
       {styling && (

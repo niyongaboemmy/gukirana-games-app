@@ -11,7 +11,7 @@ import { useSocial } from "./social-store";
  * action someone asks you for, the "waiting for …" chip, and the context prompt at a lamp post / the café.
  * UI strings to move to @gukirana/i18n keys `people.*`.
  */
-const glass = "rounded-2xl border border-white/20 bg-[#151935]/90 text-white shadow-2xl backdrop-blur-xl";
+const glass = "glass rounded-card";
 
 /**
  * Emote picker grid (opened from the HUD Emote button). `w-max` + fixed 4 auto columns: the desktop popover is
@@ -20,7 +20,7 @@ const glass = "rounded-2xl border border-white/20 bg-[#151935]/90 text-white sha
  */
 export function EmotePicker({ onPick, bare = false }: { onPick?: () => void; bare?: boolean }) {
   return (
-    <div className={`pointer-events-auto grid w-max grid-cols-[repeat(4,auto)] gap-1.5 ${bare ? "" : "rounded-2xl bg-[#22266E]/85 p-2 backdrop-blur-md"}`} role="menu" aria-label="Emotes">
+    <div className={`pointer-events-auto grid w-max grid-cols-[repeat(4,auto)] gap-1.5 ${bare ? "" : "menu p-2"}`} role="menu" aria-label="Emotes">
       {EMOTE_PICKER.map((a) => (
         <button
           key={a.id}
@@ -30,11 +30,11 @@ export function EmotePicker({ onPick, bare = false }: { onPick?: () => void; bar
             doAction(a.id);
             onPick?.();
           }}
-          className={`grid ${bare ? "size-10" : "size-11"} place-items-center rounded-xl bg-white/10 active:scale-95`}
+          className={`tile grid ${bare ? "size-10" : "size-11"} place-items-center rounded-control`}
           aria-label={a.label}
           title={a.label}
         >
-          <a.icon size={21} strokeWidth={1.85} />
+          <a.icon size={20} strokeWidth={1.85} />
         </button>
       ))}
     </div>
@@ -49,16 +49,16 @@ export function PairInvitePrompt() {
   const Icon = def?.icon ?? Check;
   return (
     <div role="alertdialog" aria-label={`${inv.from.name} wants to ${def?.verb ?? "greet you"}`} className={`${glass} pointer-events-auto flex w-[min(360px,92vw)] items-center gap-3 p-2.5`}>
-      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white/15">
+      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/30 text-primary-300">
         <Icon size={19} />
       </span>
       <p className="min-w-0 flex-1 truncate text-sm font-bold">
         {inv.from.name} wants to {def?.verb ?? "greet you"}
       </p>
-      <button type="button" onClick={() => respondPair(inv.id, false)} aria-label="Not now" className="grid size-10 place-items-center rounded-full bg-white/15">
+      <button type="button" onClick={() => respondPair(inv.id, false)} aria-label="Not now" className="btn-secondary grid size-10 place-items-center rounded-full">
         <X size={18} />
       </button>
-      <button type="button" onClick={() => respondPair(inv.id, true)} aria-label="Accept" className="grid size-10 place-items-center rounded-full bg-[#22C55E] text-[#06210f]">
+      <button type="button" onClick={() => respondPair(inv.id, true)} aria-label="Accept" className="btn-success grid size-10 place-items-center rounded-full">
         <Check size={19} />
       </button>
     </div>
@@ -73,8 +73,8 @@ export function PairPendingChip() {
   const def = PAIR_ACTIONS.find((x) => x.kind === p.kind);
   return (
     <div className={`${glass} pointer-events-auto flex items-center gap-2 px-3 py-1.5 text-xs font-semibold`} role="status">
-      <Loader2 size={14} className="animate-spin" /> Waiting for {name ?? "them"} ({def?.label ?? ""})
-      <button type="button" onClick={() => useSocial.setState({ pairPending: null })} aria-label="Hide" className="ml-1 grid size-6 place-items-center rounded-full bg-white/10">
+      <Loader2 size={14} className="animate-spin text-accent" /> Waiting for {name ?? "them"} ({def?.label ?? ""})
+      <button type="button" onClick={() => useSocial.setState({ pairPending: null })} aria-label="Hide" className="btn-secondary ml-1 grid size-6 place-items-center rounded-full">
         <X size={12} />
       </button>
     </div>
@@ -89,7 +89,7 @@ export function SpotPrompt() {
   if (!spot || busy || people.move) return null;
   const coffee = spot.kind === "coffee";
   return (
-    <button type="button" onClick={() => goToSpot(spot)} className={`${glass} pointer-events-auto flex items-center gap-2 px-3 py-1.5 text-sm font-bold active:scale-95`}>
+    <button type="button" onClick={() => goToSpot(spot)} className={`${glass} press pointer-events-auto flex items-center gap-2 px-3 py-1.5 text-sm font-bold`}>
       {coffee ? <Coffee size={16} /> : <PersonStanding size={16} />} {coffee ? "Get a coffee" : "Lean here"}
     </button>
   );

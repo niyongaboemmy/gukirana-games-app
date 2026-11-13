@@ -61,8 +61,8 @@ export function ChatPanel() {
     return (
       <div>
         {chat.slice(-2).map((c, i) => (
-          <p key={i} className="mb-1 w-fit max-w-full truncate rounded-lg bg-[#0f1222]/55 px-2 py-1 text-xs backdrop-blur-sm">
-            {c.system ? <span className="italic text-[#FFC83D]">{c.text}</span> : <><b style={{ color: c.color }}>{c.name}:</b> {c.text}</>}
+          <p key={i} className="mb-1 w-fit max-w-full truncate rounded-lg bg-ink-900/60 px-2 py-1 text-xs shadow-sm ring-1 ring-white/10 scene-text">
+            {c.system ? <span className="italic text-gold">{c.text}</span> : <><b style={{ color: c.color }}>{c.name}:</b> {c.text}</>}
           </p>
         ))}
       </div>
@@ -86,7 +86,7 @@ export function ChatPanel() {
   // open: a sheet above the HUD layers (portal) — bottom-left above the joystick on tall screens, a full-height
   // side sheet on phones in landscape (typing replaces walking for a moment)
   return createPortal(
-    <div className="pointer-events-auto fixed bottom-[150px] left-[max(12px,env(safe-area-inset-left))] z-30 flex max-h-[46vh] w-[min(380px,46vw)] flex-col rounded-2xl border border-white/20 bg-[#0f1222]/90 text-white backdrop-blur-md sm:bottom-40 [@media(max-height:430px)]:bottom-2 [@media(max-height:430px)]:top-2 [@media(max-height:430px)]:max-h-none [@media(max-height:430px)]:w-[min(360px,46vw)]">
+    <div className="pointer-events-auto fixed bottom-[150px] left-[max(12px,env(safe-area-inset-left))] z-30 flex max-h-[46vh] w-[min(380px,46vw)] flex-col rounded-card glass-elevated sm:bottom-40 [@media(max-height:430px)]:bottom-2 [@media(max-height:430px)]:top-2 [@media(max-height:430px)]:max-h-none [@media(max-height:430px)]:w-[min(360px,46vw)]">
       {/* tabs */}
       <div role="tablist" aria-label="Chat channels" className="flex items-center gap-1 border-b border-white/10 p-1.5">
         {TABS.map((x) => (
@@ -96,15 +96,15 @@ export function ChatPanel() {
             type="button"
             aria-selected={tab === x.id}
             onClick={() => set({ tab: x.id, thread: x.id === "private" ? thread : null })}
-            className={`relative flex-1 rounded-lg px-2 py-1.5 text-xs font-bold transition ${tab === x.id ? "bg-white/15 text-white" : "text-white/60 hover:text-white"}`}
+            className={`press relative flex-1 rounded-lg px-2 py-1.5 text-xs font-bold transition ${tab === x.id ? "bg-primary text-white shadow-[inset_0_1px_0_rgb(255_255_255/.25),var(--shadow-glow)]" : "text-on-glass-muted hover:bg-white/8 hover:text-white"}`}
           >
             {x.label}
             {x.id === "private" && unread > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-[#EF4444] px-1 text-[10px] font-black leading-4 text-white">{unread}</span>
+              <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] font-black leading-4 text-white">{unread}</span>
             )}
           </button>
         ))}
-        <button type="button" onClick={() => set({ chatOpen: false })} aria-label="Close chat" className="grid size-7 place-items-center rounded-lg text-white/60 hover:text-white">
+        <button type="button" onClick={() => set({ chatOpen: false })} aria-label="Close chat" className="press grid size-7 place-items-center rounded-lg text-on-glass-muted hover:bg-white/10 hover:text-white">
           <X size={16} strokeWidth={1.85} />
         </button>
       </div>
@@ -112,12 +112,12 @@ export function ChatPanel() {
       {/* body */}
       <div className="min-h-[96px] flex-1 space-y-1 overflow-y-auto p-3 text-sm">
         {tab !== "private" && lines.length === 0 && (
-          <p className="text-white/50">{tab === "nearby" ? "Nobody has said anything near you yet. Walk up to people and say hi." : "Say hi to everyone here."}</p>
+          <p className="text-on-glass-muted">{tab === "nearby" ? "Nobody has said anything near you yet. Walk up to people and say hi." : "Say hi to everyone here."}</p>
         )}
         {tab !== "private" &&
           lines.map((c, i) =>
             c.system ? (
-              <p key={i} className="text-xs italic text-[#FFC83D]/90">
+              <p key={i} className="text-xs italic text-gold/90">
                 {c.text}
               </p>
             ) : (
@@ -137,7 +137,7 @@ export function ChatPanel() {
             {Object.values(threads)
               .sort((a, b) => (b.lines.at(-1)?.t ?? 0) - (a.lines.at(-1)?.t ?? 0))
               .map((th) => (
-                <button key={th.peer} type="button" onClick={() => openThread({ id: th.peer, name: th.name, color: th.color, uid: th.uid })} className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left hover:bg-white/5">
+                <button key={th.peer} type="button" onClick={() => openThread({ id: th.peer, name: th.name, color: th.color, uid: th.uid })} className="menu-item flex w-full items-center gap-2 px-2 py-1.5 text-left">
                   <span className="grid size-8 shrink-0 place-items-center rounded-full text-xs font-black" style={{ background: th.color }}>
                     {th.name.slice(0, 1).toUpperCase()}
                   </span>
@@ -145,7 +145,7 @@ export function ChatPanel() {
                     <span className="block truncate font-semibold">{th.name}{th.gone ? " · left" : ""}</span>
                     <span className="block truncate text-xs text-white/55">{th.request === "incoming" ? "Wants to chat with you" : (th.lines.at(-1)?.text ?? "")}</span>
                   </span>
-                  {th.unread > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-[#EF4444] px-1 text-[11px] font-black leading-5">{th.unread}</span>}
+                  {th.unread > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-danger px-1 text-[11px] font-black leading-5">{th.unread}</span>}
                 </button>
               ))}
           </>
@@ -153,7 +153,7 @@ export function ChatPanel() {
         {tab === "private" && t && (
           <>
             <div className="-mx-1 -mt-1 mb-1 flex items-center gap-2">
-              <button type="button" onClick={() => set({ thread: null })} aria-label="All private chats" className="grid size-7 place-items-center rounded-lg hover:bg-white/10">
+              <button type="button" onClick={() => set({ thread: null })} aria-label="All private chats" className="press grid size-7 place-items-center rounded-lg hover:bg-white/10">
                 <ArrowLeft size={16} />
               </button>
               <button type="button" className="truncate font-bold" style={{ color: t.color }} onClick={() => !t.gone && useSocial.setState({ menu: t.peer })}>
@@ -161,10 +161,10 @@ export function ChatPanel() {
               </button>
             </div>
             {t.request === "incoming" && (
-              <div className="mb-2 rounded-xl border border-white/15 bg-white/5 p-2 text-xs">
+              <div className="mb-2 rounded-xl bg-white/6 p-2 text-xs ring-1 ring-white/12">
                 <p className="mb-2 text-white/80">{t.name} wants to chat. Accept to reply; never share phone numbers or pay anyone outside Gukirana.</p>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => acceptDm(t.peer)} className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#22C55E] py-1.5 font-bold text-[#06210f]">
+                  <button type="button" onClick={() => acceptDm(t.peer)} className="btn-success flex flex-1 items-center justify-center gap-1 rounded-lg py-1.5 font-bold">
                     <Check size={14} /> Accept
                   </button>
                   <button
@@ -173,7 +173,7 @@ export function ChatPanel() {
                       blockPerson(t.peer);
                       set({ thread: null });
                     }}
-                    className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-white/10 py-1.5 font-semibold"
+                    className="btn-secondary flex flex-1 items-center justify-center gap-1 rounded-lg py-1.5 font-semibold"
                   >
                     <Ban size={14} /> Block
                   </button>
@@ -182,7 +182,7 @@ export function ChatPanel() {
             )}
             {t.lines.map((l) => (
               <div key={l.mid} className={`flex ${l.mine ? "justify-end" : "justify-start"}`}>
-                <p className={`max-w-[85%] break-words rounded-2xl px-3 py-1.5 ${l.mine ? "rounded-br-md bg-[#2F80ED]" : "rounded-bl-md bg-white/10"}`}>{l.text}</p>
+                <p className={`max-w-[85%] break-words rounded-2xl px-3 py-1.5 ${l.mine ? "rounded-br-md bg-gradient-to-b from-primary-500 to-primary-600 shadow-[inset_0_1px_0_rgb(255_255_255/.2)]" : "rounded-bl-md bg-white/10 ring-1 ring-white/8"}`}>{l.text}</p>
               </div>
             ))}
             {t.request === "outgoing" && <p className="text-center text-xs text-white/50">Chat request sent. You can write again once {t.name} accepts.</p>}
@@ -196,7 +196,7 @@ export function ChatPanel() {
       {quick && canSend && (
         <div className="flex flex-wrap gap-1.5 border-t border-white/10 p-2">
           {QUICK.map((q) => (
-            <button key={q} type="button" onClick={() => send(q)} className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold hover:bg-white/20">
+            <button key={q} type="button" onClick={() => send(q)} className="btn-secondary rounded-full px-3 py-1 text-xs font-semibold">
               {q}
             </button>
           ))}
@@ -212,7 +212,7 @@ export function ChatPanel() {
             send(msg);
           }}
         >
-          <button type="button" onClick={() => setQuick((v) => !v)} aria-label="Quick phrases" aria-expanded={quick} disabled={!canSend} className={`grid size-9 shrink-0 place-items-center rounded-lg disabled:opacity-40 ${quick ? "bg-white/20" : "bg-white/10"}`}>
+          <button type="button" onClick={() => setQuick((v) => !v)} aria-label="Quick phrases" aria-expanded={quick} disabled={!canSend} className={`btn-secondary grid size-9 shrink-0 place-items-center rounded-lg disabled:opacity-40 ${quick ? "bg-white/20!" : ""}`}>
             {quick ? <ChevronDown size={18} /> : <MessageSquareText size={18} />}
           </button>
           <input
@@ -225,15 +225,15 @@ export function ChatPanel() {
             onKeyDown={(e) => e.key === "Escape" && set({ chatOpen: false })}
             placeholder={placeholder}
             aria-label={placeholder}
-            className="min-w-0 flex-1 rounded-lg bg-white/10 px-3 py-2 text-sm outline-none placeholder:text-white/40 disabled:opacity-60"
+            className="min-w-0 flex-1 rounded-lg bg-white/8 px-3 py-2 text-sm outline-none ring-1 ring-white/10 transition placeholder:text-white/45 focus-visible:bg-white/12 focus-visible:ring-2 focus-visible:ring-ring/70 disabled:opacity-60"
           />
-          <button type="submit" aria-label="Send" disabled={!canSend || !msg.trim()} className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#2F80ED] disabled:opacity-40">
+          <button type="submit" aria-label="Send" disabled={!canSend || !msg.trim()} className="btn-primary grid size-9 shrink-0 place-items-center rounded-lg">
             <Send size={17} />
           </button>
         </form>
       )}
       {tab !== "private" && (
-        <p className="flex items-center gap-1 px-3 pb-2 text-[10px] text-white/40">
+        <p className="flex items-center gap-1 px-3 pb-2 text-[10px] text-on-glass-muted/70">
           <ShieldAlert size={11} /> Phone numbers, links and payment requests are blocked. All games go through escrow.
         </p>
       )}

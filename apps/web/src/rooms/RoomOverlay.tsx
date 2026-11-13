@@ -15,7 +15,7 @@ import { KeyHint, PROMPT_BTN, promptWrap } from "@/hud/Prompt";
 import { usePhoneHud } from "@/hud/usePhoneHud";
 import type { HallLayout } from "./layouts";
 
-const glass = "rounded-2xl border border-white/20 bg-[#151935]/85 text-white shadow-2xl backdrop-blur-xl";
+const glass = "glass rounded-card";
 
 /** Hall HUD: room title, sit prompt, seat panel (practice / find opponent here / stand). */
 export function RoomOverlay({ layout }: { layout: HallLayout }) {
@@ -80,14 +80,14 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
           type="button"
           onClick={() => useRoom.getState().set({ leaving: true })}
           disabled={leaving}
-          className={`${glass} pointer-events-auto flex shrink-0 items-center gap-1.5 px-3 py-2 text-sm font-bold disabled:opacity-60 phone:rounded-full phone:px-2.5 phone:py-1.5 phone:text-xs`}
+          className={`${glass} icon-button pointer-events-auto flex shrink-0 items-center gap-1.5 px-3 py-2 text-sm font-bold disabled:opacity-60 phone:rounded-full phone:px-2.5 phone:py-1.5 phone:text-xs`}
         >
           <DoorOpen size={phone ? 14 : 16} /> {leaving ? "Leaving…" : "Leave"}
         </button>
         <div className={`${glass} flex shrink-0 items-center gap-2 px-4 py-2 text-sm font-bold phone:rounded-full phone:px-3 phone:py-1.5 phone:text-xs`}>
           <span className="size-2.5 rounded-full" style={{ background: layout.color }} />
           {layout.title}
-          <span className="flex items-center gap-1 font-semibold text-white/60">
+          <span className="flex items-center gap-1 font-semibold text-on-glass-muted">
             <Users size={14} /> {others + 1}
           </span>
         </div>
@@ -95,27 +95,27 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
 
       {/* people in this room: decide who to play with */}
       <div className="absolute left-[max(12px,env(safe-area-inset-left))] top-[136px] w-[min(260px,40vw)] phone:top-[54px] phone:w-auto phone:max-w-[30vw]">
-        <button type="button" onClick={() => setPeopleOpen((v) => !v)} className={`${glass} pointer-events-auto flex w-full items-center gap-2 px-3 py-2 text-sm font-bold phone:rounded-full phone:px-2.5 phone:py-1 phone:text-xs`}>
+        <button type="button" onClick={() => setPeopleOpen((v) => !v)} className={`${glass} icon-button pointer-events-auto flex w-full items-center gap-2 px-3 py-2 text-sm font-bold phone:rounded-full phone:px-2.5 phone:py-1 phone:text-xs`}>
           <Users size={phone ? 13 : 16} style={{ color: layout.color }} /> {phone ? people.length + 1 : `In this room · ${people.length + 1}`}
-          <span className="ml-auto text-xs text-white/50 phone:hidden">{peopleOpen ? "Hide" : "Show"}</span>
+          <span className="ml-auto text-xs text-on-glass-muted phone:hidden">{peopleOpen ? "Hide" : "Show"}</span>
         </button>
         {peopleOpen && (!phone || people.length > 0) && (
-          <div className={`${glass} pointer-events-auto mt-1.5 max-h-[38vh] overflow-y-auto p-1.5 phone:w-[min(240px,30vw)]`}>
-            {people.length === 0 && <p className="px-2 py-3 text-xs text-white/60">Nobody else here yet. Sit at a table and find an opponent, or invite a friend.</p>}
+          <div className={`menu pointer-events-auto mt-1.5 max-h-[38vh] overflow-y-auto p-1.5 phone:w-[min(240px,30vw)]`}>
+            {people.length === 0 && <p className="px-2 py-3 text-xs text-on-glass-muted">Nobody else here yet. Sit at a table and find an opponent, or invite a friend.</p>}
             {people.map((p) => {
               const table = seatOf(p.id);
               return (
-                <div key={p.id} className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-white/5">
+                <div key={p.id} className="menu-item flex items-center gap-2 px-2 py-1.5">
                   <span className="relative grid size-8 shrink-0 place-items-center rounded-full text-xs font-black" style={{ background: p.color }}>
                     {p.name.slice(0, 1).toUpperCase()}
-                    {talking[p.id] && <Mic size={11} className="absolute -bottom-0.5 -right-0.5 rounded-full bg-[#22C55E] p-0.5 text-white" />}
+                    {talking[p.id] && <Mic size={11} className="absolute -bottom-0.5 -right-0.5 rounded-full bg-success p-0.5 text-white" />}
                   </span>
                   <button type="button" onClick={() => useSocial.setState({ menu: p.id })} className="min-w-0 flex-1 text-left leading-tight" aria-label={`${p.name}: options`}>
                     <p className="truncate text-sm font-semibold">{p.name}</p>
-                    <p className="text-[11px] text-white/55">Lvl {p.level} · {table ? `seated at table ${table}` : "walking"}</p>
+                    <p className="text-[11px] text-on-glass-muted">Lvl {p.level} · {table ? `seated at table ${table}` : "walking"}</p>
                   </button>
                   {p.verified && authed && (
-                    <button type="button" onClick={() => setChallenge({ id: p.id, name: p.name })} className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold" style={{ background: `${layout.color}33`, color: "#fff" }}>
+                    <button type="button" onClick={() => setChallenge({ id: p.id, name: p.name })} className="press flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold ring-1 ring-white/10" style={{ background: `${layout.color}33`, color: "#fff" }}>
                       <Swords size={12} /> Play
                     </button>
                   )}
@@ -128,28 +128,28 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
 
       {/* challenge someone in the room: choose the stake (game = this hall) */}
       {challenge && (
-        <div className="pointer-events-auto absolute inset-0 grid place-items-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setChallenge(null)}>
-          <div className={`${glass} w-[min(400px,94vw)] p-5`} onClick={(e) => e.stopPropagation()}>
+        <div className="scrim pointer-events-auto absolute inset-0 grid place-items-center p-4" onClick={() => setChallenge(null)}>
+          <div className={`sheet w-[min(400px,94vw)] p-5`} onClick={(e) => e.stopPropagation()}>
             <p className="mb-1 flex items-center gap-2 text-lg font-extrabold">
               <Swords size={20} style={{ color: layout.color }} /> Play {challenge.name}
             </p>
-            <p className="mb-3 text-sm text-white/60">{layout.title} · the server holds both stakes in escrow and pays the winner 2×.</p>
+            <p className="mb-3 text-sm text-on-glass-muted">{layout.title} · the server holds both stakes in escrow and pays the winner 2×.</p>
             <div className="mb-4 flex flex-wrap gap-1.5">
               {STAKES.map((s) => (
-                <button key={s} type="button" disabled={s > stars} onClick={() => setStake(s)} className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-bold disabled:opacity-30 ${stake === s ? "bg-[#7CC4FF] text-[#0b0d1a]" : "bg-white/10"}`}>
+                <button key={s} type="button" disabled={s > stars} onClick={() => setStake(s)} className={`press flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-bold disabled:opacity-30 ${stake === s ? "bg-primary text-white shadow-[inset_0_1px_0_rgb(255_255_255/.28),var(--shadow-glow)]" : "btn-secondary"}`}>
                   {s === 0 ? "Friendly" : <>{s} <Star size={12} className="fill-current" /></>}
                 </button>
               ))}
             </div>
             <div className="flex gap-2">
-              <button type="button" onClick={() => setChallenge(null)} className="flex-1 rounded-xl bg-white/10 py-2.5 font-semibold">Cancel</button>
+              <button type="button" onClick={() => setChallenge(null)} className="btn-secondary flex-1 rounded-xl py-2.5 font-semibold">Cancel</button>
               <button
                 type="button"
                 onClick={() => {
                   propose(challenge.id, layout.game, stake);
                   setChallenge(null);
                 }}
-                className="flex-1 rounded-xl py-2.5 font-extrabold"
+                className="press flex-1 rounded-xl py-2.5 font-extrabold shadow-[inset_0_1px_0_rgb(255_255_255/.28),0_8px_20px_-8px_rgb(2_6_23/.6)]"
                 style={{ background: layout.color }}
               >
                 Send challenge
@@ -163,7 +163,7 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
       {hint && !seated && (
         <div className={`${glass} absolute left-1/2 top-16 -translate-x-1/2 px-4 py-2.5 text-center text-sm phone:top-[46px] phone:whitespace-nowrap phone:rounded-full phone:px-3 phone:py-1 phone:text-xs`}>
           <p className="font-bold phone:hidden">You&apos;re in the {layout.title}</p>
-          <p className="text-white/70">Sit at any table to play · the exit door is behind you<span className="phone:hidden"> · tap Leave anytime</span></p>
+          <p className="text-on-glass-muted">Sit at any table to play · the exit door is behind you<span className="phone:hidden"> · tap Leave anytime</span></p>
         </div>
       )}
 
@@ -190,17 +190,17 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
       {/* seat panel */}
       {seated && (
         // phone: a slim bottom sheet (<= 38% of the height) between the joystick and the action bar; the table stays visible
-        <div className={`${glass} pointer-events-auto absolute bottom-[max(16px,env(safe-area-inset-bottom))] left-1/2 w-[min(520px,92vw)] -translate-x-1/2 p-4 phone:bottom-0 phone:max-h-[38vh] phone:w-[min(480px,54vw)] phone:rounded-b-none phone:p-2.5 phone:pb-[max(10px,env(safe-area-inset-bottom))]`}>
+        <div className={`sheet pointer-events-auto absolute bottom-[max(16px,env(safe-area-inset-bottom))] left-1/2 w-[min(520px,92vw)] -translate-x-1/2 p-4 phone:bottom-0 phone:max-h-[38vh] phone:w-[min(480px,54vw)] phone:rounded-b-none phone:p-2.5 phone:pb-[max(10px,env(safe-area-inset-bottom))]`}>
           <div className="mb-3 flex items-center justify-between phone:mb-2">
             <p className="text-lg font-extrabold phone:text-sm">
               Table {tableNo} · {layout.title}
             </p>
-            <button type="button" onClick={getUp} className="flex items-center gap-1 rounded-lg bg-white/10 px-3 py-1.5 text-sm font-semibold phone:px-2 phone:py-1 phone:text-xs">
+            <button type="button" onClick={getUp} className="btn-secondary flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-semibold phone:px-2 phone:py-1 phone:text-xs">
               <X size={14} /> Stand up
             </button>
           </div>
           {quick.status === "waiting" ? (
-            <button type="button" onClick={quickMatchLeave} className="flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 py-3 font-bold phone:py-2 phone:text-sm">
+            <button type="button" onClick={quickMatchLeave} className="btn-secondary flex w-full items-center justify-center gap-2 rounded-xl py-3 font-bold phone:py-2 phone:text-sm">
               <Loader2 size={18} className="animate-spin" /> Waiting for an opponent at your table… (cancel)
             </button>
           ) : (
@@ -208,29 +208,29 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
               <button type="button" onClick={() => {
                   rememberBeforeGame(seated);
                   router.push(`/play/${layout.game}`);
-                }} className="flex items-center justify-center gap-2 rounded-xl bg-white/10 py-3 font-bold hover:bg-white/15 phone:py-2 phone:text-sm">
+                }} className="btn-secondary flex items-center justify-center gap-2 rounded-xl py-3 font-bold phone:py-2 phone:text-sm">
                 <Bot size={18} /> Practice vs AI
               </button>
               {livePlay && authed ? (
-                <button type="button" onClick={() => quickMatchJoin(layout.game, stake)} className="flex items-center justify-center gap-2 rounded-xl py-3 font-extrabold phone:py-2 phone:text-sm" style={{ background: layout.color }}>
+                <button type="button" onClick={() => quickMatchJoin(layout.game, stake)} className="press flex items-center justify-center gap-2 rounded-xl py-3 font-extrabold shadow-[inset_0_1px_0_rgb(255_255_255/.28),0_8px_20px_-8px_rgb(2_6_23/.6)] phone:py-2 phone:text-sm" style={{ background: layout.color }}>
                   <Zap size={18} /> Find an opponent
                 </button>
               ) : (
-                <div className="grid place-items-center rounded-xl bg-white/5 px-3 py-3 text-center text-xs text-white/60">{livePlay ? "Sign in at the gate to play people" : "Live Pool matches arrive with the server physics engine. Practice now."}</div>
+                <div className="grid place-items-center rounded-xl bg-white/6 px-3 py-3 text-center text-xs text-on-glass-muted">{livePlay ? "Sign in at the gate to play people" : "Live Pool matches arrive with the server physics engine. Practice now."}</div>
               )}
             </div>
           )}
           {livePlay && authed && quick.status !== "waiting" && (
             <div className="mt-3 flex flex-wrap items-center gap-1.5 text-sm phone:mt-2 phone:flex-nowrap phone:gap-1 phone:overflow-x-auto phone:text-xs">
-              <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-white/50 phone:text-[10px]">Stake</span>
+              <span className="mr-1 text-xs label text-on-glass-muted phone:text-[10px]">Stake</span>
               {STAKES.map((s) => (
-                <button key={s} type="button" disabled={s > stars} onClick={() => setStake(s)} className={`flex shrink-0 items-center gap-1 rounded-full px-3 py-1 font-bold disabled:opacity-30 phone:px-2.5 ${stake === s ? "bg-[#7CC4FF] text-[#0b0d1a]" : "bg-white/10"}`}>
+                <button key={s} type="button" disabled={s > stars} onClick={() => setStake(s)} className={`press flex shrink-0 items-center gap-1 rounded-full px-3 py-1 font-bold disabled:opacity-30 phone:px-2.5 ${stake === s ? "bg-primary text-white shadow-[inset_0_1px_0_rgb(255_255_255/.28),var(--shadow-glow)]" : "btn-secondary"}`}>
                   {s === 0 ? "Friendly" : <>{s} <Star size={11} className="fill-current" /></>}
                 </button>
               ))}
             </div>
           )}
-          <p className="mt-2 text-xs text-white/50 phone:hidden">Tip: stand near another player and use Challenge to play them directly.</p>
+          <p className="mt-2 text-xs text-on-glass-muted phone:hidden">Tip: stand near another player and use Challenge to play them directly.</p>
         </div>
       )}
     </div>

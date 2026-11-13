@@ -67,12 +67,12 @@ function Chip({ active, onClick, children, label }: { active: boolean; onClick: 
       aria-pressed={active}
       aria-label={label}
       onClick={onClick}
-      className={`relative flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm font-semibold transition ${
-        active ? "border-[#3DA9FC] bg-[#3DA9FC]/20 text-white" : "border-white/15 bg-white/5 text-white/85 hover:bg-white/10"
+      className={`press relative flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm font-semibold ${
+        active ? "border-accent bg-primary/25 text-white shadow-[0_0_0_3px_rgb(96_165_250/.15)]" : "border-white/12 bg-white/5 text-white/85 hover:bg-white/10"
       }`}
     >
       {children}
-      {active && <Check size={14} strokeWidth={2.2} className="ml-auto text-[#3DA9FC]" />}
+      {active && <Check size={14} strokeWidth={2.2} className="ml-auto text-accent" />}
     </button>
   );
 }
@@ -88,7 +88,7 @@ function ItemGrid({ slot, look, showAll, onPick }: { slot: Slot; look: AvatarLoo
           <span className="min-w-0">
             <span className="block truncate">{item.label}</span>
             {showAll && suggested && (
-              <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[#FFC83D]">
+              <span className="flex items-center gap-1 text-[10px] label font-bold text-gold">
                 <Sparkles size={10} strokeWidth={2} /> {STR.suggested}
               </span>
             )}
@@ -109,7 +109,7 @@ function Swatches({ colors, value, onPick, round = true }: { colors: string[]; v
           aria-label={`Colour ${c}`}
           aria-pressed={value === c}
           onClick={() => onPick(c)}
-          className={`size-10 border-2 transition ${round ? "rounded-full" : "rounded-xl"} ${value === c ? "scale-110 border-white ring-4 ring-white/25" : "border-white/20"}`}
+          className={`press size-10 border-2 ${round ? "rounded-full" : "rounded-xl"} ${value === c ? "scale-110 border-white ring-4 ring-primary-400/45" : "border-white/20"}`}
           style={{ background: c }}
         />
       ))}
@@ -143,14 +143,14 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
 
   // portal: ancestors with backdrop-filter would otherwise trap `position: fixed`
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label={STR.title} className="fixed inset-0 z-50 grid place-items-center bg-[#05060f]/75 p-2 backdrop-blur-md sm:p-4">
-      <div className="grid h-full max-h-[720px] w-full max-w-5xl grid-rows-[minmax(0,38%)_minmax(0,1fr)] overflow-hidden rounded-3xl border border-white/15 bg-[#0f1222]/95 text-white shadow-2xl sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] sm:grid-rows-1 landscape:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] landscape:grid-rows-1">
-        <div className="relative min-h-0 bg-[#141833]">
+    <div role="dialog" aria-modal="true" aria-label={STR.title} className="scrim fixed inset-0 z-50 grid place-items-center bg-ink-950/75! p-2 sm:p-4">
+      <div className="grid h-full max-h-[720px] w-full max-w-5xl grid-rows-[minmax(0,38%)_minmax(0,1fr)] overflow-hidden rounded-3xl glass-elevated bg-ink-900/85! sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] sm:grid-rows-1 landscape:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] landscape:grid-rows-1">
+        <div className="relative min-h-0 bg-[radial-gradient(ellipse_at_50%_35%,#2a303b_0%,var(--color-ink-900)_75%)]">
           <AvatarPreview look={look} emote={emote} />
           <button
             type="button"
             onClick={() => setEmote((e) => (e === 10 ? 11 : 10))}
-            className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-bold backdrop-blur-xl"
+            className="chip absolute bottom-3 left-3 flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold"
           >
             <Hand size={14} strokeWidth={1.85} /> {STR.wave}
           </button>
@@ -158,7 +158,7 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
         <div className="flex min-h-0 flex-col">
           <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
             <h2 className="text-lg font-extrabold">{STR.title}</h2>
-            <button type="button" onClick={onClose} aria-label={STR.cancel} className="grid size-9 place-items-center rounded-full bg-white/10 hover:bg-white/20">
+            <button type="button" onClick={onClose} aria-label={STR.cancel} className="btn-secondary grid size-9 place-items-center rounded-full">
               <X size={18} strokeWidth={1.85} />
             </button>
           </div>
@@ -169,7 +169,7 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
                 type="button"
                 onClick={() => setTab(t.id)}
                 aria-current={tab === t.id}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold transition ${tab === t.id ? "bg-white text-[#12142b]" : "text-white/70 hover:bg-white/10"}`}
+                className={`press flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold ${tab === t.id ? "bg-primary text-white shadow-[inset_0_1px_0_rgb(255_255_255/.25),var(--shadow-glow)]" : "text-white/70 hover:bg-white/10"}`}
               >
                 <t.icon size={15} strokeWidth={1.85} /> {t.label}
               </button>
@@ -178,7 +178,7 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
             {garmentTab && (
               <label className="flex w-fit cursor-pointer items-center gap-2 text-sm font-semibold text-white/80">
-                <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} className="size-4 accent-[#3DA9FC]" />
+                <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} className="size-4 accent-primary" />
                 {STR.showAll}
               </label>
             )}
@@ -224,7 +224,7 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
             )}
           </div>
           <div className="flex gap-2 border-t border-white/10 p-3">
-            <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-white/20 py-2.5 font-bold text-white/80 hover:bg-white/5">
+            <button type="button" onClick={onClose} className="press flex-1 rounded-xl border border-white/20 py-2.5 font-bold text-white/85 hover:bg-white/6">
               {STR.cancel}
             </button>
             <button
@@ -236,7 +236,7 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
                 onSaved?.(draft);
                 onClose();
               }}
-              className="flex flex-[2] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#3DA9FC] to-[#2F80ED] py-2.5 font-extrabold shadow-lg"
+              className="btn-primary flex flex-[2] items-center justify-center gap-2 rounded-xl py-2.5 font-extrabold"
             >
               <Check size={18} strokeWidth={2} /> {STR.save}
             </button>

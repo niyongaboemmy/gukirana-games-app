@@ -47,9 +47,9 @@ export function GameShell({
   const [leaving, setLeaving] = useState(false);
   const [fairOpen, setFairOpen] = useState(false);
   return (
-    <div className="fixed inset-0 flex flex-col bg-[radial-gradient(ellipse_at_top,#2a2f7a_0%,#0b0d1a_70%)] text-white">
+    <div className="fixed inset-0 flex flex-col bg-[radial-gradient(ellipse_at_top,#262b35_0%,var(--color-ink-950)_70%)] text-white">
       <header className="flex items-center gap-2 px-[max(12px,env(safe-area-inset-left))] py-2 phone:py-1">
-        <button type="button" onClick={() => setLeaving(true)} className="rounded-xl bg-white/10 px-3 py-2 text-sm font-semibold hover:bg-white/15">
+        <button type="button" onClick={() => setLeaving(true)} className="btn-secondary rounded-xl px-3 py-2 text-sm font-semibold">
           <span className="flex items-center gap-1"><ChevronLeft size={16} /> Leave</span>
         </button>
         <h1 className="ml-1 flex min-w-0 items-center gap-2 truncate text-base font-extrabold sm:text-lg">
@@ -57,9 +57,9 @@ export function GameShell({
           {title} <span className="text-xs font-semibold text-white/50">· {mode}</span>
         </h1>
         <div className="ml-auto flex items-center gap-2">
-          <span className="flex items-center gap-1.5 rounded-full bg-[#7CC4FF]/20 px-3 py-1.5 text-sm font-extrabold tabular-nums">{pot > 0 ? <>POT {pot} <Star size={14} className="fill-[#7CC4FF] text-[#7CC4FF]" /></> : "Practice · no stake"}</span>
+          <span className="flex items-center gap-1.5 rounded-full bg-primary/20 px-3 py-1.5 text-sm font-extrabold tabular-nums ring-1 ring-primary-400/35">{pot > 0 ? <>POT {pot} <Star size={14} className="fill-star text-star" /></> : "Practice · no stake"}</span>
           {fairness && (
-            <button type="button" onClick={() => setFairOpen(true)} className="flex items-center gap-1.5 rounded-full bg-[#22C55E]/20 px-3 py-1.5 text-sm font-bold text-[#7ef0a8]">
+            <button type="button" onClick={() => setFairOpen(true)} className="press flex items-center gap-1.5 rounded-full bg-success/18 px-3 py-1.5 text-sm font-bold text-success-soft ring-1 ring-success/30 hover:bg-success/26">
               <ShieldCheck size={16} /> Fair
             </button>
           )}
@@ -83,10 +83,10 @@ export function GameShell({
           <p className="text-lg font-bold">Leave the match?</p>
           <p className="mt-1 text-sm text-white/70">{pot > 0 ? `Leaving counts as a forfeit: you lose your ${pot / 2} Stars stake.` : "Leaving ends this practice game."}</p>
           <div className="mt-4 flex gap-2">
-            <button type="button" onClick={() => setLeaving(false)} className="flex-1 rounded-xl bg-white/10 py-2 font-semibold">
+            <button type="button" onClick={() => setLeaving(false)} className="btn-secondary flex-1 rounded-xl py-2 font-semibold">
               Stay
             </button>
-            <Link href={returnPath()} onClick={onLeave} className="flex-1 rounded-xl bg-[#EF4444] py-2 text-center font-semibold">
+            <Link href={returnPath()} onClick={onLeave} className="btn-danger flex-1 rounded-xl py-2 text-center font-semibold">
               Leave
             </Link>
           </div>
@@ -94,7 +94,7 @@ export function GameShell({
       )}
       {fairOpen && fairness && (
         <Modal onClose={() => setFairOpen(false)}>
-          <p className="flex items-center gap-2 text-lg font-bold"><ShieldCheck size={20} className="text-[#22C55E]" /> Provably fair</p>
+          <p className="flex items-center gap-2 text-lg font-bold"><ShieldCheck size={20} className="text-success" /> Provably fair</p>
           <p className="mt-1 text-sm text-white/70">Every roll comes from HMAC-SHA256(server seed, client seed, match, roll #). The seed is revealed after the match so you can verify every roll.</p>
           <p className="mt-3 text-xs text-white/50">Commit (SHA-256 of the seed)</p>
           <code className="block break-all rounded-lg bg-black/40 p-2 text-xs">{fairness.commit}</code>
@@ -110,7 +110,7 @@ export function GameShell({
 function PlayerPanel({ p, label }: { p: PanelPlayer; label: string }) {
   return (
     <div
-      className={`flex flex-col gap-1 rounded-2xl border-2 bg-white/5 p-2 transition sm:p-3 phone:gap-0.5 phone:rounded-xl phone:p-1.5 phone:text-[11px] ${p.active ? "shadow-[0_0_24px_-4px] " : "opacity-80"}`}
+      className={`flex flex-col gap-1 glass-solid rounded-2xl border-2 bg-white/5 p-2 transition sm:p-3 phone:gap-0.5 phone:rounded-xl phone:p-1.5 phone:text-[11px] ${p.active ? "shadow-[0_0_24px_-4px] " : "opacity-80"}`}
       style={{ borderColor: p.active ? p.color : "rgba(255,255,255,.12)", color: "inherit", boxShadow: p.active ? `0 0 22px -6px ${p.color}` : undefined }}
     >
       <div className="flex items-center gap-2 phone:gap-1.5">
@@ -119,7 +119,7 @@ function PlayerPanel({ p, label }: { p: PanelPlayer; label: string }) {
         </div>
         <div className="min-w-0 leading-tight">
           <p className="truncate text-sm font-bold phone:text-xs">{p.name}</p>
-          <p className="flex items-center gap-1 text-xs text-[#FFC83D] phone:text-[10px]"><Star size={11} className="fill-current" /> {p.subtitle ?? `Lvl ${p.level}`} · {label}</p>
+          <p className="flex items-center gap-1 text-xs text-gold phone:text-[10px]"><Star size={11} className="fill-current" /> {p.subtitle ?? `Lvl ${p.level}`} · {label}</p>
         </div>
       </div>
       {p.active && <p className="flex items-center gap-1.5 text-xs font-bold" style={{ color: p.color }}><span className="size-2 animate-pulse rounded-full" style={{ background: p.color }} /> Turn</p>}
@@ -130,8 +130,8 @@ function PlayerPanel({ p, label }: { p: PanelPlayer; label: string }) {
 
 export function Modal({ children, onClose }: { children: React.ReactNode; onClose?: () => void }) {
   return (
-    <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-[#151935] p-5 text-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="scrim fixed inset-0 z-40 grid place-items-center bg-ink-950/60! p-4" onClick={onClose}>
+      <div className="sheet w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
         {children}
       </div>
     </div>
@@ -142,27 +142,27 @@ export function ResultModal({ won, starsDelta, xp, summary, onRematch }: { won: 
   return (
     <Modal>
       <div className="text-center">
-        <div className={`mx-auto grid size-20 place-items-center rounded-full ${won ? "bg-[#FFC83D]/20 text-[#FFC83D]" : "bg-white/10 text-white"}`}>{won ? <Trophy size={40} /> : <Handshake size={40} />}</div>
+        <div className={`mx-auto grid size-20 place-items-center rounded-full ${won ? "bg-gold/20 text-gold" : "bg-white/10 text-white"}`}>{won ? <Trophy size={40} /> : <Handshake size={40} />}</div>
         <p className="mt-2 text-2xl font-extrabold">{won ? "You won!" : "Good game"}</p>
         <p className="mt-1 text-sm text-white/70">{summary}</p>
         <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-          <div className="rounded-xl bg-white/5 p-3">
+          <div className="rounded-xl bg-white/6 p-3 ring-1 ring-white/8">
             <p className="text-white/60">Stars</p>
-            <p className={`text-xl font-extrabold ${starsDelta >= 0 ? "text-[#22C55E]" : "text-white"}`}>
+            <p className={`text-xl font-extrabold ${starsDelta >= 0 ? "text-success" : "text-white"}`}>
               {starsDelta >= 0 ? "+" : ""}
               {starsDelta} <Star size={16} className="inline fill-current align-[-2px]" />
             </p>
           </div>
-          <div className="rounded-xl bg-white/5 p-3">
+          <div className="rounded-xl bg-white/6 p-3 ring-1 ring-white/8">
             <p className="text-white/60">XP</p>
-            <p className="text-xl font-extrabold text-[#FFC83D]">+{xp}</p>
+            <p className="text-xl font-extrabold text-gold">+{xp}</p>
           </div>
         </div>
         <div className="mt-5 flex gap-2">
-          <Link href={returnPath()} className="flex-1 rounded-xl bg-white/10 py-2.5 font-semibold">
+          <Link href={returnPath()} className="btn-secondary flex-1 rounded-xl py-2.5 font-semibold">
             {returnLabel()}
           </Link>
-          <button type="button" onClick={onRematch} className="flex-1 rounded-xl bg-[#3DA9FC] py-2.5 font-bold">
+          <button type="button" onClick={onRematch} className="btn-primary flex-1 rounded-xl py-2.5 font-bold">
             Rematch
           </button>
         </div>

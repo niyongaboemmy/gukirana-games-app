@@ -16,7 +16,7 @@ const GateCanvas = dynamic(() => import("@/world/gate/GateCanvas"), {
   loading: () => (
     <div className="grid h-full place-items-center bg-[#0b0d1a] text-white">
       <div className="text-center">
-        <div className="mx-auto mb-3 size-12 animate-spin rounded-full border-4 border-white/20 border-t-[#3DA9FC]" />
+        <div className="mx-auto mb-3 size-12 animate-spin rounded-full border-4 border-white/20 border-t-primary-500" />
         <p className="font-bold">Arriving at Gukirana Playground…</p>
       </div>
     </div>

@@ -297,7 +297,7 @@ export default function PoolGame() {
               setPower(0);
             }}
           >
-            <div className="absolute inset-x-0 top-0 rounded-full bg-gradient-to-b from-[#22C55E] via-[#F59E0B] to-[#EF4444]" style={{ height: `${power * 100}%` }} />
+            <div className="absolute inset-x-0 top-0 rounded-full bg-gradient-to-b from-success via-warning to-danger" style={{ height: `${power * 100}%` }} />
             <div className="absolute inset-x-1 rounded-full bg-white shadow" style={{ top: `calc(${power * 100}% - 6px)`, height: 12 }} />
           </div>
           <span className="text-xs font-bold tabular-nums">{Math.round(power * 100)}%</span>

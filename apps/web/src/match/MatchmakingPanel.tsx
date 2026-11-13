@@ -30,7 +30,7 @@ function useCountdown(until?: number) {
   return until ? Math.max(0, Math.ceil((until - now) / 1000)) : 0;
 }
 
-const glass = "rounded-2xl border border-white/20 bg-[#151935]/85 text-white shadow-2xl backdrop-blur-xl";
+const glass = "glass rounded-card";
 
 function GameStakePicker({ onConfirm, confirmLabel, onCancel, initialGame = "igisoro" }: { onConfirm: (g: GameId, s: number) => void; confirmLabel: string; onCancel: () => void; initialGame?: GameId }) {
   const [game, setGame] = useState<GameId>(initialGame);
@@ -40,26 +40,26 @@ function GameStakePicker({ onConfirm, confirmLabel, onCancel, initialGame = "igi
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-3 gap-2">
         {GAMES.map((g) => (
-          <button key={g.id} type="button" onClick={() => setGame(g.id)} className={`flex items-center gap-2 rounded-xl border-2 px-3 py-2.5 font-semibold transition ${game === g.id ? "border-white bg-white/10" : "border-white/10"}`}>
+          <button key={g.id} type="button" onClick={() => setGame(g.id)} className={`press flex items-center gap-2 rounded-xl border-2 px-3 py-2.5 font-semibold ${game === g.id ? "border-accent bg-primary/25 shadow-[0_0_0_3px_rgb(96_165_250/.18)]" : "border-white/10 bg-white/4 hover:bg-white/8"}`}>
             <span className="grid size-8 place-items-center rounded-lg" style={{ background: `${g.color}33`, color: g.color }}><g.icon size={18} /></span>
             {GAME_LABEL[g.id]}
           </button>
         ))}
       </div>
       <div>
-        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-white/50">Stake each</p>
+        <p className="mb-1.5 text-xs label text-on-glass-muted">Stake each</p>
         <div className="flex flex-wrap gap-1.5">
           {STAKES.map((s) => (
-            <button key={s} type="button" disabled={s > stars} onClick={() => setStake(s)} className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-bold tabular-nums transition disabled:opacity-30 ${stake === s ? "bg-[#7CC4FF] text-[#0b0d1a]" : "bg-white/10"}`}>
+            <button key={s} type="button" disabled={s > stars} onClick={() => setStake(s)} className={`press flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-bold tabular-nums transition disabled:opacity-30 ${stake === s ? "bg-primary text-white shadow-[inset_0_1px_0_rgb(255_255_255/.28),var(--shadow-glow)]" : "btn-secondary"}`}>
               {s === 0 ? "Friendly" : <>{s} <Star size={12} className="fill-current" /></>}
             </button>
           ))}
         </div>
-        <p className="mt-2 text-xs text-white/60">{stake > 0 ? `Winner gets ${stake * 2} Stars. Stakes are held in escrow by the server.` : "No stake: just for fun and rating."}</p>
+        <p className="mt-2 text-xs text-on-glass-muted">{stake > 0 ? `Winner gets ${stake * 2} Stars. Stakes are held in escrow by the server.` : "No stake: just for fun and rating."}</p>
       </div>
       <div className="flex gap-2">
-        <button type="button" onClick={onCancel} className="flex-1 rounded-xl bg-white/10 py-2.5 font-semibold">Cancel</button>
-        <button type="button" onClick={() => onConfirm(game, stake)} className="flex-1 rounded-xl bg-gradient-to-r from-[#3DA9FC] to-[#2F80ED] py-2.5 font-extrabold">{confirmLabel}</button>
+        <button type="button" onClick={onCancel} className="btn-secondary flex-1 rounded-xl py-2.5 font-semibold">Cancel</button>
+        <button type="button" onClick={() => onConfirm(game, stake)} className="btn-primary flex-1 rounded-xl py-2.5 font-extrabold">{confirmLabel}</button>
       </div>
     </div>
   );
@@ -69,17 +69,17 @@ function IncomingCard({ p }: { p: ReturnType<typeof useMatch.getState>["incoming
   const left = useCountdown(p.expires);
   const g = GAMES.find((x) => x.id === p.game)!;
   return (
-    <div className={`${glass} pointer-events-auto w-[min(360px,90vw)] p-3`}>
+    <div className="sheet pointer-events-auto w-[min(360px,90vw)] p-3">
       <div className="flex items-center gap-3">
         <span className="grid size-11 place-items-center rounded-xl" style={{ background: `${g.color}33`, color: g.color }}><g.icon size={22} /></span>
         <div className="min-w-0 flex-1 leading-tight">
           <p className="truncate font-bold"><span style={{ color: p.from.color }}>{p.from.name}</span> challenges you</p>
-          <p className="flex items-center gap-1 text-sm text-white/70">{GAME_LABEL[p.game]} · {p.stake ? <>{p.stake} <Star size={12} className="fill-current" /> each</> : "Friendly"} · {left}s</p>
+          <p className="flex items-center gap-1 text-sm text-on-glass-muted">{GAME_LABEL[p.game]} · {p.stake ? <>{p.stake} <Star size={12} className="fill-current" /> each</> : "Friendly"} · {left}s</p>
         </div>
       </div>
       <div className="mt-3 flex gap-2">
-        <button type="button" onClick={() => respondProposal(p.id, false)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white/10 py-2 font-semibold"><X size={16} /> Decline</button>
-        <button type="button" onClick={() => respondProposal(p.id, true)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#22C55E] py-2 font-bold text-[#06210f]"><Check size={16} /> Accept</button>
+        <button type="button" onClick={() => respondProposal(p.id, false)} className="btn-secondary flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 font-semibold"><X size={16} /> Decline</button>
+        <button type="button" onClick={() => respondProposal(p.id, true)} className="btn-success flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 font-bold"><Check size={16} /> Accept</button>
       </div>
     </div>
   );
@@ -136,17 +136,17 @@ export function MatchmakingPanel() {
       <div className="absolute left-[max(12px,env(safe-area-inset-left))] top-[84px] phone:hidden">
         {authed ? (
           quick.status === "waiting" ? (
-            <button type="button" onClick={quickMatchLeave} className={`${glass} pointer-events-auto flex items-center gap-2 px-4 py-2.5 text-sm font-bold`}>
-              <Loader2 size={16} className="animate-spin" /> Finding a {GAME_LABEL[quick.game!]} opponent… <X size={14} className="text-white/60" />
+            <button type="button" onClick={quickMatchLeave} className={`${glass} icon-button pointer-events-auto flex items-center gap-2 px-4 py-2.5 text-sm font-bold`}>
+              <Loader2 size={16} className="animate-spin" /> Finding a {GAME_LABEL[quick.game!]} opponent… <X size={14} className="text-on-glass-muted" />
             </button>
           ) : (
-            <button type="button" onClick={() => setSheet("quick")} className={`${glass} pointer-events-auto flex items-center gap-2 px-4 py-2.5 text-sm font-bold`}>
-              <Zap size={16} className="text-[#FFC83D]" /> Quick Match
+            <button type="button" onClick={() => setSheet("quick")} className={`${glass} icon-button pointer-events-auto flex items-center gap-2 px-4 py-2.5 text-sm font-bold`}>
+              <Zap size={16} className="text-gold" /> Quick Match
             </button>
           )
         ) : (
-          <Link href="/gate" className={`${glass} pointer-events-auto flex items-center gap-2 px-4 py-2.5 text-sm font-bold`}>
-            <Zap size={16} className="text-[#FFC83D]" /> Sign in to play people
+          <Link href="/gate" className={`${glass} icon-button pointer-events-auto flex items-center gap-2 px-4 py-2.5 text-sm font-bold`}>
+            <Zap size={16} className="text-gold" /> Sign in to play people
           </Link>
         )}
       </div>
@@ -160,34 +160,34 @@ export function MatchmakingPanel() {
               setChallengeTarget({ id: target.id, name: target.name });
               setSheet("challenge");
             }}
-            className="pointer-events-auto flex items-center gap-2 whitespace-nowrap rounded-full border border-[#FFC83D]/50 bg-[#22266E]/90 px-5 py-2.5 font-bold text-white shadow-2xl backdrop-blur-md active:scale-95 phone:max-w-[40vw] phone:overflow-hidden phone:px-3.5 phone:py-1.5 phone:text-sm"
+            className="chip pointer-events-auto flex items-center gap-2 whitespace-nowrap border-gold/45! bg-ink-800/60! px-5 py-2.5 font-bold phone:max-w-[40vw] phone:overflow-hidden phone:px-3.5 phone:py-1.5 phone:text-sm"
           >
-            <Swords size={18} className="text-[#FFC83D]" /> Challenge {target.name}
+            <Swords size={18} className="text-gold" /> Challenge {target.name}
           </button>
         </div>
       )}
 
       {/* Sheets */}
       {sheet && (
-        <div className="pointer-events-auto absolute inset-0 grid place-items-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setSheet(null)}>
-          <div className={`${glass} w-[min(420px,94vw)] p-5 phone:max-h-[92vh] phone:overflow-y-auto phone:p-3.5`} onClick={(e) => e.stopPropagation()}>
+        <div className="scrim pointer-events-auto absolute inset-0 grid place-items-center p-4" onClick={() => setSheet(null)}>
+          <div className={`sheet w-[min(420px,94vw)] p-5 phone:max-h-[92vh] phone:overflow-y-auto phone:p-3.5`} onClick={(e) => e.stopPropagation()}>
             <p className="mb-3 flex items-center gap-2 text-lg font-extrabold">
-              {sheet === "quick" ? <><Zap size={20} className="text-[#FFC83D]" /> Quick Match</> : <><Swords size={20} className="text-[#FFC83D]" /> Challenge {challengeTarget?.name}</>}
+              {sheet === "quick" ? <><Zap size={20} className="text-gold" /> Quick Match</> : <><Swords size={20} className="text-gold" /> Challenge {challengeTarget?.name}</>}
             </p>
             {sheet === "challenge" && (
               <div className="mb-3">
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-white/50">Player</p>
+                <p className="mb-1.5 text-xs label text-on-glass-muted">Player</p>
                 <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
                   {challengeable.map((p) => (
                     <button
                       key={p.id}
                       type="button"
                       onClick={() => setChallengeTarget({ id: p.id, name: p.name })}
-                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold ${challengeTarget?.id === p.id ? "border-white bg-white/15" : "border-white/15"}`}
+                      className={`press flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold ${challengeTarget?.id === p.id ? "border-accent bg-primary/25" : "border-white/15 hover:bg-white/8"}`}
                     >
                       <span className="size-2.5 rounded-full" style={{ background: p.color }} />
                       {p.name}
-                      <span className="text-xs text-white/50">Lvl {p.level}</span>
+                      <span className="text-xs text-on-glass-muted">Lvl {p.level}</span>
                     </button>
                   ))}
                 </div>
@@ -217,7 +217,7 @@ export function MatchmakingPanel() {
             <Loader2 size={16} className="animate-spin" /> Waiting for {outgoing.to} · {GAME_LABEL[outgoing.game]} · {outLeft}s
           </div>
         )}
-        {notice && <div className={`${glass} px-4 py-2 text-sm font-semibold text-[#ffd27a]`}>{notice}</div>}
+        {notice && <div className="toast px-4 py-2 text-sm font-semibold text-warning-soft">{notice}</div>}
       </div>
     </div>
   );

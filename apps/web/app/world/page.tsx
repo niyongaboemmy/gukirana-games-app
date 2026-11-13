@@ -61,7 +61,7 @@ export default function WorldPage() {
       <WorldHud />
       <MatchmakingPanel />
       {fromRoom && (
-        <div role="status" className="gk-toast pointer-events-none fixed left-1/2 top-16 z-30 -translate-x-1/2 rounded-full border border-white/20 bg-[#151935]/85 px-4 py-2 text-sm font-bold text-white shadow-xl backdrop-blur-md">
+        <div role="status" className="gk-toast pointer-events-none fixed left-1/2 top-16 z-30 -translate-x-1/2 toast px-4 py-2 text-sm font-bold">
           Back in the plaza · walk to any lit door to enter a room
         </div>
       )}

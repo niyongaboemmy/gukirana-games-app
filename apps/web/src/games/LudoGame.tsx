@@ -78,8 +78,8 @@ export default function LudoGame() {
           <p className="text-center text-xl font-extrabold">Ludo practice</p>
           <p className="mt-1 text-center text-sm text-white/70">Practice (no stake) · every dice roll is provably fair</p>
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <button type="button" onClick={() => start(2)} className="rounded-xl bg-[#FF8A1F] py-3 font-bold">1 vs 1</button>
-            <button type="button" onClick={() => start(4)} className="rounded-xl bg-white/10 py-3 font-bold">4 players</button>
+            <button type="button" onClick={() => start(2)} className="press rounded-xl bg-game-ludo py-3 font-bold">1 vs 1</button>
+            <button type="button" onClick={() => start(4)} className="btn-secondary rounded-xl py-3 font-bold">4 players</button>
           </div>
           <Link href={returnPath()} className="mt-3 block text-center text-sm font-semibold text-white/60 hover:text-white">
             {returnLabel()}
@@ -107,7 +107,7 @@ export default function LudoGame() {
         <div className="flex items-center justify-center gap-4">
           <Die value={state.dice ?? (state.lastEvent?.kind === "roll" ? state.lastEvent.dice : null)} rolling={rolling} color={SEAT_COLORS[current?.seat ?? 0]!} />
           {myTurn && state.phase === "roll" ? (
-            <button type="button" onClick={doRoll} disabled={rolling} className="flex items-center gap-2 rounded-2xl bg-[#FF8A1F] px-8 py-3 text-lg font-extrabold shadow-lg active:scale-95">
+            <button type="button" onClick={doRoll} disabled={rolling} className="flex items-center gap-2 press rounded-2xl bg-game-ludo px-8 py-3 text-lg font-extrabold shadow-[inset_0_1px_0_rgb(255_255_255/.3),0_10px_24px_-10px_rgb(255_138_31/.8)]">
               <DieIcon size={20} /> {rolling ? "Rolling…" : "Roll"}
             </button>
           ) : (

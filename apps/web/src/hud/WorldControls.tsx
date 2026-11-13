@@ -6,7 +6,7 @@ import { cameraState, MAX_ORBIT } from "@/world/Player";
 import { enableVoice, disableVoice, pttDown, pttUp, toggleOpenMic, useVoice } from "@/voice/voice";
 
 
-const btn = "pointer-events-auto grid size-12 place-items-center rounded-2xl border border-white/25 bg-[#22266E]/65 text-white shadow-xl backdrop-blur-md transition active:scale-90 phone:size-9 phone:rounded-full";
+const btn = "icon-button pointer-events-auto size-12 rounded-card phone:size-9 phone:rounded-full";
 
 const zoom = (delta: number) => {
   cameraState.distance = Math.min(MAX_ORBIT, Math.max(2.5, cameraState.distance + delta));
@@ -62,23 +62,23 @@ export function WorldControls() {
                 onPointerUp={pttUp}
                 onPointerCancel={pttUp}
                 onContextMenu={(e) => e.preventDefault()}
-                className={`${btn} relative size-16 touch-none select-none phone:size-11 ${transmitting ? "border-[#22C55E] bg-[#22C55E]/40 ring-4 ring-[#22C55E]/30" : ""}`}
+                className={`${btn} relative size-16 touch-none select-none phone:size-11 ${transmitting ? "border-success! bg-success/40! ring-4 ring-success/30" : ""}`}
               >
                 <Mic size={24} className={selfTalking ? "animate-pulse" : ""} />
-                {openMic && <Lock size={13} className="absolute bottom-1.5 right-1.5 text-[#bff5cf]" />}
+                {openMic && <Lock size={13} className="absolute bottom-1.5 right-1.5 text-success-soft" />}
               </button>
               {transmitting && (
-                <div role="status" className="pointer-events-none rounded-xl bg-[#0f1222]/75 px-2 py-1 text-[11px] font-bold text-white backdrop-blur">
+                <div role="status" className="glass-solid pointer-events-none rounded-xl px-2 py-1 text-[11px] font-bold">
                   {hearers === 0 ? "Nobody nearby can hear you" : hearers === 1 ? "1 person can hear you" : `${hearers} people can hear you`}
                 </div>
               )}
-              <div className="pointer-events-auto flex items-center gap-1 rounded-xl bg-[#0f1222]/70 px-2 py-1 text-[11px] font-semibold text-white/80 backdrop-blur">
-                <span className={`size-1.5 rounded-full ${connected.length ? "bg-[#22C55E]" : "bg-white/40"}`} />
+              <div className="glass pointer-events-auto flex items-center gap-1 rounded-xl px-2 py-1 text-[11px] font-semibold text-on-glass-muted">
+                <span className={`size-1.5 rounded-full ${connected.length ? "bg-success" : "bg-white/40"}`} />
                 {connected.length} in voice
-                <button type="button" onClick={toggleOpenMic} aria-pressed={openMic} className={`ml-1 flex items-center gap-1 rounded-md px-1.5 py-0.5 ${openMic ? "bg-[#22C55E]/30 text-white" : "bg-white/10"}`} title="Lock the mic open (talk without holding)">
+                <button type="button" onClick={toggleOpenMic} aria-pressed={openMic} className={`ml-1 flex items-center gap-1 rounded-md px-1.5 py-0.5 ${openMic ? "bg-success/30 text-white" : "btn-secondary"}`} title="Lock the mic open (talk without holding)">
                   <Lock size={11} /> {openMic ? "Open" : "Hold"}
                 </button>
-                <button type="button" onClick={disableVoice} className="rounded-md bg-white/10 px-1.5 py-0.5" title="Turn voice off">
+                <button type="button" onClick={disableVoice} className="btn-secondary rounded-md px-1.5 py-0.5" title="Turn voice off">
                   Off
                 </button>
               </div>

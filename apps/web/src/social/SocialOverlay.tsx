@@ -14,7 +14,7 @@ import { PairInvitePrompt, PairPendingChip, SpotPrompt } from "./ActionPrompts";
  * Screen-space social UI shared by the plaza and the halls: person menu, call bar (incoming / calling / in call),
  * notices ("Aline waved at you"), and the people sheet (everyone here, nearest first).
  */
-const glass = "rounded-2xl border border-white/20 bg-[#151935]/90 text-white shadow-2xl backdrop-blur-xl";
+const glass = "glass-elevated rounded-card";
 
 function useNow(on: boolean, ms = 1000) {
   const [now, setNow] = useState(() => Date.now());
@@ -40,7 +40,7 @@ function CallBar() {
   const dot = (
     <span className="relative grid size-9 shrink-0 place-items-center rounded-full text-sm font-black" style={{ background: peer.color }}>
       {peer.name.slice(0, 1).toUpperCase()}
-      {peerTalking && <span className="absolute inset-0 animate-ping rounded-full ring-2 ring-[#22C55E]" />}
+      {peerTalking && <span className="absolute inset-0 animate-ping rounded-full ring-2 ring-success" />}
     </span>
   );
   if (call.status === "incoming")
@@ -49,12 +49,12 @@ function CallBar() {
         {dot}
         <div className="min-w-0 flex-1 leading-tight">
           <p className="truncate font-bold">{peer.name} is calling you</p>
-          <p className="text-xs text-white/60">Private voice call · {Math.max(0, 30 - Math.floor((now - (call.since ?? now)) / 1000))}s</p>
+          <p className="text-xs text-on-glass-muted">Private voice call · {Math.max(0, 30 - Math.floor((now - (call.since ?? now)) / 1000))}s</p>
         </div>
-        <button type="button" onClick={() => void answerCall(false)} aria-label="Decline call" className="grid size-11 place-items-center rounded-full bg-[#EF4444]">
+        <button type="button" onClick={() => void answerCall(false)} aria-label="Decline call" className="btn-danger grid size-11 place-items-center rounded-full">
           <PhoneOff size={20} />
         </button>
-        <button type="button" onClick={() => void answerCall(true)} aria-label="Accept call" className="grid size-11 place-items-center rounded-full bg-[#22C55E] text-[#06210f]">
+        <button type="button" onClick={() => void answerCall(true)} aria-label="Accept call" className="btn-success grid size-11 place-items-center rounded-full">
           <Phone size={20} />
         </button>
       </div>
@@ -64,14 +64,14 @@ function CallBar() {
       {dot}
       <div className="min-w-0 leading-tight">
         <p className="max-w-[10rem] truncate text-sm font-bold">{call.status === "outgoing" ? `Calling ${peer.name}…` : peer.name}</p>
-        <p className="text-[11px] text-white/60">{call.status === "active" ? `Private call · ${mmss(now - (call.since ?? now))}` : "Waiting for an answer"}</p>
+        <p className="text-[11px] text-on-glass-muted">{call.status === "active" ? `Private call · ${mmss(now - (call.since ?? now))}` : "Waiting for an answer"}</p>
       </div>
       {call.status === "active" && (
-        <button type="button" onClick={() => setCallMuted(!callMuted)} aria-label={callMuted ? "Unmute my microphone" : "Mute my microphone"} aria-pressed={callMuted} className={`grid size-10 place-items-center rounded-full ${callMuted ? "bg-[#EF4444]/80" : "bg-white/15"}`}>
+        <button type="button" onClick={() => setCallMuted(!callMuted)} aria-label={callMuted ? "Unmute my microphone" : "Mute my microphone"} aria-pressed={callMuted} className={`press grid size-10 place-items-center rounded-full ${callMuted ? "btn-danger" : "btn-secondary"}`}>
           {callMuted ? <MicOff size={18} /> : <Mic size={18} />}
         </button>
       )}
-      <button type="button" onClick={hangUp} aria-label={call.status === "active" ? "End call" : "Cancel call"} className="grid size-10 place-items-center rounded-full bg-[#EF4444]">
+      <button type="button" onClick={hangUp} aria-label={call.status === "active" ? "End call" : "Cancel call"} className="btn-danger grid size-10 place-items-center rounded-full">
         <PhoneOff size={18} />
       </button>
     </div>
@@ -84,7 +84,7 @@ function Notices() {
   return (
     <div className="flex flex-col items-center gap-1.5" role="status" aria-live="polite">
       {notices.map((n) => (
-        <div key={n.id} className={`${glass} pointer-events-auto flex items-center gap-3 px-4 py-2 text-sm font-semibold`}>
+        <div key={n.id} className="toast pointer-events-auto flex items-center gap-3 rounded-card px-4 py-2 text-sm font-semibold">
           {n.text}
           {n.action && (
             <button
@@ -93,7 +93,7 @@ function Notices() {
                 n.action!.run();
                 useSocial.setState((s) => ({ notices: s.notices.filter((x) => x.id !== n.id) }));
               }}
-              className="rounded-lg bg-white/15 px-2.5 py-1 text-xs font-bold"
+              className="btn-primary rounded-lg px-2.5 py-1 text-xs font-bold"
             >
               {n.action.label}
             </button>
@@ -118,25 +118,25 @@ function PeopleSheet() {
     .sort((a, b) => a.d - b.d);
   const close = () => useSocial.setState({ peopleOpen: false });
   return (
-    <div className="pointer-events-auto fixed inset-0 z-30 flex items-start justify-start bg-black/20 p-3 pt-[72px]" onClick={close}>
+    <div className="scrim pointer-events-auto fixed inset-0 z-30 flex items-start justify-start bg-ink-950/25! p-3 pt-[72px]" onClick={close}>
       <div role="dialog" aria-label="People here" className={`${glass} max-h-[78vh] w-[min(320px,90vw)] overflow-y-auto p-2`} onClick={(e) => e.stopPropagation()}>
         <div className="mb-1 flex items-center gap-2 px-2 py-1">
           <Users size={16} />
           <p className="flex-1 text-sm font-extrabold">People here · {people.length + 1}</p>
-          <button type="button" onClick={close} aria-label="Close" className="grid size-8 place-items-center rounded-lg bg-white/10">
+          <button type="button" onClick={close} aria-label="Close" className="btn-secondary grid size-8 place-items-center rounded-lg">
             <X size={16} />
           </button>
         </div>
-        {people.length === 0 && <p className="px-2 py-3 text-xs text-white/60">Nobody else is here right now.</p>}
+        {people.length === 0 && <p className="px-2 py-3 text-xs text-on-glass-muted">Nobody else is here right now.</p>}
         {people.map(({ p, d }) => (
-          <button key={p.id} type="button" onClick={() => useSocial.setState({ menu: p.id, peopleOpen: false })} className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left hover:bg-white/5">
+          <button key={p.id} type="button" onClick={() => useSocial.setState({ menu: p.id, peopleOpen: false })} className="menu-item flex w-full items-center gap-2 px-2 py-1.5 text-left">
             <span className="relative grid size-8 shrink-0 place-items-center rounded-full text-xs font-black" style={{ background: p.color }}>
               {p.name.slice(0, 1).toUpperCase()}
-              {talking[p.id] && <Mic size={11} className="absolute -bottom-0.5 -right-0.5 rounded-full bg-[#22C55E] p-0.5 text-white" />}
+              {talking[p.id] && <Mic size={11} className="absolute -bottom-0.5 -right-0.5 rounded-full bg-success p-0.5 text-white" />}
             </span>
             <span className="min-w-0 flex-1 leading-tight">
               <span className="block truncate text-sm font-semibold">{p.name}</span>
-              <span className="flex items-center gap-1 text-[11px] text-white/55">
+              <span className="flex items-center gap-1 text-[11px] text-on-glass-muted">
                 Lvl {p.level} · {d < 999 ? `${Math.round(d)} m` : "—"}
                 {seated.has(p.id) && (
                   <>

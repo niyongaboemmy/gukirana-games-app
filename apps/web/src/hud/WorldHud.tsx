@@ -23,6 +23,7 @@ import { quickMatchLeave } from "@/lib/realtime";
 import { useSession } from "@/lib/session";
 import { KeyHint, PROMPT_BTN, promptWrap } from "./Prompt";
 import { openQuickMatch, usePhoneHud } from "./usePhoneHud";
+import { useGlassTier } from "@/ui/glass";
 
 
 function RoundButton({ icon: Icon, label, onPress, onRelease, big, active, badge, hint, disabled, compact }: { icon: LucideIcon; label: string; onPress?: () => void; onRelease?: () => void; big?: boolean; active?: boolean; badge?: number; hint?: number; disabled?: boolean; compact?: boolean }) {
@@ -36,15 +37,13 @@ function RoundButton({ icon: Icon, label, onPress, onRelease, big, active, badge
       onPointerDown={onPress}
       onPointerUp={onRelease}
       onPointerLeave={onRelease}
-      className={`pointer-events-auto relative grid disabled:opacity-50 ${size} touch-none select-none place-items-center rounded-full border shadow-lg backdrop-blur-xl transition active:scale-90 ${
-        active ? "border-[#FFC83D] bg-[#22266E]/80 text-white ring-4 ring-[#FFC83D]/40" : "border-white/35 bg-white/15 text-white"
-      }`}
+      className={`icon-button controller pointer-events-auto relative disabled:opacity-50 ${size} touch-none select-none rounded-full ${active ? "controller-active" : ""}`}
     >
       <Icon size={compact ? (big ? 24 : 21) : big ? 30 : 26} strokeWidth={1.85} absoluteStrokeWidth />
       {badge ? (
-        <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-[#EF4444] px-1 text-[11px] font-black leading-5">{badge}</span>
+        <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-[11px] font-black leading-5 shadow-sm ring-2 ring-ink-900/40">{badge}</span>
       ) : hint ? (
-        <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-[#22C55E] px-1 text-[11px] font-black leading-5 text-[#06210f]">{hint}</span>
+        <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-success px-1 text-[11px] font-black leading-5 text-success-ink shadow-sm ring-2 ring-ink-900/40 [text-shadow:none]">{hint}</span>
       ) : null}
     </button>
   );
@@ -76,6 +75,7 @@ export function WorldHud() {
   const authed = useSession((s) => s.status === "authenticated");
   const quickWaiting = useMatch((s) => s.quick.status === "waiting");
   const portal = PORTALS.find((p) => p.id === nearPortal);
+  useGlassTier();
   const setChatOpen = (v: boolean | ((o: boolean) => boolean)) => useSocial.setState((s) => ({ chatOpen: typeof v === "function" ? v(s.chatOpen) : v }));
 
   useEffect(() => {
@@ -122,23 +122,23 @@ export function WorldHud() {
   return (
     <div className="pointer-events-none fixed inset-0 z-10 select-none p-[max(12px,env(safe-area-inset-top))_max(12px,env(safe-area-inset-right))_max(12px,env(safe-area-inset-bottom))_max(12px,env(safe-area-inset-left))] text-white">
       {/* top-left profile chip (phone: just the 40 px avatar with its level ring; tap = style your avatar) */}
-      <div className="pointer-events-auto absolute left-[max(12px,env(safe-area-inset-left))] top-3 flex items-center gap-3 rounded-2xl border border-white/30 bg-[#22266E]/70 py-2 pl-2 pr-4 shadow-xl backdrop-blur-md phone:top-2 phone:rounded-full phone:p-0.5">
+      <div className="glass pointer-events-auto absolute left-[max(12px,env(safe-area-inset-left))] top-3 flex items-center gap-3 rounded-card py-2 pl-2 pr-4 phone:top-2 phone:rounded-full phone:p-0.5">
         <button
           type="button"
           tabIndex={phone ? 0 : -1}
           onClick={() => phone && setStyling(true)}
           aria-label={`${name}, level ${level}${phone ? ": style your avatar" : ""}`}
           className="relative grid size-12 place-items-center rounded-full phone:size-10"
-          style={{ background: `conic-gradient(#FFC83D ${progress * 360}deg, rgba(255,255,255,.2) 0)` }}
+          style={{ background: `conic-gradient(var(--color-gold) ${progress * 360}deg, rgba(255,255,255,.18) 0)` }}
         >
           <div className="grid size-10 place-items-center rounded-full phone:size-[34px]" style={{ background: color }}>
             <UserRound size={phone ? 18 : 22} strokeWidth={1.85} />
           </div>
-          <span className="absolute -bottom-1 -right-1 hidden min-w-4 place-items-center rounded-full bg-[#FFC83D] px-1 text-[10px] font-black leading-4 text-[#22266E] phone:grid">{level}</span>
+          <span className="absolute -bottom-1 -right-1 hidden min-w-4 place-items-center rounded-full bg-gold px-1 text-[10px] font-black leading-4 text-ink-900 [text-shadow:none] phone:grid">{level}</span>
         </button>
         <div className="leading-tight phone:hidden">
-          <p className="max-w-[9rem] truncate text-base font-extrabold">{name}</p>
-          <p className="flex items-center gap-1 text-sm font-semibold text-[#FFC83D]">
+          <p className="max-w-[9rem] truncate font-display text-base font-bold">{name}</p>
+          <p className="num flex items-center gap-1 text-sm font-semibold text-gold">
             <Star size={13} strokeWidth={2} fill="currentColor" /> Level {level}
           </p>
         </div>
@@ -147,7 +147,7 @@ export function WorldHud() {
           onClick={() => setStyling(true)}
           aria-label="Style your avatar"
           title="Style your avatar"
-          className="ml-1 grid size-10 place-items-center rounded-full border border-white/30 bg-white/15 backdrop-blur-xl transition hover:bg-white/25 phone:hidden"
+          className="btn-secondary ml-1 grid size-10 place-items-center rounded-full phone:hidden"
         >
           <Shirt size={20} strokeWidth={1.85} />
         </button>
@@ -171,9 +171,9 @@ export function WorldHud() {
 
       {/* top-center breadcrumb */}
       {/* (not inside a hall: the room overlay shows the hall name there, and this would peek between its pills) */}
-      <div className={`absolute left-1/2 top-3 hidden -translate-x-1/2 rounded-full bg-[#22266E]/55 px-4 py-1.5 text-sm font-semibold backdrop-blur-md phone:hidden! ${inHall ? "" : "sm:block"}`}>
+      <div className={`toast absolute left-1/2 top-3 hidden -translate-x-1/2 px-4 py-1.5 text-sm font-semibold phone:hidden! ${inHall ? "" : "sm:block"}`}>
         Gukirana Plaza ·{" "}
-        <span className={connected ? "text-[#22C55E]" : "text-white/60"}>
+        <span className={connected ? "text-success-soft" : "text-on-glass-muted"}>
           <Users size={14} strokeWidth={2} className="mr-1 inline -translate-y-px" />
           {connected ? `${online} online` : "solo"}
         </span>
@@ -183,7 +183,7 @@ export function WorldHud() {
         <button
           type="button"
           onClick={() => useSocial.setState((s) => ({ peopleOpen: !s.peopleOpen }))}
-          className="pointer-events-auto absolute left-[max(12px,env(safe-area-inset-left))] top-[134px] flex items-center gap-1.5 rounded-full border border-white/25 bg-[#22266E]/65 px-3 py-1.5 text-xs font-bold shadow-lg backdrop-blur-md [@media(max-height:430px)]:top-[128px] phone:hidden"
+          className="chip pointer-events-auto absolute left-[max(12px,env(safe-area-inset-left))] top-[134px] flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold [@media(max-height:430px)]:top-[128px] phone:hidden"
           aria-label={`People: ${nearby} nearby, ${online} here`}
         >
           <Users size={14} /> {nearby} nearby · {online - 1} here
@@ -192,18 +192,18 @@ export function WorldHud() {
 
       {/* top-right currency + settings */}
       <div className="absolute right-[max(12px,env(safe-area-inset-right))] top-3 flex items-center gap-2 phone:top-2">
-        <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/30 bg-[#22266E]/70 px-4 py-2.5 text-lg font-extrabold tabular-nums shadow-xl backdrop-blur-md phone:gap-1.5 phone:rounded-full phone:py-1 phone:pl-1 phone:pr-3 phone:text-sm" title="Stars: practice currency, no cash value">
-          <span className="grid size-7 place-items-center rounded-full bg-[#7CC4FF] text-[#12142b] phone:size-6">
+        <div className="glass num pointer-events-auto flex items-center gap-2 rounded-card px-4 py-2.5 text-lg font-extrabold tabular-nums phone:gap-1.5 phone:rounded-full phone:py-1 phone:pl-1 phone:pr-3 phone:text-sm" title="Stars: practice currency, no cash value">
+          <span className="grid size-7 place-items-center rounded-full bg-gradient-to-b from-gold to-warning text-ink-900 shadow-[inset_0_1px_0_rgb(255_255_255/.5)] phone:size-6">
             <Star size={15} strokeWidth={2} fill="currentColor" />
           </span>
           {stars.toLocaleString()}
         </div>
         {vr && (
-          <button type="button" onClick={() => void xrStore.enterVR()} className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/30 bg-[#9B51E0]/80 px-3 py-2.5 text-sm font-bold shadow-xl backdrop-blur-md">
+          <button type="button" onClick={() => void xrStore.enterVR()} className="glass press pointer-events-auto flex items-center gap-2 rounded-card bg-game-arena/70! px-3 py-2.5 text-sm font-bold">
             <Glasses size={18} strokeWidth={1.85} /> Enter VR
           </button>
         )}
-        <button type="button" onClick={() => setSettingsOpen(true)} aria-label="Account and settings" className="pointer-events-auto grid size-12 place-items-center rounded-2xl border border-white/30 bg-[#22266E]/70 shadow-xl backdrop-blur-md phone:size-8 phone:rounded-full">
+        <button type="button" onClick={() => setSettingsOpen(true)} aria-label="Account and settings" className="icon-button pointer-events-auto size-12 rounded-card phone:size-8 phone:rounded-full">
           <Settings size={phone ? 17 : 22} strokeWidth={1.85} />
         </button>
       </div>
@@ -244,19 +244,19 @@ export function WorldHud() {
           <RoundButton compact icon={MessageCircle} label="Chat" badge={unread} hint={unread ? 0 : nearby} active={chatOpen} onPress={() => setChatOpen((v) => !v)} />
           <div className="relative">
             {more && (
-              <div className="pointer-events-auto absolute bottom-14 right-0 flex w-max flex-col gap-1 rounded-2xl border border-white/20 bg-[#151935]/90 p-1.5 text-sm font-bold shadow-2xl backdrop-blur-xl">
+              <div className="menu pointer-events-auto absolute bottom-14 right-0 flex w-max flex-col gap-1 p-1.5 text-sm font-bold">
                 {authed &&
                   (quickWaiting ? (
-                    <button type="button" onClick={() => (quickMatchLeave(), setMore(false))} className="flex items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-white/10">
+                    <button type="button" onClick={() => (quickMatchLeave(), setMore(false))} className="menu-item flex items-center gap-2 px-3 py-2 text-left">
                       <Loader2 size={16} className="animate-spin" /> Cancel matching
                     </button>
                   ) : (
-                    <button type="button" onClick={() => (openQuickMatch(), setMore(false))} className="flex items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-white/10">
-                      <Zap size={16} className="text-[#FFC83D]" /> Quick Match
+                    <button type="button" onClick={() => (openQuickMatch(), setMore(false))} className="menu-item flex items-center gap-2 px-3 py-2 text-left">
+                      <Zap size={16} className="text-gold" /> Quick Match
                     </button>
                   ))}
                 {connected && !inHall && (
-                  <button type="button" onClick={() => (useSocial.setState({ peopleOpen: true }), setMore(false))} className="flex items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-white/10">
+                  <button type="button" onClick={() => (useSocial.setState({ peopleOpen: true }), setMore(false))} className="menu-item flex items-center gap-2 px-3 py-2 text-left">
                     <Users size={16} /> People · {nearby} nearby
                   </button>
                 )}
@@ -288,7 +288,7 @@ export function WorldHud() {
       )}
 
       {/* desktop hint */}
-      <p className="absolute bottom-3 left-1/2 hidden -translate-x-1/2 text-xs text-white/70 [@media(pointer:fine)]:block">
+      <p className="scene-text absolute bottom-3 left-1/2 hidden -translate-x-1/2 text-xs font-medium text-white/85 [@media(pointer:fine)]:block">
         W/S walk · A/D turn · click the ground to walk there · click a person for options · drag to look · Shift run · E interact · T chat · hold V to talk
       </p>
       <SocialOverlay />

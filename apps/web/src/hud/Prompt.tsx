@@ -13,8 +13,8 @@ export function promptWrap(chatOpen: boolean, lift = 0) {
 }
 
 export const PROMPT_BTN =
-  "pointer-events-auto flex items-center gap-3 whitespace-nowrap rounded-full border border-white/30 bg-[#22266E]/90 py-2 pl-2 pr-5 text-lg font-bold shadow-2xl backdrop-blur-md active:scale-95 [@media(pointer:coarse)]:pl-4 phone:max-w-[40vw] phone:gap-2 phone:overflow-hidden phone:py-1.5 phone:pl-3.5 phone:pr-4 phone:text-sm phone:shadow-lg";
+  "chip pointer-events-auto flex items-center gap-3 whitespace-nowrap border-l-primary-400/70 py-2 pl-2 pr-5 text-lg font-semibold [@media(pointer:coarse)]:pl-4 phone:max-w-[40vw] phone:gap-2 phone:overflow-hidden phone:py-1.5 phone:pl-3.5 phone:pr-4 phone:text-sm";
 
 export function KeyHint({ k = "E" }: { k?: string }) {
-  return <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white text-base font-black text-[#22266E] [@media(pointer:coarse)]:hidden">{k}</span>;
+  return <span className="kbd grid size-9 shrink-0 place-items-center rounded-lg text-base font-bold [@media(pointer:coarse)]:hidden">{k}</span>;
 }

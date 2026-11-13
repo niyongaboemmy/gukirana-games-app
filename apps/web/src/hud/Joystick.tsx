@@ -39,7 +39,7 @@ export function Joystick() {
   return (
     <div
       ref={base}
-      className="pointer-events-auto relative size-[124px] phone:size-[104px] touch-none select-none rounded-full border-2 border-white/40 bg-[#22266E]/45 shadow-lg backdrop-blur-md"
+      className="pointer-events-auto relative size-[124px] phone:size-[104px] touch-none select-none glass controller rounded-full border-2 border-white/12 border-t-white/20"
       onPointerDown={(e) => {
         active.current = e.pointerId;
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -50,13 +50,13 @@ export function Joystick() {
       onPointerCancel={end}
       aria-label="Move"
     >
-      <div className="absolute inset-3 rounded-full border border-dashed border-white/25" />
-      <span className="absolute left-1/2 top-1 -translate-x-1/2 text-[10px] font-bold text-white/80">N</span>
+      <div className="absolute inset-3 rounded-full border border-white/10 shadow-[inset_0_0_18px_rgb(0_0_0/.35)]" />
+      <span className="absolute left-1/2 top-1 -translate-x-1/2 font-display text-[10px] font-bold text-white/80">N</span>
       <div
-        className="absolute left-1/2 top-1/2 size-[52px] phone:size-[44px] rounded-full bg-gradient-to-b from-white to-[#cfe3ff] shadow-md"
+        className="absolute left-1/2 top-1/2 size-[52px] phone:size-[44px] rounded-full bg-gradient-to-b from-[#f4f5f7] to-[#c9ced6] shadow-[0_6px_16px_-4px_rgb(0_0_0/.6),inset_0_-2px_0_rgb(0_0_0/.15),inset_0_1px_0_#fff]"
         style={{ transform: `translate(calc(-50% + ${knob.x}px), calc(-50% + ${knob.y}px))` }}
       >
-        <div className="absolute inset-0 grid place-items-center text-[#3DA9FC]">
+        <div className="absolute inset-0 grid place-items-center text-primary">
           <ChevronUp size={18} strokeWidth={2} />
         </div>
       </div>
