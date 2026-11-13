@@ -7,6 +7,9 @@ import { selfPose } from "@/lib/world-store";
 import { useDoorway } from "./doorway";
 import { nav } from "./navigation";
 import { useGate } from "./gate/gate-store";
+import { ENTRY_Z, PORTALS, portalTransform } from "./layout";
+import { doorHold } from "./transition";
+import { HALLS } from "@/rooms/layouts";
 
 /**
  * One persistent 3D stage for the whole session (P1-WLD-05).
@@ -33,8 +36,6 @@ export function viewForPath(path: string): View | null {
   return m ? (`hall:${m[1]}` as View) : null;
 }
 
-/** Arrival gate on the southern avenue vs the plaza's entry gate: the same structure, 64.5 m apart along z. */
-export const GATE_TO_PLAZA_DZ = 64.5;
 
 /** Pose (and optionally camera) the next controller starts from, so the walk carries straight on across a cut. */
 export interface Handoff {
@@ -47,6 +48,8 @@ export interface Handoff {
   walk: number;
   cam?: [number, number, number];
   look?: [number, number, number];
+  /** stepping out of a hall door (re-entry guard, camera behind towards the door) */
+  fromDoor?: boolean;
   at: number;
 }
 
@@ -70,6 +73,8 @@ interface StageState {
   warmProgress: Partial<Record<Area, number>>;
   /** asset loading progress 0 … 1 (drei loading manager), for the boot screen */
   assets: number;
+  /** when the boot screen started revealing the scene (performance.now; 0 = not yet) */
+  revealAt: number;
   handoff: Handoff | null;
   show: (view: View | null, handoff?: Omit<Handoff, "to" | "at"> | null) => void;
   warmHall: (g: HallGame) => void;
@@ -88,6 +93,7 @@ export const useStage = create<StageState>()((set, get) => ({
   establish: null,
   warmProgress: {},
   assets: 0,
+  revealAt: 0,
   handoff: null,
   show: (view, handoff) =>
     set({ view, handoff: view && handoff ? { ...handoff, to: view, at: performance.now() } : get().handoff?.to === view ? get().handoff : null }),
@@ -132,6 +138,8 @@ export function getArea(a: Area): AreaObjects {
   return o;
 }
 export const knownAreas = () => areas;
+/** per area: compile / upload whatever appeared after its warm-up (called right before crossing into it) */
+export const areaTopUp = new Map<Area, () => Promise<void>>();
 
 /** React context: which area a component renders in (sounds / door sensors only run while it is on screen). */
 export const AreaContext = createContext<Area | null>(null);
@@ -149,21 +157,47 @@ export const stageNav: { push: (href: string) => void; replace: (href: string) =
   replace: (href) => location.replace(href),
 };
 
+/* ---------------- shared frames: plaza door ↔ hall door ---------------- */
+
+/** Door line of each hall building in its plaza door frame (keep in sync with Plaza.tsx `Door` insets). */
+const DOOR_INSET: Record<HallGame, number> = { pool: -0.55, ludo: -0.4, igisoro: -2.15 };
+
+/**
+ * The hall's door line IS the plaza door's line: a position keeps its lateral offset from the door centre, its
+ * depth past the door line and its heading relative to the door when it crosses (no jump either way).
+ */
+export function plazaToHall(game: HallGame, x: number, z: number, yaw: number) {
+  const t = portalTransform(PORTALS.find((p) => p.id === game)!);
+  const c = Math.cos(t.rotY);
+  const s = Math.sin(t.rotY);
+  const dx = x - t.x;
+  const dz = z - t.z;
+  const lx = dx * c - dz * s;
+  const lz = dx * s + dz * c - DOOR_INSET[game];
+  const L = HALLS[game];
+  return { x: L.door.x + lx, z: L.size.d / 2 + lz, yaw: yaw - t.rotY };
+}
+export function hallToPlaza(game: HallGame, x: number, z: number, yaw: number) {
+  const t = portalTransform(PORTALS.find((p) => p.id === game)!);
+  const c = Math.cos(t.rotY);
+  const s = Math.sin(t.rotY);
+  const L = HALLS[game];
+  const lx = x - L.door.x;
+  const lz = z - L.size.d / 2 + DOOR_INSET[game];
+  return { x: t.x + lx * c + lz * s, z: t.z - lx * s + lz * c, yaw: yaw + t.rotY };
+}
+
 /* ---------------- crossings ---------------- */
 
-/** How long you keep walking into the doorway (live) before the cut into a warm hall. */
-const ENTER_WALK_MS = 850;
+/** Walking into a warm hall: the person is seen crossing the door line before the cut (~1.6 m at 1.35 m/s). */
+const ENTER_WALK_MS = 1200;
 /** Cold hall: keep walking on into the vestibule (live) this long before falling back to the frozen-frame hold. */
 const COLD_LIVE_MS = 2300;
-/** Walking out of a hall door before the cut onto the plaza. */
+/** Walking out of a hall door before the cut onto the plaza (just past the door line). */
 const EXIT_WALK_MS = 380;
 
 let crossing = false;
 
-/**
- * Cut to another view: the current frame is captured and dissolves out over ~260 ms while the destination is
- * already live underneath (the person mid-stride in both), then the URL follows.
- */
 type HandoffIn = Omit<Handoff, "to" | "at">;
 
 /**
@@ -176,17 +210,23 @@ function walkTarget(t: { x: number; z: number } | null) {
   nav.progress = { best: Infinity, since: performance.now(), detours: 0 };
 }
 
-export function crossTo(view: View, href: string | null, handoff?: HandoffIn | (() => HandoffIn) | null) {
-  useDoorway.getState().cut(() => {
+/**
+ * Switch the view. Between areas the current frame is captured and dissolves out over ~260 ms while the destination
+ * is already live underneath (the person mid-stride in both); within the same scene (gate ↔ plaza) it is a plain
+ * hand-over between controllers (`dissolve: false`). The pose is read at the switch itself; the URL follows.
+ */
+export function crossTo(view: View, href: string | null, handoff?: HandoffIn | (() => HandoffIn) | null, opts: { dissolve?: boolean } = {}) {
+  const go = () => {
     walkTarget(null); // a walk target from the place you left must not drive the next controller
-    // the pose is read at the cut itself (after the outgoing frame was captured), so nothing jumps
     useStage.getState().show(view, (typeof handoff === "function" ? handoff() : handoff) ?? null);
     if (href && location.pathname !== href) stageNav.push(href);
     crossing = false;
-  });
+  };
+  if (opts.dissolve === false) go();
+  else useDoorway.getState().cut(go);
 }
 
-/** Plaza door crossed (Player sets `useTransition.entering`): walk on into the vestibule, cut into the hall. */
+/** Plaza door crossed (Player sets `useTransition.entering`): walk on through the door, continue inside the hall. */
 export function enterHall(href: string, label: string) {
   if (crossing) return;
   const game = href.split("/").pop() as HallGame;
@@ -194,18 +234,23 @@ export function enterHall(href: string, label: string) {
   crossing = true;
   useStage.getState().warmHall(game);
   const t0 = performance.now();
+  let topped: "no" | "running" | "done" = "no";
+  const inside = () => ({ ...plazaToHall(game, selfPose.x, selfPose.z, selfPose.yaw), speed: 1.35, walk: 1.9 });
   const tick = () => {
     const st = useStage.getState();
     if (st.view !== "plaza") return void (crossing = false); // signed out / navigated away meanwhile
     const el = performance.now() - t0;
-    if (st.ready[area] && el >= ENTER_WALK_MS) return crossTo(`hall:${game}`, href);
+    if (st.ready[area] && topped === "no") {
+      topped = "running";
+      void (areaTopUp.get(area)?.() ?? Promise.resolve()).finally(() => (topped = "done"));
+    }
+    if (st.ready[area] && topped === "done" && el >= ENTER_WALK_MS) return crossTo(`hall:${game}`, href, inside);
     if (el >= COLD_LIVE_MS) {
       // cold (first visit before the hall finished loading): hold the last frame until the hall is ready
       crossing = false;
-      useDoorway.getState().pass(label, () => {
-        useStage.getState().show(`hall:${game}`);
-        stageNav.push(href);
-      }, 0);
+      const h = inside();
+      useDoorway.getState().pass(label, () => useStage.getState().show(`hall:${game}`, h), 0);
+      stageNav.push(href);
       return;
     }
     setTimeout(tick, 16);
@@ -213,25 +258,35 @@ export function enterHall(href: string, label: string) {
   tick();
 }
 
-/** Walked out through a hall door (RoomPlayer `onExit`): the plaza is kept warm, so the step-out continues live. */
+/** Walked out through a hall door (RoomPlayer `onExit`): the plaza is kept warm, so the walk continues outside. */
 export function leaveHall() {
   if (crossing) return;
+  const game = hallOf(useStage.getState().view);
+  if (!game) return;
   crossing = true;
   try {
     sessionStorage.setItem("gk-from-room", "1");
   } catch {
     /* private mode */
   }
+  // the plaza door opens for you before you reach it (its sensor cannot see you while you are inside)
+  doorHold[game] = performance.now() + 4000;
   const t0 = performance.now();
+  let topped: "no" | "running" | "done" = "no";
+  const out = () => ({ ...hallToPlaza(game, selfPose.x, selfPose.z, selfPose.yaw), speed: 1.35, walk: 2.0, fromDoor: true });
   const tick = () => {
     const el = performance.now() - t0;
-    if (useStage.getState().ready.outdoor && el >= EXIT_WALK_MS) return crossTo("plaza", "/world");
+    const ready = !!useStage.getState().ready.outdoor;
+    if (ready && topped === "no") {
+      topped = "running";
+      void (areaTopUp.get("outdoor")?.() ?? Promise.resolve()).finally(() => (topped = "done"));
+    }
+    if (ready && topped === "done" && el >= EXIT_WALK_MS) return crossTo("plaza", "/world", out);
     if (el >= 1200) {
       crossing = false;
-      useDoorway.getState().pass("Gukirana Plaza", () => {
-        useStage.getState().show("plaza");
-        stageNav.push("/world");
-      }, 0);
+      const h = out();
+      useDoorway.getState().pass("Gukirana Plaza", () => useStage.getState().show("plaza", h), 0);
+      stageNav.push("/world");
       return;
     }
     setTimeout(tick, 16);
@@ -240,10 +295,10 @@ export function leaveHall() {
 }
 
 /**
- * Signing out: the person turns and walks out through the gate (never a cut to a sign-in screen).
- *   kiosk → from the exit kiosk at the plaza entry gate: a few steps to the turnstile lane, then the same walk
- *           continues through the arrival gate's turnstiles (same structure, 64.5 m down the avenue)
- *   menu  → from anywhere: a few steps, then a short dissolve onto the person mid-walk through the turnstiles
+ * Signing out: the person turns and walks out through the plaza's entry gate onto the avenue (never a cut to a
+ * sign-in screen); the gate controller (world/gate/GateCanvas Rig, step "leaving") takes over in the same scene.
+ *   kiosk (or anywhere near the entry gate) → the same person, same spot, keeps walking: no cut at all
+ *   menu from elsewhere → a few steps, then a short dissolve onto the person mid-walk in the turnstile lane
  * `logout()` runs once the walk has started, so the network never blocks the picture.
  */
 export function signOut(source: "kiosk" | "menu", logout: () => Promise<void>) {
@@ -251,44 +306,48 @@ export function signOut(source: "kiosk" | "menu", logout: () => Promise<void>) {
   if (st.exiting) return;
   useStage.setState({ exiting: true });
   const view = st.view;
+  const nearGate = view === "plaza" && (source === "kiosk" || Math.hypot(selfPose.x, selfPose.z - ENTRY_Z) < 9);
   let delay = 0;
-  if (view === "plaza") {
-    if (source === "kiosk") walkTarget({ x: -0.2, z: 27.4 }); // towards the centre turnstile lane
-    else {
-      // turn towards the way out (the entry gate) and start walking
-      const dx = -selfPose.x;
-      const dz = 27.4 - selfPose.z;
-      const d = Math.max(1e-3, Math.hypot(dx, dz));
-      walkTarget(d < 3.5 ? { x: 0, z: 27.4 } : { x: selfPose.x + (dx / d) * 3, z: selfPose.z + (dz / d) * 3 });
-    }
-    delay = source === "kiosk" ? 1000 : 700;
+  if (view === "plaza" && !nearGate) {
+    // turn towards the way out (the entry gate) and start walking
+    const dx = -selfPose.x;
+    const dz = ENTRY_Z - 4 - selfPose.z;
+    const d = Math.max(1e-3, Math.hypot(dx, dz));
+    walkTarget({ x: selfPose.x + (dx / d) * 3, z: selfPose.z + (dz / d) * 3 });
+    delay = 700;
   } else if (view && view.startsWith("hall:")) {
     void import("@/rooms/room-store").then(({ useRoom }) => useRoom.getState().set({ leaving: true }));
     delay = 700;
   }
   setTimeout(() => {
-    const { camera } = getArea("outdoor");
-    let hand: HandoffIn;
-    if (view === "plaza" && source === "kiosk") {
-      // same scene: shift person + camera down the avenue onto the arrival gate's matching spot
-      const dz = GATE_TO_PLAZA_DZ;
-      const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-      hand = {
-        x: selfPose.x,
-        z: selfPose.z + dz,
-        yaw: selfPose.yaw,
-        speed: 1.4,
-        walk: 0,
-        cam: [camera.position.x, camera.position.y, camera.position.z + dz],
-        look: [camera.position.x + fwd.x * 6, camera.position.y + fwd.y * 6, camera.position.z + dz + fwd.z * 6],
-      };
-    } else {
-      // mid-walk in the centre lane, just before the turnstile, heading out (+z), camera behind
-      hand = { x: 0, z: 96 - 1.1, yaw: 0, speed: 1.4, walk: 0, cam: [-0.5, 2.3, 96 - 5.6], look: [0, 1.3, 96 + 1.4] };
-    }
     walkTarget(null);
     useGate.setState({ step: "leaving", code: "", devCode: null, error: null, busy: false });
-    crossTo("gate", "/gate", hand);
+    if (nearGate) {
+      // same scene, same spot: the gate controller simply carries on walking this person out
+      const { camera } = getArea("outdoor");
+      const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+      crossTo(
+        "gate",
+        "/gate",
+        () => ({
+          x: selfPose.x,
+          z: selfPose.z,
+          yaw: selfPose.yaw,
+          speed: 1.4,
+          walk: 0,
+          cam: [camera.position.x, camera.position.y, camera.position.z],
+          look: [camera.position.x + fwd.x * 6, camera.position.y + fwd.y * 6, camera.position.z + fwd.z * 6],
+        }),
+        { dissolve: false },
+      );
+    } else {
+      // mid-walk in the centre lane of the entry gate, heading out (+z), camera behind
+      crossTo("gate", "/gate", { x: 0, z: ENTRY_Z - 1.4, yaw: 0, speed: 1.4, walk: 0, cam: [-0.5, 2.3, ENTRY_Z - 5.9], look: [0, 1.3, ENTRY_Z + 1.1] });
+    }
     void logout().finally(() => useStage.setState({ exiting: false }));
   }, delay);
 }
+
+// QA hook (dev, or a production build with NEXT_PUBLIC_GK_QA=1), like window.__gkNav
+if ((process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_GK_QA === "1") && typeof window !== "undefined")
+  Object.assign(window as unknown as Record<string, unknown>, { __gkStage: useStage, __gkMap: { plazaToHall, hallToPlaza } });

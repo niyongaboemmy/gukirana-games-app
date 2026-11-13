@@ -14,7 +14,7 @@ import { PlazaActors, pickTier } from "./WorldCanvas";
 import { xrStore } from "./xr-store";
 import { PORTALS, portalTransform } from "./layout";
 import { doorOpen } from "./transition";
-import { AreaContext, areaOf, getArea, hallOf, knownAreas, useStage, type Area } from "./stage";
+import { AreaContext, areaOf, areaTopUp, getArea, hallOf, knownAreas, useStage, type Area } from "./stage";
 import { useDoorway } from "./doorway";
 import { HallActors, HallInterior } from "@/rooms/RoomCanvas";
 import { HALLS, type HallGame } from "@/rooms/layouts";
@@ -106,6 +106,21 @@ function AreaWarm({ area, content }: { area: Area; content: RefObject<THREE.Grou
         extra.forEach((o) => (o.visible = false));
       }
     };
+    /** compile for one output path: a render target (bloom composer) or the canvas, which tone-maps itself (ACES)
+     *  when the composer is off; while the composer is mounted it zeroes gl.toneMapping, so set it for the call */
+    const compileFor = (rt: THREE.WebGLRenderTarget | null) =>
+      shown(() => {
+        const prev = gl.getRenderTarget();
+        const tm = gl.toneMapping;
+        gl.setRenderTarget(rt);
+        if (!rt) gl.toneMapping = THREE.ACESFilmicToneMapping;
+        try {
+          return gl.compileAsync(scene, camera).catch(() => undefined);
+        } finally {
+          gl.toneMapping = tm;
+          gl.setRenderTarget(prev);
+        }
+      });
     const prog = (v: number) =>
       useStage.setState((st) => (v > (st.warmProgress[area] ?? 0) ? { warmProgress: { ...st.warmProgress, [area]: v } } : st));
     void (async () => {
@@ -118,34 +133,27 @@ function AreaWarm({ area, content }: { area: Area; content: RefObject<THREE.Grou
       const st = useStage.getState();
       const targets = st.tier === "standard" ? [targetFor(st.fx), targetFor(!st.fx)] : [null];
       const ps: Promise<unknown>[] = [];
-      for (const rt of targets)
-        shown(() => {
-          const prev = gl.getRenderTarget();
-          gl.setRenderTarget(rt);
-          try {
-            ps.push(gl.compileAsync(scene, camera).catch(() => undefined));
-          } finally {
-            gl.setRenderTarget(prev);
-          }
-        });
+      for (const rt of targets) ps.push(compileFor(rt));
       await Promise.all(ps);
       if (!alive) return;
       prog(0.5);
       mark(`${area}:compiled`);
-      // upload textures a few per frame (no single long frame while you are walking)
+      // upload textures within a per-frame time budget (no long frame while you are walking); while booting on
+      // screen behind the boot screen nobody is moving yet, so the budget is generous
       const tex = texturesOf(scene);
-      // booting on screen (nobody is walking yet): upload in one go; warming in the background: a few per frame
       const view = useStage.getState().view;
-      const per = view && areaOf(view) === area ? 1e9 : 4;
+      const budget = view && areaOf(view) === area && !useStage.getState().ready[area] ? 40 : 4;
+      let slice = performance.now();
       for (let i = 0; i < tex.length; i++) {
         try {
           gl.initTexture(tex[i]!);
         } catch {
           /* exotic texture: uploads on first use */
         }
-        if (i % per === per - 1) {
+        if (performance.now() - slice > budget) {
           prog(0.5 + (0.4 * i) / tex.length);
           await nextFrame();
+          slice = performance.now();
         }
         if (!alive) return;
       }
@@ -181,9 +189,26 @@ function AreaWarm({ area, content }: { area: Area; content: RefObject<THREE.Grou
       prog(1);
       mark(`${area}:ready`);
       useStage.getState().setReady(area, true);
+      // top-up right before a crossing: parts that resolved after this warm-up (nested Suspense, late text
+      // atlases, props streamed in) get compiled + uploaded too; everything already warm is a cheap no-op
+      areaTopUp.set(area, async () => {
+        if (!alive) return;
+        const st2 = useStage.getState();
+        const ts = st2.tier === "standard" ? [targetFor(st2.fx), targetFor(!st2.fx)] : [null];
+        const ps2: Promise<unknown>[] = [];
+        for (const rt of ts) ps2.push(compileFor(rt));
+        await Promise.all(ps2);
+        for (const t of texturesOf(scene))
+          try {
+            gl.initTexture(t);
+          } catch {
+            /* uploads on first use */
+          }
+      });
     })();
     return () => {
       alive = false;
+      areaTopUp.delete(area);
       useStage.getState().setReady(area, false);
       useStage.setState((st) => ({ warmProgress: { ...st.warmProgress, [area]: 0 } }));
     };
@@ -284,7 +309,7 @@ function HallArea({ game, tier }: { game: HallGame; tier: "lite" | "standard" })
 /* ---------------- per-frame compositing: one root scene, the active area visible, its camera drives the view ---------------- */
 
 /** cheap read-only counters for QA scripts (frames drawn, view, area readiness, person pose, GPU resources) */
-const probe = { frames: 0, view: null as string | null, ready: false, self: selfPose, doors: doorOpen, programs: 0, textures: 0, geometries: 0, marks: {} as Record<string, number> };
+const probe = { frames: 0, view: null as string | null, ready: false, self: selfPose, doors: doorOpen, programs: 0, textures: 0, geometries: 0, marks: {} as Record<string, number>, cam: null as THREE.Camera | null, dt: 0 };
 /** first-time milestones (ms since navigation start) for boot timing */
 function mark(k: string) {
   probe.marks[k] ??= Math.round(performance.now());
@@ -306,6 +331,8 @@ function Compositor() {
     const area = st.view ? areaOf(st.view) : null;
     for (const [k, o] of knownAreas()) o.scene.visible = k === area;
     probe.view = st.view;
+    probe.cam = rootCam;
+    probe.dt = dt;
     probe.ready = !!area && !!st.ready[area];
     if (!area) return;
     const a = getArea(area);
@@ -313,6 +340,8 @@ function Compositor() {
     root.background = a.scene.background;
     root.backgroundIntensity = a.scene.backgroundIntensity;
     root.backgroundBlurriness = a.scene.backgroundBlurriness;
+    root.backgroundRotation.copy(a.scene.backgroundRotation);
+    root.environmentRotation.copy(a.scene.environmentRotation);
     root.environment = a.scene.environment;
     root.environmentIntensity = a.scene.environmentIntensity;
     root.fog = a.scene.fog;
@@ -405,7 +434,16 @@ function Stage() {
     const t = setTimeout(() => startTransition(() => setOutdoorOn(true)), 1200);
     return () => clearTimeout(t);
   }, [view, activeReady, hud, outdoorOn]);
-  const halls = [...new Set([...(activeHall ? [activeHall] : []), ...(outdoorReady || activeHall ? warm : [])])];
+  const wanted = [...new Set([...(activeHall ? [activeHall] : []), ...(outdoorReady || activeHall ? warm : [])])];
+  // a hall you walk up to is mounted as a low-priority, time-sliced transition (the plaza keeps rendering smoothly
+  // while its tree builds); the hall on screen (deep link, back button) mounts at once
+  const key = wanted.join(",");
+  const [halls, setHalls] = useState<HallGame[]>(wanted);
+  useEffect(() => {
+    const next = key ? (key.split(",") as HallGame[]) : [];
+    if (activeHall && !halls.includes(activeHall)) setHalls(next);
+    else startTransition(() => setHalls(next));
+  }, [key, activeHall]);
   return (
     <>
       {outdoorOn && (

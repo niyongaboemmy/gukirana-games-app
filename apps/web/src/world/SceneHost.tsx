@@ -63,6 +63,7 @@ function BootScreen({ pathView }: { pathView: View | null }) {
       // ~0.2 s of on-time frames: the people are mounted and the follow camera has settled behind them
       if ((good >= 8 && now - t0 > 180) || now - t0 > 1400) {
         setState("fading");
+        useStage.setState({ revealAt: performance.now() });
         // the gate has its own fly-in; the plaza and halls get the establishing move
         if (useStage.getState().view !== "gate") useStage.setState({ establish: { area, t0: performance.now() } });
         timers.push(setTimeout(() => setState("off"), FADE_MS));

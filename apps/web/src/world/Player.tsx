@@ -97,9 +97,11 @@ export function LocalPlayer({
   /** pace of the scripted step-out / walk-in (m/s): carried over from the walk that came before */
   const stepSpeed = hand?.speed ?? 1.35;
   /** don't pull the player straight back through the door they just came out of */
-  const reentryAfter = useRef(restored.current?.fromDoor ? performance.now() + 2500 : 0);
-  if (restored.current?.fromDoor && typeof window !== "undefined") {
-    cameraState.yaw = (restored.current.yaw ?? 0) + Math.PI; // behind the player, between them and the hall
+  // (stepping out of a hall: straight from the hall's controller, or restored after a reload / back button)
+  const fromDoor = !!hand?.fromDoor || !!restored.current?.fromDoor;
+  const reentryAfter = useRef(fromDoor ? performance.now() + 2500 : 0);
+  if (fromDoor && typeof window !== "undefined") {
+    cameraState.yaw = (hand?.yaw ?? restored.current?.yaw ?? 0) + Math.PI; // behind the player, between them and the hall
     cameraState.distance = Math.min(cameraState.distance, 4.2); // stays in front of the facade
   }
   if (hand?.cam) {

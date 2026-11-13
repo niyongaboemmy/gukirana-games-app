@@ -21,3 +21,6 @@ export const useTransition = create<TransitionState>()((set, get) => ({
 
 /** Per-door open amount (0 closed … 1 open), written by the doors, read by the player's collision code. */
 export const doorOpen: Record<string, number> = {};
+
+/** Per-door "keep open until" (performance.now ms): a person about to step out of that hall (the sensor can't see them). */
+export const doorHold: Record<string, number> = {};

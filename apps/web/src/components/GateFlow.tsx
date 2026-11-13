@@ -188,7 +188,15 @@ export function GateFlow() {
       {g.step === "arrive" && (
         <button
           type="button"
-          onClick={() => g.set({ step: "id" })}
+          onClick={() => {
+            // straight to the tablet, and remembered: returning visitors are not shown the fly-in again
+            try {
+              localStorage.setItem("gk-skip-intro", "1");
+            } catch {
+              /* private mode */
+            }
+            g.set({ step: "id" });
+          }}
           className="chip pointer-events-auto absolute bottom-6 right-6 flex items-center gap-2 px-4 py-2 text-sm font-bold"
         >
           <SkipForward size={16} strokeWidth={1.85} /> Skip intro

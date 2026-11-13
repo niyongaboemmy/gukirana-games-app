@@ -27,7 +27,15 @@ export default function GatePage() {
   useEffect(() => {
     setReady(true);
     // arriving after signing out: the walk-out is already playing (gate step "leaving"), don't restart the arrival
-    if (useGate.getState().step !== "leaving") useGate.setState({ step: "arrive", code: "", devCode: null, error: null, busy: false });
+    if (useGate.getState().step !== "leaving") {
+      let skip = false;
+      try {
+        skip = localStorage.getItem("gk-skip-intro") === "1";
+      } catch {
+        /* private mode */
+      }
+      useGate.setState({ step: skip ? "id" : "arrive", code: "", devCode: null, error: null, busy: false });
+    }
     if (useSession.getState().status === "loading") void refreshSession();
   }, [router]);
 

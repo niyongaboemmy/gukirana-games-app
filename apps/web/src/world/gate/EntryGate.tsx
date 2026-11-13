@@ -7,6 +7,7 @@ import { GAME_COLORS, worldMaterials, type Tier } from "../materials";
 import { ENTRY_Z, EXIT_KIOSK, EXIT_RADIUS } from "../layout";
 import { buildGate, Guard } from "./Gate";
 import { selfPose } from "@/lib/world-store";
+import { useGate } from "./gate-store";
 
 const FONT = "/fonts/Baloo2.ttf";
 
@@ -15,6 +16,39 @@ const FONT = "/fonts/Baloo2.ttf";
  * and guard booth as the arrival gate, seen from inside. Players spawn just inside the turnstiles. The kiosk inside
  * is the exit: standing at it offers "Sign out at the gate" (prompt + confirm sheet: world/GateExitPrompt.tsx).
  */
+/**
+ * Centre-lane flaps: shut, except while someone walks in from the avenue (they swing in, towards the plaza) or
+ * walks out signing off (they swing out, towards the avenue).
+ */
+function EntryFlaps() {
+  const l = useRef<THREE.Group>(null);
+  const r = useRef<THREE.Group>(null);
+  useFrame((_, raw) => {
+    const dt = Math.min(raw, 0.05);
+    const step = useGate.getState().step;
+    const passing = (step === "entering" || step === "opening" || step === "leaving") && Math.abs(selfPose.x) < 1.6 && Math.abs(selfPose.z - ENTRY_Z) < 4.5;
+    const target = passing ? (step === "leaving" ? -1 : 1) * (Math.PI / 2 - 0.05) : 0;
+    if (l.current) l.current.rotation.y += (target - l.current.rotation.y) * Math.min(1, dt * 5);
+    if (r.current) r.current.rotation.y += (-target - r.current.rotation.y) * Math.min(1, dt * 5);
+  });
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#dff3ff", transparent: true, opacity: 0.45, roughness: 0.05, metalness: 0.2 }), []);
+  useEffect(() => () => mat.dispose(), [mat]);
+  return (
+    <group position={[0, 0.75, ENTRY_Z]}>
+      <group ref={l} position={[-0.62, 0, 0]}>
+        <mesh material={mat} position={[0.3, 0, 0]}>
+          <boxGeometry args={[0.6, 0.85, 0.025]} />
+        </mesh>
+      </group>
+      <group ref={r} position={[0.62, 0, 0]}>
+        <mesh material={mat} position={[-0.3, 0, 0]}>
+          <boxGeometry args={[0.6, 0.85, 0.025]} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
 export function EntryGate({ tier }: { tier: Tier }) {
   const geos = useMemo(() => buildGate(tier, ENTRY_Z, "entry", EXIT_KIOSK), [tier]);
   const mats = useMemo(() => worldMaterials(tier), [tier]);
@@ -34,13 +68,7 @@ export function EntryGate({ tier }: { tier: Tier }) {
         const unlit = m instanceof THREE.MeshBasicMaterial;
         return <mesh key={key} geometry={g} material={m} castShadow={!unlit && !m.transparent && tier !== "lite"} receiveShadow={!unlit && tier !== "lite"} />;
       })}
-      {/* turnstile flaps (closed: you leave through the kiosk, not the lanes) */}
-      {[-1, 1].map((s) => (
-        <mesh key={s} position={[s * 0.32, 0.75, ENTRY_Z]}>
-          <boxGeometry args={[0.6, 0.85, 0.025]} />
-          <meshStandardMaterial color="#dff3ff" transparent opacity={0.45} roughness={0.05} metalness={0.2} />
-        </mesh>
-      ))}
+      <EntryFlaps />
       {/* exit kiosk screen */}
       <group position={[EXIT_KIOSK.x, 0, EXIT_KIOSK.z]} rotation={[0, EXIT_KIOSK.rotY, 0]}>
         <group position={[0, 1.42, 0.025]} rotation={[-0.22, 0, 0]}>
