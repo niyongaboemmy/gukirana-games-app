@@ -6,7 +6,10 @@ import * as THREE from "three";
 import { ARENA, buildDistrict } from "./District";
 import { Landscape } from "./Landscape";
 import { Lighting } from "./Lighting";
-import { DOOR, DOOR_RING, FOUNTAIN_RADIUS, PORTALS, portalTransform, ringPoint, SERVICE_ANGLE, TOTEMS, type PortalDef } from "./layout";
+import { DOOR, DOOR_OPEN_RADIUS, DOOR_RING, FOUNTAIN_RADIUS, PORTALS, portalTransform, ringPoint, SERVICE_ANGLE, TOTEMS, type PortalDef } from "./layout";
+import { doorOpen } from "./transition";
+import { selfPose } from "@/lib/world-store";
+import { EntryGate } from "./gate/EntryGate";
 import { GAME_COLORS, worldMaterials, type Tier } from "./materials";
 import { arenaScreenTexture, doorPreviewTexture } from "./textures";
 
@@ -61,6 +64,7 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
         <planeGeometry args={[DOOR.w, DOOR.h]} />
         <meshBasicMaterial map={tex} toneMapped={false} transparent opacity={soon ? 0.7 : 1} />
       </mesh>
+      {def.href && <AutoDoors def={def} inset={inset} tier={tier} />}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, DOOR_RING - (DOOR_RING - 2.4) + 0.2]}>
         <ringGeometry args={[0.85, 1.1, 48]} />
         <meshBasicMaterial ref={ring} color={ledColor} transparent opacity={0.5} toneMapped={false} depthWrite={false} />
@@ -74,6 +78,102 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
           {def.sub}
         </Text>
       )}
+    </group>
+  );
+}
+
+/**
+ * Automatic doors (playable buildings only): sliding glass doors, or carved timber double doors at Igisoro Court.
+ * They start opening when the local player comes within DOOR_OPEN_RADIUS of the entry point and close again when
+ * they leave; the open amount is shared with the player controller so the doorway becomes walkable.
+ */
+function AutoDoors({ def, inset, tier }: { def: PortalDef; inset: number; tier: Tier }) {
+  const { entryX, entryZ } = portalTransform(def);
+  const wooden = def.kind === "igisoro";
+  const left = useRef<THREE.Group>(null);
+  const right = useRef<THREE.Group>(null);
+  const open = useRef(0);
+  const mats = useMemo(() => {
+    const m = worldMaterials(tier);
+    return {
+      frame: new THREE.MeshStandardMaterial({ color: "#c9ced6", metalness: 0.85, roughness: 0.32 }),
+      glass: new THREE.MeshStandardMaterial({ color: "#cfe6f2", metalness: 0.2, roughness: 0.04, transparent: true, opacity: 0.22, envMapIntensity: 1.6, depthWrite: false }),
+      wood: (m["woodDark"] as THREE.MeshStandardMaterial | undefined) ?? new THREE.MeshStandardMaterial({ color: "#6b4a2f", roughness: 0.6 }),
+      handle: new THREE.MeshStandardMaterial({ color: "#b08a4a", metalness: 1, roughness: 0.3 }),
+    };
+  }, [tier]);
+  useFrame((_, rawDt) => {
+    const dt = Math.min(rawDt, 0.05);
+    const near = Math.hypot(selfPose.x - entryX, selfPose.z - entryZ) < DOOR_OPEN_RADIUS;
+    // eased motion: opening a little quicker than closing, like a real sensor door
+    const target = near ? 1 : 0;
+    open.current += (target - open.current) * (1 - Math.exp(-dt * (near ? 3.2 : 2.2)));
+    doorOpen[def.id] = open.current;
+    const e = open.current * open.current * (3 - 2 * open.current);
+    if (wooden) {
+      if (left.current) left.current.rotation.y = -e * 1.55;
+      if (right.current) right.current.rotation.y = e * 1.55;
+    } else {
+      if (left.current) left.current.position.x = -DOOR.w / 4 - e * (DOOR.w / 2 - 0.08);
+      if (right.current) right.current.position.x = DOOR.w / 4 + e * (DOOR.w / 2 - 0.08);
+    }
+  });
+  const w = DOOR.w / 2;
+  const h = DOOR.h;
+  const z = inset + 0.07;
+  if (wooden)
+    return (
+      <group position={[0, 0, z]}>
+        {[-1, 1].map((s) => (
+          <group key={s} ref={s < 0 ? left : right} position={[s * w, 0, 0]}>
+            <mesh position={[-s * (w / 2), h / 2, 0]} material={mats.wood} castShadow={tier !== "lite"}>
+              <boxGeometry args={[w - 0.02, h, 0.08]} />
+            </mesh>
+            {/* carved Imigongo-style panels: raised diamonds */}
+            {[0.9, 2.0, 3.1].map((y) => (
+              <mesh key={y} position={[-s * (w / 2), y, 0.05]} rotation={[0, 0, Math.PI / 4]} material={mats.wood}>
+                <boxGeometry args={[0.42, 0.42, 0.03]} />
+              </mesh>
+            ))}
+            <mesh position={[-s * (w - 0.14), 1.1, 0.07]} material={mats.handle}>
+              <cylinderGeometry args={[0.02, 0.02, 0.3, 10]} />
+            </mesh>
+          </group>
+        ))}
+      </group>
+    );
+  return (
+    <group position={[0, 0, z]}>
+      {/* overhead track + sensor */}
+      <mesh position={[0, h + 0.09, -0.02]} material={mats.frame}>
+        <boxGeometry args={[DOOR.w * 2, 0.18, 0.14]} />
+      </mesh>
+      <mesh position={[0, h + 0.09, 0.06]}>
+        <boxGeometry args={[0.22, 0.06, 0.02]} />
+        <meshBasicMaterial color={new THREE.Color(def.color).multiplyScalar(1.6)} toneMapped={false} />
+      </mesh>
+      {[-1, 1].map((s) => (
+        <group key={s} ref={s < 0 ? left : right} position={[s * (w / 2), 0, s * 0.03]}>
+          <mesh position={[0, h / 2, 0]} material={mats.glass} renderOrder={2}>
+            <boxGeometry args={[w - 0.06, h - 0.1, 0.02]} />
+          </mesh>
+          {/* slim aluminium frame */}
+          <mesh position={[0, h - 0.03, 0]} material={mats.frame}>
+            <boxGeometry args={[w, 0.06, 0.05]} />
+          </mesh>
+          <mesh position={[0, 0.04, 0]} material={mats.frame}>
+            <boxGeometry args={[w, 0.08, 0.05]} />
+          </mesh>
+          {[-1, 1].map((k) => (
+            <mesh key={k} position={[(k * w) / 2, h / 2, 0]} material={mats.frame}>
+              <boxGeometry args={[0.05, h, 0.05]} />
+            </mesh>
+          ))}
+          <mesh position={[-s * (w / 2 - 0.12), 1.1, 0.04]} material={mats.frame}>
+            <boxGeometry args={[0.03, 0.6, 0.03]} />
+          </mesh>
+        </group>
+      ))}
     </group>
   );
 }
@@ -228,6 +328,7 @@ export function Plaza({ nearPortal, tier = "standard" }: { nearPortal: string | 
       <GiantDie />
       <Totems />
       <ServiceSign />
+      <EntryGate tier={tier} />
     </group>
   );
 }

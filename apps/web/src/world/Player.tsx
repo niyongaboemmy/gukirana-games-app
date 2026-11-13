@@ -4,14 +4,27 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useXR } from "@react-three/xr";
 import * as THREE from "three";
 import { Avatar } from "./Avatar";
-import { COLLIDERS, INTERACT_RADIUS, PLAZA_RADIUS, PORTALS, portalTransform, SPAWN } from "./layout";
+import {
+  COLLIDERS,
+  DOOR,
+  DOOR_RING,
+  ENTRY_Z,
+  EXIT_KIOSK,
+  EXIT_RADIUS,
+  INTERACT_RADIUS,
+  PLAZA_RADIUS,
+  PORTALS,
+  portalTransform,
+  SPAWN,
+} from "./layout";
+import { doorOpen, useTransition } from "./transition";
 import { decodeLook } from "./outfits";
 import type { Tier } from "./materials";
 import { useWorld } from "@/lib/world-store";
 import { lookOf, useProfile } from "@/lib/profile-store";
 import { sendMove } from "@/lib/realtime";
 import { selfPose } from "@/lib/world-store";
-import { takeWorldPose } from "@/lib/return-point";
+import { saveWorldPose, takeWorldPose } from "@/lib/return-point";
 import { autoFollow, nav, pointerNav, steer, TargetMarker } from "./navigation";
 import { useVoice } from "@/voice/voice";
 
@@ -22,7 +35,8 @@ const keys = new Set<string>();
 /** Camera orbit state shared between the camera rig and the movement code. */
 export const cameraState = { yaw: 0, pitch: 0.42, distance: 9 }; // start zoomed out
 // dev-only hook for visual QA scripts (headless screenshots of wide views); stripped from production logic
-if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") (window as unknown as { __gkCam: typeof cameraState }).__gkCam = cameraState;
+if (process.env.NODE_ENV !== "production" && typeof window !== "undefined")
+  Object.assign(window as unknown as Record<string, unknown>, { __gkCam: cameraState, __gkNav: nav });
 
 /**
  * Spawn spread over a ring around the arrival point (the avenue from the gate), so players who arrive together
@@ -36,7 +50,17 @@ function spawnPoint(name: string): THREE.Vector3 {
   return new THREE.Vector3(SPAWN.x + Math.sin(a) * r, 0, SPAWN.z + Math.cos(a) * r * 0.6);
 }
 
-export function LocalPlayer({ color, name, level, tier = "standard" }: { color: string; name: string; level: number; tier?: Tier }) {
+export function LocalPlayer({
+  color,
+  name,
+  level,
+  tier = "standard",
+}: {
+  color: string;
+  name: string;
+  level: number;
+  tier?: Tier;
+}) {
   const bodyType = useProfile((s) => s.bodyType);
   const skinTone = useProfile((s) => s.skinTone);
   const hairStyle = useProfile((s) => s.hairStyle);
@@ -51,7 +75,9 @@ export function LocalPlayer({ color, name, level, tier = "standard" }: { color: 
   const anim = useRef(0);
   // come back exactly where you were (after a game / a room); otherwise spawn by the gate
   const restored = useRef(typeof window !== "undefined" ? takeWorldPose() : null);
-  const pos = useRef(restored.current ? new THREE.Vector3(restored.current.x, 0, restored.current.z) : spawnPoint(name));
+  const pos = useRef(
+    restored.current ? new THREE.Vector3(restored.current.x, 0, restored.current.z) : spawnPoint(name),
+  );
   const facing = useRef(restored.current?.yaw ?? Math.PI);
   const lookAt = useRef<THREE.Vector3 | null>(null);
   const lookTarget = useMemo(() => new THREE.Vector3(), []);
@@ -78,6 +104,16 @@ export function LocalPlayer({ color, name, level, tier = "standard" }: { color: 
       },
       (p) => {
         const r = Math.hypot(p.x, p.z);
+        // tapping a playable building's doorway walks you through it (the door opens as you arrive)
+        for (const d of PORTALS) {
+          if (!d.href || r < PLAZA_RADIUS - 1) continue;
+          const a = (d.angleDeg * Math.PI) / 180;
+          if (
+            Math.abs(p.x * Math.cos(a) + p.z * Math.sin(a)) < DOOR.w / 2 &&
+            p.x * Math.sin(a) - p.z * Math.cos(a) > 0
+          )
+            return { x: Math.sin(a) * (DOOR_RING + 0.2), z: -Math.cos(a) * (DOOR_RING + 0.2) };
+        }
         return r > PLAZA_RADIUS ? { x: (p.x / r) * PLAZA_RADIUS, z: (p.z / r) * PLAZA_RADIUS } : p;
       },
     );
@@ -99,8 +135,20 @@ export function LocalPlayer({ color, name, level, tier = "standard" }: { color: 
     const w = useWorld.getState();
     // run only on purpose (Run button / Shift) — never just because the joystick hits its edge
     const run = w.input.run || keys.has("ShiftLeft") || keys.has("ShiftRight");
-    if (!inXR) {
-      const s = steer({ keys, joyX: w.input.x, joyY: w.input.y, camYaw: cameraState.yaw, facing: facing.current, x: pos.current.x, z: pos.current.z, walkSpeed: WALK_SPEEDS[w.speed] ?? WALK_SPEEDS.slow, run, dt });
+    const entering = useTransition.getState().entering;
+    if (!inXR && !entering) {
+      const s = steer({
+        keys,
+        joyX: w.input.x,
+        joyY: w.input.y,
+        camYaw: cameraState.yaw,
+        facing: facing.current,
+        x: pos.current.x,
+        z: pos.current.z,
+        walkSpeed: WALK_SPEEDS[w.speed] ?? WALK_SPEEDS.slow,
+        run,
+        dt,
+      });
       pos.current.x += s.dx;
       pos.current.z += s.dz;
       facing.current = s.facing;
@@ -112,9 +160,25 @@ export function LocalPlayer({ color, name, level, tier = "standard" }: { color: 
       }
     }
 
-    // collisions: plaza edge, then push out of round obstacles (fountain, planters, benches, totems)
+    // collisions: plaza edge (except through an open arena doorway), then round obstacles
     const r = Math.hypot(pos.current.x, pos.current.z);
-    if (r > PLAZA_RADIUS) pos.current.multiplyScalar(PLAZA_RADIUS / r);
+    let limit = PLAZA_RADIUS;
+    for (const p of PORTALS) {
+      if (!p.href || (doorOpen[p.id] ?? 0) < 0.55) continue;
+      const a = (p.angleDeg * Math.PI) / 180;
+      const lateral = Math.abs(pos.current.x * Math.cos(a) + pos.current.z * Math.sin(a));
+      if (lateral < DOOR.w / 2 - 0.35 && pos.current.x * Math.sin(a) - pos.current.z * Math.cos(a) > 0) {
+        limit = DOOR_RING + 0.4;
+        // crossing the threshold of an open door: fade and go inside (no button needed; E stays as a fallback)
+        if (r > DOOR_RING - 0.9 && !entering) {
+          // coming back from the room puts you just outside this door, facing the plaza
+          Object.assign(selfPose, { x: Math.sin(a) * (PLAZA_RADIUS - 1.5), z: -Math.cos(a) * (PLAZA_RADIUS - 1.5), yaw: -a });
+          saveWorldPose();
+          useTransition.getState().enter(p.href);
+        }
+      }
+    }
+    if (r > limit) pos.current.multiplyScalar(limit / r);
     for (const c of COLLIDERS) {
       const dx = pos.current.x - c.x;
       const dz = pos.current.z - c.z;
@@ -132,10 +196,13 @@ export function LocalPlayer({ color, name, level, tier = "standard" }: { color: 
 
     // third-person camera (DESIGN-SPEC §8.1)
     if (!inXR) {
-      const d = cameraState.distance;
+      // short camera push towards the doorway while the door transition fades out
+      const d = entering ? Math.min(cameraState.distance, 3) : cameraState.distance;
       const cx = pos.current.x + Math.sin(cameraState.yaw) * Math.cos(cameraState.pitch) * d;
       const cz = pos.current.z + Math.cos(cameraState.yaw) * Math.cos(cameraState.pitch) * d;
-      const cy = 1.6 + Math.sin(cameraState.pitch) * d;
+      let cy = 1.6 + Math.sin(cameraState.pitch) * d;
+      // keep the camera below the entry gate canopy (soffit at ~5.2 m) instead of clipping through it
+      if (Math.abs(cx) < 10 && Math.abs(cz - ENTRY_Z) < 4.6) cy = Math.min(cy, 4.6);
       camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * 8));
       camera.lookAt(pos.current.x, 1.5, pos.current.z);
     }
@@ -157,7 +224,9 @@ export function LocalPlayer({ color, name, level, tier = "standard" }: { color: 
         nearPlayer = op.id;
       }
     }
-    if (nearPortal !== w.nearPortal || nearPlayer !== w.nearPlayer) w.set({ nearPortal, nearPlayer });
+    const nearGateExit = Math.hypot(EXIT_KIOSK.x - pos.current.x, EXIT_KIOSK.z - pos.current.z) < EXIT_RADIUS;
+    if (nearPortal !== w.nearPortal || nearPlayer !== w.nearPlayer || nearGateExit !== w.nearGateExit)
+      w.set({ nearPortal, nearPlayer, nearGateExit });
 
     // turn the head towards the nearest player who is speaking on voice (within 6 m)
     const talking = useVoice.getState().talking;
@@ -181,10 +250,19 @@ export function LocalPlayer({ color, name, level, tier = "standard" }: { color: 
 
   return (
     <>
-    <TargetMarker />
-    <group ref={group}>
-      <Avatar look={look} name={name} level={level} animRef={anim} shadows={tier !== "lite"} quality={tier} self lookAtRef={lookAt} />
-    </group>
+      <TargetMarker />
+      <group ref={group}>
+        <Avatar
+          look={look}
+          name={name}
+          level={level}
+          animRef={anim}
+          shadows={tier !== "lite"}
+          quality={tier}
+          self
+          lookAtRef={lookAt}
+        />
+      </group>
     </>
   );
 }
@@ -198,7 +276,8 @@ function RemoteAvatar({ id, tier }: { id: string; tier: Tier }) {
   const look = useMemo(() => {
     const l = decodeLook(lookStr, color);
     // server may send the chosen body type on its own (no full look yet)
-    if (!lookStr && (bodyType === "feminine" || bodyType === "masculine" || bodyType === "neutral")) l.bodyType = bodyType;
+    if (!lookStr && (bodyType === "feminine" || bodyType === "masculine" || bodyType === "neutral"))
+      l.bodyType = bodyType;
     return l;
   }, [lookStr, color, bodyType]);
   const group = useRef<THREE.Group>(null);
@@ -210,7 +289,8 @@ function RemoteAvatar({ id, tier }: { id: string; tier: Tier }) {
     if (!cur || !group.current) return;
     // remote avatars glance at the local player while they are speaking nearby
     const near = Math.hypot(selfPose.x - group.current.position.x, selfPose.z - group.current.position.z) < 5;
-    lookAt.current = near && useVoice.getState().selfTalking ? lookTarget.set(selfPose.x, 1.6, selfPose.z) : null;
+    lookAt.current =
+      near && useVoice.getState().selfTalking ? lookTarget.set(selfPose.x, 1.6, selfPose.z) : null;
     const k = Math.min(1, dt * 10); // interpolation
     group.current.position.x += (cur.x / 100 - group.current.position.x) * k;
     group.current.position.z += (cur.z / 100 - group.current.position.z) * k;
@@ -223,7 +303,17 @@ function RemoteAvatar({ id, tier }: { id: string; tier: Tier }) {
   if (!p) return null;
   return (
     <group ref={group} position={[p.x / 100, 0, p.z / 100]}>
-      <Avatar look={look} name={p.name} level={p.level} animRef={anim} lod shadows={tier !== "lite"} quality={tier} voiceId={id} lookAtRef={lookAt} />
+      <Avatar
+        look={look}
+        name={p.name}
+        level={p.level}
+        animRef={anim}
+        lod
+        shadows={tier !== "lite"}
+        quality={tier}
+        voiceId={id}
+        lookAtRef={lookAt}
+      />
     </group>
   );
 }

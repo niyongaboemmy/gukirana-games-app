@@ -40,6 +40,8 @@ interface WorldState {
   chat: ChatLine[];
   nearPortal: PortalId | null;
   nearPlayer: string | null;
+  /** Local player stands at the exit / sign-out kiosk inside the plaza entry gate. */
+  nearGateExit: boolean;
   input: { x: number; y: number; run: boolean };
   emote: { id: number; until: number } | null;
   /** walking pace chosen by the player (persisted) */
@@ -71,6 +73,7 @@ export const useWorld = create<WorldState>()((set, get) => ({
   chat: [],
   nearPortal: null,
   nearPlayer: null,
+  nearGateExit: false,
   input: { x: 0, y: 0, run: false },
   emote: null,
   seats: {},

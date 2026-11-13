@@ -11,8 +11,17 @@ import { LocalPlayer, RemotePlayers } from "./Player";
 import { SPAWN } from "./layout";
 import type { Tier } from "./materials";
 import { useWorld } from "@/lib/world-store";
+import { WorldOverlays } from "./GateExitPrompt";
+import { preloadHumans } from "./Avatar";
 
-export const xrStore = createXRStore({ emulate: false, hand: { teleportPointer: true }, controller: { teleportPointer: true } });
+// start streaming the realistic human models + animation sets as soon as the world bundle loads
+if (typeof window !== "undefined") preloadHumans();
+
+export const xrStore = createXRStore({
+  emulate: false,
+  hand: { teleportPointer: true },
+  controller: { teleportPointer: true },
+});
 
 function VROrigin() {
   const ref = useRef<Group>(null);
@@ -36,30 +45,47 @@ function MaybeEffects({ enabled }: { enabled: boolean }) {
   return enabled && !inXR ? <Effects /> : null;
 }
 
-export default function WorldCanvas({ profile }: { profile: { name: string; color: string; level: number } }) {
+export default function WorldCanvas({
+  profile,
+}: {
+  profile: { name: string; color: string; level: number };
+}) {
   const nearPortal = useWorld((s) => s.nearPortal);
   const tier = useMemo(pickTier, []);
   const [fx, setFx] = useState(tier === "standard");
   return (
-    <Canvas
-      shadows={tier === "lite" ? false : "percentage"}
-      dpr={tier === "lite" ? [1, 1.25] : [1, 1.75]}
-      camera={{ fov: 60, near: 0.15, far: 3200, position: [0, 4, 24] }}
-      gl={{ antialias: tier !== "lite", powerPreference: "high-performance", toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
-      style={{ touchAction: "none" }}
-    >
-      {/* Dynamic quality (§16.3): drop bloom first when frame time is over budget, restore when it recovers. */}
-      <PerformanceMonitor onDecline={() => setFx(false)} onIncline={() => setFx(tier === "standard")} flipflops={3} onFallback={() => setFx(false)} />
-      <AdaptiveDpr pixelated={false} />
-      <XR store={xrStore}>
-        <Suspense fallback={null}>
-          <Plaza nearPortal={nearPortal} tier={tier} />
-          <LocalPlayer color={profile.color} name={profile.name} level={profile.level} tier={tier} />
-          <RemotePlayers tier={tier} />
-          <VROrigin />
-        </Suspense>
-        <MaybeEffects enabled={fx} />
-      </XR>
-    </Canvas>
+    <>
+      <Canvas
+        shadows={tier === "lite" ? false : "percentage"}
+        dpr={tier === "lite" ? [1, 1.25] : [1, 1.75]}
+        camera={{ fov: 60, near: 0.15, far: 3200, position: [0, 4, 24] }}
+        gl={{
+          antialias: tier !== "lite",
+          powerPreference: "high-performance",
+          toneMapping: THREE.ACESFilmicToneMapping,
+          toneMappingExposure: 1.0,
+        }}
+        style={{ touchAction: "none" }}
+      >
+        {/* Dynamic quality (§16.3): drop bloom first when frame time is over budget, restore when it recovers. */}
+        <PerformanceMonitor
+          onDecline={() => setFx(false)}
+          onIncline={() => setFx(tier === "standard")}
+          flipflops={3}
+          onFallback={() => setFx(false)}
+        />
+        <AdaptiveDpr pixelated={false} />
+        <XR store={xrStore}>
+          <Suspense fallback={null}>
+            <Plaza nearPortal={nearPortal} tier={tier} />
+            <LocalPlayer color={profile.color} name={profile.name} level={profile.level} tier={tier} />
+            <RemotePlayers tier={tier} />
+            <VROrigin />
+          </Suspense>
+          <MaybeEffects enabled={fx} />
+        </XR>
+      </Canvas>
+      <WorldOverlays />
+    </>
   );
 }

@@ -8,7 +8,14 @@ import type { IconKind } from "./textures";
  */
 export const PLAZA_RADIUS = 28; // walkable radius of the entry plaza
 export const DOOR_RING = 29.5; // building fronts / doors sit on this ring
-export const SPAWN = { x: 0, z: 17 };
+/** Plaza entry gate (same structure as the arrival gate) on the avenue axis; players arrive just inside it. */
+export const ENTRY_Z = 31.5;
+export const SPAWN = { x: 0, z: 25 };
+/** Exit / sign-out kiosk inside the entry gate, facing the plaza. */
+export const EXIT_KIOSK = { x: -5.0, z: ENTRY_Z - 3.4, rotY: Math.PI - 0.5 };
+export const EXIT_RADIUS = 2.5;
+/** Arena doors start sliding open within this distance of the door's entry point (m). */
+export const DOOR_OPEN_RADIUS = 4.6;
 export const FOUNTAIN_RADIUS = 3.6;
 export const INTERACT_RADIUS = 3.0;
 export const DOOR = { w: 3.0, h: 4.0 }; // §6.1 door size
