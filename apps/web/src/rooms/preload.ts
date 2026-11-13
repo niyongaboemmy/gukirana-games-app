@@ -3,15 +3,15 @@ import { useGLTF } from "@react-three/drei";
 import { useLoader } from "@react-three/fiber";
 import { BitmapTextureLoader } from "@/world/bitmap-texture";
 import { INTERIOR_BASE, model, type PbrName } from "./interior-kit";
-import { ballAtlas, clubRug, diceAtlas, feltTexture, imigongo, imigongoPanel, kitenge, leafCard, ludoBoard, menuBoard, windowLightTexture } from "./room-textures";
+import { ballAtlas, diceAtlas, feltTexture, imigongo, imigongoPanel, kitenge, leafCard, loungeRug, ludoBoard, menuBoard } from "./room-textures";
 import type { HallGame } from "./layouts";
 import { useStage } from "@/world/stage";
 
 /** What each hall loads (keep in sync with PoolHall / LudoLounge / IgisoroCourt). */
 const HALL_ASSETS: Record<HallGame, { models: string[]; pbr: [PbrName, boolean][] }> = {
   pool: {
-    models: ["dartboard", "hanging_industrial_lamp", "mid_century_lounge_chair", "potted_plant_02", "sofa_02", "wine_bottles_01"],
-    pbr: [["black_walnut_veneer_01", true], ["brown_leather", true], ["dark_wooden_planks", true], ["red_brick_03", true], ["velour_velvet", false]],
+    models: ["mid_century_lounge_chair", "potted_plant_02", "sofa_02", "wine_bottles_01"],
+    pbr: [["oak_veneer_01", true], ["velour_velvet", false], ["white_plaster_02", true]],
   },
   ludo: {
     models: ["modern_arm_chair_01", "modern_ceiling_lamp_01", "potted_plant_02", "potted_plant_04", "throw_pillows_01"],
@@ -47,8 +47,7 @@ export function prewarmRoomTextures() {
   const jobs: (() => unknown)[] = [
     () => feltTexture("#1a4e85"),
     () => ballAtlas(),
-    () => clubRug(),
-    () => windowLightTexture(8),
+    () => loungeRug(),
     () => ludoBoard(),
     () => diceAtlas(),
     () => kitenge(["#f3e3c3", "#e2621b", "#0f7c7a", "#f2b632", "#2b2d6e"]),

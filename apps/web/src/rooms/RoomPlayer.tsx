@@ -12,7 +12,8 @@ import { takeReturnFor } from "@/lib/return-point";
 import { autoFollow, nav, pointerNav, steer, TargetMarker } from "@/world/navigation";
 import { useDoorway } from "@/world/doorway";
 import { clearHandoff, peekHandoff } from "@/world/stage";
-import type { HallLayout } from "./layouts";
+import type { HallLayout, Seat } from "./layouts";
+import { freeChair, tableAt } from "./table-status";
 
 const SIT_ANIM = 13;
 const SEAT_RANGE = 1.5;
@@ -24,6 +25,25 @@ type SitStage = { id: string; t: number; phase: "walk" | "turn" | "lower" | "sea
 type StandStage = { t: number; fx: number; fz: number; tx: number; tz: number; chair: string };
 const INTRO_S = 1.9;
 const keys = new Set<string>();
+
+/**
+ * Choosing a table (tap a table, or "Find a free table" in the HUD): walk the aisles to the table's nearest free
+ * chair and sit down there (the normal staged sit; the server still has the final say on the chair). A table with
+ * every chair taken is a match in progress: you walk up beside it to watch instead.
+ */
+const pick = {
+  req: null as string | null,
+  table: null as string | null,
+  seat: null as string | null,
+  route: [] as { x: number; z: number }[],
+  /** spectating: the yaw to turn to on arrival */
+  face: null as number | null,
+};
+export function walkToTable(table: string) {
+  pick.req = table;
+}
+export const pickedTable = () => pick.table;
+const clearPick = () => Object.assign(pick, { req: null, table: null, seat: null, route: [], face: null });
 
 /**
  * In-room controller: camera-relative movement (same steering as the plaza), wall + table collisions,
@@ -125,7 +145,19 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
         cameraState.yaw -= dx * 0.006;
         cameraState.pitch = THREE.MathUtils.clamp(cameraState.pitch + dy * 0.004, 0.12, 1.2);
       },
-      (p) => ({ x: THREE.MathUtils.clamp(p.x, -w / 2 + 0.5, w / 2 - 0.5), z: THREE.MathUtils.clamp(p.z, -d / 2 + 0.6, d / 2 + 3.5) }),
+      (p) => {
+        // a tap on a table (its top, seen along the view ray, or its base) picks that table: walk there and sit
+        const c = camera.position;
+        const hTop = layout.tables[0]?.h ?? 0.8;
+        const f = c.y > hTop ? (c.y - hTop) / c.y : 1;
+        const tb = tableAt(layout, c.x + (p.x - c.x) * f, c.z + (p.z - c.z) * f, 0.12) ?? tableAt(layout, p.x, p.z, 0.05);
+        if (tb && !useRoom.getState().leaving) {
+          pick.req = tb.id;
+          return null;
+        }
+        clearPick();
+        return { x: THREE.MathUtils.clamp(p.x, -w / 2 + 0.5, w / 2 - 0.5), z: THREE.MathUtils.clamp(p.z, -d / 2 + 0.6, d / 2 + 3.5) };
+      },
     );
     const wheel = (e: WheelEvent) => (cameraState.distance = THREE.MathUtils.clamp(cameraState.distance + e.deltaY * 0.006, 2.2, 12));
     el.addEventListener("wheel", wheel, { passive: true });
@@ -136,10 +168,95 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       el.removeEventListener("wheel", wheel);
       keys.clear();
       nav.target = null;
+      clearPick();
       // leaving the hall: stale chair / exit flags would hide the plaza's "Enter …" prompt and swallow E there
       useRoom.getState().set({ nearSeat: null, nearExit: false, seated: null, leaving: false });
     };
   }, [gl, camera, w, d]);
+
+  /** where you stand to take a chair (the staged sit starts here) */
+  const standOf = (s: Seat) => ({ x: s.x + Math.sin(s.yaw) * (chairR + 0.13), z: s.z + Math.cos(s.yaw) * (chairR + 0.13) });
+  /** aisle route: along the nearest table-free aisle, into the open strip between the table and its chairs, along it */
+  const routeTo = (tx: number, tz: number, zs: number) => {
+    const px = pos.current.x;
+    const pz = pos.current.z;
+    if (layout.game !== "pool" || !layout.aisles.length) return [{ x: tx, z: tz }];
+    const a0 = layout.aisles.reduce((b, x) => (Math.abs(x - px) < Math.abs(b - px) ? x : b), layout.aisles[0]!);
+    const out: { x: number; z: number }[] = [];
+    if (Math.abs(pz - zs) > 0.6) {
+      if (Math.abs(px - a0) > 0.45) out.push({ x: a0, z: pz });
+      out.push({ x: a0, z: zs });
+    }
+    if (Math.abs(tx - (out.at(-1)?.x ?? px)) > 0.45) out.push({ x: tx, z: zs });
+    out.push({ x: tx, z: tz });
+    return out;
+  };
+  const startRoute = (route: { x: number; z: number }[]) => {
+    pick.route = route;
+    nav.goal = null;
+    nav.target = pick.route.shift() ?? null;
+    nav.progress = { best: Infinity, since: performance.now(), detours: 0 };
+    intro.current = 0;
+  };
+  const planPick = (tableId: string) => {
+    pick.req = null;
+    const t = layout.tables.find((x) => x.id === tableId);
+    if (!t) return clearPick();
+    const W = useWorld.getState();
+    const s = freeChair(layout, t.id, W.seats, W.you, pos.current.x, pos.current.z);
+    pick.table = t.id;
+    if (s) {
+      pick.seat = s.id;
+      pick.face = null;
+      const st = standOf(s);
+      startRoute(routeTo(st.x, st.z, t.z + Math.sign(s.z - t.z || 1) * (t.d / 2 + 0.75)));
+    } else {
+      // all chairs taken: a match in progress → watch from beside the table (spectators stand in the open strip)
+      pick.seat = null;
+      const side = Math.sign(pos.current.z - t.z || 1);
+      const sx = t.x + Math.sign(pos.current.x - t.x || 1) * 1.6;
+      const sz = t.z + side * (t.d / 2 + 0.75);
+      pick.face = Math.atan2(t.x - sx, t.z - sz);
+      startRoute(routeTo(sx, sz, sz));
+    }
+  };
+  const followPick = () => {
+    const W = useWorld.getState();
+    const manual = ["KeyW", "KeyS", "KeyA", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].some((k) => keys.has(k)) || Math.hypot(W.input.x, W.input.y) > 0.15;
+    if (manual) return clearPick();
+    if (pick.seat) {
+      const s = layout.seats.find((x) => x.id === pick.seat);
+      const holder = s ? W.seats[s.id] : undefined;
+      if (s && holder && holder !== W.you) {
+        // someone sat there first: the other chair of that table, else watch
+        const t = pick.table!;
+        clearPick();
+        return void (pick.req = t);
+      }
+      if (!s) return clearPick();
+      const st = standOf(s);
+      const dist = Math.hypot(pos.current.x - st.x, pos.current.z - st.z);
+      if (dist < 0.7 || (!nav.target && !pick.route.length && dist < 2.5)) {
+        clearPick();
+        sitDown(s.id);
+      } else if (!nav.target) {
+        const nx = pick.route.shift();
+        if (nx) startRoute([nx, ...pick.route]);
+        else clearPick();
+      }
+      return;
+    }
+    if (!nav.target) {
+      const nx = pick.route.shift();
+      if (nx) return startRoute([nx, ...pick.route]);
+      // arrived beside a busy table: turn to watch (social/people.ts hallLife starts the spectator pose)
+      if (pick.face != null) {
+        const err = wrapA(pick.face - facing.current);
+        facing.current += THREE.MathUtils.clamp(err, -0.12, 0.12);
+        if (Math.abs(err) < 0.03) clearPick();
+      } else clearPick();
+    }
+  };
 
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.05);
@@ -149,6 +266,15 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     if (R.leaving && !exited.current && (leaveStart.current ||= performance.now()) && performance.now() - leaveStart.current > 8000) {
       // fail-safe: whatever blocks the way out (a person in the aisle, a chair), Leave always gets you out
       exited.current = true;
+      // a big hall can be further than 8 s from the door: step through it now, so the plaza hand-off (mapped through
+      // the door frame) starts you just outside the plaza door, never inside the building
+      if (pos.current.z < d / 2 - 0.2) {
+        pos.current.set(layout.door.x, 0, d / 2 + 0.6);
+        facing.current = 0;
+        selfPose.x = pos.current.x;
+        selfPose.z = pos.current.z;
+        selfPose.yaw = 0;
+      }
       nav.target = { x: layout.door.x, z: d / 2 + 4 }; // keep walking out while the camera watches
       nav.goal = null;
       onExit();
@@ -165,16 +291,26 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       // route around furniture: walk to the nearest table-free aisle, along it to the open area by the door, then out
       const px = pos.current.x;
       const pz = pos.current.z;
-      const free = (x: number) => layout.tables.every((tb) => Math.abs(tb.x - x) > tb.w / 2 + 1.05);
-      const aisles = [-9, -6, -4.5, -3, -1.5, 0, 1.5, 3, 4.5, 6, 9].filter(free);
+      const aisles = layout.aisles; // table-free north–south aisles (rooms/layouts.ts)
       const aisle = aisles.reduce((best, x) => (Math.abs(x - px) < Math.abs(best - px) ? x : best), aisles[0] ?? layout.door.x);
       const frontZ = d / 2 - 2.4; // open band between the last tables and the door
       if (pz > frontZ - 0.2) nav.target = { x: layout.door.x, z: d / 2 + 1.2 };
       else if (Math.abs(px - aisle) > 0.45) nav.target = { x: aisle, z: pz };
       else nav.target = { x: aisle, z: frontZ + 0.3 };
     }
+    if (R.leaving) {
+      if (pick.table || pick.req) clearPick();
+    } else if (R.seated) {
+      // seated and tapped another table: stand up and go there (tapping your own table does nothing)
+      const mine = layout.seats.find((x) => x.id === R.seated)?.table;
+      if (pick.req && pick.req !== mine) {
+        standUp();
+        R.set({ seated: null });
+      } else if (pick.req || pick.table) clearPick();
+    } else if (pick.req) planPick(pick.req);
+    else if (pick.table) followPick();
     const seat = R.seated ? layout.seats.find((s) => s.id === R.seated) : undefined;
-    const run = W.input.run || keys.has("ShiftLeft") || keys.has("ShiftRight");
+    const run = W.input.run || keys.has("ShiftLeft") || keys.has("ShiftRight") || R.leaving; // Leave: a brisk walk out
     const wantsToWalk = keys.has("KeyW") || keys.has("ArrowUp") || keys.has("KeyS") || keys.has("ArrowDown") || Math.hypot(W.input.x, W.input.y) > 0.3 || !!nav.target;
     if (seat && wantsToWalk) {
       // walking (keys / joystick / click) while seated = stand up; turning keys don't

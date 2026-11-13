@@ -203,6 +203,9 @@ export function WindowWall({
   glassTint = "#a9c2cf",
   glassOpacity = 0.1,
   frameColor = "#1d1f24",
+  bays = 8,
+  transom = 3.05,
+  matte = false,
   children,
 }: {
   w: number;
@@ -213,19 +216,22 @@ export function WindowWall({
   glassTint?: string;
   glassOpacity?: number;
   frameColor?: string;
+  bays?: number;
+  transom?: number;
+  /** glare-free glazing: unlit low-iron glass (no reflections, no specular), matte powder-coated frames */
+  matte?: boolean;
   children: React.ReactNode; // wall material for the sill / header
 }) {
   const box = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
   const mull = useMemo<Xform[]>(() => {
     const out: Xform[] = [];
-    const bays = 8;
     for (let i = 0; i <= bays; i++)
       out.push({ p: [-w / 2 + (i * w) / bays, (sill + head) / 2, 0.02], s: [0.07, head - sill, 0.14] });
     out.push({ p: [0, sill + 0.03, 0.02], s: [w, 0.06, 0.16] });
     out.push({ p: [0, head - 0.03, 0.02], s: [w, 0.06, 0.16] });
-    out.push({ p: [0, 3.05, 0.02], s: [w, 0.05, 0.12] }); // transom
+    out.push({ p: [0, transom, 0.02], s: [w, 0.05, 0.12] }); // transom
     return out;
-  }, [w, sill, head]);
+  }, [w, sill, head, bays, transom]);
   return (
     <group position={[0, 0, -d / 2]}>
       <mesh position={[0, sill / 2, -0.1]} receiveShadow>
@@ -239,22 +245,26 @@ export function WindowWall({
       {/* window board */}
       <mesh position={[0, sill + 0.01, 0.08]} receiveShadow>
         <boxGeometry args={[w, 0.03, 0.3]} />
-        <meshStandardMaterial color="#d9d4ca" roughness={0.35} />
+        <meshStandardMaterial color="#d9d4ca" roughness={matte ? 0.9 : 0.35} envMapIntensity={matte ? 0.1 : 1} />
       </mesh>
       <mesh position={[0, (sill + head) / 2, -0.04]} renderOrder={2}>
         <planeGeometry args={[w, head - sill]} />
-        <meshStandardMaterial
-          color={glassTint}
-          transparent
-          opacity={glassOpacity}
-          roughness={0.03}
-          metalness={0.4}
-          envMapIntensity={1.2}
-          depthWrite={false}
-        />
+        {matte ? (
+          <meshBasicMaterial color={glassTint} transparent opacity={glassOpacity} depthWrite={false} />
+        ) : (
+          <meshStandardMaterial
+            color={glassTint}
+            transparent
+            opacity={glassOpacity}
+            roughness={0.03}
+            metalness={0.4}
+            envMapIntensity={1.2}
+            depthWrite={false}
+          />
+        )}
       </mesh>
       <Instanced geometry={box} items={mull}>
-        <meshStandardMaterial color={frameColor} metalness={0.6} roughness={0.35} />
+        <meshStandardMaterial color={frameColor} metalness={matte ? 0 : 0.6} roughness={matte ? 0.85 : 0.35} envMapIntensity={matte ? 0.1 : 1} />
       </Instanced>
     </group>
   );

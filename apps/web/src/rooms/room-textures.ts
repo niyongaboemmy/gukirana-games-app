@@ -523,6 +523,23 @@ function menuBoardBuild(): THREE.CanvasTexture {
   return t;
 }
 
+/** Low-pile wool carpet under a pool table (modern hall): charcoal slate with a fine inset border, soft fibre noise. */
+function loungeRugBuild(): THREE.CanvasTexture {
+  const { c, g } = canvas(256, 256);
+  g.fillStyle = "#353b43";
+  g.fillRect(0, 0, 256, 256);
+  // fibre noise (cosmetic), very low contrast so the rug never reads as a pattern
+  for (let i = 0; i < 2600; i++) {
+    const v = 46 + Math.floor(n(i) * 14);
+    g.fillStyle = `rgba(${v},${v + 5},${v + 12},0.5)`;
+    g.fillRect(n(i + 7) * 256, n(i + 13) * 256, 1.5, 1.5);
+  }
+  g.strokeStyle = "#59616c";
+  g.lineWidth = 2;
+  g.strokeRect(12, 12, 232, 232);
+  return tex(c);
+}
+
 /* ---------------- session cache ----------------
  * Each canvas texture is a pure function of its arguments: generated once per session (and pre-generated in idle
  * time while you are in the plaza, rooms/preload.ts), so warming a hall as you walk up to it does not repaint
@@ -542,3 +559,4 @@ export const windowLightTexture = memo("windowLight", windowLightTextureBuild);
 export const diceAtlas = memo("dice", diceAtlasBuild);
 export const leafCard = memo("leafCard", leafCardBuild);
 export const menuBoard = memo("menuBoard", menuBoardBuild);
+export const loungeRug = memo("loungeRug", loungeRugBuild);

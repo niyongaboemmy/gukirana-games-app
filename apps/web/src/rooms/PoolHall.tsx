@@ -3,84 +3,58 @@ import { useMemo } from "react";
 import { Environment, Lightformer, Text } from "@react-three/drei";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import type { HallLayout, Table } from "./layouts";
-import {
-  BlobShadows,
-  DownSpot,
-  GltfInstances,
-  Instanced,
-  LightPools,
-  model,
-  usePbr,
-  type Blob,
-  type Xform,
-} from "./interior-kit";
-import { ballAtlas, clubRug, feltTexture, spillTexture, windowLightTexture } from "./room-textures";
+import { useWorld } from "@/lib/world-store";
+import { POOL_BAR, type HallLayout, type Table } from "./layouts";
+import { BlobShadows, GltfInstances, Instanced, LightPools, model, usePbr, type Blob, type Xform } from "./interior-kit";
+import { ballAtlas, feltTexture, loungeRug } from "./room-textures";
 import { SouthWall, WindowWall } from "./shell";
+import { STATUS_COLOR, tableNo, tableStatuses } from "./table-status";
 
 /**
- * Pool Hall — a dark, moody Kigali billiards club: four tournament 9-ft tables (walnut rails with pearl
- * diamonds, leather pocket drops, blue worsted cloth, numbered balls) each under a three-shade billiard
- * lamp, exposed brick and dark wainscot, a backlit bar on the west wall, a chesterfield lounge and neon on
- * the east wall, cue racks and bead scoreboards, and the full-width window onto the Virungas.
+ * Pool Hall — a big, calm, contemporary billiards lounge (36 × 28 m, 5 m ceiling): twelve 9-ft tournament tables in
+ * three rows with the full 1.5 m cue clearance round every table, a long oak bar on the west wall, a lounge on the
+ * east wall, spectator banquettes along the walls and a full-width north window onto the Virungas.
+ *
+ * Eye comfort (no glare): every surface is matte (roughness ≥ 0.8, metalness 0, envMapIntensity ≤ 0.2, no
+ * clearcoat), balls are satin; there are no bare bright sources — billiard lights are deep matte housings with a
+ * recessed opal diffuser, all emissives stay below the bloom threshold (tone-mapped, < 1) and the light on the tables
+ * comes from one soft overhead key (even across every bed, like real tournament lighting) plus sky fill, not from
+ * point lights with hot-spots. The glazing is unlit low-reflection glass with sheer blinds diffusing the upper bays.
+ *
+ * Choosing a table: each table has a number on its light and a status colour (free / waiting / playing) on a soft
+ * floor ring and a band under the light, read live from the server-claimed seats (rooms/table-status.ts).
  */
 const FONT = "/fonts/Baloo2.ttf";
 const R = 0.028575; // ball radius (57.15 mm)
+const LAMP_Y = 2.04; // housing centre: the opal diffuser sits ≈ 1.2 m above the bed
+const SLAT_Y = 4.86; // timber slat ceiling (the black open soffit is above it at h; the follow camera stays below)
 const n = (i: number) => {
   const x = Math.sin(i * 91.345 + 7.1) * 43758.5453;
   return x - Math.floor(x);
 };
 
+/** glTF props: matte, no metal, (almost) no reflections — so no specular glints off chairs, sofas or pots */
+const matte = (m: THREE.MeshStandardMaterial) => {
+  m.roughness = Math.max(0.85, m.roughness);
+  m.roughnessMap = null;
+  m.metalness = 0;
+  m.metalnessMap = null;
+  m.envMapIntensity = 0.15;
+  const phys = m as THREE.MeshPhysicalMaterial;
+  if (phys.isMeshPhysicalMaterial) {
+    phys.clearcoat = 0;
+    phys.sheen = 0;
+    phys.specularIntensity = 0.5;
+  }
+  m.needsUpdate = true;
+};
+/** bottles: satin glass (soft sheen, never a mirror highlight) */
+const satinGlass = (m: THREE.MeshStandardMaterial) => {
+  matte(m);
+  m.roughness = 0.6;
+};
+
 /* ---------------- shared geometry ---------------- */
-
-function legGeometry(h: number) {
-  const pts = [
-    [0.0, 0],
-    [0.09, 0],
-    [0.09, 0.05],
-    [0.065, 0.08],
-    [0.06, h * 0.35],
-    [0.085, h * 0.55],
-    [0.07, h * 0.75],
-    [0.075, h - 0.06],
-    [0.095, h - 0.04],
-    [0.095, h],
-    [0, h],
-  ].map(([x, y]) => new THREE.Vector2(x, y));
-  return new THREE.LatheGeometry(pts, 20);
-}
-
-function shadeGeometry() {
-  const pts = [
-    [0.035, 0.22],
-    [0.05, 0.2],
-    [0.09, 0.14],
-    [0.17, 0.04],
-    [0.2, 0.0],
-    [0.198, -0.01],
-  ].map(([x, y]) => new THREE.Vector2(x, y));
-  return new THREE.LatheGeometry(pts, 28);
-}
-
-function cueGeometry() {
-  // 1.47 m cue, standing on its butt: rubber bumper, black butt, wrap, maple shaft, ferrule, tip
-  const L = 1.47;
-  const pts = [
-    [0, 0],
-    [0.0145, 0],
-    [0.0148, 0.02],
-    [0.0145, 0.25],
-    [0.0135, 0.45],
-    [0.0125, 0.68],
-    [0.0115, 0.74],
-    [0.0085, 1.1],
-    [0.0065, L - 0.03],
-    [0.0064, L - 0.006],
-    [0.006, L],
-    [0, L],
-  ].map(([x, y]) => new THREE.Vector2(x, y));
-  return new THREE.LatheGeometry(pts, 10);
-}
 
 /** All balls of the room merged into one mesh (one draw call) with UVs into the numbered-ball atlas. */
 function ballsGeometry(tables: Table[]) {
@@ -89,38 +63,31 @@ function ballsGeometry(tables: Table[]) {
   const q = new THREE.Quaternion();
   const e = new THREE.Euler();
   const m = new THREE.Matrix4();
-  const add = (num: number, x: number, z: number, seed: number) => {
-    const g = base.clone();
-    const uv = g.getAttribute("uv") as THREE.BufferAttribute;
-    const col = num % 4;
-    const row = Math.floor(num / 4);
-    for (let i = 0; i < uv.count; i++) uv.setXY(i, (col + uv.getX(i)) / 4, (3 - row + uv.getY(i)) / 4);
-    e.set(n(seed) * 6.28, n(seed + 1) * 6.28, n(seed + 2) * 6.28);
-    q.setFromEuler(e);
-    m.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(1, 1, 1));
-    g.applyMatrix4(m);
-    parts.push(g);
-  };
   const ORDER = [1, 9, 2, 10, 8, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15];
   tables.forEach((t, ti) => {
     const y = t.h + R;
-    const pushAt = (num: number, lx: number, lz: number, seed: number) => {
-      add(num, t.x + lx, t.z + lz, seed);
-      const last = parts[parts.length - 1]!;
-      last.translate(0, y, 0);
+    const push = (num: number, lx: number, lz: number, seed: number) => {
+      const g = base.clone();
+      const uv = g.getAttribute("uv") as THREE.BufferAttribute;
+      const col = num % 4;
+      const row = Math.floor(num / 4);
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, (col + uv.getX(i)) / 4, (3 - row + uv.getY(i)) / 4);
+      e.set(n(seed) * 6.28, n(seed + 1) * 6.28, n(seed + 2) * 6.28);
+      q.setFromEuler(e);
+      m.compose(new THREE.Vector3(t.x + lx, y, t.z + lz), q, new THREE.Vector3(1, 1, 1));
+      g.applyMatrix4(m);
+      parts.push(g);
     };
-    if (ti % 3 === 0) {
+    if (ti % 3 !== 1) {
       // racked on the foot spot, cue ball behind the head string
       let k = 0;
-      for (let row = 0; row < 5; row++)
-        for (let i = 0; i <= row; i++)
-          pushAt(ORDER[k++]!, 0.635 + row * R * 1.74, (i - row / 2) * R * 2.01, ti * 100 + k * 3);
-      pushAt(0, -0.635, 0, ti * 100 + 77);
+      for (let row = 0; row < 5; row++) for (let i = 0; i <= row; i++) push(ORDER[k++]!, 0.635 + row * R * 1.74, (i - row / 2) * R * 2.01, ti * 100 + k * 3);
+      push(0, -0.635, 0, ti * 100 + 77);
     } else {
-      // a game in progress
+      // a game left in progress
       for (let b = 0; b < 16; b++) {
         if (b > 0 && n(ti * 31 + b) < 0.35) continue;
-        pushAt(b, (n(ti * 17 + b * 3) - 0.5) * 2.3, (n(ti * 23 + b * 5) - 0.5) * 1.1, ti * 100 + b * 7);
+        push(b, (n(ti * 17 + b * 3) - 0.5) * 2.3, (n(ti * 23 + b * 5) - 0.5) * 1.1, ti * 100 + b * 7);
       }
     }
   });
@@ -130,7 +97,26 @@ function ballsGeometry(tables: Table[]) {
   return merged;
 }
 
-/* ---------------- 9-ft table ---------------- */
+/** Rounded-rectangle outline (floor status ring), lying flat, centred on the origin. */
+function ringGeometry(w: number, d: number, r: number, line: number) {
+  const rr = (s: THREE.Shape | THREE.Path, hw: number, hd: number, rad: number) => {
+    s.moveTo(-hw + rad, -hd);
+    s.lineTo(hw - rad, -hd);
+    s.quadraticCurveTo(hw, -hd, hw, -hd + rad);
+    s.lineTo(hw, hd - rad);
+    s.quadraticCurveTo(hw, hd, hw - rad, hd);
+    s.lineTo(-hw + rad, hd);
+    s.quadraticCurveTo(-hw, hd, -hw, hd - rad);
+    s.lineTo(-hw, -hd + rad);
+    s.quadraticCurveTo(-hw, -hd, -hw + rad, -hd);
+    return s;
+  };
+  const outer = rr(new THREE.Shape(), w / 2, d / 2, r) as THREE.Shape;
+  outer.holes.push(rr(new THREE.Path(), w / 2 - line, d / 2 - line, r - line) as THREE.Path);
+  return new THREE.ShapeGeometry(outer, 6).rotateX(-Math.PI / 2);
+}
+
+/* ---------------- 9-ft tables ---------------- */
 
 const POCKETS: [number, number][] = [
   [-1.27, -0.635],
@@ -143,21 +129,23 @@ const POCKETS: [number, number][] = [
 
 function PoolTables({ tables, lite }: { tables: Table[]; lite: boolean }) {
   const h = tables[0]!.h;
-  const walnut = usePbr("black_walnut_veneer_01", [2, 1]);
-  const leather = usePbr("brown_leather", [1, 1]);
+  const oak = usePbr("oak_veneer_01", [2, 1]);
   const velour = usePbr("velour_velvet", [10, 5], { map: false });
   const felt = useMemo(() => feltTexture("#1a4e85"), []);
   const balls = useMemo(() => ballsGeometry(tables), [tables]);
   const atlas = useMemo(() => ballAtlas(), []);
   const box = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
-  const leg = useMemo(() => legGeometry(h - 0.32), [h]);
   const disc = useMemo(() => new THREE.CylinderGeometry(1, 1, 1, 20), []);
   const cup = useMemo(() => new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), []);
+  const normalScale = useMemo(() => new THREE.Vector2(0.35, 0.35), []);
 
   const X = useMemo(() => {
     const per = (f: (t: Table) => Xform[]) => tables.flatMap(f);
     return {
       cabinet: per((t) => [{ p: [t.x, h - 0.17, t.z], s: [2.72, 0.26, 1.48] }]),
+      // slab legs (one at each end) on a recessed plinth: a clean contemporary base
+      legs: per((t) => [-1.0, 1.0].map((lx) => ({ p: [t.x + lx, (h - 0.29) / 2, t.z], s: [0.16, h - 0.29, 1.12] }) as Xform)),
+      plinth: per((t) => [{ p: [t.x, 0.05, t.z], s: [2.2, 0.1, 0.9] }]),
       rails: per((t) => [
         { p: [t.x, h - 0.01, t.z - 0.755], s: [2.9, 0.1, 0.14] },
         { p: [t.x, h - 0.01, t.z + 0.755], s: [2.9, 0.1, 0.14] },
@@ -173,31 +161,9 @@ function PoolTables({ tables, lite }: { tables: Table[]; lite: boolean }) {
         { p: [t.x - 1.295, h + 0.018, t.z], s: [0.05, 0.042, 1.1] },
         { p: [t.x + 1.295, h + 0.018, t.z], s: [0.05, 0.042, 1.1] },
       ]),
-      legs: per((t) =>
-        [
-          [-1.12, -0.52],
-          [1.12, -0.52],
-          [-1.12, 0.52],
-          [1.12, 0.52],
-        ].map(([lx, lz]) => ({ p: [t.x + lx!, 0, t.z + lz!] }) as Xform),
-      ),
-      holes: per((t) =>
-        POCKETS.map(
-          ([px, pz]) => ({ p: [t.x + px, h + 0.001, t.z + pz], s: [0.062, 0.004, 0.062] }) as Xform,
-        ),
-      ),
-      cups: per((t) =>
-        POCKETS.map(
-          ([px, pz]) =>
-            ({ p: [t.x + px * 1.035, h - 0.04, t.z + pz * 1.09], s: [0.085, 0.11, 0.085] }) as Xform,
-        ),
-      ),
-      irons: per((t) =>
-        POCKETS.map(
-          ([px, pz]) =>
-            ({ p: [t.x + px * 1.035, h + 0.042, t.z + pz * 1.09], s: [0.085, 0.006, 0.085] }) as Xform,
-        ),
-      ),
+      holes: per((t) => POCKETS.map(([px, pz]) => ({ p: [t.x + px, h + 0.001, t.z + pz], s: [0.062, 0.004, 0.062] }) as Xform)),
+      cups: per((t) => POCKETS.map(([px, pz]) => ({ p: [t.x + px * 1.035, h - 0.04, t.z + pz * 1.09], s: [0.085, 0.11, 0.085] }) as Xform)),
+      irons: per((t) => POCKETS.map(([px, pz]) => ({ p: [t.x + px * 1.035, h + 0.042, t.z + pz * 1.09], s: [0.085, 0.006, 0.085] }) as Xform)),
       diamonds: per((t) => {
         const out: Xform[] = [];
         for (let k = 1; k < 8; k++) {
@@ -224,111 +190,144 @@ function PoolTables({ tables, lite }: { tables: Table[]; lite: boolean }) {
   return (
     <group>
       <Instanced geometry={box} items={X.cabinet} castShadow={!lite}>
-        <meshStandardMaterial {...walnut} color="#5a3a26" roughness={0.45} />
+        <meshStandardMaterial color="#2c2b2b" roughness={0.88} metalness={0} envMapIntensity={0.15} />
       </Instanced>
+      <Instanced geometry={box} items={X.legs} castShadow={!lite}>
+        <meshStandardMaterial color="#242323" roughness={0.88} metalness={0} envMapIntensity={0.15} />
+      </Instanced>
+      <Instanced geometry={box} items={X.plinth}>
+        <meshStandardMaterial color="#1c1b1b" roughness={0.95} metalness={0} envMapIntensity={0.1} />
+      </Instanced>
+      {/* oak rails, oiled-matte (the old lacquered walnut threw a white streak along every rail) */}
       <Instanced geometry={box} items={X.rails} castShadow={!lite}>
-        <meshStandardMaterial {...walnut} color="#6a432a" roughness={0.32} envMapIntensity={1.2} />
+        <meshStandardMaterial map={oak.map} normalMap={oak.normalMap} color="#8a6a4c" roughness={0.82} metalness={0} envMapIntensity={0.15} />
       </Instanced>
+      {/* worsted cloth: fully diffuse; a faint self-glow keeps the bed evenly lit edge to edge (no centre hot-spot) */}
       <Instanced geometry={box} items={X.bed}>
         <meshStandardMaterial
           map={felt}
           normalMap={velour.normalMap}
-          normalScale={new THREE.Vector2(0.35, 0.35)}
-          roughness={0.95}
-          envMapIntensity={0.25}
+          normalScale={normalScale}
+          roughness={1}
+          metalness={0}
+          envMapIntensity={0.1}
+          emissive="#ffffff"
+          emissiveMap={felt}
+          emissiveIntensity={0.12}
         />
       </Instanced>
       <Instanced geometry={box} items={X.cushions} castShadow={!lite}>
-        <meshStandardMaterial map={felt} roughness={0.95} />
-      </Instanced>
-      <Instanced geometry={leg} items={X.legs} castShadow={!lite}>
-        <meshStandardMaterial {...walnut} color="#4a2e1c" roughness={0.4} />
+        <meshStandardMaterial map={felt} roughness={1} metalness={0} envMapIntensity={0.1} />
       </Instanced>
       <Instanced geometry={disc} items={X.holes} receiveShadow={false}>
-        <meshBasicMaterial color="#030303" />
+        <meshBasicMaterial color="#050505" />
       </Instanced>
       <Instanced geometry={cup} items={X.cups}>
-        <meshStandardMaterial {...leather} color="#6b4630" roughness={0.6} side={THREE.DoubleSide} />
+        <meshStandardMaterial color="#2a2420" roughness={0.9} metalness={0} envMapIntensity={0.1} side={THREE.DoubleSide} />
       </Instanced>
       <Instanced geometry={disc} items={X.irons}>
-        <meshStandardMaterial {...leather} color="#3a2416" roughness={0.5} />
+        <meshStandardMaterial color="#1e1c1b" roughness={0.9} metalness={0} envMapIntensity={0.1} />
       </Instanced>
       <Instanced geometry={box} items={X.diamonds} receiveShadow={false}>
-        <meshStandardMaterial color="#efe9dc" roughness={0.2} metalness={0.1} />
+        <meshStandardMaterial color="#d9d3c6" roughness={0.85} metalness={0} envMapIntensity={0.1} />
       </Instanced>
       <Instanced geometry={disc} items={X.spots} receiveShadow={false}>
-        <meshStandardMaterial color="#e8e8e0" roughness={0.8} />
+        <meshStandardMaterial color="#d8d6ce" roughness={0.9} />
       </Instanced>
       <Instanced geometry={box} items={X.chalk}>
-        <meshStandardMaterial color="#2c78c8" roughness={0.9} />
+        <meshStandardMaterial color="#2c78c8" roughness={0.95} />
       </Instanced>
+      {/* satin phenolic balls: a soft broad sheen, no mirror highlight, no clearcoat */}
       <mesh geometry={balls} castShadow={!lite} receiveShadow>
-        <meshPhysicalMaterial map={atlas} roughness={0.08} clearcoat={1} clearcoatRoughness={0.05} />
+        <meshStandardMaterial map={atlas} roughness={0.42} metalness={0} envMapIntensity={0.2} />
       </mesh>
     </group>
   );
 }
 
-/* ---------------- billiard lamps ---------------- */
+/* ---------------- low-glare billiard lights + table status ---------------- */
 
-function TableLamps({ tables, lite }: { tables: Table[]; lite: boolean }) {
-  const shade = useMemo(() => shadeGeometry(), []);
+/**
+ * One linear light per table: a deep matte housing (2.36 × 0.56 m, 16 cm skirt) with the opal diffuser recessed
+ * 6 cm inside, so from anywhere in the hall you see the skirt, never the luminous face. Hung on hair-thin cables from
+ * the slat ceiling (no rods through the view). The table number sits on both long faces; a slim status band runs
+ * under it, and a soft status ring lies on the carpet round the table.
+ */
+function TableLamps({ layout, status }: { layout: HallLayout; status: string[] }) {
+  const tables = layout.tables;
   const box = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
-  const disc = useMemo(() => new THREE.CircleGeometry(1, 24).rotateX(Math.PI / 2), []);
-  const rod = useMemo(() => new THREE.CylinderGeometry(0.009, 0.009, 1, 6), []);
-  const Y = 1.82;
+  const cable = useMemo(() => new THREE.CylinderGeometry(0.0012, 0.0012, 1, 4), []);
+  const ring = useMemo(() => ringGeometry(2.9 + 1.0, 1.65 + 1.0, 0.35, 0.06), []);
   const X = useMemo(() => {
-    const shades: Xform[] = [];
-    const bulbs: Xform[] = [];
-    const bars: Xform[] = [];
-    const rods: Xform[] = [];
+    const housing: Xform[] = [];
+    const diffuser: Xform[] = [];
+    const bands: Xform[] = [];
+    const cables: Xform[] = [];
+    const canopies: Xform[] = [];
+    const rings: Xform[] = [];
+    const L = 2.36;
+    const D = 0.56;
+    const H = 0.16;
     for (const t of tables) {
-      for (const dx of [-0.82, 0, 0.82]) {
-        shades.push({ p: [t.x + dx, Y, t.z] });
-        bulbs.push({ p: [t.x + dx, Y + 0.02, t.z], s: [0.18, 1, 0.18] });
-      }
-      bars.push({ p: [t.x, Y + 0.25, t.z], s: [2.0, 0.07, 0.11] });
-      for (const dx of [-0.7, 0.7])
-        rods.push({ p: [t.x + dx, (Y + 0.29 + 4.4) / 2, t.z], s: [1, 4.4 - Y - 0.29, 1] });
+      housing.push(
+        { p: [t.x, LAMP_Y + H / 2 - 0.015, t.z], s: [L, 0.03, D] }, // top plate
+        { p: [t.x, LAMP_Y, t.z - D / 2 + 0.0125], s: [L, H, 0.025] }, // long skirts
+        { p: [t.x, LAMP_Y, t.z + D / 2 - 0.0125], s: [L, H, 0.025] },
+        { p: [t.x - L / 2 + 0.0125, LAMP_Y, t.z], s: [0.025, H, D] }, // short skirts
+        { p: [t.x + L / 2 - 0.0125, LAMP_Y, t.z], s: [0.025, H, D] },
+      );
+      diffuser.push({ p: [t.x, LAMP_Y - H / 2 + 0.06, t.z], s: [L - 0.06, 0.01, D - 0.06] });
+      bands.push({ p: [t.x, LAMP_Y - H / 2 + 0.016, t.z - D / 2 - 0.002], s: [L - 0.16, 0.022, 0.004] }, { p: [t.x, LAMP_Y - H / 2 + 0.016, t.z + D / 2 + 0.002], s: [L - 0.16, 0.022, 0.004] });
+      for (const dx of [-0.95, 0.95])
+        for (const dz of [-0.2, 0.2]) {
+          const top = SLAT_Y - 0.05;
+          const bot = LAMP_Y + H / 2;
+          cables.push({ p: [t.x + dx, (top + bot) / 2, t.z + dz], s: [1, top - bot, 1] });
+        }
+      for (const dx of [-0.95, 0.95]) canopies.push({ p: [t.x + dx, SLAT_Y - 0.06, t.z], s: [0.09, 0.03, 0.52] });
+      rings.push({ p: [t.x, 0.014, t.z] });
     }
-    return { shades, bulbs, bars, rods };
+    return { housing, diffuser, bands, cables, canopies, rings };
   }, [tables]);
+  const bandColors = useMemo(() => status.flatMap((c) => [c, c]), [status]);
   return (
     <group>
-      <Instanced geometry={shade} items={X.shades} receiveShadow={false}>
-        <meshStandardMaterial
-          color="#123a2a"
-          metalness={0.55}
-          roughness={0.28}
-          side={THREE.DoubleSide}
-          emissive="#3a2a10"
-          emissiveIntensity={0.15}
-        />
+      <Instanced geometry={box} items={X.housing} receiveShadow={false}>
+        <meshStandardMaterial color="#3b3c40" roughness={0.9} metalness={0} envMapIntensity={0.1} />
       </Instanced>
-      <Instanced geometry={disc} items={X.bulbs} receiveShadow={false}>
-        <meshBasicMaterial color={[6, 5.2, 4.0]} toneMapped={false} side={THREE.DoubleSide} />
+      {/* opal diffuser: soft, warm-neutral, tone-mapped and below the bloom threshold (no halo, no hot-spot) */}
+      <Instanced geometry={box} items={X.diffuser} receiveShadow={false}>
+        <meshStandardMaterial color="#000000" emissive="#fff1df" emissiveIntensity={0.78} roughness={1} />
       </Instanced>
-      <Instanced geometry={box} items={X.bars}>
-        <meshStandardMaterial color="#3a2618" roughness={0.4} metalness={0.2} />
+      <Instanced geometry={box} items={X.bands} colors={bandColors} receiveShadow={false}>
+        <meshBasicMaterial color="#ffffff" />
       </Instanced>
-      <Instanced geometry={rod} items={X.rods} receiveShadow={false}>
-        <meshStandardMaterial color="#9a7a3a" metalness={0.9} roughness={0.3} />
+      <Instanced geometry={cable} items={X.cables} receiveShadow={false}>
+        <meshStandardMaterial color="#77736d" roughness={0.9} metalness={0} />
       </Instanced>
-      {!lite &&
-        tables.map((t) => (
-          <DownSpot
-            key={t.id}
-            x={t.x}
-            y={Y - 0.05}
-            z={t.z}
-            angle={1.0}
-            penumbra={0.55}
-            intensity={13}
-            distance={7}
-            color="#ffe9c8"
-            shadow
-          />
-        ))}
+      <Instanced geometry={box} items={X.canopies} receiveShadow={false}>
+        <meshStandardMaterial color="#26272a" roughness={0.9} metalness={0} />
+      </Instanced>
+      <Instanced geometry={ring} items={X.rings} colors={status} receiveShadow={false}>
+        <meshBasicMaterial color="#ffffff" transparent opacity={0.8} depthWrite={false} polygonOffset polygonOffsetFactor={-3} />
+      </Instanced>
+      {/* table numbers on both long faces of the light (readable down the aisles) */}
+      {tables.flatMap((t) =>
+        [-1, 1].map((side) => (
+          <Text
+            key={`${t.id}${side}`}
+            font={FONT}
+            fontSize={0.105}
+            position={[t.x, LAMP_Y + 0.012, t.z + side * (0.28 + 0.004)]}
+            rotation={[0, side > 0 ? 0 : Math.PI, 0]}
+            anchorX="center"
+            anchorY="middle"
+            color="#d8d2c8"
+          >
+            {`TABLE ${tableNo(t.id)}`}
+          </Text>
+        )),
+      )}
     </group>
   );
 }
@@ -338,52 +337,59 @@ function TableLamps({ tables, lite }: { tables: Table[]; lite: boolean }) {
 export function PoolHall({ layout, lite }: { layout: HallLayout; lite: boolean }) {
   const { w, d, h } = layout.size;
   const tables = layout.tables;
-  const floor = usePbr("dark_wooden_planks", [w / 2, d / 2]);
-  const brick = usePbr("red_brick_03", [d, h]);
-  const brickN = usePbr("red_brick_03", [w, 0.65]);
-  const brickS = usePbr("red_brick_03", [(w - layout.door.w) / 2, h]);
-  const walnut = usePbr("black_walnut_veneer_01", [6, 1]);
-  const leather = usePbr("brown_leather", [2, 1]);
-  const velour = usePbr("velour_velvet", [4, 4], { map: false });
-  const rug = useMemo(() => clubRug(), []);
-  // baked light: pendant spill on the ceiling above each lamp, daylight through the north glazing on the floor,
-  // three warm spots washing the back-bar shelving (no extra real lights: phones stay at 60 fps)
-  const ceilingSpill = useMemo(
-    () => spillTexture(tables.flatMap((t) => [-0.82, 0, 0.82].map((dx) => ({ u: 0.5 + (t.x + dx) / w, v: 0.5 + t.z / d, r: 0.07, a: 0.55 }))), w / d, 512, 0.4),
-    [tables, w, d],
-  );
-  const daylight = useMemo(() => windowLightTexture(8), []);
-  const shelfSpill = useMemo(() => spillTexture([0.17, 0.5, 0.83].map((u) => ({ u, v: 0.92, r: 0.16 })), 4.25, 512), []);
-  const box = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
-  const cyl = useMemo(() => new THREE.CylinderGeometry(1, 1, 1, 24), []);
-  const cue = useMemo(() => cueGeometry(), []);
-  const bead = useMemo(() => new THREE.SphereGeometry(1, 8, 6), []);
+  const seatsMap = useWorld((s) => s.seats);
+  const status = useMemo(() => {
+    const st = tableStatuses(layout, seatsMap);
+    return tables.map((t) => STATUS_COLOR[st[t.id] ?? "free"]);
+  }, [layout, tables, seatsMap]);
 
-  const BAR_X = -10.0;
-  const BAR_Z0 = -5;
-  const BAR_Z1 = 3;
-  const barLen = BAR_Z1 - BAR_Z0;
-  const barZ = (BAR_Z0 + BAR_Z1) / 2;
+  const plaster = usePbr("white_plaster_02", [w / 3, h / 3]);
+  const floorTex = usePbr("white_plaster_02", [w / 5, d / 5]);
+  const velour = usePbr("velour_velvet", [6, 2], { map: false });
+  const rug = useMemo(() => loungeRug(), []);
+  const box = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
+  const cue = useMemo(() => cueGeometry(), []);
+  const smallN = useMemo(() => new THREE.Vector2(0.25, 0.25), []);
+
+  const barLen = POOL_BAR.z1 - POOL_BAR.z0;
+  const barZ = (POOL_BAR.z0 + POOL_BAR.z1) / 2;
+  const BX = POOL_BAR.x;
 
   const X = useMemo(() => {
-    // acoustic panels on the south wall (fabric over mineral wool, 1.2 × 1.2 m)
+    // one instanced oak-slat mesh: slat ceiling, the acoustic slat wall either side of the entrance, the fluted bar front
+    const slats: Xform[] = [];
+    for (let x = -w / 2 + 0.2; x <= w / 2 - 0.2; x += 0.16) slats.push({ p: [x, SLAT_Y, 0], s: [0.045, 0.09, d - 0.6] });
+    for (const sgn of [-1, 1]) for (let x = 2.6; x <= w / 2 - 1.2; x += 0.1) slats.push({ p: [sgn * x, 1.95, d / 2 - 0.045], s: [0.04, 3.2, 0.04] });
+    for (let z = POOL_BAR.z0 + 0.1; z <= POOL_BAR.z1 - 0.1; z += 0.07) slats.push({ p: [BX + 0.37, 0.53, z], s: [0.035, 1.0, 0.035] });
+    // felt backing behind the slat walls; fabric acoustic panels on the side walls
+    const felt: Xform[] = [-1, 1].map((sgn) => ({ p: [sgn * ((2.5 + w / 2 - 1.1) / 2), 1.95, d / 2 - 0.012], s: [w / 2 - 1.1 - 2.5, 3.3, 0.02] }) as Xform);
     const panels: Xform[] = [];
-    for (const x of [-10.5, -9.1, -7.7, -6.3, -4.9, -3.5, 3.5, 4.9, 6.3, 7.7, 9.1, 10.5])
-      for (const y of [1.6, 2.95]) panels.push({ p: [x, y, d / 2 - 0.04], s: [1.3, 1.25, 0.06] });
-    // wainscot panels on the brick side walls
-    const wains: Xform[] = [
-      { p: [-w / 2 + 0.03, 0.55, 0], s: [0.06, 1.1, d] },
-      { p: [w / 2 - 0.03, 0.55, 0], s: [0.06, 1.1, d] },
-    ];
-    const capRail: Xform[] = [
-      { p: [-w / 2 + 0.06, 1.12, 0], s: [0.1, 0.04, d] },
-      { p: [w / 2 - 0.06, 1.12, 0], s: [0.1, 0.04, d] },
-    ];
-    // cue racks: west (north of the bar) + east walls
-    const racks: { x: number; z: number; s: number }[] = [
-      { x: -w / 2 + 0.05, z: -7.2, s: 1 },
-      { x: w / 2 - 0.05, z: -6.2, s: -1 },
-      { x: w / 2 - 0.05, z: 3.4, s: -1 },
+    for (let z = -12; z <= 12.2; z += 2.6) panels.push({ p: [w / 2 - 0.03, 2.75, z], s: [0.05, 2.0, 2.4] });
+    for (const z of [5.4, 8.0, 10.6]) panels.push({ p: [-w / 2 + 0.03, 2.75, z], s: [0.05, 2.0, 2.4] });
+    // linear lights recessed in the slat ceiling over the circulation (clean lines, soft)
+    const linears: Xform[] = [-11.2, -5, 1, 7.1, 10.9].map((z) => ({ p: [0, SLAT_Y - 0.055, z], s: [w - 5, 0.02, 0.07] }) as Xform);
+    // spectator banquettes (upholstered seat + back) along the window wall and the side walls
+    const benchSeat: Xform[] = [];
+    const benchBack: Xform[] = [];
+    const bench = (x: number, z: number, len: number, along: "x" | "z", back: number) => {
+      if (along === "x") {
+        benchSeat.push({ p: [x, 0.21, z], s: [len, 0.42, 0.62] });
+        benchBack.push({ p: [x, 0.66, z + back * 0.26], s: [len, 0.5, 0.14] });
+      } else {
+        benchSeat.push({ p: [x, 0.21, z], s: [0.62, 0.42, len] });
+        benchBack.push({ p: [x + back * 0.26, 0.66, z], s: [0.14, 0.5, len] });
+      }
+    };
+    bench(-7.5, -13.35, 9, "x", -1);
+    bench(7.5, -13.35, 9, "x", -1);
+    bench(17.6, -9.5, 5, "z", 1);
+    bench(17.6, 6, 6, "z", 1);
+    bench(-17.6, 8.5, 6, "z", -1);
+    // cue racks
+    const racks = [
+      { x: -w / 2 + 0.05, z: -11.6, s: 1 },
+      { x: w / 2 - 0.05, z: -5.8, s: -1 },
+      { x: w / 2 - 0.05, z: 1.6, s: -1 },
     ];
     const rackBoards: Xform[] = racks.flatMap((r) => [
       { p: [r.x + r.s * 0.03, 1.55, r.z], s: [0.04, 1.6, 1.0] },
@@ -391,449 +397,278 @@ export function PoolHall({ layout, lite }: { layout: HallLayout; lite: boolean }
       { p: [r.x + r.s * 0.09, 1.5, r.z], s: [0.12, 0.04, 1.0] },
     ]);
     const cues: Xform[] = racks.flatMap((r, ri) =>
-      Array.from({ length: 8 }, (_, k) => ({
-        p: [r.x + r.s * 0.1, 0.14, r.z - 0.42 + k * 0.12] as [number, number, number],
-        rz: -r.s * 0.035,
-        r: n(ri * 9 + k) * 6,
-      })),
+      Array.from({ length: 8 }, (_, k) => ({ p: [r.x + r.s * 0.1, 0.14, r.z - 0.42 + k * 0.12] as [number, number, number], rz: -r.s * 0.035, r: n(ri * 9 + k) * 6 })),
     );
-    // bead scoreboards over the tables' long walls
-    const boards: Xform[] = [];
-    const beads: Xform[] = [];
-    const beadCol: string[] = [];
-    for (const t of tables) {
-      const sx = Math.sign(t.x);
-      const wx = sx * (w / 2 - 0.06);
-      if (sx < 0 && t.z > BAR_Z0 - 0.5 && t.z < BAR_Z1 + 0.5) continue; // the bar takes that wall
-      boards.push({ p: [wx, 2.4, t.z], s: [0.05, 0.3, 1.4] });
-      for (let row = 0; row < 2; row++)
-        for (let k = 0; k < 15; k++) {
-          const off = k < 4 + ((row * 3 + tables.indexOf(t)) % 5) ? -0.6 + k * 0.05 : 0.0 + k * 0.05;
-          beads.push({ p: [wx - sx * 0.05, 2.33 + row * 0.14, t.z + off], s: [0.028, 0.028, 0.028] });
-          beadCol.push(row ? "#d9c7a2" : "#3a2516");
-        }
-    }
-    const beadRails: Xform[] = boards.flatMap((b) =>
-      [0, 1].map((row) => ({
-        p: [b.p[0] - Math.sign(b.p[0]) * 0.05, 2.33 + row * 0.14, b.p[2]] as [number, number, number],
-        s: [0.004, 0.004, 1.32],
-      })),
-    );
-    // bar: counter, foot rail, back-bar shelves
-    const barBody: Xform[] = [{ p: [BAR_X, 0.53, barZ], s: [0.7, 1.06, barLen] }];
-    const barTop: Xform[] = [{ p: [BAR_X + 0.06, 1.085, barZ], s: [0.9, 0.05, barLen + 0.1] }];
-    const backCab: Xform[] = [{ p: [-w / 2 + 0.3, 0.45, barZ], s: [0.55, 0.9, barLen - 0.6] }];
-    const shelves: Xform[] = [1.45, 1.85, 2.25, 2.65].map((y) => ({
-      p: [-w / 2 + 0.16, y, barZ],
-      s: [0.28, 0.025, barLen - 1.2],
-    }));
+    // bar: counter, stone top, back bar, shelves, bottles, stools, pendants
+    const barBody: Xform[] = [{ p: [BX, 0.53, barZ], s: [0.7, 1.06, barLen] }];
+    const barTop: Xform[] = [
+      { p: [BX + 0.08, 1.085, barZ], s: [0.95, 0.05, barLen + 0.1] },
+      { p: [-w / 2 + 0.45, 0.93, barZ], s: [0.9, 0.04, barLen - 0.6] },
+    ];
+    const backCab: Xform[] = [{ p: [-w / 2 + 0.45, 0.455, barZ], s: [0.85, 0.91, barLen - 0.6] }];
+    const shelves: Xform[] = [1.5, 1.9, 2.3].map((y) => ({ p: [-w / 2 + 0.17, y, barZ], s: [0.3, 0.03, barLen - 2] }));
     const bottles: Record<string, Xform[]> = { bordeaux: [], alsace: [], burgundy: [], champagne: [] };
     const kinds = Object.keys(bottles);
-    [1.465, 1.865, 2.265].forEach((y, si) => {
-      for (let k = 0; k < 16; k++) {
-        const z = barZ - (barLen - 1.4) / 2 + k * ((barLen - 1.4) / 15) + (n(k * 3 + si) - 0.5) * 0.12;
+    [1.515, 1.915, 2.315].forEach((y, si) => {
+      for (let k = 0; k < 20; k++) {
+        const z = barZ - (barLen - 2.4) / 2 + k * ((barLen - 2.4) / 19) + (n(k * 3 + si) - 0.5) * 0.12;
         const kind = kinds[(k + si * 3 + Math.floor(n(k * 7 + si) * 3)) % 4]!;
-        bottles[kind]!.push({ p: [-w / 2 + 0.16, y, z], r: n(k + si * 30) * 6.28 });
+        bottles[kind]!.push({ p: [-w / 2 + 0.17, y, z], r: n(k + si * 30) * 6.28 });
       }
     });
-    const stools: Xform[] = [-4.2, -2.9, -1.6, -0.3, 1.0, 2.3].map((z) => ({ p: [BAR_X + 0.85, 0, z] }));
-    return {
-      panels,
-      wains,
-      capRail,
-      rackBoards,
-      cues,
-      boards,
-      beads,
-      beadCol,
-      beadRails,
-      barBody,
-      barTop,
-      backCab,
-      shelves,
-      bottles,
-      stools,
-    };
-  }, [w, d, tables, barLen, barZ]);
+    const stools: Xform[] = [];
+    for (let z = POOL_BAR.z0 + 0.6; z <= POOL_BAR.z1 - 0.5; z += 0.92) stools.push({ p: [BX + 1.0, 0, z] });
+    const pendantZ = [-7.2, -4.4, -1.6, 1.2];
+    return { slats, felt, panels, linears, benchSeat, benchBack, rackBoards, cues, barBody, barTop, backCab, shelves, bottles, stools, pendantZ };
+  }, [w, d, BX, barLen, barZ]);
 
-  const rugs: Blob[] = tables.map((t) => ({ x: t.x, z: t.z, w: 6.2, d: 4.4 }));
+  const rugs = useMemo(() => tables.map((t) => ({ p: [t.x, 0.007, t.z] as [number, number, number], s: [5.6, 1, 5.4] as [number, number, number] })), [tables]);
+  const rugGeo = useMemo(() => new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), []);
   const shadowBlobs: Blob[] = useMemo(
     () => [
-      ...tables.map((t) => ({ x: t.x, z: t.z, w: 3.6, d: 2.3, o: 1 })),
+      ...tables.map((t) => ({ x: t.x, z: t.z, w: 3.5, d: 2.2, o: 1 })),
       ...layout.seats.map((s) => ({ x: s.x, z: s.z, w: 1.1, d: 1.1 })),
-      { x: 11.2, z: -1.2, w: 1.4, d: 2.6 },
-      { x: BAR_X, z: barZ, w: 1.3, d: barLen + 0.6 },
+      { x: 16.9, z: -2.2, w: 1.4, d: 2.8 },
+      { x: BX, z: barZ, w: 1.3, d: barLen + 0.6 },
     ],
-    [tables, layout.seats, barZ, barLen],
+    [tables, layout.seats, BX, barZ, barLen],
   );
 
   return (
     <group>
-      {/* -------- lighting: dim warm club; light comes from the lamps, the back bar and the window -------- */}
-      <Environment resolution={lite ? 32 : 64} frames={1} environmentIntensity={0.6}>
-        <Lightformer
-          intensity={1.2}
-          position={[0, 3.5, 0]}
-          rotation-x={Math.PI / 2}
-          scale={[10, 6, 1]}
-          color="#ffdcae"
-        />
-        <Lightformer intensity={2.2} position={[0, 2.2, -9]} scale={[22, 3, 1]} color="#cfe0ef" />
-        <Lightformer
-          intensity={1.2}
-          position={[-11, 2, -1]}
-          rotation-y={Math.PI / 2}
-          scale={[8, 1.5, 1]}
-          color="#ffb060"
-        />
-        <Lightformer
-          intensity={0.8}
-          position={[11, 2.6, -1]}
-          rotation-y={-Math.PI / 2}
-          scale={[4, 1, 1]}
-          color="#3d8bff"
-        />
+      {/* -------- lighting: one soft overhead key (even on every bed), sky fill, diffuse window light -------- */}
+      <Environment resolution={32} frames={1} environmentIntensity={0.5}>
+        <Lightformer intensity={1.1} position={[0, 4.6, 0]} rotation-x={Math.PI / 2} scale={[30, 22, 1]} color="#fff3e4" />
+        <Lightformer intensity={1.4} position={[0, 2.4, -13.5]} scale={[34, 3.8, 1]} color="#e3ecf4" />
+        <Lightformer intensity={0.5} position={[0, 1.2, 0]} rotation-x={-Math.PI / 2} scale={[30, 22, 1]} color="#8a8379" />
       </Environment>
-      {/* ground colour = light bouncing off the warm plank floor: lifts the ceiling and the upper walls out of black */}
-      <hemisphereLight args={["#ffe9cc", "#6a5040", lite ? 0.85 : 0.62]} />
-      {lite && <ambientLight intensity={0.35} />}
-      {/* north daylight through the glazing: steep enough to reach the floor and the table beds */}
-      <directionalLight position={[1, 9, -12]} intensity={lite ? 0.8 : 1.25} color="#e4edf6" />
-      {/* soft daylight spilling in from the window wall */}
-      {!lite &&
-        [-6, 0, 6].map((x) => (
-          <pointLight key={x} position={[x, 2.6, -7.6]} intensity={5.5} distance={12} decay={1.3} color="#e3edf7" />
-        ))}
-      {!lite && (
-        <>
-          <pointLight position={[-11.0, 2.2, barZ]} intensity={6} distance={7} decay={1.5} color="#ffaa55" />
-          <pointLight
-            position={[BAR_X + 0.6, 2.8, barZ]}
-            intensity={5}
-            distance={6}
-            decay={1.5}
-            color="#ffd29a"
-          />
-          <pointLight position={[10.6, 2.8, -1.2]} intensity={3} distance={6} decay={1.5} color="#4b8dff" />
-          <pointLight position={[9.4, 2.3, -1.2]} intensity={6} distance={6} decay={1.5} color="#ffc98a" />
-          <pointLight position={[0, 3.6, 6]} intensity={4} distance={9} decay={1.5} color="#ffdcae" />
-        </>
-      )}
+      <hemisphereLight args={["#fff6ea", "#6d665d", lite ? 1.25 : 1.0]} />
+      {/* overhead key: nearly vertical, so it falls evenly on every table like a field of billiard lights; its
+          shadows are the tables' and people's own soft contact shadows (Standard only) */}
+      <directionalLight
+        position={[1.2, 20, 2.0]}
+        intensity={lite ? 1.35 : 1.45}
+        color="#fff0dc"
+        castShadow={!lite}
+        shadow-mapSize={[2048, 2048]}
+        shadow-camera-left={-19}
+        shadow-camera-right={19}
+        shadow-camera-top={15}
+        shadow-camera-bottom={-15}
+        shadow-camera-near={8}
+        shadow-camera-far={30}
+        shadow-bias={-0.0004}
+        shadow-normalBias={0.04}
+        shadow-radius={4}
+      />
+      {/* north daylight, diffused by the blinds: a gentle cool wash from the window side (no sun streaks) */}
+      <directionalLight position={[0, 7, -30]} intensity={0.45} color="#e6eef6" />
 
       {/* -------- shell -------- */}
+      {/* micro-cement floor, dead matte (the texture's own roughness map is ignored) */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[w, d]} />
-        {/* matte floor: no glossy light streaks (the texture's roughness map is glossy) */}
-        <meshStandardMaterial map={floor.map} normalMap={floor.normalMap} color="#a08070" roughness={0.95} metalness={0} envMapIntensity={0.15} />
+        <meshStandardMaterial normalMap={floorTex.normalMap} normalScale={smallN} color="#a29d95" roughness={0.95} metalness={0} envMapIntensity={0.1} />
       </mesh>
-      {rugs.map((r, i) => (
-        <mesh key={i} position={[r.x, 0.006, r.z]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <planeGeometry args={[r.w, r.d]} />
-          <meshStandardMaterial map={rug} roughness={1} />
-        </mesh>
-      ))}
-      {/* daylight pool on the floor along the window wall (additive decal, mullion shadows baked in) */}
-      <mesh position={[0, 0.009, -d / 2 + 3.2]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1}>
-        <planeGeometry args={[w, 6.4]} />
-        <meshBasicMaterial map={daylight} color="#cfd9e0" transparent opacity={lite ? 0.22 : 0.28} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
-      </mesh>
-      {/* painted ceiling (dark warm grey, not a void) with the lamps' upward spill baked in */}
+      {/* low-pile carpet under each table (and its chairs): quiet, warm underfoot, absorbs the light */}
+      <Instanced geometry={rugGeo} items={rugs}>
+        <meshStandardMaterial map={rug} roughness={1} metalness={0} envMapIntensity={0.05} />
+      </Instanced>
+      {/* black open soffit above the oak slat ceiling */}
       <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, h, 0]}>
         <planeGeometry args={[w, d]} />
-        <meshStandardMaterial color="#2a2622" roughness={0.9} emissive="#ffffff" emissiveMap={ceilingSpill} emissiveIntensity={0.32} />
+        <meshStandardMaterial color="#1b1c1e" roughness={1} metalness={0} envMapIntensity={0} />
       </mesh>
-      {/* black exposed ducts + beams */}
-      <Instanced
-        geometry={cyl}
-        items={[
-          { p: [-7.5, h - 0.35, 0], rx: Math.PI / 2, s: [0.28, d, 0.28] },
-          { p: [7.5, h - 0.35, 0], rx: Math.PI / 2, s: [0.28, d, 0.28] },
-        ]}
-        receiveShadow={false}
-      >
-        <meshStandardMaterial color="#3a3835" metalness={0.5} roughness={0.5} />
+      <Instanced geometry={box} items={X.slats} receiveShadow={false}>
+        <meshStandardMaterial color="#9c7650" roughness={0.88} metalness={0} envMapIntensity={0.12} />
       </Instanced>
-      <Instanced
-        geometry={box}
-        items={[-6, -2, 2, 6].map((z) => ({ p: [0, h - 0.15, z], s: [w, 0.3, 0.22] }) as Xform)}
-        receiveShadow={false}
-      >
-        <meshStandardMaterial color="#35302b" roughness={0.85} />
+      <Instanced geometry={box} items={X.linears} receiveShadow={false}>
+        <meshStandardMaterial color="#000000" emissive="#fff4e6" emissiveIntensity={0.7} roughness={1} />
       </Instanced>
       {[-1, 1].map((s) => (
         <mesh key={s} position={[s * (w / 2), h / 2, 0]} rotation={[0, -s * (Math.PI / 2), 0]} receiveShadow>
           <planeGeometry args={[d, h]} />
-          <meshStandardMaterial {...brick} color="#9a8a82" roughness={0.9} />
+          <meshStandardMaterial map={plaster.map} normalMap={plaster.normalMap} normalScale={smallN} color="#cdc6bb" roughness={0.95} metalness={0} envMapIntensity={0.1} />
         </mesh>
       ))}
-      <Instanced geometry={box} items={X.wains}>
-        <meshStandardMaterial {...walnut} color="#3a2416" roughness={0.45} />
+      {/* skirting: a slim dark shadow-gap base on the long walls */}
+      <Instanced
+        geometry={box}
+        items={[
+          { p: [-w / 2 + 0.01, 0.05, 0], s: [0.02, 0.1, d] },
+          { p: [w / 2 - 0.01, 0.05, 0], s: [0.02, 0.1, d] },
+        ]}
+      >
+        <meshStandardMaterial color="#2a2a2b" roughness={0.9} />
       </Instanced>
-      <Instanced geometry={box} items={X.capRail}>
-        <meshStandardMaterial color="#2a1a10" roughness={0.4} />
-      </Instanced>
-      <WindowWall w={w} d={d} h={h} glassTint="#6d7f8a" glassOpacity={0.14} frameColor="#141518">
-        <meshStandardMaterial {...brickN} color="#8a7a72" roughness={0.9} />
+      <WindowWall w={w} d={d} h={h} sill={0.45} head={4.55} transom={3.15} bays={9} glassTint="#9fb2bd" glassOpacity={0.05} frameColor="#232427" matte>
+        <meshStandardMaterial map={plaster.map} normalMap={plaster.normalMap} normalScale={smallN} color="#cdc6bb" roughness={0.95} metalness={0} envMapIntensity={0.1} />
       </WindowWall>
+      {/* sheer roller blinds lowered to the transom: the upper daylight comes in diffused, the view stays clear below */}
+      <mesh position={[0, (3.18 + 4.52) / 2, -d / 2 + 0.07]} renderOrder={3}>
+        <planeGeometry args={[w - 0.2, 4.52 - 3.18]} />
+        <meshStandardMaterial color="#e6e2da" emissive="#fbf7ef" emissiveIntensity={0.32} roughness={1} metalness={0} transparent opacity={0.82} depthWrite={false} />
+      </mesh>
       <SouthWall layout={layout}>
-        <meshStandardMaterial {...brickS} color="#7d6a5e" roughness={0.9} />
+        <meshStandardMaterial map={plaster.map} normalMap={plaster.normalMap} normalScale={smallN} color="#c4bdb2" roughness={0.95} metalness={0} envMapIntensity={0.1} />
       </SouthWall>
+      <Instanced geometry={box} items={X.felt} receiveShadow={false}>
+        <meshStandardMaterial color="#2a2c30" roughness={1} />
+      </Instanced>
       <Instanced geometry={box} items={X.panels}>
-        <meshStandardMaterial
-          normalMap={velour.normalMap}
-          roughnessMap={velour.roughnessMap}
-          color="#2b3442"
-          roughness={1}
-        />
+        <meshStandardMaterial normalMap={velour.normalMap} color="#4a5563" roughness={1} metalness={0} envMapIntensity={0.05} />
       </Instanced>
 
-      {/* -------- tables, lamps, club chairs -------- */}
+      {/* -------- tables, lights, player chairs -------- */}
       <PoolTables tables={tables} lite={lite} />
-      <TableLamps tables={tables} lite={lite} />
-      {lite && (
-        <LightPools
-          items={tables.map((t) => ({ x: t.x, z: t.z, w: 3.4, d: 2.2 }))}
-          color="#ffe2b0"
-          opacity={0.25}
-          y={tables[0]!.h + 0.002}
-        />
-      )}
-      <GltfInstances
-        url={model("mid_century_lounge_chair")}
-        items={layout.seats.map((s) => ({ p: [s.x, 0, s.z], r: s.yaw, s: 0.95 }))}
-      />
+      <TableLamps layout={layout} status={status} />
+      {/* the soft light pool each light lays on the carpet round its table (baked, additive, very low) */}
+      <LightPools items={tables.map((t) => ({ x: t.x, z: t.z, w: 5.0, d: 3.8 }))} color="#ffe9cf" opacity={lite ? 0.12 : 0.08} y={0.012} />
+      <GltfInstances url={model("mid_century_lounge_chair")} items={layout.seats.map((s) => ({ p: [s.x, 0, s.z], r: s.yaw, s: 0.95 }))} castShadow={!lite} matOverride={matte} />
 
       {/* -------- bar (west wall) -------- */}
       <Instanced geometry={box} items={X.barBody} castShadow={!lite}>
-        <meshStandardMaterial {...leather} color="#4a2c1c" roughness={0.55} />
+        <meshStandardMaterial color="#5b4634" roughness={0.88} metalness={0} envMapIntensity={0.1} />
       </Instanced>
       <Instanced geometry={box} items={X.barTop}>
-        <meshStandardMaterial color="#141414" roughness={0.12} metalness={0.3} envMapIntensity={1.4} />
+        <meshStandardMaterial color="#d6d0c6" roughness={0.88} metalness={0} envMapIntensity={0.12} />
       </Instanced>
-      <mesh position={[BAR_X + 0.47, 0.22, barZ]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.022, 0.022, barLen, 12]} />
-        <meshStandardMaterial color="#b08a3a" metalness={0.95} roughness={0.22} />
-      </mesh>
-      {/* LED strip under the bar top */}
-      <mesh position={[BAR_X + 0.48, 1.05, barZ]}>
-        <boxGeometry args={[0.02, 0.012, barLen]} />
-        <meshBasicMaterial color={[3, 1.9, 0.9]} toneMapped={false} />
-      </mesh>
       <Instanced geometry={box} items={X.backCab}>
-        <meshStandardMaterial {...walnut} color="#3a2416" roughness={0.45} />
+        <meshStandardMaterial color="#3c3029" roughness={0.88} metalness={0} envMapIntensity={0.1} />
       </Instanced>
-      {/* back-bar shelving: dark walnut back panel washed by three warm spots (baked, emissive <= 0.3) */}
-      <mesh position={[-w / 2 + 0.02, 2.1, barZ]} rotation={[0, Math.PI / 2, 0]}>
-        <planeGeometry args={[barLen - 1.2, 1.6]} />
-        <meshStandardMaterial {...walnut} color="#4a3020" roughness={0.5} emissive="#ffb070" emissiveMap={shelfSpill} emissiveIntensity={0.3} />
+      {/* oak back panel behind the shelving */}
+      <mesh position={[-w / 2 + 0.015, 2.15, barZ]} rotation={[0, Math.PI / 2, 0]}>
+        <planeGeometry args={[barLen - 0.6, 2.3]} />
+        <meshStandardMaterial color="#8c6a4a" roughness={0.88} metalness={0} envMapIntensity={0.1} />
       </mesh>
       <Instanced geometry={box} items={X.shelves}>
-        <meshStandardMaterial {...walnut} color="#6a4630" roughness={0.42} />
+        <meshStandardMaterial color="#6e5440" roughness={0.88} metalness={0} />
       </Instanced>
-      {/* the three spot cans over the shelving */}
-      {[-1, 0, 1].map((k) => (
-        <group key={k} position={[-w / 2 + 0.3, 2.98, barZ + k * (barLen - 1.2) * 0.33]}>
-          <mesh>
-            <cylinderGeometry args={[0.07, 0.08, 0.16, 14]} />
-            <meshStandardMaterial color="#1c1c1e" metalness={0.6} roughness={0.4} />
-          </mesh>
-          <mesh position={[0, -0.081, 0]} rotation={[Math.PI / 2, 0, 0]}>
-            <circleGeometry args={[0.055, 14]} />
-            <meshBasicMaterial color={[3.2, 2.5, 1.6]} toneMapped={false} />
-          </mesh>
-        </group>
-      ))}
-      {!lite && (
-        <>
-          {Object.entries(X.bottles).map(([k, items]) => (
-            <GltfInstances key={k} url={model("wine_bottles_01")} pick={k} items={items} />
-          ))}
-        </>
-      )}
-      <BarStools items={X.stools} leather={leather} lite={lite} />
-      <GltfInstances
-        url={model("hanging_industrial_lamp")}
-        items={[-3.8, -1.3, 1.2].map((z) => ({ p: [BAR_X + 0.1, h, z], s: 0.85 }) as Xform)}
-        matOverride={(m) => {
-          if (m.name.includes("glass")) {
-            m.emissive.set("#ffcf8a");
-            m.emissiveIntensity = 2.5;
-          }
-        }}
-      />
-      <Text
-        font={FONT}
-        fontSize={0.34}
-        position={[-w / 2 + 0.05, 3.25, barZ]}
-        rotation={[0, Math.PI / 2, 0]}
-        anchorX="center"
-      >
+      {!lite && Object.entries(X.bottles).map(([k, items]) => <GltfInstances key={k} url={model("wine_bottles_01")} pick={k} items={items} matOverride={satinGlass} />)}
+      <BarStools items={X.stools} lite={lite} />
+      <BarPendants x={BX + 0.05} zs={X.pendantZ} />
+      {/* matte lettering, lit by the room (no neon) */}
+      <Text font={FONT} fontSize={0.4} position={[-w / 2 + 0.03, 3.6, barZ]} rotation={[0, Math.PI / 2, 0]} anchorX="center" anchorY="middle" letterSpacing={0.12}>
         THE BREAK BAR
-        <meshBasicMaterial color={[2.6, 1.5, 0.6]} toneMapped={false} />
+        <meshStandardMaterial color="#e2dccf" roughness={0.9} metalness={0} />
       </Text>
 
       {/* -------- lounge (east wall) -------- */}
-      <mesh position={[9.9, 0.007, -1.2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[3.8, 4.4]} />
-        <meshStandardMaterial map={rug} color="#9aa0b8" roughness={1} />
+      <mesh position={[15.3, 0.008, -2.2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[4.4, 5.4]} />
+        <meshStandardMaterial map={rug} color="#b8b0a4" roughness={1} metalness={0} envMapIntensity={0.05} />
       </mesh>
-      <GltfInstances
-        url={model("sofa_02")}
-        items={[{ p: [11.35, 0, -1.2], r: -Math.PI / 2, s: 1.15 }]}
-        castShadow={!lite}
-      />
+      <GltfInstances url={model("sofa_02")} items={[{ p: [16.95, 0, -2.2], r: -Math.PI / 2, s: 1.15 }]} castShadow={!lite} matOverride={matte} />
       <GltfInstances
         url={model("mid_century_lounge_chair")}
         items={[
-          { p: [8.7, 0, -3.0], r: Math.PI / 2 + 0.5, s: 0.95 },
-          { p: [8.7, 0, 0.6], r: Math.PI / 2 - 0.5, s: 0.95 },
+          { p: [13.9, 0, -4.1], r: Math.atan2(1.3, 1.9), s: 0.95 },
+          { p: [13.9, 0, -0.3], r: Math.atan2(1.3, -1.9), s: 0.95 },
         ]}
         castShadow={!lite}
+        matOverride={matte}
       />
-      <GltfInstances url={model("Ottoman_01")} items={[{ p: [8.0, 0, -1.2], r: Math.PI / 2, s: 0.75 }]} />
-      <mesh position={[9.75, 0.42, -1.2]} castShadow={!lite}>
-        <boxGeometry args={[0.6, 0.05, 1.1]} />
-        <meshStandardMaterial {...walnut} color="#4a2e1c" roughness={0.3} />
+      <mesh position={[15.2, 0.4, -2.2]} castShadow={!lite}>
+        <boxGeometry args={[0.7, 0.05, 1.15]} />
+        <meshStandardMaterial color="#7a5c40" roughness={0.88} metalness={0} envMapIntensity={0.1} />
       </mesh>
-      <mesh position={[9.75, 0.2, -1.2]}>
-        <boxGeometry args={[0.5, 0.4, 1.0]} />
-        <meshStandardMaterial color="#141414" metalness={0.7} roughness={0.35} />
+      <mesh position={[15.2, 0.19, -2.2]}>
+        <boxGeometry args={[0.55, 0.38, 1.0]} />
+        <meshStandardMaterial color="#2a2a2b" roughness={0.9} metalness={0} />
       </mesh>
-      {!lite && (
-        <>
-          <GltfInstances
-            url={model("dartboard")}
-            items={[{ p: [w / 2 - 0.04, 1.73, 5.4], r: -Math.PI / 2 }]}
-          />
-          <mesh position={[w / 2 - 0.06, 1.73, 5.4]} rotation={[0, -Math.PI / 2, 0]}>
-            <boxGeometry args={[1.0, 1.0, 0.04]} />
-            <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
-          </mesh>
-        </>
-      )}
-      {/* neon: script logo + 8-ball ring */}
-      <Text
-        font={FONT}
-        fontSize={0.55}
-        position={[w / 2 - 0.05, 2.95, -1.2]}
-        rotation={[0, -Math.PI / 2, 0]}
-        anchorX="center"
-        outlineWidth={0.01}
-        outlineColor="#9ec9ff"
-      >
-        Gukirana Billiards
-        <meshBasicMaterial color={[0.6, 1.6, 4.0]} toneMapped={false} />
-      </Text>
-      <mesh position={[w / 2 - 0.06, 2.95, 1.75]} rotation={[0, -Math.PI / 2, 0]}>
-        <torusGeometry args={[0.32, 0.018, 8, 48]} />
-        <meshBasicMaterial color={[4, 1.2, 2.6]} toneMapped={false} />
-      </mesh>
-      <Text
-        font={FONT}
-        fontSize={0.42}
-        position={[w / 2 - 0.06, 2.93, 1.75]}
-        rotation={[0, -Math.PI / 2, 0]}
-        anchorX="center"
-        anchorY="middle"
-      >
-        8
-        <meshBasicMaterial color={[3.6, 3.6, 3.6]} toneMapped={false} />
-      </Text>
 
-      {/* -------- cue racks, scoreboards, screens -------- */}
+      {/* -------- spectator banquettes -------- */}
+      <Instanced geometry={box} items={X.benchSeat}>
+        <meshStandardMaterial normalMap={velour.normalMap} color="#47525f" roughness={1} metalness={0} envMapIntensity={0.05} />
+      </Instanced>
+      <Instanced geometry={box} items={X.benchBack}>
+        <meshStandardMaterial normalMap={velour.normalMap} color="#3e4854" roughness={1} metalness={0} envMapIntensity={0.05} />
+      </Instanced>
+
+      {/* -------- cue racks -------- */}
       <Instanced geometry={box} items={X.rackBoards}>
-        <meshStandardMaterial {...walnut} color="#4a2e1c" roughness={0.4} />
+        <meshStandardMaterial color="#7a5c40" roughness={0.88} metalness={0} />
       </Instanced>
       {!lite && (
-        <>
-          <Instanced geometry={cue} items={X.cues} castShadow={false}>
-            <meshStandardMaterial color="#d8b77e" roughness={0.35} />
-          </Instanced>
-          <Instanced geometry={box} items={X.boards}>
-            <meshStandardMaterial {...walnut} color="#5a3a26" roughness={0.4} />
-          </Instanced>
-          <Instanced geometry={box} items={X.beadRails} receiveShadow={false}>
-            <meshStandardMaterial color="#b9a26a" metalness={0.9} roughness={0.3} />
-          </Instanced>
-          <Instanced geometry={bead} items={X.beads} colors={X.beadCol} receiveShadow={false}>
-            <meshStandardMaterial roughness={0.35} />
-          </Instanced>
-        </>
+        <Instanced geometry={cue} items={X.cues} castShadow={false}>
+          <meshStandardMaterial color="#cfae7a" roughness={0.85} metalness={0} envMapIntensity={0.1} />
+        </Instanced>
       )}
-      {[-6.5, 6.5].map((x) => (
-        <group key={x} position={[x, 2.45, d / 2 - 0.08]} rotation={[0, Math.PI, 0]}>
-          <mesh>
-            <boxGeometry args={[2.1, 1.2, 0.06]} />
-            <meshStandardMaterial color="#0b0c10" roughness={0.3} metalness={0.4} />
-          </mesh>
-          <mesh position={[0, 0, 0.032]}>
-            <planeGeometry args={[2.0, 1.1]} />
-            <meshBasicMaterial color="#0c1830" toneMapped={false} />
-          </mesh>
-          <Text font={FONT} fontSize={0.16} position={[0, 0.36, 0.04]} color="#7fb6ff" anchorX="center">
-            LIVE TABLES · 8-BALL
-          </Text>
-          <Text
-            font={FONT}
-            fontSize={0.12}
-            position={[0, -0.05, 0.04]}
-            color="#ffffff"
-            anchorX="center"
-            maxWidth={1.8}
-            textAlign="center"
-            lineHeight={1.4}
-          >
-            {"Sit at a table to play\nRace to 5 · Call your pockets"}
-          </Text>
-        </group>
-      ))}
 
       {/* -------- plants, contact shadows -------- */}
       <GltfInstances
         url={model("potted_plant_02")}
-        items={[
-          { p: [-11.3, 0, -8.3], s: 1.5, r: 0.3 },
-          { p: [11.3, 0, -8.3], s: 1.5, r: 2.0 },
-          { p: [11.3, 0, 8.3], s: 1.4, r: 4.1 },
-          { p: [-11.3, 0, 8.3], s: 1.4, r: 1.1 },
-        ]}
+        items={layout.colliders.filter((c) => c.w === 0.9 && c.d === 0.9).map((c, i) => ({ p: [c.x, 0, c.z], s: 1.5, r: i * 1.7 }) as Xform)}
+        matOverride={matte}
       />
-      <BlobShadows items={shadowBlobs} opacity={0.6} />
+      <BlobShadows items={shadowBlobs} opacity={0.5} y={0.011} />
     </group>
   );
 }
 
-/** Leather-topped bar stools with chrome stem, foot ring and base (procedural, instanced). */
-function BarStools({
-  items,
-  leather,
-  lite,
-}: {
-  items: Xform[];
-  leather: ReturnType<typeof usePbr>;
-  lite: boolean;
-}) {
+function cueGeometry() {
+  // 1.47 m cue, standing on its butt: rubber bumper, butt, wrap, maple shaft, ferrule, tip
+  const L = 1.47;
+  const pts = [
+    [0, 0],
+    [0.0145, 0],
+    [0.0148, 0.02],
+    [0.0145, 0.25],
+    [0.0135, 0.45],
+    [0.0125, 0.68],
+    [0.0115, 0.74],
+    [0.0085, 1.1],
+    [0.0065, L - 0.03],
+    [0.0064, L - 0.006],
+    [0.006, L],
+    [0, L],
+  ].map(([x, y]) => new THREE.Vector2(x, y));
+  return new THREE.LatheGeometry(pts, 10);
+}
+
+/** Upholstered bar stools on a powder-coated (matte black) frame (procedural, instanced). */
+function BarStools({ items, lite }: { items: Xform[]; lite: boolean }) {
   const seat = useMemo(() => new THREE.CylinderGeometry(0.2, 0.18, 0.09, 24).translate(0, 0.76, 0), []);
   const stem = useMemo(() => new THREE.CylinderGeometry(0.028, 0.028, 0.72, 10).translate(0, 0.38, 0), []);
   const base = useMemo(() => new THREE.CylinderGeometry(0.2, 0.22, 0.03, 24).translate(0, 0.015, 0), []);
-  const ring = useMemo(
-    () => new THREE.TorusGeometry(0.17, 0.01, 6, 24).rotateX(Math.PI / 2).translate(0, 0.3, 0),
-    [],
-  );
+  const ring = useMemo(() => new THREE.TorusGeometry(0.17, 0.01, 6, 24).rotateX(Math.PI / 2).translate(0, 0.3, 0), []);
   return (
     <>
       <Instanced geometry={seat} items={items} castShadow={!lite}>
-        <meshStandardMaterial {...leather} color="#5a2f1d" roughness={0.5} />
+        <meshStandardMaterial color="#5a4a3e" roughness={0.9} metalness={0} envMapIntensity={0.1} />
       </Instanced>
-      <Instanced geometry={stem} items={items}>
-        <meshStandardMaterial color="#c9ccd4" metalness={0.95} roughness={0.18} />
+      {[stem, base, ring].map((g, i) => (
+        <Instanced key={i} geometry={g} items={items}>
+          <meshStandardMaterial color="#232324" roughness={0.85} metalness={0} envMapIntensity={0.1} />
+        </Instanced>
+      ))}
+    </>
+  );
+}
+
+/** Matte cylinder pendants over the bar with a recessed opal disc (no bare bulb), on thin cables. */
+function BarPendants({ x, zs }: { x: number; zs: number[] }) {
+  const Y = 2.7;
+  const shade = useMemo(() => new THREE.CylinderGeometry(0.17, 0.17, 0.3, 24, 1, true), []);
+  const top = useMemo(() => new THREE.CircleGeometry(0.17, 24).rotateX(-Math.PI / 2), []);
+  const opal = useMemo(() => new THREE.CircleGeometry(0.15, 24).rotateX(Math.PI / 2), []);
+  const cable = useMemo(() => new THREE.CylinderGeometry(0.0012, 0.0012, 1, 4), []);
+  const at = (dy: number, s?: Xform["s"]) => zs.map((z) => ({ p: [x, Y + dy, z], s }) as Xform);
+  return (
+    <>
+      <Instanced geometry={shade} items={at(0)} receiveShadow={false}>
+        <meshStandardMaterial color="#26272a" roughness={0.9} metalness={0} side={THREE.DoubleSide} />
       </Instanced>
-      <Instanced geometry={base} items={items}>
-        <meshStandardMaterial color="#c9ccd4" metalness={0.95} roughness={0.18} />
+      <Instanced geometry={top} items={at(0.15)} receiveShadow={false}>
+        <meshStandardMaterial color="#26272a" roughness={0.9} metalness={0} />
       </Instanced>
-      <Instanced geometry={ring} items={items}>
-        <meshStandardMaterial color="#c9ccd4" metalness={0.95} roughness={0.18} />
+      <Instanced geometry={opal} items={at(-0.08)} receiveShadow={false}>
+        <meshStandardMaterial color="#000000" emissive="#ffe9cf" emissiveIntensity={0.7} roughness={1} />
+      </Instanced>
+      <Instanced geometry={cable} items={at((SLAT_Y - 0.05 - Y - 0.15) / 2 + 0.15, [1, SLAT_Y - 0.05 - Y - 0.15, 1])} receiveShadow={false}>
+        <meshStandardMaterial color="#3a3a3c" roughness={0.9} />
       </Instanced>
     </>
   );
 }
+

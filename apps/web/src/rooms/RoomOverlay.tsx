@@ -14,6 +14,7 @@ import { getUp, sitDown } from "./RoomPlayer";
 import { KeyHint, PROMPT_BTN, promptWrap } from "@/hud/Prompt";
 import { usePhoneHud } from "@/hud/usePhoneHud";
 import type { HallLayout } from "./layouts";
+import { TablePicker } from "./TablePicker";
 
 const glass = "glass rounded-card";
 
@@ -126,6 +127,9 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
         )}
       </div>
 
+      {/* choosing a table: mini-map + "Find a free table" + the label of the table you stand by */}
+      <TablePicker layout={layout} />
+
       {/* challenge someone in the room: choose the stake (game = this hall) */}
       {challenge && (
         <div className="scrim pointer-events-auto absolute inset-0 grid place-items-center p-4" onClick={() => setChallenge(null)}>
@@ -163,7 +167,7 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
       {hint && !seated && (
         <div className={`${glass} absolute left-1/2 top-16 -translate-x-1/2 px-4 py-2.5 text-center text-sm phone:top-[46px] phone:whitespace-nowrap phone:rounded-full phone:px-3 phone:py-1 phone:text-xs`}>
           <p className="font-bold phone:hidden">You&apos;re in the {layout.title}</p>
-          <p className="text-on-glass-muted">Sit at any table to play · the exit door is behind you<span className="phone:hidden"> · tap Leave anytime</span></p>
+          <p className="text-on-glass-muted">Pick a free table (green) to play<span className="phone:hidden"> · tap it or use Find a free table</span> · the exit is behind you</p>
         </div>
       )}
 

@@ -25,7 +25,9 @@ describe("SeatRegistry", () => {
     expect(plaza.claim({}, "A")).toBe("invalid");
     const pool = new SeatRegistry("pool");
     expect(pool.claim("t3s1", "A")).toBe("ok");
-    expect(pool.claim("t4s0", "B")).toBe("invalid");
+    expect(pool.claim("t11s1", "B")).toBe("ok"); // 12-table hall (P1-WLD-05)
+    expect(pool.claim("t12s0", "C")).toBe("invalid");
+    expect(pool.claim("t5s2", "C")).toBe("invalid");
     expect(pool.claim("b0s0", "B")).toBe("invalid");
   });
   it("releases on stand / leave", () => {

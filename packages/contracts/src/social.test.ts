@@ -45,7 +45,9 @@ describe("seats", () => {
     expect(isValidSeat("plaza", "b6s0")).toBe(false);
     expect(isValidSeat("plaza", "t0s0")).toBe(false);
     expect(isValidSeat("pool", "t3s1")).toBe(true);
-    expect(isValidSeat("pool", "t4s0")).toBe(false);
+    expect(isValidSeat("pool", "t11s1")).toBe(true);
+    expect(isValidSeat("pool", "t11s2")).toBe(false);
+    expect(isValidSeat("pool", "t12s0")).toBe(false);
     expect(isValidSeat("ludo", "t5s3")).toBe(true);
     expect(isValidSeat("igisoro", "t0s2")).toBe(false);
     expect(isValidSeat("pool", 7)).toBe(false);

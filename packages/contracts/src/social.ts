@@ -39,9 +39,9 @@ function benchSeat(bench: number, slot: number): SeatPose {
 export const PLAZA_SEATS: readonly SeatPose[] = PLAZA_BENCH_ANGLES.flatMap((_, b) => PLAZA_BENCH_SLOTS.map((__, s) => benchSeat(b, s)));
 const PLAZA_SEAT_IDS = new Set(PLAZA_SEATS.map((s) => s.id));
 
-/** Hall interiors: tables × chairs per table (apps/web/src/rooms/layouts.ts). Seat ids are `t{table}s{chair}`. */
+/** Hall interiors: tables × chairs per table (apps/web/src/rooms/layouts.ts; the web test checks they match). Seat ids are `t{table}s{chair}`. */
 export const HALL_SEATING = {
-  pool: { tables: 4, chairs: 2 },
+  pool: { tables: 12, chairs: 2 },
   ludo: { tables: 6, chairs: 4 },
   igisoro: { tables: 6, chairs: 2 },
 } as const;

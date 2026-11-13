@@ -15,10 +15,6 @@ export const INTERIOR_BASE = "/assets/interiors";
 export const model = (name: string) => `${INTERIOR_BASE}/models/${name}.glb`;
 
 export type PbrName =
-  | "dark_wooden_planks"
-  | "red_brick_03"
-  | "black_walnut_veneer_01"
-  | "brown_leather"
   | "herringbone_parquet"
   | "white_plaster_02"
   | "oak_veneer_01"
