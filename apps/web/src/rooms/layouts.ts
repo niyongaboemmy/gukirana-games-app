@@ -31,6 +31,12 @@ export interface HallLayout {
   colliders: Rect[];
   /** x of the table-free walking aisles (north–south), used by the Leave route and the table-pick walk */
   aisles: number[];
+  /**
+   * z of the table- and chair-free cross aisles (east–west) between the table rows, for halls whose chairs are tucked
+   * close to small tables (Ludo): the table-pick walk goes along an aisle, along the cross aisle, then up beside the
+   * chair. Halls without lanes walk the open strip between the table and its chairs (Pool).
+   */
+  lanes?: number[];
 }
 export interface Rect {
   x: number;
@@ -53,7 +59,7 @@ function build(
   tables: Omit<Table, "id">[],
   seatOffsets: (t: Omit<Table, "id">) => { x: number; z: number }[],
   colliders: Rect[],
-  opts: { size?: { w: number; d: number; h: number }; aisles?: number[] } = {},
+  opts: { size?: { w: number; d: number; h: number }; aisles?: number[]; lanes?: number[] } = {},
 ): HallLayout {
   const size = opts.size ?? { w: W, d: D, h: 4.4 };
   const T = tables.map((t, i) => ({ ...t, id: `t${i}` }));
@@ -61,7 +67,9 @@ function build(
     seatOffsets(t).map((o, s) => ({ id: `t${i}s${s}`, table: t.id, x: t.x + o.x, z: t.z + o.z, yaw: face(t.x + o.x, t.z + o.z, t.x, t.z) })),
   );
   const aisles = (opts.aisles ?? LEGACY_AISLES).filter((x) => T.every((tb) => Math.abs(tb.x - x) > tb.w / 2 + 1.05));
-  return { game, title, subtitle, color, size, door: { x: 0, w: 2.6 }, spawn: { x: 0, z: size.d / 2 - 2.4 }, tables: T, seats, colliders, aisles };
+  const layout: HallLayout = { game, title, subtitle, color, size, door: { x: 0, w: 2.6 }, spawn: { x: 0, z: size.d / 2 - 2.4 }, tables: T, seats, colliders, aisles };
+  if (opts.lanes) layout.lanes = opts.lanes;
+  return layout;
 }
 
 /** Furniture placement shared by the scene (RoomScene + interiors) and the controller (colliders). */
@@ -81,8 +89,35 @@ export const POOL_CUE_CLEARANCE = 1.5;
 export const POOL_AISLES = [-12.4, -6.2, 0, 6.2, 12.4];
 /** bar on the west wall: counter front (customer side) at x = POOL_BAR.x + 0.45 */
 export const POOL_BAR = { x: -15.2, z0: -9, z1: 3 };
-export const LUDO_TABLES_X = [-7.5, -2.5, 2.5];
-export const LUDO_TABLES_Z = [-4.4, 0.6];
+/**
+ * Ludo Lounge (34 × 26 m, 4.6 m ceiling): sixteen 1.1 m café tables in 4 rows × 4 columns on a 4.8 m grid. Live Ludo
+ * matches are 1-v-1 (matchmaking pairs two players, seats red + yellow), so each table has two server-claimed player
+ * armchairs facing each other across the board (s0 south, s1 north) and two low watchers' poufs on the east / west
+ * sides (furniture, not claimed). North–south aisles at x = 0, ±4.8, ±9.6; east–west cross aisles between the rows.
+ * West wall: the coffee bar; east wall: two sofa lounges; north: the window banquette; south: the entrance foyer.
+ */
+export const LUDO_SIZE = { w: 34, d: 26, h: 4.6 };
+export const LUDO_TABLES_X = [-7.2, -2.4, 2.4, 7.2];
+export const LUDO_TABLES_Z = [-8.4, -3.6, 1.2, 6.0];
+export const LUDO_TABLE = { w: 1.1, d: 1.1, h: 0.74 };
+/** player armchair: distance of the seat point from the table centre (along z) */
+export const LUDO_CHAIR = 1.0;
+/** watchers' poufs: offset from the table centre (along x) and footprint */
+export const LUDO_POUF = { x: 1.38, s: 0.6 };
+export const LUDO_AISLES = [-9.6, -4.8, 0, 4.8, 9.6];
+export const LUDO_LANES = [-10.8, -6.0, -1.2, 3.6, 8.4];
+/** coffee bar on the west wall: counter front (customer side) at x = LUDO_BAR.x + 0.5 */
+export const LUDO_BAR = { x: -14.0, z0: -6.5, z1: 3.5 };
+/** planters: corners, window centre, bar ends */
+export const LUDO_PLANTERS: [number, number][] = [
+  [-16.3, -12.3],
+  [16.3, -12.3],
+  [16.3, 12.3],
+  [-16.3, 12.3],
+  [0, -12.35],
+  [-16.3, -8.0],
+  [-16.3, 5.0],
+];
 export const IGISORO_TABLES_X = [-6.8, 6.8];
 export const IGISORO_TABLES_Z = [-5.2, -1.2, 2.8];
 export const IGISORO_TREE = { x: 0, z: -1.6, r: 1.45 };
@@ -125,29 +160,39 @@ export const HALLS: Record<HallGame, HallLayout> = {
     ],
     { size: POOL_SIZE, aisles: POOL_AISLES },
   ),
-  // café tables 1.25 m square, four armchairs each; west wall: coffee bar; east: sofa lounge on a Kitenge rug.
+  // café tables 1.1 m square: two player armchairs across the board, two watchers' poufs at the sides.
   ludo: build(
     "ludo",
     "Ludo Lounge",
-    "Dice & tactics · six tables",
+    "Dice & tactics · sixteen tables",
     "#FF8A1F",
-    LUDO_TABLES_Z.flatMap((z) => LUDO_TABLES_X.map((x) => ({ x, z, w: 1.25, d: 1.25, h: 0.74 }))),
+    LUDO_TABLES_Z.flatMap((z) => LUDO_TABLES_X.map((x) => ({ x, z, ...LUDO_TABLE }))),
     () => [
-      { x: 0, z: 1.15 },
-      { x: 1.15, z: 0 },
-      { x: 0, z: -1.15 },
-      { x: -1.15, z: 0 },
+      { x: 0, z: LUDO_CHAIR }, // s0: south side (towards the entrance)
+      { x: 0, z: -LUDO_CHAIR }, // s1: north side
     ],
     [
-      { x: -11.1, z: 0.5, w: 1.8, d: 7.4 }, // coffee counter + back counter
-      { x: 11.2, z: -3.4, w: 1.1, d: 2.2 }, // sofas
-      { x: 11.2, z: 1.6, w: 1.1, d: 2.2 },
-      { x: 9.4, z: -0.9, w: 1.0, d: 1.0 }, // coffee table
-      { x: -11.3, z: -8.3, w: 0.9, d: 0.9 }, // plants
-      { x: 11.3, z: -8.3, w: 0.9, d: 0.9 },
-      { x: 11.3, z: 8.3, w: 0.9, d: 0.9 },
-      { x: -11.3, z: 8.3, w: 0.9, d: 0.9 },
+      { x: LUDO_BAR.x, z: (LUDO_BAR.z0 + LUDO_BAR.z1) / 2, w: 1.0, d: LUDO_BAR.z1 - LUDO_BAR.z0 }, // coffee counter
+      { x: -16.55, z: (LUDO_BAR.z0 + LUDO_BAR.z1) / 2, w: 0.9, d: LUDO_BAR.z1 - LUDO_BAR.z0 }, // back counter
+      // watchers' poufs beside every table
+      ...LUDO_TABLES_Z.flatMap((z) => LUDO_TABLES_X.flatMap((x) => [-1, 1].map((s) => ({ x: x + s * LUDO_POUF.x, z, w: LUDO_POUF.s, d: LUDO_POUF.s })))),
+      // east lounge A: sofa on the wall, two armchairs, coffee table (under the giant die)
+      { x: 16.3, z: -3.6, w: 1.0, d: 2.3 },
+      { x: 14.6, z: -3.6, w: 0.8, d: 1.2 },
+      { x: 13.0, z: -5.0, w: 0.9, d: 0.9 },
+      { x: 13.0, z: -2.2, w: 0.9, d: 0.9 },
+      // east lounge B: two sofas facing over a low table
+      { x: 14.6, z: 3.9, w: 2.3, d: 1.0 },
+      { x: 14.6, z: 8.1, w: 2.3, d: 1.0 },
+      { x: 14.6, z: 6.0, w: 1.2, d: 0.8 },
+      // window banquette (two runs either side of the centre planter)
+      { x: -6.0, z: -12.35, w: 10.4, d: 0.7 },
+      { x: 6.0, z: -12.35, w: 10.4, d: 0.7 },
+      // board-game library on the west wall (south of the bar)
+      { x: -16.75, z: 8.0, w: 0.5, d: 3.4 },
+      ...LUDO_PLANTERS.map(([x, z]) => ({ x, z, w: 0.9, d: 0.9 })),
     ],
+    { size: LUDO_SIZE, aisles: LUDO_AISLES, lanes: LUDO_LANES },
   ),
   // low carved tables 1.7 × 0.85 m in two colonnades; the courtyard tree stands under the skylight.
   igisoro: build(
