@@ -68,7 +68,7 @@ function Chip({ active, onClick, children, label }: { active: boolean; onClick: 
       aria-label={label}
       onClick={onClick}
       className={`press relative flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm font-semibold ${
-        active ? "border-[#7a5638] bg-[#7a5638]/90 text-[#fbf3e6] shadow-[0_0_0_3px_rgb(201_162_39/.35)]" : "border-[rgb(70_50_25/.16)] bg-white/60 text-[#3a3228] hover:bg-white/85"
+        active ? "border-[#7a5638] bg-[#7a5638]/90 text-[#fbf3e6] shadow-[0_0_0_3px_rgb(201_162_39/.35)]" : "border-[var(--line)] bg-[color-mix(in_srgb,var(--ink)_7%,transparent)] text-[var(--ink-2)] hover:bg-[color-mix(in_srgb,var(--ink)_12%,transparent)]"
       }`}
     >
       {children}
@@ -178,7 +178,7 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
           </nav>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
             {garmentTab && (
-              <label className="flex w-fit cursor-pointer items-center gap-2 text-sm font-semibold text-[#3a3228]">
+              <label className="flex w-fit cursor-pointer items-center gap-2 text-sm font-semibold text-[var(--ink-2)]">
                 <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} className="size-4 accent-[#7a5638]" />
                 {STR.showAll}
               </label>
@@ -196,7 +196,7 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
                     </Chip>
                   ))}
                 </div>
-                <p className="pt-2 text-sm font-semibold text-[#3a3228]">{STR.accent}</p>
+                <p className="pt-2 text-sm font-semibold text-[var(--ink-2)]">{STR.accent}</p>
                 <Swatches colors={AVATAR_COLORS} value={draft.accent} onPick={(accent) => set({ accent, topColor: undefined })} />
               </>
             )}
@@ -210,16 +210,16 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
                     </Chip>
                   ))}
                 </div>
-                <p className="text-sm font-semibold text-[#3a3228]">{STR.hairColour}</p>
+                <p className="text-sm font-semibold text-[var(--ink-2)]">{STR.hairColour}</p>
                 <Swatches colors={HAIR_COLORS} value={draft.hairColor} onPick={(hairColor) => set({ hairColor })} />
               </>
             )}
             {(tab === "top" || tab === "bottom" || tab === "shoes") && <ItemGrid slot={tab} look={look} showAll={showAll} onPick={(id) => setItem(tab, id)} />}
             {tab === "extras" && (
               <>
-                <p className="text-sm font-semibold text-[#3a3228]">{STR.headwear}</p>
+                <p className="text-sm font-semibold text-[var(--ink-2)]">{STR.headwear}</p>
                 <ItemGrid slot="headwear" look={look} showAll={showAll} onPick={(id) => setItem("headwear", id)} />
-                <p className="text-sm font-semibold text-[#3a3228]">{STR.accessory}</p>
+                <p className="text-sm font-semibold text-[var(--ink-2)]">{STR.accessory}</p>
                 <ItemGrid slot="accessory" look={look} showAll={showAll} onPick={(id) => setItem("accessory", id)} />
               </>
             )}

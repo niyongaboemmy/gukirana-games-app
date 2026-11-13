@@ -217,7 +217,7 @@ function PrefToggle({ k, label }: { k: "sound" | "haptics" | "autoMove" | "fullG
   return (
     <button type="button" role="switch" aria-checked={on} onClick={() => set({ [k]: !on })} className="btn-secondary flex min-h-12 items-center justify-between gap-3 rounded-control px-4 font-semibold">
       <span>{t(label)}</span>
-      <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${on ? "bg-primary" : "bg-black/15"}`}>
+      <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${on ? "bg-primary" : "bg-[color-mix(in_srgb,var(--ink,#000)_18%,transparent)]"}`}>
         <span className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${on ? "left-[1.375rem]" : "left-0.5"}`} />
       </span>
     </button>
@@ -375,7 +375,7 @@ export function ResultModal({ won, draw = false, starsDelta, xp, summary, onRema
   return (
     <Modal label={won ? "You won" : "Game over"}>
       <div className="text-center">
-        <div className={`mx-auto grid size-20 place-items-center rounded-full ${won ? "bg-gold/25 text-gold" : "bg-black/8 text-white"}`}>{won ? <Trophy size={40} /> : <Handshake size={40} />}</div>
+        <div className={`mx-auto grid size-20 place-items-center rounded-full ${won ? "bg-gold/25 text-gold" : "bg-[color-mix(in_srgb,var(--ink)_8%,transparent)] text-white"}`}>{won ? <Trophy size={40} /> : <Handshake size={40} />}</div>
         <p className="mt-2 font-display text-2xl font-bold">{won ? "You won!" : draw ? "Draw" : "Good game"}</p>
         <p className="mt-1 text-sm text-on-glass-muted">{summary}</p>
         <div className="mt-4 grid grid-cols-2 gap-2 text-sm">

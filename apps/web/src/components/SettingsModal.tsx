@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Ban, Footprints, Gift, LogOut, Mic, MicOff, Shirt, Sparkles, Star, Trophy, UserRound, Vibrate, Volume2, VolumeX, type LucideIcon } from "lucide-react";
+import { Ban, Footprints, Gift, LogOut, Mic, MicOff, Palette, Shirt, Sparkles, Star, Trophy, UserRound, Vibrate, Volume2, VolumeX, type LucideIcon } from "lucide-react";
 import { PaperCard } from "@/ui/PaperCard";
+import { setPaperTheme, usePaperTheme } from "@/ui/paper-theme";
 import { useGamePrefs } from "@/games/feedback";
 import { claimDailyStars, logout, useSession } from "@/lib/session";
 import { totalXpForLevel, useProfile } from "@/lib/profile-store";
@@ -28,6 +29,7 @@ export function SettingsModal({ onClose, onEditAvatar }: { onClose: () => void; 
   const me = useSession((s) => s.me);
   const color = useProfile((s) => s.color);
   const speed = useWorld((s) => s.speed);
+  const paperTheme = usePaperTheme();
   const voice = useVoice((s) => s.status);
   const gameSound = useGamePrefs((s) => s.sound);
   const blocked = useSocial((s) => s.blocked);
@@ -120,6 +122,19 @@ export function SettingsModal({ onClose, onEditAvatar }: { onClose: () => void; 
                 {PACES.map((p) => (
                   <button key={p} type="button" aria-pressed={speed === p} onClick={() => setPace(p)} className="min-h-9! text-sm! capitalize">
                     {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="prow">
+              <span className="prow-icon">
+                <Palette size={18} />
+              </span>
+              <span className="prow-title flex-1">Windows</span>
+              <div className="pseg w-[220px]">
+                {(["auto", "light", "dark"] as const).map((t) => (
+                  <button key={t} type="button" aria-pressed={paperTheme === t} onClick={() => setPaperTheme(t)} className="min-h-9! text-sm! capitalize">
+                    {t}
                   </button>
                 ))}
               </div>
