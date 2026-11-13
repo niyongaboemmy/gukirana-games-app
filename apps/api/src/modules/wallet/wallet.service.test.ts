@@ -38,6 +38,11 @@ describe("WalletService", () => {
     expect(new Date(st.nextClaimAt).getUTCHours()).toBe(22); // Kigali midnight
   });
 
+  it("coin history is a separate, signed list (empty before the pilot)", async () => {
+    expect((await ledger.history(userStars(u))).length).toBeGreaterThan(0); // the daily claim above
+    expect(await wallet.coinHistory(u)).toEqual([]); // Stars lines never show up as coins
+  });
+
   it("level-up gifts once per level", async () => {
     expect(await wallet.grantLevelUps(u, 1, 3)).toBe(200); // levels 2 and 3 × 100
     expect(await wallet.grantLevelUps(u, 1, 3)).toBe(0); // replay

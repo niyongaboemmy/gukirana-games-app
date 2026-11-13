@@ -8,6 +8,7 @@ import {
   useState,
   type KeyboardEvent as RKeyboardEvent,
   type PointerEvent as RPointerEvent,
+  type CSSProperties,
   type ReactNode,
   type RefObject,
   type SyntheticEvent,
@@ -20,18 +21,22 @@ import {
   ArrowLeft,
   ArrowUpFromLine,
   CircleCheck,
+  Info,
+  Lock,
   ReceiptText,
   Rotate3d,
   ShieldCheck,
   Star,
   X,
 } from "lucide-react";
+import { wsound } from "./sound";
 import { W } from "./strings";
 import "./wallet.css";
 
 /**
  * The wallet IS the interface: an open leather bifold held up in front of you.
- *   left half:  leather currency tabs, the printed balance card (Stars big, coins ≈ money) and the gold Claim button
+ *   left half:  "Show coins in" + leather currency tabs, the printed balance card (two rows: Stars · practice, then
+ *               Coins · real money ≈ money; an "i" strip explains both) and the gold Claim button
  *   right half: four big stitched buttons — Top up, Cash out, Activity, Play safe
  * A button brings its card out of the wallet to the centre front: a clear header (back / close) and a scrolling
  * body. Tap outside the card or press Esc to put it back; again to close the wallet. Buttons are real DOM placed on
@@ -39,7 +44,7 @@ import "./wallet.css";
  * turning happens only by dragging the leather / background or with the "Drag to turn" handle.
  * Matte materials only (no glare).
  */
-export type Panel = "topup" | "cashout" | "activity" | "safe";
+export type Panel = "topup" | "cashout" | "activity" | "safe" | "info";
 export type ClaimState = {
   available: boolean;
   amount: number;
@@ -62,7 +67,9 @@ const FONT = "/fonts/Baloo2.ttf";
 const leatherMat = new THREE.MeshStandardMaterial({ color: "#5a3b26", roughness: 0.93, metalness: 0 });
 const innerMat = new THREE.MeshStandardMaterial({ color: "#3d281b", roughness: 0.96 });
 const goldMat = new THREE.MeshStandardMaterial({ color: "#d9ab3c", roughness: 0.55, metalness: 0.3 });
+const silverMat = new THREE.MeshStandardMaterial({ color: "#c3c7cd", roughness: 0.6, metalness: 0.25 });
 const cardFace = new THREE.MeshStandardMaterial({ color: "#ece6d8", roughness: 0.85 });
+const ruleMat = new THREE.MeshBasicMaterial({ color: "#cbbfa6" });
 const clearMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
 
 /** DOM on the leather must not also reach the 3D event system (no backdrop "outside tap", no drag). */
@@ -136,44 +143,104 @@ function Fit() {
   return null;
 }
 
-/** The gold Star tokens on the balance card; a claim drops one on the stack and "+N Stars" floats up. */
+/** A number that counts up (or down) to its new value over ~0.7 s; instant with reduced motion. */
+function useCountUp(target: number, reduced: boolean) {
+  const [shown, setShown] = useState(target);
+  const from = useRef(target);
+  useEffect(() => {
+    if (reduced || from.current === target) {
+      from.current = target;
+      setShown(target);
+      return;
+    }
+    const start = performance.now();
+    const a = from.current;
+    let raf = 0;
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - start) / 700);
+      const e = 1 - (1 - k) ** 3;
+      setShown(Math.round(a + (target - a) * e));
+      if (k < 1) raf = requestAnimationFrame(tick);
+      else from.current = target;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      from.current = target;
+    };
+  }, [target, reduced]);
+  return shown;
+}
+
+/** where the gold Star tokens stand on the left half (right side of the Stars row) */
+const STACK: [number, number, number] = [0.33, 0.115, 0.045];
+/** where the Claim button sits on the left half */
+const CLAIM_AT: [number, number, number] = [-0.12, -0.31, 0.08];
+
+/**
+ * The gold Star tokens in the Stars pocket. A claim sends three tokens from the Claim button along an arc into the
+ * stack, one after another, and "+N Stars" rises once. With reduced motion only the text shows, briefly.
+ */
 function TokenStack({ stars, burst, reduced }: { stars: number; burst: string | null; reduced: boolean }) {
-  const drop = useRef<THREE.Mesh>(null);
+  const fly = useRef<(THREE.Mesh | null)[]>([]);
   const float = useRef<THREE.Group>(null);
-  const tb = useRef(0);
+  const t = useRef(-1);
   const last = useRef<string | null>(burst);
-  const n = Math.max(2, Math.min(8, Math.ceil(stars / 250)));
+  const n = Math.max(2, Math.min(7, Math.ceil(stars / 250)));
   useFrame((_, dt) => {
     if (burst !== last.current) {
       last.current = burst;
-      tb.current = burst ? 1 : 0;
+      t.current = burst ? 0 : -1;
+      if (burst) wsound.tokens();
     }
-    tb.current = Math.max(0, tb.current - dt * (reduced ? 0.5 : 0.7));
-    const k = 1 - tb.current;
-    if (drop.current) {
-      drop.current.visible = tb.current > 0 && !reduced;
-      drop.current.position.y = n * 0.016 + 0.3 - Math.min(1, k * 2.4) * 0.3;
-    }
+    if (t.current < 0) return;
+    t.current += dt;
+    const T = t.current;
+    fly.current.forEach((m, i) => {
+      if (!m) return;
+      const k = Math.min(1, Math.max(0, (T - i * 0.12) / 0.55));
+      m.visible = !reduced && k > 0 && k < 1;
+      const e = 1 - (1 - k) ** 2;
+      const top = STACK[1] + (n + i) * 0.016;
+      m.position.set(
+        CLAIM_AT[0] + (STACK[0] - CLAIM_AT[0]) * e,
+        CLAIM_AT[1] + (top - CLAIM_AT[1]) * e + Math.sin(Math.PI * k) * 0.16,
+        CLAIM_AT[2] + (STACK[2] - CLAIM_AT[2]) * e + Math.sin(Math.PI * k) * 0.08,
+      );
+      m.rotation.z = (1 - k) * 2.4;
+    });
     if (float.current) {
-      float.current.visible = tb.current > 0;
-      float.current.position.y = 0.2 + (reduced ? 0 : k * 0.2);
+      const k = Math.min(1, T / 1.6);
+      float.current.visible = k < 1;
+      float.current.position.y = STACK[1] + 0.04 + (reduced ? 0 : k * 0.08);
     }
+    if (T > 1.7) t.current = -1;
   });
   return (
-    <group position={[0.31, -0.11, 0.045]}>
-      {Array.from({ length: n }, (_, i) => (
-        <mesh key={i} position={[(i % 2) * 0.006, i * 0.016, 0]} material={goldMat}>
-          <cylinderGeometry args={[0.07, 0.07, 0.014, 28]} />
+    <group>
+      <group position={STACK}>
+        {Array.from({ length: n }, (_, i) => (
+          <mesh key={i} position={[(i % 2) * 0.006, i * 0.016, 0]} material={goldMat}>
+            <cylinderGeometry args={[0.065, 0.065, 0.014, 28]} />
+          </mesh>
+        ))}
+      </group>
+      {[0, 1, 2].map((i) => (
+        <mesh
+          key={i}
+          ref={(m) => {
+            fly.current[i] = m;
+          }}
+          material={goldMat}
+          visible={false}
+        >
+          <cylinderGeometry args={[0.065, 0.065, 0.014, 28]} />
         </mesh>
       ))}
-      <mesh ref={drop} material={goldMat} visible={false}>
-        <cylinderGeometry args={[0.07, 0.07, 0.014, 28]} />
-      </mesh>
-      <group ref={float} visible={false}>
+      <group ref={float} visible={false} position={[STACK[0] - 0.3, 0, 0.1]}>
         <Text
           font={FONT}
-          position={[-0.1, 0, 0.06]}
-          fontSize={0.07}
+          fontSize={0.064}
           color="#facc15"
           anchorX="center"
           outlineWidth={0.004}
@@ -186,92 +253,156 @@ function TokenStack({ stars, burst, reduced }: { stars: number; burst: string | 
   );
 }
 
-/** The printed balance card: what you have, at a glance. */
+/**
+ * The printed balance card: two clearly separated rows.
+ *   STARS · PRACTICE    920              (gold tokens)
+ *   No cash value
+ *   ─────────────────
+ *   COINS · REAL MONEY  0 coins                ≈ RWF 0  (shown in RWF · estimate)
+ *   (i) What are Stars and Coins?   (a DOM strip along the bottom edge)
+ */
 function BalanceCard({
   stars,
-  coinsText,
+  coinCount,
   moneyText,
   currency,
+  pilot,
+  reduced,
+  inert,
+  onInfo,
 }: {
   stars: number;
-  coinsText: string;
+  coinCount: number;
   moneyText: string | null;
   currency: string;
+  pilot: boolean;
+  reduced: boolean;
+  inert: boolean;
+  onInfo: () => void;
 }) {
+  const s = useCountUp(stars, reduced);
+  const c = useCountUp(coinCount, reduced);
+  const L = -0.42;
   return (
     <group position={[0, 0.07, 0.03]}>
       <RoundedBox args={[HALF_W - 0.08, 0.44, 0.008]} radius={0.025} smoothness={3} material={cardFace} />
+      {/* Stars row */}
+      <mesh position={[L + 0.012, 0.184, 0.006]} rotation={[Math.PI / 2, 0, 0]} material={goldMat}>
+        <cylinderGeometry args={[0.014, 0.014, 0.004, 20]} />
+      </mesh>
       <Text
         font={FONT}
-        position={[-0.42, 0.195, 0.006]}
-        fontSize={0.036}
-        color="#5b5246"
+        position={[L + 0.038, 0.2, 0.006]}
+        fontSize={0.032}
+        color="#8a6a1c"
         anchorX="left"
         anchorY="top"
         letterSpacing={0.06}
       >
-        {W.stars.toUpperCase()}
+        {`${W.stars.toUpperCase()} · ${W.starsTag.toUpperCase()}`}
       </Text>
       <Text
         font={FONT}
-        position={[-0.43, 0.165, 0.006]}
-        fontSize={0.155}
+        position={[L - 0.008, 0.172, 0.006]}
+        fontSize={0.112}
         color="#16171a"
         anchorX="left"
         anchorY="top"
-        maxWidth={0.62}
+        maxWidth={0.6}
       >
-        {stars.toLocaleString()}
+        {s.toLocaleString()}
       </Text>
       <Text
         font={FONT}
-        position={[-0.42, -0.035, 0.006]}
-        fontSize={0.05}
-        color="#1e1f23"
-        anchorX="left"
-        anchorY="top"
-        maxWidth={0.86}
-      >
-        {coinsText}
-      </Text>
-      <Text
-        font={FONT}
-        position={[-0.42, -0.095, 0.006]}
-        fontSize={0.034}
-        color="#5b5246"
-        anchorX="left"
-        anchorY="top"
-        maxWidth={0.86}
-      >
-        {moneyText ? `≈ ${moneyText} (${currency}, ${W.estimate})` : " "}
-      </Text>
-      <Text
-        font={FONT}
-        position={[-0.42, -0.165, 0.006]}
-        fontSize={0.03}
+        position={[L, 0.052, 0.006]}
+        fontSize={0.029}
         color="#6b6153"
         anchorX="left"
         anchorY="top"
       >
-        {W.practice}
+        {W.noCash}
       </Text>
+      {/* the rule between the two balances */}
+      <mesh position={[0, 0.012, 0.0045]} material={ruleMat}>
+        <planeGeometry args={[HALF_W - 0.16, 0.004]} />
+      </mesh>
+      {/* Coins row */}
+      <mesh position={[L + 0.012, -0.021, 0.006]} rotation={[Math.PI / 2, 0, 0]} material={silverMat}>
+        <cylinderGeometry args={[0.014, 0.014, 0.004, 20]} />
+      </mesh>
+      <Text
+        font={FONT}
+        position={[L + 0.038, -0.005, 0.006]}
+        fontSize={0.032}
+        color="#4b5563"
+        anchorX="left"
+        anchorY="top"
+        letterSpacing={0.06}
+      >
+        {`${W.coins.toUpperCase()} · ${W.coinsTag.toUpperCase()}`}
+      </Text>
+      <Text
+        font={FONT}
+        position={[L - 0.004, -0.04, 0.006]}
+        fontSize={0.064}
+        color="#1e1f23"
+        anchorX="left"
+        anchorY="top"
+        maxWidth={0.4}
+      >
+        {`${c.toLocaleString()} ${W.coinWord(coinCount)}`}
+      </Text>
+      <Text
+        font={FONT}
+        position={[0.42, -0.036, 0.006]}
+        fontSize={0.05}
+        color="#1e1f23"
+        anchorX="right"
+        anchorY="top"
+        maxWidth={0.46}
+      >
+        {moneyText ? `≈ ${moneyText}` : " "}
+      </Text>
+      <Text
+        font={FONT}
+        position={[0.42, -0.09, 0.006]}
+        fontSize={0.025}
+        color="#6b6153"
+        anchorX="right"
+        anchorY="top"
+      >
+        {pilot ? W.shownIn(currency) : `${W.shownIn(currency)} · pilot soon`}
+      </Text>
+      <Surface w={HALF_W - 0.08} h={0.088} position={[0, -0.176, 0.0055]} inert={inert}>
+        <button
+          type="button"
+          data-wallet-btn="info"
+          className="winfo-strip"
+          onPointerDown={() => wsound.click()}
+          onClick={onInfo}
+        >
+          <Info /> {W.whatAre}
+        </button>
+      </Surface>
     </group>
   );
 }
 
 /**
- * The opened card: flat, front-facing and centred, fitted to the screen; it grows out of the wallet's right half
- * (and back in on close). A clear header (back, title, close), big controls, and a body that scrolls if long.
- * The dim layer behind it is the "outside": one tap there puts the card back.
+ * The opened card: a physical cream card, flat, front-facing and centred, fitted to the screen. It slides out of the
+ * slot of the button that opened it (and back in on close). A leather header band (back, title, close) and a body
+ * that scrolls if long. The dim layer behind it is the "outside": one tap there puts the card back.
  */
 function CardOverlay({
   panel,
   cards,
+  origin,
   onClose,
   reduced,
 }: {
   panel: Panel | null;
   cards: Record<Panel, { title: string; icon: ReactNode; body: ReactNode }>;
+  origin: { x: number; y: number } | null;
   onClose: () => void;
   reduced: boolean;
 }) {
@@ -282,6 +413,7 @@ function CardOverlay({
     if (panel) {
       setShown(panel);
       setClosing(false);
+      wsound.slide();
       const id = setTimeout(() => closeBtn.current?.focus({ preventScroll: true }), 30);
       return () => clearTimeout(id);
     }
@@ -294,7 +426,7 @@ function CardOverlay({
     const id = setTimeout(() => {
       setShown(null);
       setClosing(false);
-    }, 200);
+    }, 220);
     return () => clearTimeout(id);
   }, [panel]);
   if (!shown) return null;
@@ -310,9 +442,16 @@ function CardOverlay({
         aria-modal="true"
         aria-label={c.title}
         onClick={(e) => e.stopPropagation()}
+        style={origin ? ({ "--wx": `${origin.x}px`, "--wy": `${origin.y}px` } as CSSProperties) : undefined}
       >
         <header className="wcard-head">
-          <button type="button" className="wcard-close" onClick={onClose} aria-label={W.back}>
+          <button
+            type="button"
+            className="wcard-close"
+            onPointerDown={() => wsound.click()}
+            onClick={onClose}
+            aria-label={W.backWallet}
+          >
             <ArrowLeft size={24} />
           </button>
           <span className="wcard-icon" aria-hidden>
@@ -323,6 +462,7 @@ function CardOverlay({
             ref={closeBtn}
             type="button"
             className="wcard-close"
+            onPointerDown={() => wsound.click()}
             onClick={onClose}
             aria-label={`Close ${c.title}`}
           >
@@ -337,22 +477,28 @@ function CardOverlay({
 
 type BodyProps = {
   stars: number;
-  coinsText: string;
+  coinCount: number;
   moneyText: string | null;
   currency: string;
   currencies: string[];
   onCurrency: (c: string) => void;
+  pilot: boolean;
   claim: ClaimState;
   onClaim: () => void;
   burst: string | null;
   activityCount: number;
   panel: Panel | null;
+  origin: { x: number; y: number } | null;
   openPanel: (p: Panel) => void;
   closePanel: () => void;
   onBackdrop: () => void;
   cards: Record<Panel, { title: string; icon: ReactNode; body: ReactNode }>;
   reduced: boolean;
+  closing: boolean;
 };
+
+/** HINGE when closed (the halves fold towards each other) */
+const SHUT = 1.3;
 
 function WalletBody(
   p: BodyProps & {
@@ -364,18 +510,31 @@ function WalletBody(
   const root = useRef<THREE.Group>(null);
   const left = useRef<THREE.Group>(null);
   const right = useRef<THREE.Group>(null);
-  const hinge = useRef(p.reduced ? OPEN : 1.25); // opens like a real bifold
+  const hinge = useRef(p.reduced ? OPEN : SHUT); // opens like a real bifold
+  const appear = useRef(p.reduced ? 1 : 0); // rises into view on open, drops away on close
+  const clock = useRef(0);
   useFrame((_, dt) => {
-    hinge.current = p.reduced ? OPEN : hinge.current + (OPEN - hinge.current) * Math.min(1, dt * 5);
+    clock.current += dt;
+    const k5 = p.reduced ? 1 : Math.min(1, dt * (p.closing ? 9 : 5));
+    hinge.current += ((p.closing ? SHUT : OPEN) - hinge.current) * k5;
+    appear.current += ((p.closing ? 0 : 1) - appear.current) * (p.reduced ? 1 : Math.min(1, dt * 7));
     if (left.current) left.current.rotation.y = hinge.current;
     if (right.current) right.current.rotation.y = -hinge.current;
     if (root.current) {
       const k = p.reduced ? 1 : Math.min(1, dt * 8);
-      root.current.rotation.y += (p.turn.current.yaw - root.current.rotation.y) * k;
-      root.current.rotation.x += (-0.12 + p.turn.current.pitch - root.current.rotation.x) * k;
+      // a very small idle sway (under 1°), as if held in two hands; none with reduced motion or while a card is out
+      const still = p.reduced || p.panel !== null;
+      const swayY = still ? 0 : Math.sin(clock.current * 0.55) * 0.012;
+      const swayX = still ? 0 : Math.sin(clock.current * 0.4 + 1) * 0.007;
+      root.current.rotation.y += (p.turn.current.yaw + swayY - root.current.rotation.y) * k;
+      root.current.rotation.x += (-0.12 + p.turn.current.pitch + swayX - root.current.rotation.x) * k;
+      const a = appear.current;
+      root.current.position.y = (1 - a) * -0.45;
+      root.current.scale.setScalar(0.86 + 0.14 * a);
     }
   });
-  const inert = p.panel !== null;
+  const inert = p.panel !== null || p.closing;
+  const tap = { onPointerDown: () => wsound.click() };
   return (
     <>
       {/* everything outside the wallet: a tap closes the open card, else the wallet; a drag turns it */}
@@ -406,15 +565,18 @@ function WalletBody(
         <mesh position={[0, 0, -0.01]} material={leatherMat}>
           <boxGeometry args={[0.08, HALF_H - 0.02, 0.04]} />
         </mesh>
-        {/* left half: tabs, balance, claim */}
+        {/* left half: "Show coins in" tabs, balance card, claim */}
         <group ref={left}>
           <group position={[-HX, 0, 0]}>
             <RoundedBox args={[HALF_W, HALF_H, 0.05]} radius={0.045} smoothness={4} material={leatherMat} />
             <mesh position={[0, 0, 0.026]} material={innerMat}>
               <boxGeometry args={[HALF_W - 0.06, HALF_H - 0.06, 0.002]} />
             </mesh>
-            <Surface w={HALF_W - 0.14} h={0.1} position={[0, 0.345, 0.03]} inert={inert}>
+            <Surface w={HALF_W - 0.1} h={0.1} position={[0, 0.345, 0.03]} inert={inert}>
               <div className="wtabs" role="radiogroup" aria-label={W.currency}>
+                <span className="wtabs-cap" aria-hidden>
+                  {W.showIn}
+                </span>
                 {p.currencies.map((c) => (
                   <button
                     key={c}
@@ -422,6 +584,7 @@ function WalletBody(
                     role="radio"
                     aria-checked={c === p.currency}
                     className="wtab"
+                    {...tap}
                     onClick={() => p.onCurrency(c)}
                   >
                     {c}
@@ -431,9 +594,13 @@ function WalletBody(
             </Surface>
             <BalanceCard
               stars={p.stars}
-              coinsText={p.coinsText}
+              coinCount={p.coinCount}
               moneyText={p.moneyText}
               currency={p.currency}
+              pilot={p.pilot}
+              reduced={p.reduced}
+              inert={inert}
+              onInfo={() => p.openPanel("info")}
             />
             <TokenStack stars={p.stars} burst={p.burst} reduced={p.reduced} />
             <Surface w={HALF_W - 0.08} h={0.22} position={[0, -0.31, 0.03]} inert={inert}>
@@ -442,6 +609,7 @@ function WalletBody(
                 data-wallet-btn="claim"
                 className={`wbtn wbtn-row ${p.claim.available ? "wbtn-gold" : ""}`}
                 disabled={!p.claim.available || p.claim.busy}
+                {...tap}
                 onClick={p.onClaim}
               >
                 {p.claim.available ? <Star fill="currentColor" /> : <CircleCheck />}
@@ -472,19 +640,25 @@ function WalletBody(
               <div className="grid h-full grid-cols-2 grid-rows-2 gap-[18px]">
                 {(
                   [
-                    ["topup", <ArrowDownToLine key="i" />, W.topUp, W.topUpSub],
-                    ["cashout", <ArrowUpFromLine key="i" />, W.cashOut, W.cashOutSub],
-                    ["activity", <ReceiptText key="i" />, W.activity, W.activitySub(p.activityCount)],
-                    ["safe", <ShieldCheck key="i" />, W.safe, W.safeSub],
+                    ["topup", <ArrowDownToLine key="i" />, W.topUp, W.topUpSub, !p.pilot],
+                    ["cashout", <ArrowUpFromLine key="i" />, W.cashOut, W.cashOutSub, !p.pilot],
+                    ["activity", <ReceiptText key="i" />, W.activity, W.activitySub(p.activityCount), false],
+                    ["safe", <ShieldCheck key="i" />, W.safe, W.safeSub, false],
                   ] as const
-                ).map(([id, icon, label, sub]) => (
+                ).map(([id, icon, label, sub, soon]) => (
                   <button
                     key={id}
                     type="button"
                     data-wallet-btn={id}
                     className="wbtn"
+                    {...tap}
                     onClick={() => p.openPanel(id)}
                   >
+                    {soon && (
+                      <span className="wbtn-tag" title={W.pilotOff}>
+                        <Lock /> Pilot
+                      </span>
+                    )}
                     {icon}
                     {label}
                     <small>{sub}</small>
@@ -564,7 +738,7 @@ export function WalletScene(props: BodyProps & { onClose: () => void; hint: bool
         </HtmlHost.Provider>
       </Canvas>
       <div ref={host} className="absolute inset-0 z-0 overflow-hidden" style={{ pointerEvents: "none" }} />
-      {props.hint && !props.panel && (
+      {props.hint && !props.panel && !props.closing && (
         <div
           role="status"
           className="wfloat toast pointer-events-none absolute left-1/2 top-[4%] -translate-x-1/2 whitespace-nowrap px-4 py-2 font-bold phone:top-[2%]"
@@ -575,6 +749,7 @@ export function WalletScene(props: BodyProps & { onClose: () => void; hint: bool
       <CardOverlay
         panel={props.panel}
         cards={props.cards}
+        origin={props.origin}
         onClose={props.closePanel}
         reduced={props.reduced}
       />
