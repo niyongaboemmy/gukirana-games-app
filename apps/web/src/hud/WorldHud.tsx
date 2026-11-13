@@ -248,7 +248,7 @@ export function WorldHud() {
 
       {/* desktop hint */}
       <p className="absolute bottom-3 left-1/2 hidden -translate-x-1/2 text-xs text-white/70 [@media(pointer:fine)]:block">
-        WASD move · Shift run · drag to look · E interact · G emote · T chat
+        W/S walk · A/D turn · click the ground to walk there · drag to look · Shift run · E interact · T chat
       </p>
     </div>
   );

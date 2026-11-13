@@ -12,10 +12,10 @@ import { lookOf, useProfile } from "@/lib/profile-store";
 import { sendMove } from "@/lib/realtime";
 import { selfPose } from "@/lib/world-store";
 import { takeWorldPose } from "@/lib/return-point";
+import { autoFollow, nav, pointerNav, steer, TargetMarker } from "./navigation";
 
 /** Walking speeds (m/s): real walking pace by default; the player can change it (HUD speed control). */
 export const WALK_SPEEDS = { slow: 1.4, normal: 2.2, fast: 3.2 } as const;
-const RUN_FACTOR = 1.8;
 const keys = new Set<string>();
 
 /** Camera orbit state shared between the camera rig and the movement code. */
@@ -64,74 +64,49 @@ export function LocalPlayer({ color, name, level, tier = "standard" }: { color: 
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
 
-    // camera orbit by dragging the canvas (mouse or touch), zoom with the wheel
+    // drag = look around, click/tap on the ground = walk there, wheel = zoom
     const el = gl.domElement;
-    let dragging = false;
-    let lx = 0;
-    let ly = 0;
-    const pd = (e: PointerEvent) => {
-      dragging = true;
-      lx = e.clientX;
-      ly = e.clientY;
-      el.setPointerCapture(e.pointerId);
-    };
-    const pm = (e: PointerEvent) => {
-      if (!dragging) return;
-      cameraState.yaw -= (e.clientX - lx) * 0.006;
-      cameraState.pitch = THREE.MathUtils.clamp(cameraState.pitch + (e.clientY - ly) * 0.004, 0.08, 1.1);
-      lx = e.clientX;
-      ly = e.clientY;
-    };
-    const pu = () => (dragging = false);
+    const stopPointer = pointerNav(
+      el,
+      () => camera,
+      (dx, dy) => {
+        cameraState.yaw -= dx * 0.006;
+        cameraState.pitch = THREE.MathUtils.clamp(cameraState.pitch + dy * 0.004, 0.08, 1.1);
+      },
+      (p) => {
+        const r = Math.hypot(p.x, p.z);
+        return r > PLAZA_RADIUS ? { x: (p.x / r) * PLAZA_RADIUS, z: (p.z / r) * PLAZA_RADIUS } : p;
+      },
+    );
     const wheel = (e: WheelEvent) => {
       cameraState.distance = THREE.MathUtils.clamp(cameraState.distance + e.deltaY * 0.006, 2.5, 18);
     };
-    el.addEventListener("pointerdown", pd);
-    el.addEventListener("pointermove", pm);
-    el.addEventListener("pointerup", pu);
-    el.addEventListener("pointercancel", pu);
     el.addEventListener("wheel", wheel, { passive: true });
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
-      el.removeEventListener("pointerdown", pd);
-      el.removeEventListener("pointermove", pm);
-      el.removeEventListener("pointerup", pu);
-      el.removeEventListener("pointercancel", pu);
+      stopPointer();
       el.removeEventListener("wheel", wheel);
+      nav.target = null;
     };
-  }, [gl]);
+  }, [gl, camera]);
 
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
     const w = useWorld.getState();
-    // input: keyboard + on-screen joystick
-    let ix = w.input.x;
-    let iy = w.input.y;
-    if (keys.has("KeyW") || keys.has("ArrowUp")) iy += 1;
-    if (keys.has("KeyS") || keys.has("ArrowDown")) iy -= 1;
-    if (keys.has("KeyA") || keys.has("ArrowLeft")) ix -= 1;
-    if (keys.has("KeyD") || keys.has("ArrowRight")) ix += 1;
-    const mag = Math.min(1, Math.hypot(ix, iy));
     // run only on purpose (Run button / Shift) — never just because the joystick hits its edge
     const run = w.input.run || keys.has("ShiftLeft") || keys.has("ShiftRight");
-
-    if (mag > 0.08 && !inXR) {
-      // movement relative to the camera
-      // camera-relative: up = away from the camera, right = camera's right (x mirrored so D/joystick-right go right)
-      const angle = Math.atan2(-ix, iy) + cameraState.yaw + Math.PI;
-      const walk = WALK_SPEEDS[w.speed] ?? WALK_SPEEDS.slow;
-      const speed = walk * (run ? RUN_FACTOR : 1) * mag;
-      pos.current.x += Math.sin(angle) * speed * dt;
-      pos.current.z += Math.cos(angle) * speed * dt;
-      const target = angle;
-      let diff = target - facing.current;
-      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      facing.current += diff * Math.min(1, dt * 8);
-      anim.current = run || speed > 2.6 ? 2 : 1;
-    } else {
-      const e = w.emote;
-      anim.current = e && e.until > Date.now() ? e.id : 0;
+    if (!inXR) {
+      const s = steer({ keys, joyX: w.input.x, joyY: w.input.y, camYaw: cameraState.yaw, facing: facing.current, x: pos.current.x, z: pos.current.z, walkSpeed: WALK_SPEEDS[w.speed] ?? WALK_SPEEDS.slow, run, dt });
+      pos.current.x += s.dx;
+      pos.current.z += s.dz;
+      facing.current = s.facing;
+      autoFollow(cameraState, s, dt); // the camera follows the person
+      if (s.moving) anim.current = run || s.speed > 2.6 ? 2 : 1;
+      else {
+        const e = w.emote;
+        anim.current = e && e.until > Date.now() ? e.id : 0;
+      }
     }
 
     // collisions: plaza edge, then push out of round obstacles (fountain, planters, benches, totems)
@@ -188,9 +163,12 @@ export function LocalPlayer({ color, name, level, tier = "standard" }: { color: 
   });
 
   return (
+    <>
+    <TargetMarker />
     <group ref={group}>
       <Avatar look={look} name={name} level={level} animRef={anim} shadows={tier !== "lite"} />
     </group>
+    </>
   );
 }
 

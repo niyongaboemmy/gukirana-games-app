@@ -167,7 +167,7 @@ export function GateFlow() {
             <Joystick />
           </div>
           <p className="absolute bottom-3 left-1/2 hidden -translate-x-1/2 text-xs text-white/75 [@media(pointer:fine)]:block">
-            Keep walking while you sign in: WASD / arrows (tap the world first), drag to look
+            Keep walking while you sign in: W/S walk · A/D turn · click the ground to walk there · drag to look
           </p>
         </>
       )}

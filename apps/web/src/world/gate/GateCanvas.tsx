@@ -15,6 +15,7 @@ import { useGate } from "./gate-store";
 import { VirtualKeyboard } from "./VirtualKeyboard";
 import { lookOf, useProfile } from "@/lib/profile-store";
 import { useWorld } from "@/lib/world-store";
+import { autoFollow, nav, pointerNav, steer, TargetMarker } from "../navigation";
 
 const FONT = "/fonts/Baloo2.ttf";
 
@@ -65,40 +66,31 @@ function Rig() {
     const down = (e: KeyboardEvent) => !typing() && keys.add(e.code);
     const up = (e: KeyboardEvent) => keys.delete(e.code);
     const el = gl.domElement;
-    let drag = false;
-    let lx = 0;
-    let ly = 0;
-    const pd = (e: PointerEvent) => {
-      drag = true;
-      lx = e.clientX;
-      ly = e.clientY;
-      (document.activeElement as HTMLElement | null)?.blur?.(); // tapping the world hands the keys back to walking
-    };
-    const pm = (e: PointerEvent) => {
-      if (!drag) return;
-      orbit.current.yaw -= (e.clientX - lx) * 0.006;
-      orbit.current.pitch = THREE.MathUtils.clamp(orbit.current.pitch + (e.clientY - ly) * 0.004, 0.1, 1.1);
-      lx = e.clientX;
-      ly = e.clientY;
-    };
-    const pu = () => (drag = false);
+    const stopPointer = pointerNav(
+      el,
+      () => camera,
+      (dx, dy) => {
+        orbit.current.yaw -= dx * 0.006;
+        orbit.current.pitch = THREE.MathUtils.clamp(orbit.current.pitch + dy * 0.004, 0.1, 1.1);
+      },
+      (p) => ({ x: THREE.MathUtils.clamp(p.x, -9, 9), z: THREE.MathUtils.clamp(p.z, GATE_Z + 1.3, GATE_Z + 22) }),
+    );
+    const blurTyping = () => (document.activeElement as HTMLElement | null)?.blur?.(); // tapping the world hands the keys back to walking
+    el.addEventListener("pointerdown", blurTyping);
     const wheel = (e: WheelEvent) => (orbit.current.dist = THREE.MathUtils.clamp(orbit.current.dist + e.deltaY * 0.006, 2.5, 14));
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
-    el.addEventListener("pointerdown", pd);
-    el.addEventListener("pointermove", pm);
-    window.addEventListener("pointerup", pu);
     el.addEventListener("wheel", wheel, { passive: true });
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
-      el.removeEventListener("pointerdown", pd);
-      el.removeEventListener("pointermove", pm);
-      window.removeEventListener("pointerup", pu);
+      stopPointer();
+      el.removeEventListener("pointerdown", blurTyping);
       el.removeEventListener("wheel", wheel);
       keys.clear();
+      nav.target = null;
     };
-  }, [gl]);
+  }, [gl, camera]);
 
   useEffect(() => {
     t0.current = performance.now();
@@ -123,24 +115,13 @@ function Rig() {
     if (free) {
       // ---- free roam outside the turnstiles while the player types on the tablet ----
       const w = useWorld.getState();
-      let ix = w.input.x;
-      let iy = w.input.y;
-      if (gateKeys.has("KeyW") || gateKeys.has("ArrowUp")) iy += 1;
-      if (gateKeys.has("KeyS") || gateKeys.has("ArrowDown")) iy -= 1;
-      if (gateKeys.has("KeyA") || gateKeys.has("ArrowLeft")) ix -= 1;
-      if (gateKeys.has("KeyD") || gateKeys.has("ArrowRight")) ix += 1;
-      const mag = Math.min(1, Math.hypot(ix, iy));
-      if (mag > 0.08) {
-        const run = w.input.run || gateKeys.has("ShiftLeft") || gateKeys.has("ShiftRight");
-        const angle = Math.atan2(-ix, iy) + orbit.current.yaw + Math.PI;
-        const speed = ({ slow: 1.4, normal: 2.2, fast: 3.2 }[w.speed] ?? 1.4) * (run ? 1.8 : 1) * mag;
-        pos.current.x += Math.sin(angle) * speed * dt;
-        pos.current.z += Math.cos(angle) * speed * dt;
-        let diff = angle - facing.current;
-        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-        facing.current += diff * Math.min(1, dt * 8);
-        anim.current = run || speed > 2.6 ? 2 : 1;
-      } else anim.current = 0;
+      const run = w.input.run || gateKeys.has("ShiftLeft") || gateKeys.has("ShiftRight");
+      const s = steer({ keys: gateKeys, joyX: w.input.x, joyY: w.input.y, camYaw: orbit.current.yaw, facing: facing.current, x: pos.current.x, z: pos.current.z, walkSpeed: ({ slow: 1.4, normal: 2.2, fast: 3.2 } as const)[w.speed] ?? 1.4, run, dt });
+      pos.current.x += s.dx;
+      pos.current.z += s.dz;
+      facing.current = s.facing;
+      autoFollow(orbit.current, s, dt);
+      anim.current = s.moving ? (run || s.speed > 2.6 ? 2 : 1) : 0;
       // stay on the arrival side until the ID check passes; keep clear of the kiosk
       pos.current.x = THREE.MathUtils.clamp(pos.current.x, -9, 9);
       pos.current.z = THREE.MathUtils.clamp(pos.current.z, GATE_Z + 1.3, GATE_Z + 22);
@@ -229,6 +210,7 @@ function Rig() {
 
   return (
     <>
+      {(step === "id" || step === "code") && <TargetMarker />}
       <group ref={avatar} position={pos.current.toArray()}>
         <Avatar look={look} name={name || undefined} animRef={anim} showTag={!!name} />
       </group>

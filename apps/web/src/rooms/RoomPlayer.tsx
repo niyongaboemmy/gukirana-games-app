@@ -9,6 +9,7 @@ import { selfPose, useWorld } from "@/lib/world-store";
 import { sendMove, sitAt, standUp } from "@/lib/realtime";
 import { useRoom } from "./room-store";
 import { takeReturnFor } from "@/lib/return-point";
+import { autoFollow, nav, pointerNav, steer, TargetMarker } from "@/world/navigation";
 import type { HallLayout } from "./layouts";
 
 const SIT_ANIM = 13;
@@ -57,53 +58,36 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     const el = gl.domElement;
-    let drag = false;
-    let lx = 0;
-    let ly = 0;
-    const pd = (e: PointerEvent) => {
-      drag = true;
-      lx = e.clientX;
-      ly = e.clientY;
-    };
-    const pm = (e: PointerEvent) => {
-      if (!drag) return;
-      cameraState.yaw -= (e.clientX - lx) * 0.006;
-      cameraState.pitch = THREE.MathUtils.clamp(cameraState.pitch + (e.clientY - ly) * 0.004, 0.12, 1.2);
-      lx = e.clientX;
-      ly = e.clientY;
-    };
-    const pu = () => (drag = false);
+    const stopPointer = pointerNav(
+      el,
+      () => camera,
+      (dx, dy) => {
+        cameraState.yaw -= dx * 0.006;
+        cameraState.pitch = THREE.MathUtils.clamp(cameraState.pitch + dy * 0.004, 0.12, 1.2);
+      },
+      (p) => ({ x: THREE.MathUtils.clamp(p.x, -w / 2 + 0.5, w / 2 - 0.5), z: THREE.MathUtils.clamp(p.z, -d / 2 + 0.6, d / 2 + 3.5) }),
+    );
     const wheel = (e: WheelEvent) => (cameraState.distance = THREE.MathUtils.clamp(cameraState.distance + e.deltaY * 0.006, 2.2, 12));
-    el.addEventListener("pointerdown", pd);
-    el.addEventListener("pointermove", pm);
-    window.addEventListener("pointerup", pu);
     el.addEventListener("wheel", wheel, { passive: true });
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
-      el.removeEventListener("pointerdown", pd);
-      el.removeEventListener("pointermove", pm);
-      window.removeEventListener("pointerup", pu);
+      stopPointer();
       el.removeEventListener("wheel", wheel);
       keys.clear();
+      nav.target = null;
     };
-  }, [gl]);
+  }, [gl, camera, w, d]);
 
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.05);
     const W = useWorld.getState();
     const R = useRoom.getState();
-    let ix = W.input.x;
-    let iy = W.input.y;
-    if (keys.has("KeyW") || keys.has("ArrowUp")) iy += 1;
-    if (keys.has("KeyS") || keys.has("ArrowDown")) iy -= 1;
-    if (keys.has("KeyA") || keys.has("ArrowLeft")) ix -= 1;
-    if (keys.has("KeyD") || keys.has("ArrowRight")) ix += 1;
-    const mag = Math.min(1, Math.hypot(ix, iy));
-
     const seat = R.seated ? layout.seats.find((s) => s.id === R.seated) : undefined;
-    if (seat && mag > 0.3) {
-      // moving while seated = stand up
+    const run = W.input.run || keys.has("ShiftLeft") || keys.has("ShiftRight");
+    const wantsToWalk = keys.has("KeyW") || keys.has("ArrowUp") || keys.has("KeyS") || keys.has("ArrowDown") || Math.hypot(W.input.x, W.input.y) > 0.3 || !!nav.target;
+    if (seat && wantsToWalk) {
+      // walking (keys / joystick / click) while seated = stand up; turning keys don't
       standUp();
       R.set({ seated: null });
     }
@@ -113,19 +97,17 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       pos.current.set(seat.x - Math.sin(seat.yaw) * 0.08, 0, seat.z - Math.cos(seat.yaw) * 0.08);
       facing.current = seat.yaw;
       anim.current = SIT_ANIM;
-    } else if (mag > 0.08) {
-      const run = W.input.run || keys.has("ShiftLeft") || keys.has("ShiftRight");
-      const angle = Math.atan2(-ix, iy) + cameraState.yaw + Math.PI;
-      const speed = (WALK_SPEEDS[W.speed] ?? WALK_SPEEDS.slow) * (run ? 1.8 : 1) * mag;
-      pos.current.x += Math.sin(angle) * speed * dt;
-      pos.current.z += Math.cos(angle) * speed * dt;
-      let diff = angle - facing.current;
-      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      facing.current += diff * Math.min(1, dt * 8);
-      anim.current = run || speed > 2.6 ? 2 : 1;
     } else {
-      const e = W.emote;
-      anim.current = e && e.until > Date.now() ? e.id : 0;
+      const s = steer({ keys, joyX: W.input.x, joyY: W.input.y, camYaw: cameraState.yaw, facing: facing.current, x: pos.current.x, z: pos.current.z, walkSpeed: WALK_SPEEDS[W.speed] ?? WALK_SPEEDS.slow, run, dt });
+      pos.current.x += s.dx;
+      pos.current.z += s.dz;
+      facing.current = s.facing;
+      autoFollow(cameraState, s, dt);
+      if (s.moving) anim.current = run || s.speed > 2.6 ? 2 : 1;
+      else {
+        const e = W.emote;
+        anim.current = e && e.until > Date.now() ? e.id : 0;
+      }
     }
 
     if (!seat) {
@@ -222,9 +204,12 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   });
 
   return (
+    <>
+    <TargetMarker />
     <group ref={group}>
       <Avatar look={look} name={profile.name} level={1} animRef={anim} shadows={tier !== "lite"} showTag={!seatedNow} />
     </group>
+    </>
   );
 }
 
