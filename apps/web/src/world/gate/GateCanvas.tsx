@@ -12,6 +12,7 @@ import type { Tier } from "../materials";
 import { xrStore } from "../WorldCanvas";
 import { Gate, GATE_Z, INSIDE, KIOSK, STAND, WARDROBE } from "./Gate";
 import { useGate } from "./gate-store";
+import { freePoint, GATE_OBSTACLES, resolve } from "../obstacles";
 import { VirtualKeyboard } from "./VirtualKeyboard";
 import { lookOf, useProfile } from "@/lib/profile-store";
 import { useWorld } from "@/lib/world-store";
@@ -73,7 +74,7 @@ function Rig() {
         orbit.current.yaw -= dx * 0.006;
         orbit.current.pitch = THREE.MathUtils.clamp(orbit.current.pitch + dy * 0.004, 0.1, 1.1);
       },
-      (p) => ({ x: THREE.MathUtils.clamp(p.x, -9, 9), z: THREE.MathUtils.clamp(p.z, GATE_Z + 1.3, GATE_Z + 22) }),
+      (p) => freePoint({ x: THREE.MathUtils.clamp(p.x, -9, 9), z: THREE.MathUtils.clamp(p.z, GATE_Z + 1.3, GATE_Z + 22) }, GATE_OBSTACLES),
     );
     const blurTyping = () => (document.activeElement as HTMLElement | null)?.blur?.(); // tapping the world hands the keys back to walking
     el.addEventListener("pointerdown", blurTyping);
@@ -132,6 +133,8 @@ function Rig() {
         pos.current.x = KIOSK.x + (kx / kd) * 0.7;
         pos.current.z = KIOSK.z + (kz / kd) * 0.7;
       }
+      // booth, guard, pylons and forecourt flower beds are solid
+      resolve(pos.current, GATE_OBSTACLES);
       if (avatar.current) {
         avatar.current.position.copy(pos.current);
         avatar.current.rotation.y = facing.current;

@@ -5,7 +5,6 @@ import { useXR } from "@react-three/xr";
 import * as THREE from "three";
 import { Avatar } from "./Avatar";
 import {
-  COLLIDERS,
   DOOR,
   DOOR_RING,
   ENTRY_Z,
@@ -18,6 +17,7 @@ import {
   SPAWN,
 } from "./layout";
 import { doorOpen, useTransition } from "./transition";
+import { freePoint, plazaObstacles, resolve } from "./obstacles";
 import { decodeLook } from "./outfits";
 import type { Tier } from "./materials";
 import { useWorld } from "@/lib/world-store";
@@ -122,7 +122,9 @@ export function LocalPlayer({
           )
             return { x: Math.sin(a) * (DOOR_RING + 0.2), z: -Math.cos(a) * (DOOR_RING + 0.2) };
         }
-        return r > PLAZA_RADIUS ? { x: (p.x / r) * PLAZA_RADIUS, z: (p.z / r) * PLAZA_RADIUS } : p;
+        const q = r > PLAZA_RADIUS ? { x: (p.x / r) * PLAZA_RADIUS, z: (p.z / r) * PLAZA_RADIUS } : p;
+        // a tap on a bench, planter or flower bed walks to the nearest free spot next to it
+        return freePoint(q, plazaObstacles());
       },
     );
     const wheel = (e: WheelEvent) => {
@@ -205,15 +207,8 @@ export function LocalPlayer({
         pos.current.z = op.z / 100 + (dz / dist) * 0.64;
       }
     }
-    for (const c of COLLIDERS) {
-      const dx = pos.current.x - c.x;
-      const dz = pos.current.z - c.z;
-      const d = Math.hypot(dx, dz);
-      if (d < c.r && d > 0.0001) {
-        pos.current.x = c.x + (dx / d) * c.r;
-        pos.current.z = c.z + (dz / d) * c.r;
-      }
-    }
+    // solid furniture, planters, flower beds, lamp posts, kiosks: slide along them (body radius 0.32 m)
+    resolve(pos.current, plazaObstacles());
 
     if (group.current) {
       group.current.position.copy(pos.current);

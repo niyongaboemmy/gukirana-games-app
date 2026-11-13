@@ -36,13 +36,10 @@ export interface SpeciesDef {
 
 const BASE = "/assets/env";
 export const SPECIES = {
-  acacia: { url: `${BASE}/acacia.glb`, dist: [42, 140], impostor: { url: `${BASE}/acacia-imp.webp`, frames: 8, w: 14.4, h: 11.2, y0: -0.2 }, shadows: true, sway: 0.006 },
-  broadleaf: { url: `${BASE}/broadleaf.glb`, dist: [40, 130], impostor: { url: `${BASE}/broadleaf-imp.webp`, frames: 8, w: 15.4, h: 9.4, y0: -0.2 }, shadows: true, sway: 0.008 },
-  eucalyptus: { url: `${BASE}/eucalyptus.glb`, dist: [30, 90], impostor: { url: `${BASE}/eucalyptus-imp.webp`, frames: 8, w: 19.6, h: 16.6, y0: -0.2 }, shadows: true, sway: 0.01 },
-  bush: { url: `${BASE}/bush.glb`, dist: [55, 110], sway: 0.012 },
-  shrub: { url: `${BASE}/shrub.glb`, dist: [55, 110], sway: 0.01 },
-  fern: { url: `${BASE}/fern.glb`, dist: [30, 45], sway: 0.03 },
-  grass: { url: `${BASE}/grass.glb`, dist: [26, 38], sway: 0.08 },
+  // distant landscape only (outside the compound): trees use full / sparse / impostor LODs
+  acacia: { url: `${BASE}/acacia.glb`, dist: [60, 170], impostor: { url: `${BASE}/acacia-imp.webp`, frames: 8, w: 14.4, h: 11.2, y0: -0.2 }, shadows: false, sway: 0.006 },
+  eucalyptus: { url: `${BASE}/eucalyptus.glb`, dist: [50, 120], impostor: { url: `${BASE}/eucalyptus-imp.webp`, frames: 8, w: 19.6, h: 16.6, y0: -0.2 }, shadows: false, sway: 0.01 },
+  bush: { url: `${BASE}/bush.glb`, dist: [60, 140], sway: 0.012 },
   rock: { url: `${BASE}/rock.glb`, dist: [60, 160], shadows: true },
   boulder: { url: `${BASE}/boulder.glb`, dist: [80, 220], shadows: true },
 } satisfies Record<string, SpeciesDef>;
@@ -51,7 +48,7 @@ export type SpeciesId = keyof typeof SPECIES;
 /** Shared wind clock for all foliage materials. */
 const wind = { value: 0 };
 
-function addWind(mat: THREE.Material, sway: number) {
+export function addWind(mat: THREE.Material, sway: number) {
   const m = mat as THREE.MeshStandardMaterial;
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uWind = wind;
@@ -228,7 +225,7 @@ export function InstancedSpecies({ id, items, lite = false, shadows = true, maxL
  * Grass / fern patches that follow the camera: a fixed grid of tufts within ~24 m, wrapped toroidally around the
  * viewer so the ground near you is always detailed while the total instance count stays constant.
  */
-export function GrassField({ id = "grass", count, radius, accept, heightAt }: { id?: SpeciesId; count: number; radius: number; accept: (x: number, z: number) => boolean; heightAt: (x: number, z: number) => number }) {
+export function GrassField({ id = "bush", count, radius, accept, heightAt }: { id?: SpeciesId; count: number; radius: number; accept: (x: number, z: number) => boolean; heightAt: (x: number, z: number) => number }) {
   const def: SpeciesDef = SPECIES[id];
   const gltf = useGLTF(def.url, false);
   const meshes = useMemo(() => {

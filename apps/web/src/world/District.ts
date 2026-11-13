@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GeoBatch } from "./geo";
-import { BENCHES, DOOR, DOOR_RING, FOUNTAIN_RADIUS, PLANTERS, PORTALS, ringPoint, SERVICE_ANGLE, SPAWN, TOTEMS, type PortalDef } from "./layout";
+import { LAMPS } from "./obstacles";
+import { BENCHES, DOOR, DOOR_RING, FOUNTAIN_RADIUS, PORTALS, ringPoint, SERVICE_ANGLE, SPAWN, TOTEMS, type PortalDef } from "./layout";
 
 /**
  * Static architecture of the Gukirana Arena District, authored as primitives and merged per material (geo.ts).
@@ -297,18 +298,13 @@ function plaza(b: GeoBatch, tier: string) {
     });
   }
   // lamp posts with warm LED heads
-  const lamps = tier === "lite" ? 8 : 12;
-  for (let i = 0; i < lamps; i++) {
-    const p = ringPoint((i / lamps) * 360 + 15, 19.5);
+  // (same 12 posts the player collides with: world/obstacles.ts LAMPS)
+  for (const p of LAMPS) {
     b.cyl("steel", 0.06, 0.09, 4.6, 8, { p: [p.x, 2.3, p.z] });
     b.box("steel", 0.9, 0.12, 0.28, { p: [p.x, 4.6, p.z], r: [0, p.rotY, 0] });
     b.box("led-warm", 0.8, 0.03, 0.2, { p: [p.x, 4.53, p.z], r: [0, p.rotY, 0] });
   }
-  // planters (basalt, soil, grass top)
-  for (const pl of PLANTERS) {
-    b.cyl("lava", pl.r, pl.r + 0.06, 0.6, 24, { p: [pl.x, 0.3, pl.z], uv: [8, 0.5] });
-    b.add("grass", flat(new THREE.CircleGeometry(pl.r - 0.08, 24)), { p: [pl.x, 0.58, pl.z], tile: 6 });
-  }
+  // planters: modern raised flower planters are drawn by world/Flowers.tsx
   // totems (screens are dynamic Text)
   for (const t of TOTEMS) {
     b.frame([t.x, 0, t.z], t.rotY, () => {

@@ -425,3 +425,42 @@ Chrome / Apple M2 Pro at 1280 × 720: 60 fps in all halls, 75–180 draw calls, 
 including shadow passes. Lite tier: no shadows, no table / pendant lights (emissive + additive light pools instead),
 lower-resolution environment and window cube, bloom off. Bloom (from `world/Lighting` `Effects`) runs on Standard
 and is dropped by `PerformanceMonitor` when frame time is over budget.
+
+
+---
+
+## 14. Landscape v2: modern flower compound, real mountains, solid obstacles
+
+Brief: "In the compound, do not use trees. Use modern, attractive flowers to make it look international."
+
+- **No trees inside the compound** (plaza, lawns, avenue, both gates, ring road; `outside()` in
+  `Landscape.tsx` keeps every tree, scrub and boulder beyond r 90 m and off the avenue / arrival-gate corridor).
+- **Designed beds** (`world/beds.ts` = single source for rendering and collisions; `world/Flowers.tsx`):
+  - eight raised round planters on the plaza ring (concrete wall, black steel rim, mulch, four uplights);
+  - corten-steel arc beds along the plaza edge between the doors (±9° clear around every door, the help desk
+    and ±30° around the gate approach);
+  - linear avenue beds with clipped box hedges on the walkway side;
+  - lawn beds between the buildings, with black-steel bougainvillea trellises;
+  - forecourt arc beds at the arrival gate (approach walk left clear).
+- **Massed planting:** back-to-front rows (tall canna / strelitzia / grass → agapanthus / allium / roses → lavender
+  / salvia / gaura → tulips / coreopsis) in drifts, plus green groundcover so no bare mulch shows. Each plant is
+  2–3 crossed alpha-cut cards from one procedural atlas; instanced per species with wind sway. Planting density is
+  45 % on Lite.
+- **Leaves fixed:** the Poly Haven glTF JPGs have no alpha; the separate `leaves_alpha` maps are now merged in
+  (RGBA WebP, MASK 0.5, double-sided). Impostors are re-baked from the alpha-cut models.
+- **Mountains:** smooth indexed meshes, 360 × 120 per volcano on Standard and 128 × 48 on Lite (was flat-shaded
+  non-indexed).
+  - Ridged lava detail fades towards the summit.
+  - Colour is blended by altitude and slope: terraced fields → bamboo → montane forest → Hagenia / heath → rock
+    and scree, with steep faces exposing rock.
+  - A procedural detail texture breaks up large areas. Fog provides the aerial perspective, and the summit mist
+    caps are unchanged.
+- **Terrain:** denser rings and segments, and terraces softened (62 % blend) so the mid-distance hills read as
+  farmland instead of facets.
+- **Collisions** (`world/obstacles.ts`, body radius 0.32 m; resolve pushes out along the shortest direction so
+  the player slides along edges):
+  - in the plaza: fountain, benches (oriented rects), totems, 12 lamp posts, planters, arc beds (circle chains),
+    and the entry gate's kiosk, guard, pylons and turnstiles;
+  - at the arrival gate (free roam): kiosk, guard, booth, pylons and forecourt beds;
+  - click-to-walk targets snap to the nearest free point;
+  - door walk-through and the step-out after leaving a hall are unchanged.
