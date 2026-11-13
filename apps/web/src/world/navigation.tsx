@@ -14,6 +14,9 @@ import * as THREE from "three";
 export const nav = {
   lastManualCam: 0,
   target: null as { x: number; z: number } | null,
+  /** final destination while walking around an obstacle via a detour point */
+  goal: null as { x: number; z: number } | null,
+  progress: { best: Infinity, since: 0, detours: 0 },
 };
 
 // dev-only hook for automated walk-through tests (like window.__gkCam)
@@ -77,7 +80,36 @@ export function steer(i: SteerInput): SteerResult {
     const tx = nav.target.x - i.x;
     const tz = nav.target.z - i.z;
     const d = Math.hypot(tx, tz);
-    if (d < ARRIVE) nav.target = null;
+    const now = performance.now();
+    const pr = nav.progress;
+    if (d < pr.best - 0.05) {
+      pr.best = d;
+      pr.since = now;
+    } else if (now - pr.since > 450) {
+      // blocked (bench, sign, table…): sidestep once around it, then give up instead of sliding on the spot
+      if (pr.detours < 2 && d > 0.8) {
+        const side = pr.detours === 0 ? 1 : -1;
+        const nx = -tz / d;
+        const nz = tx / d;
+        nav.goal = nav.goal ?? nav.target;
+        nav.target = { x: i.x + nx * 1.3 * side + (tx / d) * 0.4, z: i.z + nz * 1.3 * side + (tz / d) * 0.4 };
+        pr.detours++;
+      } else {
+        nav.target = null;
+        nav.goal = null;
+      }
+      pr.best = Infinity;
+      pr.since = now;
+    }
+    if (!nav.target) {
+      /* stopped */
+    } else if (d < ARRIVE || (nav.goal && d < 0.5)) {
+      // reached the target (or a detour point → continue to the real destination)
+      nav.target = nav.goal && nav.goal !== nav.target ? nav.goal : null;
+      nav.goal = null;
+      pr.best = Infinity;
+      pr.since = now;
+    }
     else {
       heading = Math.atan2(tx, tz);
       mag = Math.min(1, d / 0.8 + 0.25);
@@ -136,7 +168,11 @@ export function pointerNav(el: HTMLElement, camera: () => THREE.Camera, onDrag: 
   const pu = (e: PointerEvent) => {
     if (down && !down.moved && performance.now() - down.t < 400) {
       const p = groundPoint(e.clientX, e.clientY, el, camera());
-      if (p) nav.target = clamp ? clamp(p) : p;
+      if (p) {
+        nav.target = clamp ? clamp(p) : p;
+        nav.goal = null;
+        nav.progress = { best: Infinity, since: performance.now(), detours: 0 };
+      }
     }
     down = null;
   };

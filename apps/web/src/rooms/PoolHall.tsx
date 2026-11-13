@@ -146,7 +146,7 @@ function PoolTables({ tables, lite }: { tables: Table[]; lite: boolean }) {
   const walnut = usePbr("black_walnut_veneer_01", [2, 1]);
   const leather = usePbr("brown_leather", [1, 1]);
   const velour = usePbr("velour_velvet", [10, 5], { map: false });
-  const felt = useMemo(() => feltTexture("#17508a"), []);
+  const felt = useMemo(() => feltTexture("#1a4e85"), []);
   const balls = useMemo(() => ballsGeometry(tables), [tables]);
   const atlas = useMemo(() => ballAtlas(), []);
   const box = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
@@ -234,7 +234,8 @@ function PoolTables({ tables, lite }: { tables: Table[]; lite: boolean }) {
           map={felt}
           normalMap={velour.normalMap}
           normalScale={new THREE.Vector2(0.35, 0.35)}
-          roughness={0.92}
+          roughness={0.95}
+          envMapIntensity={0.25}
         />
       </Instanced>
       <Instanced geometry={box} items={X.cushions} castShadow={!lite}>
@@ -274,7 +275,7 @@ function TableLamps({ tables, lite }: { tables: Table[]; lite: boolean }) {
   const shade = useMemo(() => shadeGeometry(), []);
   const box = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
   const disc = useMemo(() => new THREE.CircleGeometry(1, 24).rotateX(Math.PI / 2), []);
-  const rod = useMemo(() => new THREE.CylinderGeometry(0.004, 0.004, 1, 4), []);
+  const rod = useMemo(() => new THREE.CylinderGeometry(0.009, 0.009, 1, 6), []);
   const Y = 1.82;
   const X = useMemo(() => {
     const shades: Xform[] = [];
@@ -322,7 +323,7 @@ function TableLamps({ tables, lite }: { tables: Table[]; lite: boolean }) {
             z={t.z}
             angle={1.0}
             penumbra={0.55}
-            intensity={18}
+            intensity={13}
             distance={7}
             color="#ffe9c8"
             shadow
@@ -460,7 +461,7 @@ export function PoolHall({ layout, lite }: { layout: HallLayout; lite: boolean }
   return (
     <group>
       {/* -------- lighting: dim warm club; light comes from the lamps, the back bar and the window -------- */}
-      <Environment resolution={lite ? 32 : 64} frames={1} environmentIntensity={0.4}>
+      <Environment resolution={lite ? 32 : 64} frames={1} environmentIntensity={0.6}>
         <Lightformer
           intensity={1.2}
           position={[0, 3.5, 0]}
@@ -484,9 +485,14 @@ export function PoolHall({ layout, lite }: { layout: HallLayout; lite: boolean }
           color="#3d8bff"
         />
       </Environment>
-      <hemisphereLight args={["#ffe9cc", "#2a1d14", lite ? 0.75 : 0.22]} />
+      <hemisphereLight args={["#ffe9cc", "#3a2a1e", lite ? 0.8 : 0.45]} />
       {lite && <ambientLight intensity={0.35} />}
-      <directionalLight position={[2, 6, -14]} intensity={lite ? 0.5 : 0.7} color="#dbe8f5" />
+      <directionalLight position={[2, 6, -14]} intensity={lite ? 0.6 : 0.95} color="#dbe8f5" />
+      {/* soft daylight spilling in from the window wall */}
+      {!lite &&
+        [-6, 0, 6].map((x) => (
+          <pointLight key={x} position={[x, 2.4, -7.8]} intensity={3.2} distance={9} decay={1.4} color="#dfeaf5" />
+        ))}
       {!lite && (
         <>
           <pointLight position={[-11.0, 2.2, barZ]} intensity={6} distance={7} decay={1.5} color="#ffaa55" />

@@ -318,11 +318,13 @@ export function LudoLounge({ layout, lite }: { layout: HallLayout; lite: boolean
   const shadowBlobs: Blob[] = useMemo(
     () => [
       ...tables.map((t) => ({ x: t.x, z: t.z, w: 2.6, d: 2.6 })),
+      // contact shadow under every armchair so the furniture sits on the floor
+      ...layout.seats.map((s) => ({ x: s.x, z: s.z, w: 1.05, d: 1.05, r: s.yaw })),
       { x: -10.8, z: 0.5, w: 1.6, d: 7.2 },
       { x: 11.2, z: -3.4, w: 1.4, d: 2.6 },
       { x: 11.2, z: 1.6, w: 1.4, d: 2.6 },
     ],
-    [tables],
+    [tables, layout.seats],
   );
   const sunPos = useMemo(() => frame.sun.clone().multiplyScalar(30), [frame]);
   const beans: Xform[] = [
@@ -374,8 +376,8 @@ export function LudoLounge({ layout, lite }: { layout: HallLayout; lite: boolean
           <pointLight
             key={t.id}
             position={[t.x, PENDANT_Y - 0.1, t.z]}
-            intensity={1.6}
-            distance={4}
+            intensity={2.4}
+            distance={4.5}
             decay={1.8}
             color="#ffd7a0"
           />
@@ -621,7 +623,7 @@ export function LudoLounge({ layout, lite }: { layout: HallLayout; lite: boolean
           { p: [11.4, 0, 5.4], s: 1.2, r: 1.8 },
         ]}
       />
-      <BlobShadows items={shadowBlobs} opacity={0.35} />
+      <BlobShadows items={shadowBlobs} opacity={0.5} />
     </group>
   );
 }

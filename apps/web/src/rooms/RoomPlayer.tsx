@@ -216,6 +216,53 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       cz = pos.current.z + Math.cos(cameraState.yaw) * Math.cos(cameraState.pitch) * dd;
       cy = 1.6 + Math.sin(cameraState.pitch) * dd;
     }
+    if (intro.current <= 0 && !seat) {
+      // furniture occlusion: never let the follow camera sit inside a table, bar or chair
+      const inSolid = (x: number, z: number, m: number) =>
+        solids.some((t) => Math.abs(x - t.x) < t.w / 2 + m && Math.abs(z - t.z) < t.d / 2 + m) ||
+        layout.seats.some((s) => Math.hypot(x - s.x, z - s.z) < chairR + m);
+      // 1) the line from the player's head to the camera: pull in in front of the first furniture it crosses (low furniture only blocks low cameras)
+      const N = 14;
+      for (let k = 2; k <= N; k++) {
+        const f = k / N;
+        const sx = target.x + (cx - target.x) * f;
+        const sz = target.z + (cz - target.z) * f;
+        const sy = target.y + (cy - target.y) * f;
+        if (sy < 1.25 && inSolid(sx, sz, 0.12)) {
+          const keep = Math.max(1.6 / Math.max(1e-3, Math.hypot(cx - target.x, cz - target.z)), (k - 1.5) / N);
+          cx = target.x + (cx - target.x) * keep;
+          cz = target.z + (cz - target.z) * keep;
+          cy = target.y + (cy - target.y) * keep;
+          break;
+        }
+      }
+      // 2) still ended up over furniture: lift above it
+      if (inSolid(cx, cz, 0.25)) cy = Math.max(cy, 1.45);
+      // 3) hanging lamps over the tables (pool shades, ludo globes) must not block the view or swallow the camera
+      const inLamp = (x: number, z: number, y: number) =>
+        y > 1.3 &&
+        y < 2.7 &&
+        layout.tables.some((t) => Math.abs(x - t.x) < Math.min(t.w / 2, 1.15) + 0.15 && Math.abs(z - t.z) < Math.min(t.d / 2, 1.15) + 0.15);
+      const lampHit = (ax: number, ay: number, az: number) => {
+        for (let k = 1; k <= N; k++) {
+          const f = k / N;
+          if (inLamp(target.x + (ax - target.x) * f, target.z + (az - target.z) * f, target.y + (ay - target.y) * f)) return k;
+        }
+        return 0;
+      };
+      const k0 = lampHit(cx, cy, cz);
+      if (k0) {
+        const keep = (k0 - 1.5) / N;
+        if (Math.hypot(cx - target.x, cz - target.z) * keep >= 1.6) {
+          cx = target.x + (cx - target.x) * keep;
+          cz = target.z + (cz - target.z) * keep;
+          cy = target.y + (cy - target.y) * keep;
+        } else {
+          // too close to pull in: raise the camera until it looks over the lamp
+          while (cy < layout.size.h - 0.35 && lampHit(cx, cy, cz)) cy += 0.15;
+        }
+      }
+    }
     // keep the camera inside the room
     cx = THREE.MathUtils.clamp(cx, -w / 2 + 0.3, w / 2 - 0.3);
     cz = THREE.MathUtils.clamp(cz, -d / 2 + 0.3, d / 2 - 0.35); // camera always inside the hall
@@ -267,6 +314,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
 }
 
 export function sitDown(seatId: string) {
+  // a pending click-to-walk target (e.g. the chair itself, now solid) would read as "wants to walk" and stand you up
+  nav.target = null;
   sitAt(seatId);
   useRoom.getState().set({ seated: seatId, nearSeat: null });
 }

@@ -261,11 +261,8 @@ export function DoorGlimpse({ layout }: { layout: HallLayout }) {
     <group>
       <mesh position={[layout.door.x, -0.01, z0 + 12]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[40, 24]} />
-        <meshStandardMaterial color="#b3aea4" roughness={0.9} />
-      </mesh>
-      <mesh position={[layout.door.x, 0.0, z0 + 1.2]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[3.2, 2.4]} />
-        <meshStandardMaterial color="#55524d" roughness={0.7} />
+        {/* same tone as the plaza paving outside, no separate dark strip */}
+        <meshStandardMaterial color="#a8a299" roughness={0.95} />
       </mesh>
       <GltfInstances
         url={model("potted_plant_02")}
