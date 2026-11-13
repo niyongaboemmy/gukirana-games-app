@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { startTransition, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Canvas, createPortal, useFrame, useThree } from "@react-three/fiber";
 import { AdaptiveDpr, PerformanceMonitor, useGLTF, useProgress } from "@react-three/drei";
 import { XR, useXR } from "@react-three/xr";
@@ -394,11 +394,17 @@ function Stage() {
   const outdoorReady = useStage((s) => !!s.ready.outdoor);
   const activeHall = hallOf(view);
   const activeReady = useStage((s) => (activeHall ? !!s.ready[`hall:${activeHall}`] : true));
-  // deep link into a hall: the hall loads first, the plaza right after (so leaving is instant too)
+  // deep link into a hall: the hall boots and reveals first; the plaza is built afterwards, once the reveal and the
+  // HUD are in, as a low-priority (time-sliced) transition, so leaving is instant without stalling the reveal
   const [outdoorOn, setOutdoorOn] = useState(false);
+  const hud = useStage((s) => s.hud);
   useEffect(() => {
-    if (!outdoorOn && (view === "gate" || view === "plaza" || activeReady)) setOutdoorOn(true);
-  }, [view, activeReady, outdoorOn]);
+    if (outdoorOn) return;
+    if (view === "gate" || view === "plaza") return setOutdoorOn(true);
+    if (!activeReady || !hud) return;
+    const t = setTimeout(() => startTransition(() => setOutdoorOn(true)), 1200);
+    return () => clearTimeout(t);
+  }, [view, activeReady, hud, outdoorOn]);
   const halls = [...new Set([...(activeHall ? [activeHall] : []), ...(outdoorReady || activeHall ? warm : [])])];
   return (
     <>
@@ -453,6 +459,9 @@ export default function SceneCanvas() {
       }}
       onCreated={({ gl }) => {
         gl.domElement.dataset.gkStage = "1";
+        // production: don't read back every program's info log (a synchronous GPU round-trip per shader that defeats
+        // the parallel compile of the warm-up); dev keeps the checks for readable shader errors
+        if (process.env.NODE_ENV === "production") gl.debug.checkShaderErrors = false;
       }}
       style={{ touchAction: "none" }}
     >
