@@ -12,6 +12,7 @@ import { levelForXp, useProfile } from "@/lib/profile-store";
 import { connectPlaza, leavePlaza } from "@/lib/realtime";
 import { useSession } from "@/lib/session";
 import { useWorld } from "@/lib/world-store";
+import { useStage } from "@/world/stage";
 
 /**
  * Game hall interior: walk in through the auto door, choose a table, sit, play (SRS §8.4.6). The hall itself is an
@@ -23,6 +24,7 @@ export default function RoomPage() {
   const session = useSession();
   const profile = useProfile();
   const [ready, setReady] = useState(false);
+  const hud = useStage((s) => s.hud);
   useEffect(() => setReady(true), []);
 
   useEffect(() => {
@@ -35,7 +37,8 @@ export default function RoomPage() {
     return () => leavePlaza();
   }, [ready, session.status, profile.onboarded, game]);
 
-  if (!ready || !isHallGame(game)) return null;
+  // the HUD never shows over a scene that is still booting (it fades in after the reveal)
+  if (!ready || !isHallGame(game) || !hud) return null;
   const layout = HALLS[game];
   return (
     <div className="gk-hud-in">

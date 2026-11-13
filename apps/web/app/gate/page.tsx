@@ -22,7 +22,7 @@ export default function GatePage() {
   const me = useSession((s) => s.me);
   const [ready, setReady] = useState(false);
   // the tablet only slides in once the gate scene is actually drawing
-  const drawing = useStage((s) => !!s.ready.outdoor && s.view === "gate");
+  const drawing = useStage((s) => !!s.ready.outdoor && s.view === "gate" && s.hud);
 
   useEffect(() => {
     setReady(true);

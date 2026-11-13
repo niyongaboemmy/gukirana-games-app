@@ -1,12 +1,12 @@
 "use client";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Canvas, createPortal, useFrame, useThree } from "@react-three/fiber";
-import { AdaptiveDpr, PerformanceMonitor, Sky } from "@react-three/drei";
+import { AdaptiveDpr, PerformanceMonitor, useProgress } from "@react-three/drei";
 import { XR, useXR } from "@react-three/xr";
 import { useStore } from "zustand";
 import * as THREE from "three";
 import { Plaza } from "./Plaza";
-import { Effects, SUN_DIR } from "./Lighting";
+import { Effects } from "./Lighting";
 import { Avatar } from "./Avatar";
 import { Gate } from "./gate/Gate";
 import { GateActors } from "./gate/GateCanvas";
@@ -17,7 +17,6 @@ import { doorOpen } from "./transition";
 import { AreaContext, areaOf, getArea, hallOf, knownAreas, useStage, type Area } from "./stage";
 import { useDoorway } from "./doorway";
 import { HallActors, HallInterior } from "@/rooms/RoomCanvas";
-import { QuickShell } from "@/rooms/QuickShell";
 import { HALLS, type HallGame } from "@/rooms/layouts";
 import { selfPose, useWorld } from "@/lib/world-store";
 import { lookOf, useProfile } from "@/lib/profile-store";
@@ -71,35 +70,49 @@ function AreaWarm({ area, content }: { area: Area; content: RefObject<THREE.Grou
     let alive = true;
     const shown = <T,>(fn: () => T): T => {
       // lights are only gathered from visible objects: show the area for the synchronous call only
+      // (warm-only stand-ins such as the proxy avatar are drawn too, so their shadow-depth programs exist)
       const g = content.current;
       const sv = scene.visible;
       const gv = g?.visible ?? true;
+      const extra: THREE.Object3D[] = [];
+      scene.traverse((o) => o.userData.gkWarmOnly && !o.visible && extra.push(o));
       scene.visible = true;
       if (g) g.visible = true;
+      extra.forEach((o) => (o.visible = true));
       try {
         return fn();
       } finally {
         scene.visible = sv;
         if (g) g.visible = gv;
+        extra.forEach((o) => (o.visible = false));
       }
     };
+    const prog = (v: number) =>
+      useStage.setState((st) => (v > (st.warmProgress[area] ?? 0) ? { warmProgress: { ...st.warmProgress, [area]: v } } : st));
     void (async () => {
+      mark(`${area}:content`);
       await frames(4); // environment maps, the windows' cube capture and lazy children settle first
       if (!alive) return;
       const t0 = performance.now();
-      const rt = targetFor(useStage.getState().fx);
-      let p: Promise<unknown> = Promise.resolve();
-      shown(() => {
-        const prev = gl.getRenderTarget();
-        gl.setRenderTarget(rt);
-        try {
-          p = gl.compileAsync(scene, camera);
-        } finally {
-          gl.setRenderTarget(prev);
-        }
-      });
-      await p.catch(() => undefined);
+      // compile for both paths the frame can take (bloom composer → render target; no bloom → screen): the
+      // performance monitor may switch bloom at any time, and either variant compiling later would stall a frame
+      const st = useStage.getState();
+      const targets = st.tier === "standard" ? [targetFor(st.fx), targetFor(!st.fx)] : [null];
+      const ps: Promise<unknown>[] = [];
+      for (const rt of targets)
+        shown(() => {
+          const prev = gl.getRenderTarget();
+          gl.setRenderTarget(rt);
+          try {
+            ps.push(gl.compileAsync(scene, camera).catch(() => undefined));
+          } finally {
+            gl.setRenderTarget(prev);
+          }
+        });
+      await Promise.all(ps);
       if (!alive) return;
+      prog(0.5);
+      mark(`${area}:compiled`);
       // upload textures a few per frame (no single long frame while you are walking)
       const tex = texturesOf(scene);
       for (let i = 0; i < tex.length; i++) {
@@ -108,7 +121,10 @@ function AreaWarm({ area, content }: { area: Area; content: RefObject<THREE.Grou
         } catch {
           /* exotic texture: uploads on first use */
         }
-        if (i % 4 === 3) await nextFrame();
+        if (i % 4 === 3) {
+          prog(0.5 + (0.4 * i) / tex.length);
+          await nextFrame();
+        }
         if (!alive) return;
       }
       // one draw of the whole area into a single pixel: geometry buffers, shadow maps, background, late programs
@@ -140,26 +156,28 @@ function AreaWarm({ area, content }: { area: Area; content: RefObject<THREE.Grou
       await nextFrame();
       if (!alive) return;
       if (process.env.NODE_ENV !== "production") console.debug(`[stage] ${area} ready in ${(performance.now() - t0).toFixed(0)} ms (${tex.length} textures)`);
+      prog(1);
+      mark(`${area}:ready`);
       useStage.getState().setReady(area, true);
     })();
     return () => {
       alive = false;
       useStage.getState().setReady(area, false);
+      useStage.setState((st) => ({ warmProgress: { ...st.warmProgress, [area]: 0 } }));
     };
   }, [area, gl, scene, camera, content]);
   return null;
 }
 
 /**
- * An area's content: hidden until it is GPU-ready (a cheap backdrop shows meanwhile, the scene never stalls on a
- * first-frame shader compile), people mount once it is ready and on screen.
+ * An area's content: hidden until it is GPU-ready (the boot screen covers a cold area meanwhile; the scene never
+ * stalls on a first-frame shader compile), people mount once it is ready and on screen.
  */
-function AreaContent({ area, backdrop, actors, children }: { area: Area; backdrop: ReactNode; actors: ReactNode; children: ReactNode }) {
+function AreaContent({ area, actors, children }: { area: Area; actors: ReactNode; children: ReactNode }) {
   const ready = useStage((s) => !!s.ready[area]);
   const content = useRef<THREE.Group>(null);
   return (
     <>
-      {!ready && backdrop}
       <group ref={content} visible={ready}>
         <Suspense fallback={null}>
           {children}
@@ -172,12 +190,12 @@ function AreaContent({ area, backdrop, actors, children }: { area: Area; backdro
 }
 
 /** Keeps the shader programs of your own avatar compiled for this area's lights (never drawn). */
-function ProxyAvatar({ tier }: { tier: "lite" | "standard" }) {
+function ProxyAvatar({ tier, at = [0, -400, 0] }: { tier: "lite" | "standard"; at?: [number, number, number] }) {
   const profile = useProfile();
   const look = useMemo(() => lookOf(profile), [profile]);
   const anim = useRef(0);
   return (
-    <group position={[0, -400, 0]} visible={false}>
+    <group position={at} visible={false} userData={{ gkWarmOnly: true }}>
       <Avatar look={look} animRef={anim} showTag={false} shadows={tier !== "lite"} quality={tier} />
     </group>
   );
@@ -215,18 +233,12 @@ function AreaPortal({ area, children }: { area: Area; children: ReactNode }) {
   );
 }
 
-/** Before the outdoor area is ready: the live morning sky (cheap) instead of an empty page. */
-function SkyBackdrop() {
-  const sun = useMemo(() => SUN_DIR.clone().multiplyScalar(400), []);
-  return <Sky distance={2400} sunPosition={sun} turbidity={2.4} rayleigh={2.0} mieCoefficient={0.004} mieDirectionalG={0.84} />;
-}
-
 function OutdoorArea({ tier }: { tier: "lite" | "standard" }) {
   const view = useStage((s) => s.view);
   const nearPortal = useWorld((s) => s.nearPortal);
   const inXR = useXR((s) => s.session != null);
   return (
-    <AreaContent area="outdoor" backdrop={<SkyBackdrop />} actors={view === "gate" ? <GateActors /> : view === "plaza" ? <PlazaActors tier={tier} /> : null}>
+    <AreaContent area="outdoor" actors={view === "gate" ? <GateActors /> : view === "plaza" ? <PlazaActors tier={tier} /> : null}>
       <Plaza nearPortal={view === "plaza" ? nearPortal : null} tier={tier} />
       {/* the arrival gate at the south end of the avenue (sign-in, sign-out) */}
       <Gate tier={tier} inXR={inXR} />
@@ -239,17 +251,27 @@ function HallArea({ game, tier }: { game: HallGame; tier: "lite" | "standard" })
   const layout = HALLS[game];
   const active = useStage((s) => s.view === `hall:${game}`);
   return (
-    <AreaContent area={`hall:${game}`} backdrop={active ? <QuickShell layout={layout} /> : null} actors={active ? <HallActors layout={layout} tier={tier} /> : null}>
+    <AreaContent area={`hall:${game}`} actors={active ? <HallActors layout={layout} tier={tier} /> : null}>
       <HallInterior layout={layout} lite={tier === "lite"} />
-      <ProxyAvatar tier={tier} />
+      {/* where you will appear: inside the hall lights' shadow range for the warm draw */}
+      <ProxyAvatar tier={tier} at={[layout.door.x, 0, layout.size.d / 2 - 1.2]} />
     </AreaContent>
   );
 }
 
 /* ---------------- per-frame compositing: one root scene, the active area visible, its camera drives the view ---------------- */
 
-const probe = { frames: 0, view: null as string | null, self: selfPose, doors: doorOpen };
+/** cheap read-only counters for QA scripts (frames drawn, view, area readiness, person pose, GPU resources) */
+const probe = { frames: 0, view: null as string | null, ready: false, self: selfPose, doors: doorOpen, programs: 0, textures: 0, geometries: 0, marks: {} as Record<string, number> };
+/** first-time milestones (ms since navigation start) for boot timing */
+function mark(k: string) {
+  probe.marks[k] ??= Math.round(performance.now());
+}
+mark("chunk");
 if (typeof window !== "undefined") (window as unknown as { __gkProbe: typeof probe }).__gkProbe = probe;
+
+const ESTABLISH_MS = 1300;
+const _aim = new THREE.Vector3();
 
 function Compositor() {
   const gl = useThree((s) => s.gl);
@@ -262,6 +284,7 @@ function Compositor() {
     const area = st.view ? areaOf(st.view) : null;
     for (const [k, o] of knownAreas()) o.scene.visible = k === area;
     probe.view = st.view;
+    probe.ready = !!area && !!st.ready[area];
     if (!area) return;
     const a = getArea(area);
     // scene-level settings come from the area on screen
@@ -283,8 +306,24 @@ function Compositor() {
       const c = a.camera;
       rootCam.position.copy(c.position);
       rootCam.quaternion.copy(c.quaternion);
-      if (rootCam.fov !== c.fov || rootCam.near !== c.near || rootCam.far !== c.far) {
-        rootCam.fov = c.fov;
+      // establishing move after a cold reveal: a wide lens settling onto the follow framing while the view eases
+      // back from just over the shoulder. Only the rendered view is blended (the controllers keep driving the area
+      // camera), and it moves along the camera→person line, which the follow camera keeps clear of walls.
+      let fov = c.fov;
+      const est = st.establish;
+      if (est && est.area === area) {
+        const k = (performance.now() - est.t0) / ESTABLISH_MS;
+        if (k >= 1) useStage.setState({ establish: null });
+        else {
+          const u = 1 - (k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2);
+          _aim.set(selfPose.x, 1.45, selfPose.z).sub(c.position);
+          const dist = _aim.length();
+          if (dist > 1e-3) rootCam.position.addScaledVector(_aim, (Math.min(1.4, dist * 0.35) / dist) * u);
+          fov = c.fov + 20 * u;
+        }
+      }
+      if (rootCam.fov !== fov || rootCam.near !== c.near || rootCam.far !== c.far) {
+        rootCam.fov = fov;
         rootCam.near = c.near;
         rootCam.far = c.far;
         rootCam.updateProjectionMatrix();
@@ -295,6 +334,9 @@ function Compositor() {
       gl.render(root, rootCam);
     }
     probe.frames++;
+    probe.programs = gl.info.programs?.length ?? 0;
+    probe.textures = gl.info.memory.textures;
+    probe.geometries = gl.info.memory.geometries;
     // a held frame (cold fallback) reveals once the area on screen is ready and frames are on time again
     if (st.ready[area] && useDoorway.getState().phase === "closed") {
       steady.current = dt < 0.05 ? steady.current + 1 : 0;
@@ -354,16 +396,28 @@ function Stage() {
   );
 }
 
+/** Publishes asset loading progress to the boot screen (which lives outside this lazily loaded chunk). */
+function ProgressBridge() {
+  const { progress, active } = useProgress();
+  useEffect(() => {
+    useStage.setState({ assets: active ? progress / 100 : progress >= 100 ? 1 : useStage.getState().assets });
+  }, [progress, active]);
+  return null;
+}
+
 export default function SceneCanvas() {
   const tier = useMemo(pickTier, []);
   const [fxWanted, setFx] = useState(tier === "standard");
   const inXR = useStore(xrStore, (s) => s.session != null);
   const view = useStage((s) => s.view);
+  const hud = useStage((s) => s.hud);
   const fx = fxWanted && !inXR;
   useLayoutEffect(() => {
     useStage.setState({ tier, fx });
   }, [tier, fx]);
   return (
+    <>
+    <ProgressBridge />
     <Canvas
       shadows={tier === "lite" ? false : "percentage"}
       dpr={tier === "lite" ? [1, 1.25] : [1, 1.75]}
@@ -380,14 +434,16 @@ export default function SceneCanvas() {
       }}
       style={{ touchAction: "none" }}
     >
-      {/* Dynamic quality (§16.3): drop bloom first when frame time is over budget, restore when it recovers. */}
-      <PerformanceMonitor onDecline={() => setFx(false)} onIncline={() => setFx(tier === "standard")} flipflops={3} onFallback={() => setFx(false)} />
-      <AdaptiveDpr pixelated={false} />
+      {/* Dynamic quality (§16.3): drop bloom first when frame time is over budget, restore when it recovers. Only
+          after the first reveal: loading frames are slow by nature and must not blur the DPR or flip bloom mid-reveal. */}
+      {hud && <PerformanceMonitor onDecline={() => setFx(false)} onIncline={() => setFx(tier === "standard")} flipflops={3} onFallback={() => setFx(false)} />}
+      {hud && <AdaptiveDpr pixelated={false} />}
       <XR store={xrStore}>
         <Stage />
       </XR>
       {/* bloom only on Standard, only outside XR (post-processing breaks foveation / layers on Quest), only while fps holds */}
       {fx && <Effects />}
     </Canvas>
+    </>
   );
 }

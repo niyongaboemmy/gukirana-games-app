@@ -62,6 +62,14 @@ interface StageState {
   tier: "lite" | "standard";
   /** sign-out walk in progress */
   exiting: boolean;
+  /** the HUD may show: false while a cold area boots (boot screen), true from shortly after its reveal */
+  hud: boolean;
+  /** establishing camera move after a cold reveal (the rendered view eases from wide onto the follow camera) */
+  establish: { area: Area; t0: number } | null;
+  /** GPU warm-up progress per area (0 → 1: compile, upload, first draw) for the boot screen */
+  warmProgress: Partial<Record<Area, number>>;
+  /** asset loading progress 0 … 1 (drei loading manager), for the boot screen */
+  assets: number;
   handoff: Handoff | null;
   show: (view: View | null, handoff?: Omit<Handoff, "to" | "at"> | null) => void;
   warmHall: (g: HallGame) => void;
@@ -76,6 +84,10 @@ export const useStage = create<StageState>()((set, get) => ({
   fx: false,
   tier: "standard",
   exiting: false,
+  hud: false,
+  establish: null,
+  warmProgress: {},
+  assets: 0,
   handoff: null,
   show: (view, handoff) =>
     set({ view, handoff: view && handoff ? { ...handoff, to: view, at: performance.now() } : get().handoff?.to === view ? get().handoff : null }),

@@ -11,6 +11,7 @@ import { useSession } from "@/lib/session";
 import { MatchmakingPanel } from "@/match/MatchmakingPanel";
 import { WorldControls } from "@/hud/WorldControls";
 import { WorldOverlays } from "@/world/GateExitPrompt";
+import { useStage } from "@/world/stage";
 
 /**
  * The plaza. The 3D scene lives in the persistent stage (world/SceneHost in the root layout), which already shows
@@ -31,6 +32,7 @@ export default function WorldPage() {
     }
   });
   const session = useSession();
+  const hud = useStage((s) => s.hud);
 
   useEffect(() => setReady(true), []);
   useEffect(() => {
@@ -48,7 +50,8 @@ export default function WorldPage() {
     };
   }, [ready, session.status, profile.onboarded, router]);
 
-  if (!ready || !profile.onboarded) return null;
+  // the HUD never shows over a scene that is still booting (it fades in after the reveal)
+  if (!ready || !profile.onboarded || !hud) return null;
   return (
     <div className="gk-hud-in">
       <WorldHud />
