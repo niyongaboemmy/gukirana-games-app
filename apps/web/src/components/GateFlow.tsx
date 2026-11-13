@@ -37,12 +37,12 @@ function Card({ children, label, busy = false }: { children: React.ReactNode; la
     <div className="gk-tablet-hold pointer-events-auto [perspective:1400px]">
       <section
         aria-label={label}
-        className={`${first ? "gk-tablet-in" : "[transform:rotateX(8deg)_rotateZ(-2deg)]"} relative w-[min(400px,48vw)] rounded-[34px] bg-gradient-to-b from-[#d9dde5] via-[#9aa1ad] to-[#6d7380] p-[7px] shadow-[0_40px_80px_-20px_rgba(0,0,0,.75),0_0_0_1px_rgba(255,255,255,.35)_inset] max-sm:w-[min(360px,56vw)] [@media(max-height:430px)]:w-[min(340px,44vw)]`}
+        className={`${first ? "gk-tablet-in" : "[transform:rotateX(8deg)_rotateZ(-2deg)]"} relative w-[min(400px,48vw)] rounded-[34px] bg-gradient-to-b from-[#d9dde5] via-[#9aa1ad] to-[#6d7380] p-[7px] shadow-[0_40px_80px_-20px_rgba(0,0,0,.75),0_0_0_1px_rgba(255,255,255,.35)_inset] max-sm:w-[min(360px,56vw)] [@media(max-height:430px)]:w-[min(340px,44vw)] phone:w-[min(290px,34vw)]! phone:rounded-[26px]! phone:p-[5px]!`}
       >
-        <div className="relative overflow-hidden rounded-[28px] bg-[#0b0d1a] ring-1 ring-black" aria-busy={busy}>
+        <div className="relative overflow-hidden rounded-[28px] bg-[#0b0d1a] ring-1 ring-black phone:rounded-[21px]!" aria-busy={busy}>
           {busy && <div className="gk-progress absolute inset-x-0 top-0 h-[3px] bg-[#3DA9FC]" role="progressbar" aria-label="Loading" />}
           {/* status bar */}
-          <div className="flex items-center justify-between px-5 pb-1 pt-2 text-[11px] font-semibold text-white/85">
+          <div className="flex items-center justify-between px-5 pb-1 pt-2 text-[11px] font-semibold text-white/85 phone:px-3.5! phone:pt-1.5! phone:text-[10px]!">
             <span className="tabular-nums">{time}</span>
             <span className="absolute left-1/2 top-2 size-2 -translate-x-1/2 rounded-full bg-[#1d2233] ring-1 ring-white/10" aria-hidden />
             <span className="flex items-center gap-1.5">
@@ -52,7 +52,7 @@ function Card({ children, label, busy = false }: { children: React.ReactNode; la
             </span>
           </div>
           {/* screen content */}
-          <div key={label} className="gk-screen-in px-5 pb-5 pt-2 text-white max-sm:px-4 [@media(max-height:430px)]:pb-3.5">
+          <div key={label} className="gk-screen-in px-5 pb-5 pt-2 text-white max-sm:px-4 [@media(max-height:430px)]:pb-3.5 phone:px-3! phone:pb-2.5! phone:pt-1! phone:text-sm!">
             {children}
           </div>
           {/* glass glare */}
@@ -82,7 +82,7 @@ function Keypad({ value, onChange }: { value: string; onChange: (v: string) => v
             type="button"
             onClick={() => press(k)}
             aria-label={k === "del" ? "Delete digit" : `Digit ${k}`}
-            className="grid h-11 place-items-center rounded-2xl bg-white/[.08] text-xl font-semibold transition active:scale-95 active:bg-white/20 [@media(max-height:430px)]:h-8 [@media(max-height:430px)]:text-base"
+            className="grid h-11 place-items-center rounded-2xl bg-white/[.08] text-xl font-semibold transition active:scale-95 active:bg-white/20 [@media(max-height:430px)]:h-8 [@media(max-height:430px)]:text-base phone:h-7! phone:rounded-xl!"
           >
             {k === "del" ? <Delete size={20} strokeWidth={1.85} /> : k}
           </button>
@@ -95,11 +95,11 @@ function Keypad({ value, onChange }: { value: string; onChange: (v: string) => v
 /** Six code boxes mirroring the hidden input. */
 function CodeBoxes({ code, onFocus }: { code: string; onFocus: () => void }) {
   return (
-    <button type="button" onClick={onFocus} className="grid grid-cols-6 gap-1.5" aria-hidden tabIndex={-1}>
+    <button type="button" onClick={onFocus} className="grid grid-cols-6 gap-1.5 phone:gap-1!" aria-hidden tabIndex={-1}>
       {Array.from({ length: 6 }, (_, i) => (
         <span
           key={i}
-          className={`grid h-12 place-items-center rounded-xl border text-2xl font-bold tabular-nums transition [@media(max-height:430px)]:h-9 [@media(max-height:430px)]:text-lg ${
+          className={`grid h-12 place-items-center rounded-xl border text-2xl font-bold tabular-nums transition [@media(max-height:430px)]:h-9 [@media(max-height:430px)]:text-lg phone:h-8! phone:rounded-lg! phone:text-base! ${
             i === code.length ? "border-[#3DA9FC] bg-[#3DA9FC]/10" : code[i] ? "border-white/30 bg-white/10" : "border-white/15 bg-white/5"
           }`}
         >
@@ -111,9 +111,9 @@ function CodeBoxes({ code, onFocus }: { code: string; onFocus: () => void }) {
 }
 
 const input =
-  "w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-lg font-semibold outline-none placeholder:text-white/35 focus:border-[#3DA9FC] [@media(max-height:430px)]:py-2 [@media(max-height:430px)]:text-base";
+  "w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-lg font-semibold outline-none placeholder:text-white/35 focus:border-[#3DA9FC] [@media(max-height:430px)]:py-2 [@media(max-height:430px)]:text-base phone:px-3! phone:py-1.5! phone:text-sm!";
 const primary =
-  "flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#3DA9FC] to-[#2F80ED] py-3 text-base font-extrabold shadow-lg disabled:opacity-40 [@media(max-height:430px)]:py-2";
+  "flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#3DA9FC] to-[#2F80ED] py-3 text-base font-extrabold shadow-lg disabled:opacity-40 [@media(max-height:430px)]:py-2 phone:py-1.5! phone:text-sm!";
 
 /** Keeps a loading state visible for at least `min` ms so fast responses don't just flicker. */
 function useVisibleBusy(busy: boolean, min = 550) {
@@ -194,17 +194,17 @@ export function GateFlow() {
       {g.step === "id" && (
         <Card label="Show your ID" busy={busyShown}>
           <form
-            className="flex flex-col gap-3"
+            className="flex flex-col gap-3 phone:gap-2!"
             onSubmit={(e) => {
               e.preventDefault();
               void g.submitId();
             }}
           >
             <div className="flex items-center gap-2">
-              <span className="grid size-9 place-items-center rounded-full bg-[#3DA9FC]/25 text-[#7CC4FF]">
+              <span className="grid size-9 place-items-center rounded-full bg-[#3DA9FC]/25 text-[#7CC4FF] phone:size-7!">
                 <UserRound size={18} strokeWidth={1.85} />
               </span>
-              <h1 className="text-xl font-extrabold">Show your ID</h1>
+              <h1 className="text-xl font-extrabold phone:text-base!">Show your ID</h1>
             </div>
             <p className="text-sm text-white/70 [@media(max-height:430px)]:hidden">Enter your phone number or email. We&apos;ll send a one-time code.</p>
             <label className="sr-only" htmlFor="gate-id">
@@ -238,17 +238,17 @@ export function GateFlow() {
       {g.step === "code" && (
         <Card label="Enter your code" busy={busyShown}>
           <form
-            className="flex flex-col gap-3"
+            className="flex flex-col gap-3 phone:gap-2!"
             onSubmit={(e) => {
               e.preventDefault();
               void g.submitCode();
             }}
           >
             <div className="flex items-center gap-2">
-              <span className="grid size-9 place-items-center rounded-full bg-[#3DA9FC]/25 text-[#7CC4FF]">
+              <span className="grid size-9 place-items-center rounded-full bg-[#3DA9FC]/25 text-[#7CC4FF] phone:size-7!">
                 <KeyRound size={18} strokeWidth={1.85} />
               </span>
-              <h1 className="text-xl font-extrabold">Enter your code</h1>
+              <h1 className="text-xl font-extrabold phone:text-base!">Enter your code</h1>
             </div>
             <p className="text-sm text-white/70">
               Sent to <b className="text-white">{g.identifier}</b>
@@ -312,13 +312,13 @@ export function GateFlow() {
       {g.step === "setup" && (
         <Card label="Set up your player" busy={busyShown}>
           <form
-            className="flex flex-col gap-3"
+            className="flex flex-col gap-3 phone:gap-2!"
             onSubmit={(e) => {
               e.preventDefault();
               void g.finishSetup(lookOf(useProfile.getState()));
             }}
           >
-            <h1 className="text-xl font-extrabold">Welcome to the wardrobe</h1>
+            <h1 className="text-xl font-extrabold phone:text-base!">Welcome to the wardrobe</h1>
             <label className="flex flex-col gap-1">
               <span className="text-sm font-semibold text-white/80">Username</span>
               <input

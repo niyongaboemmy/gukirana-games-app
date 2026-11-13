@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "@gukirana/ui/tokens.css";
 
+/* phone in landscape (short + touch): the slim HUD (hud/, rooms/RoomOverlay, match/, GateFlow) */
+@custom-variant phone (@media (max-height: 500px) and (pointer: coarse));
+
 @theme {
   --color-brand-indigo: var(--brand-indigo);
   --color-brand-sky: var(--brand-sky);
