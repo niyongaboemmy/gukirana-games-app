@@ -3,7 +3,9 @@ import { useDoorway } from "@/world/doorway";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Joystick } from "./Joystick";
-import { PORTALS } from "@/world/layout";
+import { DOOR_RING, PORTALS } from "@/world/layout";
+import { nav } from "@/world/navigation";
+import { saveDoorPose } from "@/lib/return-point";
 import { useWorld } from "@/lib/world-store";
 import { playEmote } from "@/lib/realtime";
 import { levelForXp, totalXpForLevel, useProfile } from "@/lib/profile-store";
@@ -93,6 +95,11 @@ export function WorldHud() {
   const interact = () => {
     if (portal?.href) {
       const href = portal.href;
+      // walk on in through the real door (the camera watches), then the frame freezes and the hall loads
+      const a = (portal.angleDeg * Math.PI) / 180;
+      nav.target = { x: Math.sin(a) * (DOOR_RING + 1.5), z: -Math.cos(a) * (DOOR_RING + 1.5) };
+      // coming back out puts you a few steps outside this door, stepping out towards the plaza (same as walking in)
+      saveDoorPose({ x: Math.sin(a) * (DOOR_RING - 4.5), z: -Math.cos(a) * (DOOR_RING - 4.5), yaw: -a });
       return useDoorway.getState().pass(portal.label, () => router.push(href));
     }
     if (seatedOnBench) return standFromBench();

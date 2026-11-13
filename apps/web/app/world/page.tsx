@@ -37,7 +37,7 @@ export default function WorldPage() {
 
   useEffect(() => {
     setReady(true);
-    useDoorway.getState().hold("Gukirana Plaza"); // no-op when you just walked through a door (already shut)
+    useDoorway.getState().hold("Gukirana Plaza"); // no-op when you just walked through a door (frame already frozen)
   }, []);
   useEffect(() => {
     if (!ready || session.status === "loading") return;

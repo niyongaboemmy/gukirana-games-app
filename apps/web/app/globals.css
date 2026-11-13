@@ -64,8 +64,7 @@ body {
 @keyframes gk-toast { 0% { opacity: 0; transform: translate(-50%, -6px); } 10%, 80% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; } }
 .gk-toast { animation: gk-toast 4.5s ease-out 0.6s both; }
 
-/* walking through a hall door (world/doorway.tsx) */
-@keyframes gk-door-close-l { from { transform: translateX(-101%); } to { transform: translateX(0); } }
-@keyframes gk-door-close-r { from { transform: translateX(101%); } to { transform: translateX(0); } }
-@keyframes gk-door-dot { 0%, 100% { opacity: 0.25; transform: translateY(0); } 50% { opacity: 0.9; transform: translateY(-3px); } }
-.gk-door-wait { animation: gk-fade-in 0.5s ease-out 1.2s reverse both; }
+/* moving between areas (world/doorway.tsx): the frozen last frame drifts forward with a faint blur while loading */
+@keyframes gk-frame-push { from { transform: scale(1); filter: blur(0); } to { transform: scale(1.06); filter: blur(1.6px); } }
+.gk-frame-push { animation: gk-frame-push 3.2s cubic-bezier(.2,.6,.3,1) both; transform-origin: 50% 55%; }
+@media (prefers-reduced-motion: reduce) { .gk-frame-push { animation: none; } }

@@ -54,7 +54,7 @@ export default function RoomPage() {
           } catch {
             /* private mode */
           }
-          // the hall's doors close behind you, the plaza loads, and they open onto it
+          // you walk on out through the door, the frame freezes while the plaza loads, then dissolves onto it
           useDoorway.getState().pass("Gukirana Plaza", () => router.push("/world"));
         }}
       />

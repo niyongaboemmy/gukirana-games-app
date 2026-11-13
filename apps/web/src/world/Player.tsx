@@ -86,7 +86,7 @@ export function LocalPlayer({
     restored.current ? new THREE.Vector3(restored.current.x, 0, restored.current.z) : spawnPoint(name),
   );
   const facing = useRef(restored.current?.yaw ?? Math.PI);
-  const stepOut = useRef(restored.current?.fromDoor ? 1.6 : 0);
+  const stepOut = useRef(restored.current?.fromDoor ? 1.6 : restored.current ? 0 : 1.4); // fresh arrival: walk in from the gate
   /** don't pull the player straight back through the door they just came out of */
   const reentryAfter = useRef(restored.current?.fromDoor ? performance.now() + 2500 : 0);
   if (restored.current?.fromDoor && typeof window !== "undefined") {

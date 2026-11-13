@@ -94,6 +94,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       el.removeEventListener("wheel", wheel);
       keys.clear();
       nav.target = null;
+      // leaving the hall: stale chair / exit flags would hide the plaza's "Enter …" prompt and swallow E there
+      useRoom.getState().set({ nearSeat: null, nearExit: false, seated: null, leaving: false });
     };
   }, [gl, camera, w, d]);
 
@@ -105,7 +107,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     if (R.leaving && !exited.current && (leaveStart.current ||= performance.now()) && performance.now() - leaveStart.current > 8000) {
       // fail-safe: whatever blocks the way out (a person in the aisle, a chair), Leave always gets you out
       exited.current = true;
-      nav.target = null;
+      nav.target = { x: layout.door.x, z: d / 2 + 4 }; // keep walking out while the camera watches
       nav.goal = null;
       onExit();
     }
@@ -145,8 +147,10 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       anim.current = SIT_ANIM;
     } else if (intro.current > 0 && !wantsToWalk && !keys.has("KeyA") && !keys.has("KeyD") && !keys.has("ArrowLeft") && !keys.has("ArrowRight")) {
       // automatic entry walk (doors close behind as you move away); waits until the doorway transition has opened
-      if (useDoorway.getState().phase !== "closed") intro.current -= dt;
-      const sp = useDoorway.getState().phase === "closed" ? 0 : 1.35 * Math.min(1, intro.current / 0.4 + 0.2);
+      const ph = useDoorway.getState().phase;
+      const shut = ph === "closed"; // the walk-in starts exactly when the arrival dissolve starts
+      if (!shut) intro.current -= dt;
+      const sp = shut ? 0 : 1.35 * Math.min(1, intro.current / 0.4 + 0.2);
       pos.current.z -= sp * dt;
       facing.current = Math.PI;
       anim.current = intro.current > 0.05 && sp > 0 ? 1 : 0;
@@ -209,6 +213,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       // stepping back out through the open door (after having been inside) returns to the plaza
       if (insideOnce.current && pos.current.z > d / 2 + 0.5 && !exited.current) {
         exited.current = true;
+        // keep walking on out through the door while the camera holds and watches (the frame freezes after ~0.8 s)
+        nav.target = { x: layout.door.x, z: d / 2 + 4 };
         onExit();
       }
     }
@@ -294,7 +300,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     cx = THREE.MathUtils.clamp(cx, -w / 2 + 0.3, w / 2 - 0.3);
     cz = THREE.MathUtils.clamp(cz, -d / 2 + 0.3, d / 2 - 0.35); // camera always inside the hall
     cy = Math.min(cy, layout.size.h - 0.3);
-    const doorsShut = useDoorway.getState().phase === "closed";
+    const phNow = useDoorway.getState().phase;
+    const doorsShut = phNow === "closed"; // hidden behind the frozen frame: snap, so the first visible frame is final
     if (!snapped.current || doorsShut) camera.position.set(cx, cy, cz);
     else camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * 6));
     snapped.current = !doorsShut;
