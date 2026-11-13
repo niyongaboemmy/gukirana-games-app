@@ -278,13 +278,30 @@ export function SouthWall({ layout, children }: { layout: HallLayout; children: 
         <boxGeometry args={[layout.door.w, h - 2.9, 0.3]} />
         {children}
       </mesh>
-      {/* door frame trim */}
+      {/* door frame: jambs + head lining the opening. Every face stands clear of the wall's faces (the old trim shared
+          the opening's side faces with the wall → z-fighting "blips" along the jamb). Jambs project 5 cm into the
+          opening and 2 cm proud of both wall faces; a slim casing frames it on the room side. */}
       {[-1, 1].map((s) => (
-        <mesh key={`j${s}`} position={[s * (half + 0.04), -h / 2 + 1.45, 0.15]}>
-          <boxGeometry args={[0.08, 2.9, 0.34]} />
-          <meshStandardMaterial color="#2a2d34" metalness={0.7} roughness={0.35} />
+        <mesh key={`j${s}`} position={[s * (half - 0.005), -h / 2 + 1.45 - 0.03, 0.15]} castShadow={false} receiveShadow={false}>
+          <boxGeometry args={[0.11, 2.94, 0.34]} />
+          <meshStandardMaterial color="#26282c" metalness={0.6} roughness={0.42} />
         </mesh>
       ))}
+      <mesh position={[0, -h / 2 + 2.9 - 0.025, 0.15]} castShadow={false} receiveShadow={false}>
+        <boxGeometry args={[layout.door.w + 0.1, 0.07, 0.34]} />
+        <meshStandardMaterial color="#26282c" metalness={0.6} roughness={0.42} />
+      </mesh>
+      {/* room-side casing (architrave): a thin flat frame 3 cm proud of the wall face */}
+      {[-1, 1].map((s) => (
+        <mesh key={`c${s}`} position={[s * (half + 0.08), -h / 2 + 1.47, -0.035]} castShadow={false} receiveShadow={false}>
+          <boxGeometry args={[0.1, 2.98, 0.02]} />
+          <meshStandardMaterial color="#1e1f23" metalness={0.5} roughness={0.5} />
+        </mesh>
+      ))}
+      <mesh position={[0, -h / 2 + 2.96, -0.035]} castShadow={false} receiveShadow={false}>
+        <boxGeometry args={[layout.door.w + 0.36, 0.1, 0.02]} />
+        <meshStandardMaterial color="#1e1f23" metalness={0.5} roughness={0.5} />
+      </mesh>
     </group>
   );
 }
