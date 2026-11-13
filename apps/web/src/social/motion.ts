@@ -57,6 +57,8 @@ export interface Ghost {
 }
 export const ghosts = new Map<string, Ghost>();
 const GHOST_MS = 1300;
+/** people who leave fade out over this long (P1-WLD-05: never vanish without a fade) */
+export const GHOST_FADE_S = 0.4;
 const FADE_IN_S = 0.4;
 
 export const tracks = new Map<string, Track>();
@@ -270,7 +272,7 @@ export function stepGhosts(dt: number, now = performance.now()): void {
     const age = now - g.t0;
     g.x += g.vx * dt;
     g.z += g.vz * dt;
-    g.fade = Math.max(0, g.fade - dt / 0.45 * (age > 350 ? 1 : 0.3));
+    g.fade = Math.max(0, g.fade - dt / GHOST_FADE_S); // always the same short fade, walking on meanwhile
     if (age > GHOST_MS || g.fade <= 0 || useWorld.getState().players[id]) ghosts.delete(id);
   }
 }

@@ -11,7 +11,7 @@ import { decodeLook, seededLook } from "@/world/outfits";
 import type { Tier } from "@/world/materials";
 import { selfPose, useWorld } from "@/lib/world-store";
 import { useVoice } from "@/voice/voice";
-import { ghosts, renderPose, setHallSeats, stepGhosts, stepMotion, tracks, type Ghost } from "./motion";
+import { ghosts, renderPose, setHallSeats, stepGhosts, stepMotion, tracks } from "./motion";
 import { SEATED_WORD } from "./actions";
 import { hallLife } from "./people";
 import { useSocial } from "./social-store";
@@ -162,12 +162,16 @@ function TalkRing({ id }: { id: string }) {
 }
 
 function RemoteAvatar({ id, tier, hall }: { id: string; tier: Tier; hall: boolean }) {
-  const meta = useWorld(
+  const live = useWorld(
     useShallow((s) => {
       const p = s.players[id];
       return p ? { name: p.name, level: p.level, color: p.color, look: p.look, bodyType: p.bodyType, uid: p.uid } : null;
     }),
   );
+  // a person who just left stays mounted (same avatar, no remount gap) while they walk on and fade out
+  const lastMeta = useRef(live);
+  if (live) lastMeta.current = live;
+  const meta = live ?? (ghosts.has(id) ? lastMeta.current : null);
   const lite = useCrowd((s) => !!s.lite[id]);
   const lookStr = meta?.look;
   const color = meta?.color ?? "#3DA9FC";
@@ -193,7 +197,20 @@ function RemoteAvatar({ id, tier, hall }: { id: string; tier: Tier; hall: boolea
 
   useFrame(() => {
     const pose = renderPose(id);
-    if (!pose || !group.current) return;
+    if (!pose) {
+      // left: keep walking the way they were going (out through the door) while fading out (social/motion ghosts)
+      const g = ghosts.get(id);
+      if (g && group.current) {
+        const moving = g.vx !== 0 || g.vz !== 0;
+        group.current.position.set(g.x, 0, g.z);
+        group.current.rotation.y = moving ? Math.atan2(g.vx, g.vz) : g.yaw;
+        anim.current = moving ? 1 : 0;
+        fade.current = g.fade;
+        lookAt.current = null;
+      }
+      return;
+    }
+    if (!group.current) return;
     group.current.position.set(pose.x, 0, pose.z);
     group.current.rotation.y = pose.yaw;
     anim.current = pose.anim;
@@ -317,50 +334,14 @@ function hallTables(seats: readonly SeatPose[]) {
   return [...by.values()].map((e) => ({ x: e.x / e.n, z: e.z / e.n, busy: e.busy, pool }));
 }
 
-/** People who just left keep walking a step or two through the door while they fade (no vanishing mid-stride). */
-function Ghosts({ tier }: { tier: Tier }) {
-  const [list, setList] = useState<string[]>([]);
-  useFrame(() => {
-    const ids = [...ghosts.keys()];
-    if (ids.join(",") !== list.join(",")) setList(ids);
-  });
-  return (
-    <>
-      {list.map((id) => {
-        const g = ghosts.get(id);
-        return g ? <GhostAvatar key={id} g={g} tier={tier} /> : null;
-      })}
-    </>
-  );
-}
-
-function GhostAvatar({ g, tier }: { g: Ghost; tier: Tier }) {
-  const group = useRef<THREE.Group>(null);
-  const anim = useRef(g.vx || g.vz ? 1 : 0);
-  const fade = useRef(g.fade);
-  const look = useMemo(() => {
-    const body = g.bodyType === "feminine" || g.bodyType === "masculine" ? g.bodyType : null;
-    return g.look ? decodeLook(g.look, g.color) : seededLook(g.uid ?? g.id, g.color, body);
-  }, [g]);
-  useFrame(() => {
-    if (!group.current) return;
-    group.current.position.set(g.x, 0, g.z);
-    group.current.rotation.y = g.vx || g.vz ? Math.atan2(g.vx, g.vz) : g.yaw;
-    fade.current = g.fade;
-  });
-  return (
-    <group ref={group}>
-      <Avatar look={look} name={g.name} level={g.level} animRef={anim} lod shadows={tier !== "lite"} quality={tier === "lite" ? "lite" : "standard"} seedId={g.id} fadeRef={fade} tagRange={TAG_RANGE} showTag={false} />
-    </group>
-  );
-}
-
 /**
  * Everyone else in the room (plaza and halls). Pass `hallSeats` inside a hall so seated people render exactly on
  * their chair; plaza bench places come from @gukirana/contracts.
  */
 export function RemotePlayers({ tier = "standard", hallSeats }: { tier?: Tier; hallSeats?: readonly SeatPose[] }) {
   const ids = useWorld((s) => Object.keys(s.players).join(","));
+  // people who just left (ghosts) stay in the list until their fade has finished: same component, no remount
+  const [ghostKey, setGhostKey] = useState("");
   useEffect(() => {
     setHallSeats(hallSeats ?? []);
     return () => setHallSeats([]);
@@ -370,6 +351,8 @@ export function RemotePlayers({ tier = "standard", hallSeats }: { tier?: Tier; h
   useFrame((_, dt) => {
     stepMotion(Math.min(dt, 0.1));
     stepGhosts(Math.min(dt, 0.1));
+    const gk = [...ghosts.keys()].join(",");
+    if (gk !== ghostKey) setGhostKey(gk); // only when someone starts / finishes leaving
     if (hallSeats) hallLife(hallTables(hallSeats));
     budget.current += dt;
     if (budget.current < 0.5) return;
@@ -383,13 +366,11 @@ export function RemotePlayers({ tier = "standard", hallSeats }: { tier?: Tier; h
   }, -1);
   return (
     <>
-      {ids
-        .split(",")
+      {[...new Set([...ids.split(","), ...ghosts.keys()])]
         .filter(Boolean)
         .map((id) => (
           <RemoteAvatar key={id} id={id} tier={tier} hall={!!hallSeats} />
         ))}
-      <Ghosts tier={tier} />
     </>
   );
 }
