@@ -8,7 +8,7 @@ export default function AdminHome() {
       <ul style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12, padding: 0, listStyle: "none" }}>
         {MODULES.map((m) => (
           <li key={m} style={{ background: "var(--surface)", borderRadius: 16, padding: 16 }}>
-            {m}
+            {m === "Finance" ? <a href="/finance" style={{ color: "inherit", fontWeight: 700 }}>Finance · economy settings + reports →</a> : m}
           </li>
         ))}
       </ul>
