@@ -117,11 +117,11 @@ function BootScreen({ pathView }: { pathView: View | null }) {
           <img src="/icon.svg" alt="" width={44} height={44} className="size-11 rounded-xl shadow-lg" />
           <div className="leading-none">
             <p className="text-2xl font-black tracking-tight">{STR.brand}</p>
-            <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.32em] text-[#7CC4FF]">{STR.sub}</p>
+            <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.32em] text-[#3D8BFF]">{STR.sub}</p>
           </div>
         </div>
         <div className="mt-7 h-0.75 w-56 overflow-hidden rounded-full bg-white/12">
-          <div className="h-full rounded-full bg-linear-to-r from-[#3DA9FC] to-[#FFC83D]" style={{ transform: `scaleX(${value.toFixed(3)})`, transformOrigin: "left", transition: "transform 220ms ease-out" }} />
+          <div className="h-full rounded-full bg-[#3D8BFF] shadow-[0_0_10px_rgba(61,139,255,0.6)]" style={{ transform: `scaleX(${value.toFixed(3)})`, transformOrigin: "left", transition: "transform 220ms ease-out" }} />
         </div>
         <p className="mt-3 text-xs font-semibold text-white/70">{status}</p>
         {slow && <p className="gk-fade-up mt-5 max-w-xs text-center text-xs text-white/55">{STR.tip}</p>}
@@ -130,7 +130,7 @@ function BootScreen({ pathView }: { pathView: View | null }) {
       {view === "gate" ? (
         <>
           <div className="gk-skel absolute left-[max(12px,env(safe-area-inset-left))] top-3 h-8 w-64 rounded-full phone:w-52" />
-          <div className="absolute right-[max(16px,env(safe-area-inset-right))] top-1/2 hidden w-[min(340px,40vw)] -translate-y-1/2 flex-col gap-3 rounded-[28px] border border-white/10 bg-white/[0.04] p-5 sm:flex phone:flex phone:w-[min(300px,42vw)] phone:gap-2 phone:p-3">
+          <div className="absolute right-[max(16px,env(safe-area-inset-right))] top-1/2 hidden w-[min(340px,40vw)] -translate-y-1/2 flex-col gap-3 rounded-[28px] border border-white/10 bg-[#16191F]/80 p-5 sm:flex phone:flex phone:w-[min(300px,42vw)] phone:gap-2 phone:p-3">
             <div className="gk-skel relative h-4 w-24 rounded-full" />
             <div className="gk-skel relative h-6 w-48 rounded-lg" />
             <div className="gk-skel relative h-11 w-full rounded-xl" />
@@ -177,7 +177,7 @@ export function SceneHost() {
   return (
     <>
       {on && (
-        <div aria-hidden={!view} className="fixed inset-0 z-0 bg-[#0b0d1a]" style={{ visibility: view ? "visible" : "hidden" }}>
+        <div aria-hidden={!view} className="fixed inset-0 z-0 bg-[#121418]" style={{ visibility: view ? "visible" : "hidden" }}>
           <SceneCanvas />
         </div>
       )}
