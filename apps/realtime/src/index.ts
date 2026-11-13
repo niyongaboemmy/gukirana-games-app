@@ -20,6 +20,8 @@ const http = createServer((req, res) => {
 
 const gameServer = new Server({ transport: new WebSocketTransport({ server: http }) });
 gameServer.define("plaza", WorldRoom);
+// one presence room per game hall interior (Pool Hall, Ludo Lounge, Igisoro Court)
+gameServer.define("hall", WorldRoom).filterBy(["game"]);
 gameServer.define("match", MatchRoom);
 
 await gameServer.listen(env.REALTIME_PORT);

@@ -44,10 +44,24 @@ interface WorldState {
   emote: { id: number; until: number } | null;
   /** walking pace chosen by the player (persisted) */
   speed: "slow" | "normal" | "fast";
+  /** hall interiors: seatId → sessionId */
+  seats: Record<string, string>;
+  seatTaken: number;
   set: (p: Partial<WorldState>) => void;
   upsertPlayer: (p: Partial<RemotePlayer> & { id: string }) => void;
   removePlayer: (id: string) => void;
   pushChat: (c: ChatLine) => void;
+}
+
+/** Walking pace saved in the browser (guarded: Node 25 exposes a non-functional localStorage during SSR). */
+function savedSpeed(): "slow" | "normal" | "fast" {
+  try {
+    if (typeof window === "undefined") return "slow";
+    const v = window.localStorage.getItem("gk-speed");
+    return v === "normal" || v === "fast" ? v : "slow";
+  } catch {
+    return "slow";
+  }
 }
 
 export const useWorld = create<WorldState>()((set, get) => ({
@@ -59,7 +73,9 @@ export const useWorld = create<WorldState>()((set, get) => ({
   nearPlayer: null,
   input: { x: 0, y: 0, run: false },
   emote: null,
-  speed: (typeof localStorage !== "undefined" && (localStorage.getItem("gk-speed") as "slow" | "normal" | "fast" | null)) || "slow",
+  seats: {},
+  seatTaken: 0,
+  speed: savedSpeed(),
   set: (p) => set(p),
   upsertPlayer: (p) =>
     set({ players: { ...get().players, [p.id]: { ...(get().players[p.id] as RemotePlayer), ...p } } }),

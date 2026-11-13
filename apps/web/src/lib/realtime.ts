@@ -16,7 +16,11 @@ function realtimeUrl(): string {
   return `${proto}://${location.hostname}:2567`;
 }
 
-export async function connectPlaza(profile: { name: string; color: string; level: number; token?: string | null; look?: string }): Promise<void> {
+/** Joins the plaza (default) or a game hall interior ({ name: "hall", game }). */
+export async function connectPlaza(
+  profile: { name: string; color: string; level: number; token?: string | null; look?: string },
+  target: { name: "plaza" | "hall"; game?: string } = { name: "plaza" },
+): Promise<void> {
   if (room || connecting) return;
   connecting = true;
   const w = useWorld.getState();
@@ -24,7 +28,7 @@ export async function connectPlaza(profile: { name: string; color: string; level
     const client = new Client(realtimeUrl());
     // `look` is optional: servers that don't know it ignore it; when passed through it renders the chosen avatar.
     const look = profile.look ?? encodeLook(lookOf(useProfile.getState()));
-    room = await client.joinOrCreate("plaza", { ...profile, look });
+    room = await client.joinOrCreate(target.name, target.name === "hall" ? { ...{ ...profile, look }, game: target.game } : { ...profile, look });
     w.set({ connected: true });
     room.onMessage("snapshot", (m: { you: string; players: RemotePlayer[] }) => {
       const players: Record<string, RemotePlayer> = {};
@@ -43,6 +47,9 @@ export async function connectPlaza(profile: { name: string; color: string; level
     bindVoiceTransport((type, payload) => room?.send(type, payload));
     room.onMessage("voice-signal", (m: { from: string; data: Parameters<typeof handleSignal>[1] }) => void handleSignal(m.from, m.data));
     room.onMessage("voice-state", handleVoiceState);
+    // hall seats (one player per chair)
+    room.onMessage("seats", (m: Record<string, string>) => useWorld.setState({ seats: m }));
+    room.onMessage("seat-taken", () => useWorld.setState({ seatTaken: Date.now() }));
     room.onMessage("move", (m: Partial<RemotePlayer> & { id: string }) => useWorld.getState().upsertPlayer(m));
     room.onMessage("emote", (m: { id: string; emote: number }) =>
       useWorld.getState().upsertPlayer({ id: m.id, anim: m.emote, emoteUntil: Date.now() + 2500 }),
@@ -100,6 +107,8 @@ export function sendMove(x: number, z: number, yaw: number, anim: number): void 
 }
 
 export const sendChat = (text: string) => room?.send("chat", { text });
+export const sitAt = (seat: string) => room?.send("sit", { seat });
+export const standUp = () => room?.send("stand");
 export const propose = (to: string, game: "igisoro" | "ludo", stake: number) => room?.send("propose", { to, game, stake });
 export const respondProposal = (id: string, accept: boolean) => {
   room?.send("proposal-respond", { id, accept });

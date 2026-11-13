@@ -43,6 +43,9 @@ export class WorldRoom extends Room {
   private proposals = new Map<string, Proposal>();
   private seq = 0;
   private signalBudget = new Map<string, { at: number; n: number }>();
+  private hallGame: string | null = null;
+  /** seatId → sessionId (hall interiors) */
+  private seats = new Map<string, string>();
 
   override async onAuth(_c: Client, options: { token?: unknown }): Promise<UserClaims | true> {
     if (!options?.token) return true; // guest
@@ -51,7 +54,23 @@ export class WorldRoom extends Room {
     return claims;
   }
 
-  override onCreate(): void {
+  override onCreate(options: { game?: unknown } = {}): void {
+    this.hallGame = typeof options.game === "string" && /^(pool|ludo|igisoro)$/.test(options.game) ? options.game : null;
+
+    // ---- seats (hall interiors): one player per chair, one chair per player ----
+    this.onMessage("sit", (client, raw: { seat?: unknown }) => {
+      if (!this.hallGame || typeof raw?.seat !== "string" || !/^t\d{1,2}s\d$/.test(raw.seat)) return;
+      const holder = this.seats.get(raw.seat);
+      if (holder && holder !== client.sessionId) return client.send("seat-taken", { seat: raw.seat });
+      for (const [s, id] of this.seats) if (id === client.sessionId) this.seats.delete(s);
+      this.seats.set(raw.seat, client.sessionId);
+      this.broadcast("seats", Object.fromEntries(this.seats));
+    });
+    this.onMessage("stand", (client) => {
+      for (const [s, id] of this.seats) if (id === client.sessionId) this.seats.delete(s);
+      this.broadcast("seats", Object.fromEntries(this.seats));
+    });
+
     this.onMessage("move", (client, raw: unknown) => {
       const parsed = WorldMoveSchema.safeParse(raw);
       const p = this.players.get(client.sessionId);
@@ -181,7 +200,7 @@ export class WorldRoom extends Room {
       color: claims?.color ?? (typeof options.color === "string" && COLOR.test(options.color) ? options.color : "#3DA9FC"),
       level: claims?.lvl ?? Math.max(1, Math.min(100, Number(options.level) || 1)),
       x: Math.round((this.players.size % 5) * 120 - 240),
-      z: 1600,
+      z: this.hallGame ? 650 : 1600, // halls: just inside the entrance door
       yaw: 0,
       anim: 0,
       look: typeof look === "string" && LOOK.test(look) ? look : undefined,
@@ -190,6 +209,7 @@ export class WorldRoom extends Room {
     };
     this.players.set(client.sessionId, player);
     client.send("snapshot", { you: player.id, players: [...this.players.values()] });
+    if (this.hallGame) client.send("seats", Object.fromEntries(this.seats));
     this.broadcast("joined", player, { except: client });
   }
 
@@ -201,6 +221,13 @@ export class WorldRoom extends Room {
     this.users.delete(client.sessionId);
     this.lastChat.delete(client.sessionId);
     this.signalBudget.delete(client.sessionId);
+    let freed = false;
+    for (const [s, id] of this.seats) {
+      if (id !== client.sessionId) continue;
+      this.seats.delete(s);
+      freed = true;
+    }
+    if (freed) this.broadcast("seats", Object.fromEntries(this.seats));
     this.broadcast("left", { id: client.sessionId });
   }
 }

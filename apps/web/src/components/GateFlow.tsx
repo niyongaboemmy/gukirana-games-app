@@ -1,7 +1,7 @@
 "use client";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Glasses, KeyRound, Loader2, ShieldCheck, Shirt, SkipForward, UserRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, BatteryFull, Check, Delete, Glasses, KeyRound, Loader2, ShieldCheck, Shirt, Signal, SkipForward, UserRound, Wifi } from "lucide-react";
 import { useGate, USERNAME_RE } from "@/world/gate/gate-store";
 import { lookOf, useProfile } from "@/lib/profile-store";
 import { BODY_TYPE_HINT, BODY_TYPES } from "@/world/outfits";
@@ -9,15 +9,96 @@ import { xrStore } from "@/world/WorldCanvas";
 
 const AvatarCreator = dynamic(() => import("./AvatarCreator").then((m) => m.AvatarCreator), { ssr: false });
 
-/** Frosted kiosk card anchored to the right of the 3D kiosk (screens). Hidden in VR, where the world keyboard is used. */
+/** Live clock for the tablet status bar. */
+function useClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 15_000);
+    return () => clearInterval(id);
+  }, []);
+  return now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Kigali" });
+}
+
+/**
+ * Handheld check-in tablet (screens; VR uses the world keyboard). It slides up into the player's hands with a 3D
+ * tilt, sways slightly as if held, and each screen slides in. Realistic device chrome: aluminium bezel, camera,
+ * status bar with Kigali time, signal and battery.
+ */
 function Card({ children, label }: { children: React.ReactNode; label: string }) {
+  const time = useClock();
   return (
-    <section
-      aria-label={label}
-      className="pointer-events-auto w-[min(380px,46vw)] rounded-3xl border border-white/25 bg-[#0f1222]/72 p-5 text-white shadow-2xl backdrop-blur-xl max-sm:p-4 [@media(max-height:430px)]:p-3.5"
-    >
-      {children}
-    </section>
+    <div className="gk-tablet-hold pointer-events-auto [perspective:1400px]">
+      <section
+        aria-label={label}
+        className="gk-tablet-in relative w-[min(400px,48vw)] rounded-[34px] bg-gradient-to-b from-[#d9dde5] via-[#9aa1ad] to-[#6d7380] p-[7px] shadow-[0_40px_80px_-20px_rgba(0,0,0,.75),0_0_0_1px_rgba(255,255,255,.35)_inset] max-sm:w-[min(360px,56vw)] [@media(max-height:430px)]:w-[min(340px,44vw)]"
+      >
+        <div className="relative overflow-hidden rounded-[28px] bg-[#0b0d1a] ring-1 ring-black">
+          {/* status bar */}
+          <div className="flex items-center justify-between px-5 pb-1 pt-2 text-[11px] font-semibold text-white/85">
+            <span className="tabular-nums">{time}</span>
+            <span className="absolute left-1/2 top-2 size-2 -translate-x-1/2 rounded-full bg-[#1d2233] ring-1 ring-white/10" aria-hidden />
+            <span className="flex items-center gap-1.5">
+              <Signal size={12} strokeWidth={2.2} />
+              <Wifi size={12} strokeWidth={2.2} />
+              <BatteryFull size={15} strokeWidth={2} />
+            </span>
+          </div>
+          {/* screen content */}
+          <div key={label} className="gk-screen-in px-5 pb-5 pt-2 text-white max-sm:px-4 [@media(max-height:430px)]:pb-3.5">
+            {children}
+          </div>
+          {/* glass glare */}
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(115deg,rgba(255,255,255,.10)_0%,rgba(255,255,255,0)_38%,rgba(255,255,255,0)_70%,rgba(255,255,255,.05)_100%)]" />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/** On-screen numeric keypad (tablet feel); the real input stays focusable for keyboards / autofill / a11y. */
+function Keypad({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const press = (k: string) => {
+    if (navigator.vibrate) navigator.vibrate(8);
+    if (k === "del") onChange(value.slice(0, -1));
+    else if (value.length < 6) onChange(value + k);
+  };
+  const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"];
+  return (
+    <div className="grid grid-cols-3 gap-1.5 [@media(max-height:430px)]:gap-1">
+      {keys.map((k, i) =>
+        k === "" ? (
+          <span key={i} />
+        ) : (
+          <button
+            key={i}
+            type="button"
+            onClick={() => press(k)}
+            aria-label={k === "del" ? "Delete digit" : `Digit ${k}`}
+            className="grid h-11 place-items-center rounded-2xl bg-white/[.08] text-xl font-semibold transition active:scale-95 active:bg-white/20 [@media(max-height:430px)]:h-8 [@media(max-height:430px)]:text-base"
+          >
+            {k === "del" ? <Delete size={20} strokeWidth={1.85} /> : k}
+          </button>
+        ),
+      )}
+    </div>
+  );
+}
+
+/** Six code boxes mirroring the hidden input. */
+function CodeBoxes({ code, onFocus }: { code: string; onFocus: () => void }) {
+  return (
+    <button type="button" onClick={onFocus} className="grid grid-cols-6 gap-1.5" aria-hidden tabIndex={-1}>
+      {Array.from({ length: 6 }, (_, i) => (
+        <span
+          key={i}
+          className={`grid h-12 place-items-center rounded-xl border text-2xl font-bold tabular-nums transition [@media(max-height:430px)]:h-9 [@media(max-height:430px)]:text-lg ${
+            i === code.length ? "border-[#3DA9FC] bg-[#3DA9FC]/10" : code[i] ? "border-white/30 bg-white/10" : "border-white/15 bg-white/5"
+          }`}
+        >
+          {code[i] ?? ""}
+        </span>
+      ))}
+    </button>
   );
 }
 
@@ -152,9 +233,17 @@ export function GateFlow() {
               inputMode="numeric"
               autoComplete="one-time-code"
               placeholder="••••••"
-              className={`${input} text-center text-2xl tracking-[0.5em]`}
+              className="absolute size-px opacity-0"
               aria-invalid={!!g.error}
               aria-describedby={g.error ? "gate-err" : undefined}
+            />
+            <CodeBoxes code={g.code} onFocus={() => ref.current?.focus()} />
+            <Keypad
+              value={g.code}
+              onChange={(code) => {
+                g.set({ code, error: null });
+                if (code.length === 6) setTimeout(() => void useGate.getState().submitCode(), 160);
+              }}
             />
             {g.error && (
               <p id="gate-err" role="alert" className="text-sm text-[#ff9b9b]">
