@@ -196,7 +196,7 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
                   ))}
                 </div>
                 <p className="pt-2 text-sm font-semibold text-white/80">{STR.accent}</p>
-                <Swatches colors={AVATAR_COLORS} value={draft.accent} onPick={(accent) => set({ accent })} />
+                <Swatches colors={AVATAR_COLORS} value={draft.accent} onPick={(accent) => set({ accent, topColor: undefined })} />
               </>
             )}
             {tab === "skin" && <Swatches colors={SKIN_TONES} value={draft.skinTone} onPick={(skinTone) => set({ skinTone })} />}

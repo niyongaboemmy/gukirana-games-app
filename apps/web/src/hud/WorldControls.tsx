@@ -2,14 +2,14 @@
 import { useEffect } from "react";
 import { Lock, Mic, MicOff, Minus, Plus } from "lucide-react";
 import { useSession } from "@/lib/session";
-import { cameraState } from "@/world/Player";
+import { cameraState, MAX_ORBIT } from "@/world/Player";
 import { enableVoice, disableVoice, pttDown, pttUp, toggleOpenMic, useVoice } from "@/voice/voice";
 
 
 const btn = "pointer-events-auto grid size-12 place-items-center rounded-2xl border border-white/25 bg-[#22266E]/65 text-white shadow-xl backdrop-blur-md transition active:scale-90 phone:size-9 phone:rounded-full";
 
 const zoom = (delta: number) => {
-  cameraState.distance = Math.min(18, Math.max(2.5, cameraState.distance + delta));
+  cameraState.distance = Math.min(MAX_ORBIT, Math.max(2.5, cameraState.distance + delta));
 };
 
 /**

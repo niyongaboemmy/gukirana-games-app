@@ -3,8 +3,9 @@ import { useEffect, useMemo } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { DOOR_RING, FOUNTAIN_RADIUS, PORTALS, ringPoint, SERVICE_ANGLE, type PortalDef } from "@/world/layout";
+import { DOOR_RING, FOUNTAIN_RADIUS, PORTALS, ringPoint, SERVICE_ANGLE } from "@/world/layout";
 import { RING_PLANTERS } from "@/world/beds";
+import { ARENA, FOOTPRINTS } from "@/world/District";
 import { agasekeTexture, pavingTexture } from "@/world/textures";
 import { hallFrame } from "./OutdoorView";
 import type { HallLayout } from "./layouts";
@@ -19,7 +20,6 @@ import type { HallLayout } from "./layouts";
  * Lighting is baked in: outdoor surfaces carry a daylight emissive term so they read sunlit regardless of the
  * hall's moody interior lights.
  */
-const ARENA = { cz: -22, rx: 21, rz: 17, wall: 18.5 }; // mirrors world/District.ts (read-only reference)
 
 type Part = { geo: THREE.BufferGeometry; m: THREE.Matrix4 };
 
@@ -36,7 +36,7 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
       const dz = wz - frame.centre.z;
       return [dx * c + dz * s + layout.door.x, -dx * s + dz * c];
     };
-    const parts: Record<string, Part[]> = { paving: [], lawn: [], stone: [], white: [], glass: [], water: [], agaseke: [], green: [], roof: [], arenaStone: [], arenaGlass: [], arenaWhite: [], arenaRoof: [] };
+    const parts: Record<string, Part[]> = { paving: [], lawn: [], stone: [], white: [], glass: [], water: [], agaseke: [], green: [], roof: [], thatch: [], arenaStone: [], arenaGlass: [], arenaWhite: [], arenaRoof: [] };
     const q = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
     const add = (mat: string, geo: THREE.BufferGeometry, wx: number, y: number, wz: number, rotY = 0, scale: [number, number, number] = [1, 1, 1]) => {
@@ -76,26 +76,35 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
     add("arenaWhite", new THREE.CylinderGeometry(1, 1, ARENA.wall - 7.1, seg, 1, false), 0, 7.1 + (ARENA.wall - 7.1) / 2, ARENA.cz, 0, ell(ARENA.rx + 0.2, ARENA.rz + 0.2));
     add("arenaRoof", new THREE.SphereGeometry(1, seg, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0, ARENA.wall + 0.2, ARENA.cz, 0, [ARENA.rx + 0.45, 5.5, ARENA.rz + 0.45]);
 
-    // neighbouring buildings on the door ring (this hall itself is where you stand)
-    const building = (p: PortalDef | { angleDeg: number; kind: "service" }) => {
+    // neighbouring buildings on the door ring, from the plaza's own footprints (local frame: door at the origin,
+    // facade towards the fountain = +z, volume towards -z); this hall itself is where you stand
+    const HEIGHT: Record<string, number> = { pool: 7.5, ludo: 5.6, igisoro: 4.8, soon: 3.2, service: 4.4 };
+    const building = (p: { angleDeg: number; kind: keyof typeof FOOTPRINTS }) => {
       const r = ringPoint(p.angleDeg, DOOR_RING);
-      const back = (dist: number) => ringPoint(p.angleDeg, DOOR_RING + dist);
-      if (p.kind === "igisoro") {
-        const m = back(8.6);
-        add("white", new THREE.CylinderGeometry(7, 7, 4.8, 28), m.x, 2.4, m.z);
-        add("roof", new THREE.ConeGeometry(9.2, 6.4, 28, 1, true), m.x, 4.8 + 3.2, m.z);
-        return;
+      const cr = Math.cos(r.rotY);
+      const sr = Math.sin(r.rotY);
+      const h = HEIGHT[p.kind] ?? 4;
+      for (const f of FOOTPRINTS[p.kind]) {
+        const lx = (f.x0 + f.x1) / 2;
+        const lz = (f.z0 + f.z1) / 2;
+        const fw = Math.abs(f.x1 - f.x0);
+        const fd = Math.abs(f.z0 - f.z1);
+        const wx = r.x + lx * cr + lz * sr;
+        const wz = r.z - lx * sr + lz * cr;
+        add(p.kind === "soon" ? "white" : "stone", new THREE.BoxGeometry(fw, h, fd), wx, h / 2, wz, r.rotY);
+        if (p.kind === "igisoro") {
+          // hipped thatch: a four-sided pyramid stretched over the rectangle
+          add("thatch", new THREE.ConeGeometry(Math.SQRT1_2, 1, 4, 1).rotateY(Math.PI / 4), wx, h + 2.6, wz, r.rotY, [fw + 1.6, 5.2, fd + 1.6]);
+        } else add("roof", new THREE.BoxGeometry(fw + 0.6, 0.5, fd + 0.6), wx, h + 0.25, wz, r.rotY);
       }
-      const dims = p.kind === "pool" ? { w: 14, dp: 13, h: 7.5 } : p.kind === "ludo" ? { w: 14, dp: 13, h: 5.6 } : p.kind === "service" ? { w: 10, dp: 7, h: 4.4 } : { w: 10, dp: 9, h: 3.2 };
-      const m = back(dims.dp / 2);
-      const mat = p.kind === "soon" ? "white" : "stone";
-      add(mat, new THREE.BoxGeometry(dims.w, dims.h, dims.dp), m.x, dims.h / 2, m.z, r.rotY);
-      // glazed shopfront facing the fountain
-      const f = back(-0.05);
-      add("glass", new THREE.PlaneGeometry(dims.w - 1.2, dims.h * 0.72), f.x, dims.h * 0.38, f.z, r.rotY);
-      add("roof", new THREE.BoxGeometry(dims.w + 0.6, 0.5, dims.dp + 0.6), m.x, dims.h + 0.25, m.z, r.rotY);
+      // glazed shopfront facing the fountain (on the front footprint)
+      const front = FOOTPRINTS[p.kind][0]!;
+      const fx = (front.x0 + front.x1) / 2;
+      const gx = r.x + fx * cr + (front.z0 + 0.05) * sr;
+      const gz = r.z - fx * sr + (front.z0 + 0.05) * cr;
+      add("glass", new THREE.PlaneGeometry(Math.abs(front.x1 - front.x0) - 1.2, h * 0.72), gx, h * 0.38, gz, r.rotY);
     };
-    for (const p of PORTALS) if (p.id !== layout.game && p.kind !== "arena") building(p);
+    for (const p of PORTALS) if (p.id !== layout.game && p.kind !== "arena") building(p as { angleDeg: number; kind: keyof typeof FOOTPRINTS });
     building({ angleDeg: SERVICE_ANGLE, kind: "service" });
 
     const merged: Record<string, THREE.BufferGeometry> = {};
@@ -140,6 +149,7 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
       agaseke: day("#ffffff", 0.6, { map: agaseke, emissiveMap: agaseke }),
       green: day("#557c3a", 0.5),
       roof: day("#9ea3a8", 0.55),
+      thatch: day("#a08560", 0.5),
     } as Record<string, THREE.MeshLambertMaterial>;
     // the arena drum stands right beside some halls: only draw it from 8 m outside the door, so it never hangs over
     // the doorway like a canopy (the real hall exteriors are smaller than these interiors)
