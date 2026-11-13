@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { Avatar } from "@/world/Avatar";
@@ -38,6 +38,11 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   // maps the plaza door frame onto this door); otherwise (reload, deep link) just inside the open doors
   const [hand] = useState(() => (typeof window !== "undefined" ? peekHandoff(`hall:${layout.game}`) : null));
   useEffect(() => clearHandoff(`hall:${layout.game}`), [layout.game]);
+  // you just walked through the open door: it is open on the very first frame (the door sensor runs after this
+  // controller in a frame, and the wall clamp would otherwise snap you 0.2 m inwards)
+  useLayoutEffect(() => {
+    if (hand) useRoom.getState().set({ doorOpen: true });
+  }, [hand]);
   const pos = useRef(
     back.current
       ? new THREE.Vector3(back.current.x, 0, back.current.z)

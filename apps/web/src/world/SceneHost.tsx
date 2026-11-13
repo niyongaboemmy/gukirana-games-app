@@ -33,7 +33,8 @@ function BootScreen({ pathView }: { pathView: View | null }) {
   const storeView = useStage((s) => s.view);
   const view = storeView ?? pathView;
   const area = view ? areaOf(view) : null;
-  const ready = useStage((s) => (area ? !!s.ready[area] : true));
+  // a hall deep link also waits for the plaza to be built (behind the boot screen, never as a stall in the hall)
+  const ready = useStage((s) => (area ? !!s.ready[area] && (area === "outdoor" || !!s.ready.outdoor) : true));
   const warm = useStage((s) => (area ? (s.warmProgress[area] ?? 0) : 0));
   const holding = useDoorway((s) => s.phase !== "idle"); // a cold crossing holds its own frame instead
   const progress = useStage((s) => s.assets); // 0 … 1, published by the lazily loaded canvas (drei loading manager)
@@ -75,7 +76,8 @@ function BootScreen({ pathView }: { pathView: View | null }) {
         // the gate has its own fly-in; the plaza and halls get the establishing move
         if (useStage.getState().view !== "gate") useStage.setState({ establish: { area, t0: performance.now() } });
         timers.push(setTimeout(() => setState("off"), FADE_MS));
-        timers.push(setTimeout(() => useStage.setState({ hud: true }), HUD_DELAY_MS));
+        // at the gate the tablet may come up sooner (during the short fly-in)
+        timers.push(setTimeout(() => useStage.setState({ hud: true }), useStage.getState().view === "gate" ? 600 : HUD_DELAY_MS));
         return;
       }
       raf = requestAnimationFrame(tick);
@@ -119,7 +121,7 @@ function BootScreen({ pathView }: { pathView: View | null }) {
           </div>
         </div>
         <div className="mt-7 h-0.75 w-56 overflow-hidden rounded-full bg-white/12">
-          <div className="h-full rounded-full bg-linear-to-r from-[#3DA9FC] to-[#FFC83D]" style={{ width: `${Math.round(value * 100)}%`, transition: "width 220ms ease-out" }} />
+          <div className="h-full rounded-full bg-linear-to-r from-[#3DA9FC] to-[#FFC83D]" style={{ transform: `scaleX(${value.toFixed(3)})`, transformOrigin: "left", transition: "transform 220ms ease-out" }} />
         </div>
         <p className="mt-3 text-xs font-semibold text-white/70">{status}</p>
         {slow && <p className="gk-fade-up mt-5 max-w-xs text-center text-xs text-white/55">{STR.tip}</p>}
@@ -129,11 +131,11 @@ function BootScreen({ pathView }: { pathView: View | null }) {
         <>
           <div className="gk-skel absolute left-[max(12px,env(safe-area-inset-left))] top-3 h-8 w-64 rounded-full phone:w-52" />
           <div className="absolute right-[max(16px,env(safe-area-inset-right))] top-1/2 hidden w-[min(340px,40vw)] -translate-y-1/2 flex-col gap-3 rounded-[28px] border border-white/10 bg-white/[0.04] p-5 sm:flex phone:flex phone:w-[min(300px,42vw)] phone:gap-2 phone:p-3">
-            <div className="gk-skel h-4 w-24 rounded-full" />
-            <div className="gk-skel h-6 w-48 rounded-lg" />
-            <div className="gk-skel h-11 w-full rounded-xl" />
-            <div className="gk-skel h-11 w-full rounded-xl" />
-            <div className="gk-skel h-3 w-40 rounded-full" />
+            <div className="gk-skel relative h-4 w-24 rounded-full" />
+            <div className="gk-skel relative h-6 w-48 rounded-lg" />
+            <div className="gk-skel relative h-11 w-full rounded-xl" />
+            <div className="gk-skel relative h-11 w-full rounded-xl" />
+            <div className="gk-skel relative h-3 w-40 rounded-full" />
           </div>
         </>
       ) : (

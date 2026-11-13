@@ -157,32 +157,43 @@ function AreaWarm({ area, content }: { area: Area; content: RefObject<THREE.Grou
         }
         if (!alive) return;
       }
-      // one draw of the whole area into a single pixel: geometry buffers, shadow maps, background, late programs
-      await new Promise<void>((resolve) => {
-        warmDraws.push(() => {
-          if (alive)
-            shown(() => {
-              const fxRt = targetFor(useStage.getState().fx);
-              const prev = gl.getRenderTarget();
-              const sc = gl.getScissorTest();
-              const ac = gl.autoClear;
-              gl.autoClear = false;
-              if (fxRt) gl.setRenderTarget(fxRt);
-              else {
-                gl.setScissorTest(true);
-                gl.setScissor(0, 0, 1, 1);
-              }
-              try {
-                gl.render(scene, camera);
-              } finally {
-                gl.setScissorTest(sc);
-                gl.setRenderTarget(prev);
-                gl.autoClear = ac;
-              }
-            });
-          resolve();
+      // draw the area into a single pixel, a batch of meshes per frame (geometry buffers, uniform reflection, shadow
+      // passes, late uploads): spread over frames so warming a hall while you walk never costs one long frame. While
+      // booting on screen (nobody walking) the batches are large.
+      const drawables: THREE.Object3D[] = [];
+      scene.traverse((o) => ((o as THREE.Mesh).isMesh || (o as THREE.Points).isPoints || (o as THREE.Line).isLine || (o as THREE.Sprite).isSprite) && drawables.push(o));
+      const batch = budget > 4 ? 1e9 : 24;
+      for (let i = 0; i < drawables.length; i += batch) {
+        await new Promise<void>((resolve) => {
+          warmDraws.push(() => {
+            if (alive)
+              shown(() => {
+                const saved = drawables.map((o) => o.visible);
+                drawables.forEach((o, j) => (o.visible = saved[j]! && j >= i && j < i + batch));
+                const fxRt = targetFor(useStage.getState().fx);
+                const prev = gl.getRenderTarget();
+                const sc = gl.getScissorTest();
+                const ac = gl.autoClear;
+                gl.autoClear = false;
+                if (fxRt) gl.setRenderTarget(fxRt);
+                else {
+                  gl.setScissorTest(true);
+                  gl.setScissor(0, 0, 1, 1);
+                }
+                try {
+                  gl.render(scene, camera);
+                } finally {
+                  gl.setScissorTest(sc);
+                  gl.setRenderTarget(prev);
+                  gl.autoClear = ac;
+                  drawables.forEach((o, j) => (o.visible = saved[j]!));
+                }
+              });
+            resolve();
+          });
         });
-      });
+        if (!alive) return;
+      }
       await nextFrame();
       if (!alive) return;
       if (process.env.NODE_ENV !== "production") console.debug(`[stage] ${area} ready in ${(performance.now() - t0).toFixed(0)} ms (${tex.length} textures)`);
@@ -429,7 +440,8 @@ function Stage() {
   const hud = useStage((s) => s.hud);
   useEffect(() => {
     if (outdoorOn) return;
-    if (view === "gate" || view === "plaza") return setOutdoorOn(true);
+    // (built straight away, also for a hall deep link: the boot screen waits for it, so it never stalls the hall)
+    if (view) return setOutdoorOn(true);
     if (!activeReady || !hud) return;
     const t = setTimeout(() => startTransition(() => setOutdoorOn(true)), 1200);
     return () => clearTimeout(t);

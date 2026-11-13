@@ -28,7 +28,7 @@ const SHOTS = {
   farewell: { cam: new THREE.Vector3(-3.4, 1.9, ENTRY_Z + 9.5), look: new THREE.Vector3(0.6, 1.5, ENTRY_Z - 0.5) },
 };
 /** arrival fly-in after the reveal (ms) */
-const ARRIVE_MS = 2500;
+const ARRIVE_MS = 2200;
 /** inside the plaza ring (PLAZA_RADIUS 28): the plaza's own controller takes over the walk-in here */
 const PLAZA_IN_Z = 27.6;
 /** sign-out: the camera's drift back down the avenue to the arrival gate */
@@ -187,7 +187,7 @@ function Rig() {
       const ra = useStage.getState().revealAt;
       target = ra ? new THREE.Vector3(STAND.x, 0, STAND.z) : p.clone(); // walks up to the kiosk during the fly-in
       // the tablet slides in over the last ~0.8 s of the fly-in
-      if (ra && performance.now() - Math.max(ra, t0.current) > ARRIVE_MS - 800) set({ step: "id" });
+      if (ra && performance.now() - Math.max(ra, t0.current) > ARRIVE_MS - 1000 && useGate.getState().step === "arrive") set({ step: "id" });
     }
     if (step === "id" || step === "code") face = Math.atan2(KIOSK.x - STAND.x, KIOSK.z - STAND.z);
     if (step === "setup") {
