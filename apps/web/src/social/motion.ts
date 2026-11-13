@@ -67,6 +67,8 @@ const MAX_DELAY = 480;
 const EXTRAPOLATE_MS = 220;
 /** standing people keep a little more than shoulder-to-shoulder distance (soft, eased) */
 const PERSONAL_SPACE = 0.8;
+/** from me: my own controller already keeps bodies 0.64 m apart; this only stops a rendered overlap */
+const SELF_SPACE = 0.62;
 
 const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 const yawOf = (y16: number) => (y16 / 65535) * Math.PI * 2;
@@ -237,9 +239,9 @@ export function stepMotion(dt: number, now = performance.now()): void {
       const dx = a.x - selfPose.x;
       const dz = a.z - selfPose.z;
       const d = Math.hypot(dx, dz);
-      if (d < PERSONAL_SPACE && d > 1e-4 && !selfContact.on) {
-        px += (dx / d) * (PERSONAL_SPACE - d);
-        pz += (dz / d) * (PERSONAL_SPACE - d);
+      if (d < SELF_SPACE && d > 1e-4 && !selfContact.on) {
+        px += (dx / d) * (SELF_SPACE - d);
+        pz += (dz / d) * (SELF_SPACE - d);
       }
     }
     const k = Math.min(1, dt * 6);
