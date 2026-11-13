@@ -13,10 +13,14 @@ import { useSocial } from "./social-store";
  */
 const glass = "rounded-2xl border border-white/20 bg-[#151935]/90 text-white shadow-2xl backdrop-blur-xl";
 
-/** Emote picker grid (opened from the HUD Emote button). */
+/**
+ * Emote picker grid (opened from the HUD Emote button). `w-max` + fixed 4 auto columns: the desktop popover is
+ * absolutely positioned inside the 64 px Emote button wrapper, so without an intrinsic width the 4 × 1fr columns
+ * collapsed to a few px and the 44 px tiles overlapped (the "stacked / smeared icons" bug).
+ */
 export function EmotePicker({ onPick, bare = false }: { onPick?: () => void; bare?: boolean }) {
   return (
-    <div className={`pointer-events-auto grid grid-cols-4 gap-1.5 ${bare ? "" : "rounded-2xl bg-[#22266E]/85 p-2 backdrop-blur-md"}`} role="menu" aria-label="Emotes">
+    <div className={`pointer-events-auto grid w-max grid-cols-[repeat(4,auto)] gap-1.5 ${bare ? "" : "rounded-2xl bg-[#22266E]/85 p-2 backdrop-blur-md"}`} role="menu" aria-label="Emotes">
       {EMOTE_PICKER.map((a) => (
         <button
           key={a.id}
