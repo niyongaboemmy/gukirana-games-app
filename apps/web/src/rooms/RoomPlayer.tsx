@@ -638,7 +638,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     <>
     <TargetMarker />
     <group ref={group}>
-      <Avatar look={look} name={profile.name} level={1} animRef={anim} shadows={tier !== "lite"} showTag={false} />
+      <Avatar look={look} name={profile.name} level={1} animRef={anim} shadows={tier !== "lite"} showTag={false} self />
     </group>
     </>
   );

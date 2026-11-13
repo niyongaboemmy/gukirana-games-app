@@ -506,35 +506,57 @@ function Placeholder() {
   );
 }
 
-/** Speaking indicator: three pulsing bars above the head while the player talks on voice. */
-function SpeakingBars({ talkingRef, y }: { talkingRef: React.RefObject<boolean>; y: number }) {
+/**
+ * Speaking indicator above the head: a dark-grey glass disc with a pulsing green ring and four sound bars.
+ * Shown while the person's mic is live; the bars bounce harder when sound is actually picked up (`levelRef`).
+ * Drawn on top (no depth test) so a head, a bench or a lamp never hides it.
+ */
+function SpeakingBars({ talkingRef, levelRef, y }: { talkingRef: React.RefObject<boolean>; levelRef: React.RefObject<boolean>; y: number }) {
   const g = useRef<THREE.Group>(null);
+  const ring = useRef<THREE.Mesh>(null);
   const bars = useRef<(THREE.Mesh | null)[]>([]);
-  useFrame(({ clock }) => {
+  const amp = useRef(0);
+  useFrame(({ clock }, dt) => {
     const on = !!talkingRef.current;
     if (g.current) g.current.visible = on;
     if (!on) return;
+    amp.current += ((levelRef.current ? 1 : 0.35) - amp.current) * Math.min(1, dt * 10);
+    const t = clock.elapsedTime;
     bars.current.forEach((b, i) => {
-      if (b) b.scale.y = 0.35 + Math.abs(Math.sin(clock.elapsedTime * (7 + i * 2.3) + i)) * 0.9;
+      if (b) b.scale.y = 0.3 + Math.abs(Math.sin(t * (6.5 + i * 2.1) + i * 1.3)) * 0.95 * amp.current;
     });
+    if (ring.current) {
+      const p = (t * 1.4) % 1;
+      ring.current.scale.setScalar(1 + p * 0.45);
+      (ring.current.material as THREE.MeshBasicMaterial).opacity = 0.75 * (1 - p) * amp.current;
+    }
   });
   return (
     <Billboard position={[0, y, 0]}>
-      <group ref={g} visible={false}>
-        <mesh position={[0, 0, -0.01]}>
-          <circleGeometry args={[0.13, 24]} />
-          <meshBasicMaterial color="#12142b" transparent opacity={0.75} />
+      <group ref={g} visible={false} renderOrder={20}>
+        <mesh ref={ring} renderOrder={20}>
+          <ringGeometry args={[0.165, 0.185, 40]} />
+          <meshBasicMaterial color="#22C55E" transparent opacity={0.6} depthTest={false} depthWrite={false} toneMapped={false} />
         </mesh>
-        {[-1, 0, 1].map((i) => (
+        <mesh position={[0, 0, -0.002]} renderOrder={20}>
+          <circleGeometry args={[0.16, 40]} />
+          <meshBasicMaterial color="#18191C" transparent opacity={0.86} depthTest={false} depthWrite={false} />
+        </mesh>
+        <mesh renderOrder={20}>
+          <ringGeometry args={[0.15, 0.16, 40]} />
+          <meshBasicMaterial color="#22C55E" transparent opacity={0.9} depthTest={false} depthWrite={false} toneMapped={false} />
+        </mesh>
+        {[-1.5, -0.5, 0.5, 1.5].map((i, k) => (
           <mesh
             key={i}
             ref={(m) => {
-              bars.current[i + 1] = m;
+              bars.current[k] = m;
             }}
-            position={[i * 0.05, 0, 0]}
+            position={[i * 0.05, 0, 0.001]}
+            renderOrder={21}
           >
-            <planeGeometry args={[0.028, 0.12]} />
-            <meshBasicMaterial color="#22C55E" toneMapped={false} />
+            <planeGeometry args={[0.03, 0.15]} />
+            <meshBasicMaterial color="#4ADE80" depthTest={false} depthWrite={false} toneMapped={false} />
           </mesh>
         ))}
       </group>
@@ -566,13 +588,15 @@ export function Avatar({
 }: AvatarProps) {
   const blob = useMemo(() => blobTexture(), []);
   const talkingRef = useRef(false);
+  /** sound actually picked up right now (drives how hard the bars bounce) */
+  const levelRef = useRef(false);
   const tags = useRef<THREE.Group>(null);
   const tagPlate = useRef<THREE.Group>(null);
   useFrame(({ camera }) => {
     if (tags.current) {
       // seated (anim 13): the head is ~0.75 m lower, so is the name tag
       const y = tags.current.position.y;
-      tags.current.position.y = y + ((animRef.current === 13 ? -0.72 : 0) - y) * 0.12;
+      tags.current.position.y = y + ((animRef.current === 13 ? -0.58 : 0) - y) * 0.12;
       const d = camera.position.distanceTo(tags.current.getWorldPosition(_v));
       if (tagRange) tags.current.visible = d < tagRange;
       if (tagPlate.current) {
@@ -582,7 +606,10 @@ export function Avatar({
     }
     if (!voiceId && !self) return;
     const v = useVoice.getState();
-    talkingRef.current = self ? v.selfTalking : !!(voiceId && v.talking[voiceId]);
+    // you: shown whenever your mic is live (held push-to-talk / locked open), not only above a loudness threshold;
+    // others: while their client reports them speaking
+    talkingRef.current = self ? v.status === "on" && v.transmitting : !!(voiceId && v.talking[voiceId]);
+    levelRef.current = self ? v.selfTalking : talkingRef.current;
   });
   const modelId: HumanModelId = model ?? (HUMAN_MODELS[look.bodyType] ? look.bodyType : "neutral");
   const seed = useMemo(() => seedOf(seedId ?? name ?? encodeLook(look)), [seedId, name, look]);
@@ -614,7 +641,7 @@ export function Avatar({
         />
       </Suspense>
       <group ref={tags}>
-      {(voiceId || self) && <SpeakingBars talkingRef={talkingRef} y={showTag && name ? tagY + 0.27 : tagY - 0.05} />}
+      {(voiceId || self) && <SpeakingBars talkingRef={talkingRef} levelRef={levelRef} y={showTag && name ? tagY + 0.3 : tagY + 0.14} />}
       {showTag && name && (
         // light, distance-scaled tag; upright (no pitch) so it never slices into the wearer's head
         <UprightBillboard position={[0, tagY, 0]}>
