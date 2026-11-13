@@ -14,14 +14,8 @@ import { WorldControls } from "@/hud/WorldControls";
 
 const WorldCanvas = dynamic(() => import("@/world/WorldCanvas"), {
   ssr: false,
-  loading: () => (
-    <div className="grid h-full place-items-center bg-[#0b0d1a] text-white">
-      <div className="text-center">
-        <div className="mx-auto mb-3 size-12 animate-spin rounded-full border-4 border-white/20 border-t-[#3DA9FC]" />
-        <p className="font-bold">Loading Gukirana Plaza…</p>
-      </div>
-    </div>
-  ),
+  // preloaded at the gate; if anything is still loading, show a calm sky + hills instead of a spinner screen
+  loading: () => <div className="h-full bg-gradient-to-b from-[#9cc8ea] via-[#d9ecf7] to-[#7fae72]" />,
 });
 
 export default function WorldPage() {
@@ -47,9 +41,9 @@ export default function WorldPage() {
     };
   }, [ready, session.status, profile.onboarded, router]);
 
-  if (!ready || !profile.onboarded) return null;
+  if (!ready || !profile.onboarded) return <div className="fixed inset-0 bg-gradient-to-b from-[#9cc8ea] via-[#d9ecf7] to-[#7fae72]" />;
   return (
-    <div className="fixed inset-0 overflow-hidden bg-[#0b0d1a]">
+    <div className="fixed inset-0 overflow-hidden bg-gradient-to-b from-[#9cc8ea] via-[#d9ecf7] to-[#7fae72]">
       <WorldCanvas profile={{ name: profile.name, color: profile.color, level: levelForXp(profile.xp) }} />
       <WorldHud />
       <MatchmakingPanel />

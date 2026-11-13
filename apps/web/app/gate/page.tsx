@@ -37,7 +37,11 @@ export default function GatePage() {
     setReady(true);
     useGate.setState({ step: "arrive", code: "", devCode: null, error: null, busy: false });
     if (useSession.getState().status === "loading") void refreshSession();
-  }, []);
+    // preload the playground while the player is at the gate, so the hand-off never shows a loading screen
+    router.prefetch("/world");
+    void import("@/world/WorldCanvas");
+    void import("@/hud/WorldHud");
+  }, [router]);
 
   // apply the server look to the local avatar whenever we have a session
   useEffect(() => {
@@ -51,7 +55,8 @@ export default function GatePage() {
     if (status !== "authenticated" || !me) return;
     const s = useGate.getState().step;
     if (s !== "arrive" && s !== "id") return;
-    if (me.username) router.replace("/world");
+    // returning player: the turnstile opens and they walk through (no instant jump, no loading screen)
+    if (me.username) useGate.setState({ step: "opening", isNew: false });
     else useGate.setState({ step: "setup", isNew: true });
   }, [status, me, router]);
 

@@ -364,10 +364,9 @@ export function GateFlow() {
       )}
 
       {g.step === "entering" && (
-        <div className="absolute inset-0 grid animate-[fadein_1.6s_ease-in_forwards] place-items-center bg-[#0b0d1a] opacity-0">
-          <p className="flex items-center gap-2 text-lg font-bold">
-            <Loader2 size={20} className="animate-spin" /> Entering the playground…
-          </p>
+        // never cover the player: a small status pill while they keep walking into the playground
+        <div role="status" className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/25 bg-[#0f1222]/80 px-4 py-2 text-sm font-bold shadow-xl backdrop-blur-md">
+          <Loader2 size={16} className="animate-spin text-[#7CC4FF]" /> Entering the playground…
         </div>
       )}
       {styling && (
