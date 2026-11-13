@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { addAfterEffect, useFrame } from "@react-three/fiber";
+import { addAfterEffect, useFrame, useThree } from "@react-three/fiber";
 import { create } from "zustand";
 
 /**
@@ -107,20 +107,38 @@ export const useDoorway = create<DoorwayState>()((set, get) => ({
 if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") (window as unknown as { __gkDoorway: typeof useDoorway }).__gkDoorway = useDoorway;
 
 let frames = 0;
+let good = 0;
+let compiled = false;
 
 /**
- * Put inside the destination's main <Suspense>: reveals once the scene has rendered real frames AND a frame has
- * settled (rendered on time: shader compiles / uploads done), so the dissolve never lands on a hitch. A slow
- * device still reveals after ~40 frames.
+ * Put inside the destination's main <Suspense> (so it only mounts once the real content has resolved). Reveals after
+ * the scene's shaders are compiled (`gl.compileAsync`, no first-frame stall under the dissolve) and 4 consecutive
+ * on-time frames (< 50 ms) have been drawn. A slow device still reveals after ~60 frames; the 9 s safety stays.
  */
 export function SceneReady() {
+  const gl = useThree((st) => st.gl);
+  const scene = useThree((st) => st.scene);
+  const camera = useThree((st) => st.camera);
   useEffect(() => {
     frames = 0;
-  }, []);
+    good = 0;
+    compiled = false;
+    let alive = true;
+    void Promise.resolve(gl.compileAsync?.(scene, camera))
+      .catch(() => undefined)
+      .finally(() => {
+        if (alive) compiled = true;
+      });
+    return () => {
+      alive = false;
+    };
+  }, [gl, scene, camera]);
   useFrame((_, dt) => {
+    if (!compiled) return;
     frames++;
-    if (frames < 3 || frames > 41) return;
-    if (dt < 1 / 24 || frames === 41) useDoorway.getState().ready();
+    good = dt < 0.05 ? good + 1 : 0;
+    if (frames > 61) return;
+    if (good >= 4 || frames === 61) useDoorway.getState().ready();
   });
   return null;
 }

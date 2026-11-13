@@ -15,6 +15,12 @@ import type { HallLayout } from "./layouts";
 
 const SIT_ANIM = 13;
 const SEAT_RANGE = 1.5;
+const wrapA = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+const ease = (t: number) => t * t * (3 - 2 * t);
+/** staged sit: walk to the stand point in front of the chair, turn, then lower onto it while the clip plays */
+type SitStage = { id: string; t: number; phase: "walk" | "turn" | "lower" | "seated"; fx: number; fz: number; fyaw: number };
+/** staged stand: stay put while rising, then step out to a free spot before steering takes over (from rest) */
+type StandStage = { t: number; fx: number; fz: number; tx: number; tz: number; chair: string };
 const INTRO_S = 1.9;
 const keys = new Set<string>();
 
@@ -45,6 +51,13 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   const facing = useRef(back.current?.yaw ?? Math.PI); // facing into the room (−z)
   const exited = useRef(false);
   const leaveStart = useRef(0);
+  const sitStage = useRef<SitStage | null>(null);
+  const standStage = useRef<StandStage | null>(null);
+  /** after standing up, the chair you left is not offered again until you have moved away or 1.5 s passed */
+  const leftChair = useRef<{ id: string; x: number; z: number; at: number } | null>(null);
+  /** sit / stand camera moves blend in (critically damped) instead of cutting */
+  const camBlendUntil = useRef(0);
+  const lookPt = useMemo(() => new THREE.Vector3(), []);
   const { camera, gl } = useThree();
   const profile = useProfile();
   const look = lookOf(profile);
@@ -140,11 +153,82 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       R.set({ seated: null });
     }
 
+    // stood up (or the server refused the chair): rise in place, then step out to a free spot
+    if (!seat && sitStage.current) {
+      const wasDown = sitStage.current.phase === "lower" || sitStage.current.phase === "seated";
+      const from = wasDown ? layout.seats.find((x) => x.id === sitStage.current!.id) : undefined;
+      sitStage.current = null;
+      if (from) {
+        const fwdX = Math.sin(from.yaw);
+        const fwdZ = Math.cos(from.yaw);
+        const isFree = (x: number, z: number) =>
+          solids.every((t) => Math.abs(x - t.x) > t.w / 2 + 0.34 || Math.abs(z - t.z) > t.d / 2 + 0.34) &&
+          layout.seats.every((o) => Math.hypot(x - (o.x - Math.sin(o.yaw) * 0.1), z - (o.z - Math.cos(o.yaw) * 0.1)) > chairR + 0.26);
+        const out = chairR + 0.3;
+        const cands: [number, number][] = [
+          [from.x + fwdX * out, from.z + fwdZ * out],
+          [from.x + fwdZ * (out + 0.2), from.z - fwdX * (out + 0.2)],
+          [from.x - fwdZ * (out + 0.2), from.z + fwdX * (out + 0.2)],
+          [from.x - fwdX * (out + 0.25), from.z - fwdZ * (out + 0.25)],
+        ];
+        const [tx, tz] = cands.find(([x, z]) => isFree(x, z)) ?? cands[0]!;
+        standStage.current = { t: 0, fx: pos.current.x, fz: pos.current.z, tx, tz, chair: from.id };
+        leftChair.current = { id: from.id, x: tx, z: tz, at: performance.now() };
+        camBlendUntil.current = performance.now() + 800;
+      }
+    }
+
+    const stand = standStage.current;
     if (seat) {
-      // seated on the chair, facing the table
-      pos.current.set(seat.x - Math.sin(seat.yaw) * 0.08, 0, seat.z - Math.cos(seat.yaw) * 0.08);
-      facing.current = seat.yaw;
-      anim.current = SIT_ANIM;
+      // staged sit (≈1.3 s): to the stand point in front of the chair, turn to the table, lower onto the seat
+      const seatX = seat.x - Math.sin(seat.yaw) * 0.08;
+      const seatZ = seat.z - Math.cos(seat.yaw) * 0.08;
+      const standX = seat.x + Math.sin(seat.yaw) * (chairR + 0.13);
+      const standZ = seat.z + Math.cos(seat.yaw) * (chairR + 0.13);
+      let st = sitStage.current;
+      if (!st || st.id !== seat.id) {
+        standStage.current = null;
+        const nearSeatPt = Math.hypot(pos.current.x - seatX, pos.current.z - seatZ) < 0.3; // back from a game: already there
+        const nearStand = Math.hypot(pos.current.x - standX, pos.current.z - standZ) < 0.15;
+        st = sitStage.current = { id: seat.id, t: 0, phase: nearSeatPt ? "seated" : nearStand ? "turn" : "walk", fx: pos.current.x, fz: pos.current.z, fyaw: facing.current };
+        camBlendUntil.current = performance.now() + 1600;
+      }
+      st.t += dt;
+      if (st.phase === "walk") {
+        const dx = standX - pos.current.x;
+        const dz = standZ - pos.current.z;
+        const dist = Math.hypot(dx, dz);
+        const want = Math.atan2(dx, dz);
+        facing.current += THREE.MathUtils.clamp(wrapA(want - facing.current), -7 * dt, 7 * dt);
+        const step = Math.min(dist, 1.2 * dt * Math.max(0, Math.cos(wrapA(want - facing.current))));
+        pos.current.x += (dx / Math.max(dist, 1e-4)) * step;
+        pos.current.z += (dz / Math.max(dist, 1e-4)) * step;
+        anim.current = 1;
+        if (dist < 0.06 || st.t > 2.5) Object.assign(st, { phase: "turn", t: 0, fyaw: facing.current });
+      } else if (st.phase === "turn") {
+        const k = Math.min(1, st.t / 0.35);
+        facing.current = st.fyaw + wrapA(seat.yaw - st.fyaw) * ease(k);
+        anim.current = 0;
+        if (k >= 1) Object.assign(st, { phase: "lower", t: 0, fx: pos.current.x, fz: pos.current.z });
+      } else if (st.phase === "lower") {
+        const k = Math.min(1, st.t / 0.65);
+        pos.current.set(st.fx + (seatX - st.fx) * ease(k), 0, st.fz + (seatZ - st.fz) * ease(k));
+        facing.current = seat.yaw;
+        anim.current = SIT_ANIM;
+        if (k >= 1) st.phase = "seated";
+      } else {
+        // seated on the chair, facing the table
+        pos.current.set(seatX, 0, seatZ);
+        facing.current = seat.yaw;
+        anim.current = SIT_ANIM;
+      }
+    } else if (stand) {
+      // rising (~0.4 s on the spot), then a short step out (~0.4 s); control returns from rest afterwards
+      stand.t += dt;
+      const k = ease(THREE.MathUtils.clamp((stand.t - 0.4) / 0.7, 0, 1));
+      pos.current.set(stand.fx + (stand.tx - stand.fx) * k, 0, stand.fz + (stand.tz - stand.fz) * k);
+      anim.current = stand.t > 0.45 && k < 1 ? 1 : 0;
+      if (stand.t >= 1.1) standStage.current = null;
     } else if (intro.current > 0 && !wantsToWalk && !keys.has("KeyA") && !keys.has("KeyD") && !keys.has("ArrowLeft") && !keys.has("ArrowRight")) {
       // automatic entry walk (doors close behind as you move away); waits until the doorway transition has opened
       const ph = useDoorway.getState().phase;
@@ -168,7 +252,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       }
     }
 
-    if (!seat) {
+    if (!seat && !stand) {
       // tables + furniture colliders (rect + body radius)
       for (const t of solids) {
         const hx = t.w / 2 + 0.32;
@@ -303,17 +387,24 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     const phNow = useDoorway.getState().phase;
     const doorsShut = phNow === "closed"; // hidden behind the frozen frame: snap, so the first visible frame is final
     if (!snapped.current || doorsShut) camera.position.set(cx, cy, cz);
+    else if (performance.now() < camBlendUntil.current) camera.position.lerp(new THREE.Vector3(cx, cy, cz), 1 - Math.exp(-dt * 4)); // sit / stand: ~0.8 s glide
     else camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * 6));
     snapped.current = !doorsShut;
-    camera.lookAt(target);
+    // the look point glides too during a sit / stand (no cut from head height to the table)
+    if (!snapped.current || doorsShut || performance.now() >= camBlendUntil.current) lookPt.copy(target);
+    else lookPt.lerp(target, 1 - Math.exp(-dt * 4));
+    camera.lookAt(lookPt);
 
     // nearest free chair / nearest signed-in player
     let nearSeat: string | null = null;
     let best = SEAT_RANGE;
-    if (!seat)
+    const lc = leftChair.current;
+    if (lc && (performance.now() - lc.at > 1500 || Math.hypot(pos.current.x - lc.x, pos.current.z - lc.z) > 1)) leftChair.current = null;
+    if (!seat && !stand)
       for (const s of layout.seats) {
         const holder = W.seats[s.id];
         if (holder && holder !== W.you) continue;
+        if (leftChair.current) continue; // just stood up: no "Sit down" straight back
         const dist = Math.hypot(s.x - pos.current.x, s.z - pos.current.z);
         if (dist < best) {
           best = dist;

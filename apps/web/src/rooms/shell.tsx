@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
 import * as THREE from "three";
-import { selfPose } from "@/lib/world-store";
+import { selfPose, useWorld } from "@/lib/world-store";
 import { useRoom } from "./room-store";
 import type { HallLayout } from "./layouts";
 import { GltfInstances, Instanced, model, type Xform } from "./interior-kit";
@@ -76,6 +76,9 @@ export function AutoDoor({ x, z, w, color }: { x: number; z: number; w: number; 
     const o = op.current;
     o.t += dt;
     const dist = Math.hypot(selfPose.x - x, selfPose.z - z);
+    // other people use the door too: it opens for anyone near it, and only closes once nobody is
+    let others = Infinity;
+    for (const p of Object.values(useWorld.getState().players)) others = Math.min(others, Math.hypot(p.x / 100 - x, p.z / 100 - z));
     if (!o.init) {
       // arriving through this door: it is already open behind you
       o.init = true;
@@ -89,9 +92,9 @@ export function AutoDoor({ x, z, w, color }: { x: number; z: number; w: number; 
     o.approach += (v - o.approach) * Math.min(1, dt * 6);
     const leaving = useRoom.getState().leaving;
     if (!o.latched) {
-      if (dist < DOORWAY_R || (dist < OPEN_R && o.approach > 0.25) || (leaving && dist < 6)) o.latched = true;
+      if (dist < DOORWAY_R || (dist < OPEN_R && o.approach > 0.25) || (leaving && dist < 6) || others < OPEN_R - 0.6) o.latched = true;
     } else {
-      o.farFor = dist > CLOSE_R && !leaving ? o.farFor + dt : 0;
+      o.farFor = dist > CLOSE_R && others > CLOSE_R && !leaving ? o.farFor + dt : 0;
       if (o.farFor > CLOSE_DELAY) o.latched = false;
     }
     const before = o.progress;
