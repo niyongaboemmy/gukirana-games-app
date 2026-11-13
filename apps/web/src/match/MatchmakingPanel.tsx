@@ -144,7 +144,7 @@ export function MatchmakingPanel() {
 
       {/* Challenge the nearby player */}
       {authed && nearPlayer && target?.verified && !outgoing && !sheet && (
-        <div className="absolute bottom-[calc(38%+64px)] left-1/2 -translate-x-1/2">
+        <div className="absolute bottom-[max(164px,calc(env(safe-area-inset-bottom)+156px))] left-1/2 -translate-x-1/2">
           <button
             type="button"
             onClick={() => {

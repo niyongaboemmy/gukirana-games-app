@@ -189,7 +189,7 @@ export function WorldHud() {
 
       {/* proximity prompt */}
       {(portal || other || benchSeat || seatedOnBench) && !roomBusy && (
-        <div className="absolute bottom-[38%] left-1/2 -translate-x-1/2">
+        <div className={`absolute bottom-[max(104px,calc(env(safe-area-inset-bottom)+96px))] -translate-x-1/2 ${chatOpen ? "left-[70%]" : "left-1/2"}`}>
           <button
             type="button"
             onClick={interact}

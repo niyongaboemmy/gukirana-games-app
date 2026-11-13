@@ -161,7 +161,7 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
 
       {/* leave prompt near the exit (inside) */}
       {nearExit && !nearSeat && !seated && !leaving && (
-        <div className="absolute bottom-[34%] left-1/2 -translate-x-1/2">
+        <div className="absolute bottom-[max(104px,calc(env(safe-area-inset-bottom)+96px))] left-1/2 -translate-x-1/2">
           <button type="button" onClick={() => useRoom.getState().set({ leaving: true })} className="pointer-events-auto flex items-center gap-3 rounded-full border border-white/30 bg-[#22266E]/90 py-2 pl-2 pr-5 text-lg font-bold shadow-2xl backdrop-blur-md active:scale-95">
             <span className="grid size-9 place-items-center rounded-full bg-white text-base font-black text-[#22266E]">E</span>
             <DoorOpen size={20} /> Leave to the plaza
@@ -171,7 +171,7 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
 
       {/* sit prompt */}
       {nearSeat && !seated && (
-        <div className="absolute bottom-[34%] left-1/2 -translate-x-1/2">
+        <div className="absolute bottom-[max(104px,calc(env(safe-area-inset-bottom)+96px))] left-1/2 -translate-x-1/2">
           <button type="button" onClick={() => sitDown(nearSeat)} className="pointer-events-auto flex items-center gap-3 rounded-full border border-white/30 bg-[#22266E]/90 py-2 pl-2 pr-5 text-lg font-bold shadow-2xl backdrop-blur-md active:scale-95">
             <span className="grid size-9 place-items-center rounded-full bg-white text-base font-black text-[#22266E]">E</span>
             <Armchair size={20} /> Sit down
