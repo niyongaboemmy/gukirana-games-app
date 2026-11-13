@@ -10,6 +10,7 @@ import {
   Instanced,
   LightPools,
   model,
+  TableContactShadows,
   usePbr,
   type Blob,
   type Xform,
@@ -229,12 +230,19 @@ function IgisoroTables({ tables, lite }: { tables: Table[]; lite: boolean }) {
           p: [t.x + s * (t.w / 2 - 0.2), (t.h - 0.08) / 2, t.z],
           s: [0.16, t.h - 0.08, t.d - 0.12],
         });
-      bodies.push({ p: [t.x, t.h + 0.03, t.z], s: [BOARD.w + 0.06, 0.06, BOARD.d + 0.06] });
+      // board body: a base slab below the pit bottoms plus a rim flush with the carved top (a solid block would
+      // fill the pits and hide the seeds)
+      bodies.push({ p: [t.x, t.h + 0.015, t.z], s: [BOARD.w + 0.06, 0.03, BOARD.d + 0.06] });
+      for (const s of [-1, 1]) {
+        bodies.push({ p: [t.x, t.h + 0.0455, t.z + s * (BOARD.d / 2 + 0.015)], s: [BOARD.w + 0.06, 0.031, 0.03] });
+        bodies.push({ p: [t.x + s * (BOARD.w / 2 + 0.015), t.h + 0.0455, t.z], s: [0.03, 0.031, BOARD.d] });
+      }
       boards.push({ p: [t.x, t.h + 0.061, t.z] });
-      const fresh = ti % 3 === 0;
+      const fresh = ti % 2 === 0;
       for (let c = 0; c < BOARD.cols; c++)
         for (let r = 0; r < BOARD.rows; r++) {
-          const count = fresh ? 4 : Math.floor(n(ti * 97 + c * 7 + r * 31) * 7);
+          // a fresh board: 2 seeds in every pit (the opening position); others show a game in progress
+          const count = fresh ? 2 : Math.floor(n(ti * 97 + c * 7 + r * 31) * 6);
           const [cx, cz] = pitCentre(c, r);
           for (let k = 0; k < count; k++) {
             const a = (k / Math.max(1, count)) * Math.PI * 2 + n(ti + c + r * 3 + k);
@@ -643,6 +651,7 @@ export function IgisoroCourt({ layout, lite }: { layout: HallLayout; lite: boole
         ]}
       />
       <BlobShadows items={shadowBlobs} opacity={0.45} />
+      <TableContactShadows tables={tables} lite={lite} size={3.2} />
     </group>
   );
 }

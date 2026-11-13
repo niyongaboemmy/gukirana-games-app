@@ -15,7 +15,7 @@ import {
   type Blob,
   type Xform,
 } from "./interior-kit";
-import { ballAtlas, clubRug, feltTexture } from "./room-textures";
+import { ballAtlas, clubRug, feltTexture, spillTexture, windowLightTexture } from "./room-textures";
 import { SouthWall, WindowWall } from "./shell";
 
 /**
@@ -341,10 +341,19 @@ export function PoolHall({ layout, lite }: { layout: HallLayout; lite: boolean }
   const floor = usePbr("dark_wooden_planks", [w / 2, d / 2]);
   const brick = usePbr("red_brick_03", [d, h]);
   const brickN = usePbr("red_brick_03", [w, 0.65]);
+  const brickS = usePbr("red_brick_03", [(w - layout.door.w) / 2, h]);
   const walnut = usePbr("black_walnut_veneer_01", [6, 1]);
   const leather = usePbr("brown_leather", [2, 1]);
   const velour = usePbr("velour_velvet", [4, 4], { map: false });
   const rug = useMemo(() => clubRug(), []);
+  // baked light: pendant spill on the ceiling above each lamp, daylight through the north glazing on the floor,
+  // three warm spots washing the back-bar shelving (no extra real lights: phones stay at 60 fps)
+  const ceilingSpill = useMemo(
+    () => spillTexture(tables.flatMap((t) => [-0.82, 0, 0.82].map((dx) => ({ u: 0.5 + (t.x + dx) / w, v: 0.5 + t.z / d, r: 0.07, a: 0.55 }))), w / d, 512, 0.4),
+    [tables, w, d],
+  );
+  const daylight = useMemo(() => windowLightTexture(8), []);
+  const shelfSpill = useMemo(() => spillTexture([0.17, 0.5, 0.83].map((u) => ({ u, v: 0.92, r: 0.16 })), 4.25, 512), []);
   const box = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
   const cyl = useMemo(() => new THREE.CylinderGeometry(1, 1, 1, 24), []);
   const cue = useMemo(() => cueGeometry(), []);
@@ -485,13 +494,15 @@ export function PoolHall({ layout, lite }: { layout: HallLayout; lite: boolean }
           color="#3d8bff"
         />
       </Environment>
-      <hemisphereLight args={["#ffe9cc", "#3a2a1e", lite ? 0.8 : 0.45]} />
+      {/* ground colour = light bouncing off the warm plank floor: lifts the ceiling and the upper walls out of black */}
+      <hemisphereLight args={["#ffe9cc", "#6a5040", lite ? 0.85 : 0.62]} />
       {lite && <ambientLight intensity={0.35} />}
-      <directionalLight position={[2, 6, -14]} intensity={lite ? 0.6 : 0.95} color="#dbe8f5" />
+      {/* north daylight through the glazing: steep enough to reach the floor and the table beds */}
+      <directionalLight position={[1, 9, -12]} intensity={lite ? 0.8 : 1.25} color="#e4edf6" />
       {/* soft daylight spilling in from the window wall */}
       {!lite &&
         [-6, 0, 6].map((x) => (
-          <pointLight key={x} position={[x, 2.4, -7.8]} intensity={3.2} distance={9} decay={1.4} color="#dfeaf5" />
+          <pointLight key={x} position={[x, 2.6, -7.6]} intensity={5.5} distance={12} decay={1.3} color="#e3edf7" />
         ))}
       {!lite && (
         <>
@@ -521,9 +532,15 @@ export function PoolHall({ layout, lite }: { layout: HallLayout; lite: boolean }
           <meshStandardMaterial map={rug} roughness={1} />
         </mesh>
       ))}
+      {/* daylight pool on the floor along the window wall (additive decal, mullion shadows baked in) */}
+      <mesh position={[0, 0.009, -d / 2 + 3.2]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1}>
+        <planeGeometry args={[w, 6.4]} />
+        <meshBasicMaterial map={daylight} color="#cfd9e0" transparent opacity={lite ? 0.22 : 0.28} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+      </mesh>
+      {/* painted ceiling (dark warm grey, not a void) with the lamps' upward spill baked in */}
       <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, h, 0]}>
         <planeGeometry args={[w, d]} />
-        <meshStandardMaterial color="#121214" roughness={0.95} />
+        <meshStandardMaterial color="#2a2622" roughness={0.9} emissive="#ffffff" emissiveMap={ceilingSpill} emissiveIntensity={0.32} />
       </mesh>
       {/* black exposed ducts + beams */}
       <Instanced
@@ -534,14 +551,14 @@ export function PoolHall({ layout, lite }: { layout: HallLayout; lite: boolean }
         ]}
         receiveShadow={false}
       >
-        <meshStandardMaterial color="#1b1c1f" metalness={0.6} roughness={0.5} />
+        <meshStandardMaterial color="#3a3835" metalness={0.5} roughness={0.5} />
       </Instanced>
       <Instanced
         geometry={box}
         items={[-6, -2, 2, 6].map((z) => ({ p: [0, h - 0.15, z], s: [w, 0.3, 0.22] }) as Xform)}
         receiveShadow={false}
       >
-        <meshStandardMaterial color="#17181b" roughness={0.8} />
+        <meshStandardMaterial color="#35302b" roughness={0.85} />
       </Instanced>
       {[-1, 1].map((s) => (
         <mesh key={s} position={[s * (w / 2), h / 2, 0]} rotation={[0, -s * (Math.PI / 2), 0]} receiveShadow>
@@ -559,7 +576,7 @@ export function PoolHall({ layout, lite }: { layout: HallLayout; lite: boolean }
         <meshStandardMaterial {...brickN} color="#8a7a72" roughness={0.9} />
       </WindowWall>
       <SouthWall layout={layout}>
-        <meshStandardMaterial color="#1f2126" roughness={0.85} />
+        <meshStandardMaterial {...brickS} color="#7d6a5e" roughness={0.9} />
       </SouthWall>
       <Instanced geometry={box} items={X.panels}>
         <meshStandardMaterial
@@ -605,14 +622,27 @@ export function PoolHall({ layout, lite }: { layout: HallLayout; lite: boolean }
       <Instanced geometry={box} items={X.backCab}>
         <meshStandardMaterial {...walnut} color="#3a2416" roughness={0.45} />
       </Instanced>
-      {/* backlit amber panel behind the bottles */}
-      <mesh position={[-w / 2 + 0.02, 2.05, barZ]} rotation={[0, Math.PI / 2, 0]}>
-        <planeGeometry args={[barLen - 1.2, 1.5]} />
-        <meshBasicMaterial color={[0.75, 0.38, 0.13]} toneMapped={false} />
+      {/* back-bar shelving: dark walnut back panel washed by three warm spots (baked, emissive <= 0.3) */}
+      <mesh position={[-w / 2 + 0.02, 2.1, barZ]} rotation={[0, Math.PI / 2, 0]}>
+        <planeGeometry args={[barLen - 1.2, 1.6]} />
+        <meshStandardMaterial {...walnut} color="#4a3020" roughness={0.5} emissive="#ffb070" emissiveMap={shelfSpill} emissiveIntensity={0.3} />
       </mesh>
       <Instanced geometry={box} items={X.shelves}>
-        <meshStandardMaterial color="#cfe3ea" transparent opacity={0.45} roughness={0.05} metalness={0.2} />
+        <meshStandardMaterial {...walnut} color="#6a4630" roughness={0.42} />
       </Instanced>
+      {/* the three spot cans over the shelving */}
+      {[-1, 0, 1].map((k) => (
+        <group key={k} position={[-w / 2 + 0.3, 2.98, barZ + k * (barLen - 1.2) * 0.33]}>
+          <mesh>
+            <cylinderGeometry args={[0.07, 0.08, 0.16, 14]} />
+            <meshStandardMaterial color="#1c1c1e" metalness={0.6} roughness={0.4} />
+          </mesh>
+          <mesh position={[0, -0.081, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[0.055, 14]} />
+            <meshBasicMaterial color={[3.2, 2.5, 1.6]} toneMapped={false} />
+          </mesh>
+        </group>
+      ))}
       {!lite && (
         <>
           {Object.entries(X.bottles).map(([k, items]) => (
