@@ -144,6 +144,8 @@ export function InstancedSpecies({ id, items, lite = false, shadows = true, maxL
         const mat = (src.material as THREE.MeshStandardMaterial).clone();
         if (mat.name === "leaves") {
           mat.color.multiplyScalar(1.25); // scanned albedo reads a little dark under our sun
+          mat.alphaTest = 0.5;
+          mat.alphaToCoverage = true; // smooth alpha-cut edges with MSAA, no shimmer
           if (def.sway) addWind(mat, def.sway);
         }
         if (mat.map) mat.map.anisotropy = 4;

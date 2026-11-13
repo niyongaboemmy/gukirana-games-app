@@ -464,3 +464,22 @@ Brief: "In the compound, do not use trees. Use modern, attractive flowers to mak
   - at the arrival gate (free roam): kiosk, guard, booth, pylons and forecourt beds;
   - click-to-walk targets snap to the nearest free point;
   - door walk-through and the step-out after leaving a hall are unchanged.
+- **Realism review follow-up:**
+  - **Volcanoes:** now 1.7–2.3 km away at the real 6–8° of elevation, kept inside the sky dome so room window
+    views still see them. They are excluded from scene fog and get their own aerial perspective (blue-grey
+    haze + desaturation with distance). Bands are toned down, and cloud caps cling to Karisimbi, Muhabura and
+    Bisoke.
+  - **Camera:** a spring arm (`cameraArm`) pulls the camera in front of buildings, the gate canopy and screen,
+    sign totems, lamp posts and kiosks. It snaps in fast and eases out slowly.
+  - **Click-to-walk** routes around obstacles: A* on a 0.5 m grid, then string-pulled. It gives up after 1.5 s
+    without progress, so the feet never slide against an obstacle.
+  - **Plaza light:** paving albedo darkened (~0.4) and matte. Hemisphere 0.32, sun 3.3 warm, environment 0.7.
+    Bluer sky (rayleigh 2.3, turbidity 5).
+  - **Water:** metalness 0 everywhere (fountain, lakes, crater lakes).
+  - **Flower beds:** single-species drifts, a calm palette with one accent per bed, a dense green groundcover
+    layer, and alpha-to-coverage.
+  - **Landscape:** dense eucalyptus woodlot blocks (30–80 trees), banana clumps around ochre mud-brick houses
+    with iron roofs sunk into the slope, the odd bamboo "pillars" removed, and the lawn tint reduced to ×1.35.
+  - **People:** the collar mask is thresholded (no blue throat), shoe albedo capped at 0.7, and skin roughness
+    varies (T-zone glossier).
+  - **Spawn medallion:** now flush granite with a steel inlay (no glowing cyan ring).

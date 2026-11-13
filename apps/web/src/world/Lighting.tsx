@@ -20,7 +20,7 @@ export const FOG_COLOR = "#c4d2dc";
 
 function SkyDome() {
   const sun = useMemo(() => SUN_DIR.clone().multiplyScalar(400), []);
-  return <Sky distance={2400} sunPosition={sun} turbidity={7} rayleigh={1.6} mieCoefficient={0.006} mieDirectionalG={0.82} />;
+  return <Sky distance={2400} sunPosition={sun} turbidity={5} rayleigh={2.3} mieCoefficient={0.005} mieDirectionalG={0.84} />;
 }
 
 /** Sun with a shadow frustum that follows the player (crisp shadows near you, texel-snapped to avoid shimmer). */
@@ -49,8 +49,8 @@ function Sun({ tier }: { tier: Tier }) {
   return (
     <directionalLight
       ref={light}
-      color="#ffe4c4"
-      intensity={2.9}
+      color="#ffd8ad"
+      intensity={3.3}
       castShadow={tier !== "lite"}
       shadow-mapSize={[map, map]}
       shadow-bias={-0.0004}
@@ -71,9 +71,9 @@ export function Lighting({ tier }: { tier: Tier }) {
     <>
       <SkyDome />
       <fogExp2 attach="fog" args={[FOG_COLOR, tier === "lite" ? 0.0012 : 0.00085]} />
-      <hemisphereLight args={["#c9def0", "#56643a", 0.55]} />
+      <hemisphereLight args={["#c9def0", "#56643a", 0.32]} />
       <Sun tier={tier} />
-      <Environment frames={1} near={1} far={3000} resolution={tier === "lite" ? 32 : 128} environmentIntensity={0.85}>
+      <Environment frames={1} near={1} far={3000} resolution={tier === "lite" ? 32 : 128} environmentIntensity={0.7}>
         <SkyDome />
         {/* sun disc + warm bounce from the east, cool sky panels, dark-green ground */}
         <Lightformer form="circle" intensity={6} color="#ffe2b8" position={SUN_DIR.clone().multiplyScalar(50).toArray()} scale={10} target={[0, 0, 0]} />

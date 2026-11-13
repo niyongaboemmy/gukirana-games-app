@@ -292,21 +292,35 @@ function fillBed(out: Plant[], inside: (x: number, z: number) => number | null, 
       const depth = inside(px, pz); // 0 = back edge … 1 = front edge, null = outside
       if (depth === null) continue;
       const row = palette[Math.min(palette.length - 1, Math.floor(depth * palette.length))]!;
-      const id = row[Math.floor(drift(px, pz)) % row.length]!;
+      const id = row[(driftCell(px + drift(px, pz) * 0.37, pz) % row.length + row.length) % row.length]!;
       const d = PLANTS[id];
       // thin out large plants so spacing roughly matches their size
       if (r() > (step / d.spacing) ** 2 * 1.4) continue;
       out.push({ id, x: px, y, z: pz, h: d.h[0] + r() * (d.h[1] - d.h[0]), w: d.w * (1.05 + r() * 0.35), rot: r() * Math.PI });
-      if (r() < 0.45) out.push({ id: "foliage", x: px + (r() - 0.5) * step, y, z: pz + (r() - 0.5) * step, h: 0.3 + r() * 0.12, w: 0.8, rot: r() * Math.PI });
+      if (r() < 0.8) out.push({ id: "foliage", x: px + (r() - 0.5) * step, y, z: pz + (r() - 0.5) * step, h: 0.3 + r() * 0.12, w: 0.8, rot: r() * Math.PI });
     }
 }
 
+/**
+ * Calm, designed palettes: 2–3 colour families per bed + ONE accent (repeated entries = weights), graded from tall
+ * at the back to low at the front, planted in single-species drifts.
+ */
 const PALETTES: CellId[][][] = [
   // back (outer) → front (inner)
-  [["canna", "grass"], ["agapanthus", "allium"], ["lavender", "salvia"], ["tulips", "coreopsis"]],
-  [["strelitzia", "grass"], ["roses", "gaura"], ["lavender"], ["coreopsis", "tulips"]],
-  [["grass", "canna"], ["allium", "agapanthus", "salvia"], ["gaura", "roses"], ["tulips"]],
+  [["grass", "grass", "grass", "strelitzia"], ["agapanthus", "agapanthus", "gaura"], ["lavender"]],
+  [["grass", "grass", "grass", "canna"], ["lavender", "lavender", "allium"], ["gaura", "salvia"]],
+  [["grass", "grass", "agapanthus"], ["agapanthus", "roses"], ["lavender", "gaura"]],
 ];
+
+/** Single-species drifts: jittered 1.6 m Voronoi-like cells, one species per cell. */
+function driftCell(x: number, z: number): number {
+  const s = 1.6;
+  const wx = x + Math.sin(z * 0.7) * 0.5;
+  const wz = z + Math.sin(x * 0.6) * 0.5;
+  let h = Math.imul(Math.floor(wx / s) | 0, 374761393) + Math.imul(Math.floor(wz / s) | 0, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) % 1000;
+}
 
 function arcInside(b: ArcBed, edgePad = 0.12) {
   return (x: number, z: number) => {
@@ -527,7 +541,7 @@ export function Flowers({ tier }: { tier: Tier }) {
     const col = new THREE.Color();
     for (const [id, list] of byId) {
       const geo = plantGeometry(CELLS.indexOf(id), id === "grass" || id === "strelitzia" || id === "bougainvillea" ? 3 : 2);
-      const mat = new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.75, metalness: 0 });
+      const mat = new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.45, alphaToCoverage: true, side: THREE.DoubleSide, roughness: 0.75, metalness: 0 });
       addWind(mat, id === "grass" ? 0.08 : id === "bougainvillea" ? 0.02 : 0.05);
       const im = new THREE.InstancedMesh(geo, mat, list.length);
       list.forEach((p, i) => {

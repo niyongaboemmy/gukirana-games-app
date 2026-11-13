@@ -116,7 +116,8 @@ const RECOLOUR = /* glsl */ `
   if (uIsHead > 0.5) {
     vec3 gkHairCol = mix(uHair * gkDetail(gkL, uHairRef, 0.75), uSkin * gkDetail(gkL, uHairRef, 0.12) * 0.92, uHairToSkin);
     gkCol = mix(gkCol, gkHairCol, gkM.g);
-    gkCol = mix(gkCol, uTop * gkDetail(gkL, uTopRef, 0.8), gkM.b * uClothes);
+    // collar region: hard threshold so the soft mask edge never tints the throat
+    gkCol = mix(gkCol, uTop * gkDetail(gkL, uTopRef, 0.8), smoothstep(0.6, 0.85, gkM.b) * uClothes);
   } else {
     vec3 gkTopC = uTopPrintOn > 0.5 ? texture2D(uTopPrint, vMapUv * 7.0).rgb : uTop;
     vec3 gkBotC = uBottomPrintOn > 0.5 ? texture2D(uBottomPrint, vMapUv * 7.0).rgb : uBottom;
@@ -124,7 +125,7 @@ const RECOLOUR = /* glsl */ `
     gkCol = mix(gkCol, gkTopC * gkDetail(gkL, uTopRef, 0.85), gkM.g * uClothes);
     gkCol = mix(gkCol, gkBotC, gkM.b * uClothes);
     float gkShoe = clamp(1.0 - gkM.r - gkM.g - gkM.b, 0.0, 1.0);
-    gkCol = mix(gkCol, uShoes * gkDetail(gkL, uShoesRef, 0.85), gkShoe * uClothes);
+    gkCol = mix(gkCol, min(uShoes * gkDetail(gkL, uShoesRef, 0.85), vec3(0.7)), gkShoe * uClothes);
   }
   diffuseColor.rgb = gkCol;
 }
@@ -135,7 +136,10 @@ const ROUGH = /* glsl */ `
 {
   vec4 gkM2 = texture2D(uMask, vMapUv);
   // skin has a soft sheen, fabric is matte, hair slightly glossy
-  roughnessFactor = mix(roughnessFactor, 0.5, gkM2.r);
+  // skin: slightly glossier in the T-zone / darker creases, matte elsewhere (not plastic)
+  float gkLr = dot(texture2D(map, vMapUv).rgb, vec3(0.3, 0.59, 0.11));
+  roughnessFactor = mix(roughnessFactor, mix(0.6, 0.45, smoothstep(0.05, 0.4, gkLr)), gkM2.r);
+  if (uIsHead < 0.5) roughnessFactor = mix(roughnessFactor, 0.75, clamp(1.0 - gkM2.r - gkM2.g - gkM2.b, 0.0, 1.0));
   if (uIsHead > 0.5) roughnessFactor = mix(roughnessFactor, 0.62, gkM2.g);
 }
 `;

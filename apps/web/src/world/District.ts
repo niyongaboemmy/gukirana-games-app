@@ -255,8 +255,9 @@ function plaza(b: GeoBatch, tier: string) {
     }
   }
   // spawn medallion
-  b.add("led-sky", flat(new THREE.RingGeometry(1.15, 1.3, 48)), { p: [SPAWN.x, 0.016, SPAWN.z] });
-  b.add("lava", flat(new THREE.CircleGeometry(1.15, 48)), { p: [SPAWN.x, 0.014, SPAWN.z], tile: 1.2 });
+  // flush granite medallion with a brushed-steel inlay ring (no glowing game ring)
+  b.add("alu", flat(new THREE.RingGeometry(1.12, 1.17, 64)), { p: [SPAWN.x, 0.016, SPAWN.z] });
+  b.add("concreteDark", flat(new THREE.CircleGeometry(1.12, 48)), { p: [SPAWN.x, 0.014, SPAWN.z], tile: 1.2 });
 
   // fountain: basalt basin, white coping, water and jets; Agaseke sculpture on a plinth
   b.cyl("lava", FOUNTAIN_RADIUS, FOUNTAIN_RADIUS + 0.15, 0.55, 64, { p: [0, 0.27, 0], uv: [18, 0.5] });

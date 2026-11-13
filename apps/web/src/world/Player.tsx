@@ -17,7 +17,7 @@ import {
   SPAWN,
 } from "./layout";
 import { doorOpen, useTransition } from "./transition";
-import { freePoint, plazaObstacles, resolve } from "./obstacles";
+import { cameraArm, freePoint, planRoute, plazaObstacles, resolve } from "./obstacles";
 import { decodeLook } from "./outfits";
 import type { Tier } from "./materials";
 import { useWorld } from "@/lib/world-store";
@@ -89,6 +89,10 @@ export function LocalPlayer({
   }
   const lookAt = useRef<THREE.Vector3 | null>(null);
   const lookTarget = useMemo(() => new THREE.Vector3(), []);
+  const armLen = useRef(cameraState.distance);
+  /** remaining click-to-walk waypoints (routed around benches, beds, planters …) */
+  const route = useRef<{ x: number; z: number }[]>([]);
+  const stuck = useRef({ t: 0, x: 0, z: 0 });
   const { camera, gl } = useThree();
   const inXR = useXR((s) => s.session != null);
 
@@ -120,11 +124,17 @@ export function LocalPlayer({
             Math.abs(p.x * Math.cos(a) + p.z * Math.sin(a)) < DOOR.w / 2 &&
             p.x * Math.sin(a) - p.z * Math.cos(a) > 0
           )
-            return { x: Math.sin(a) * (DOOR_RING + 0.2), z: -Math.cos(a) * (DOOR_RING + 0.2) };
+          {
+            // route to the doorstep inside the plaza, then straight through the door
+            const step = { x: Math.sin(a) * (PLAZA_RADIUS - 0.4), z: -Math.cos(a) * (PLAZA_RADIUS - 0.4) };
+            route.current = [...planRoute(pos.current, step), { x: Math.sin(a) * (DOOR_RING + 0.2), z: -Math.cos(a) * (DOOR_RING + 0.2) }];
+            return route.current.shift()!;
+          }
         }
         const q = r > PLAZA_RADIUS ? { x: (p.x / r) * PLAZA_RADIUS, z: (p.z / r) * PLAZA_RADIUS } : p;
-        // a tap on a bench, planter or flower bed walks to the nearest free spot next to it
-        return freePoint(q, plazaObstacles());
+        // a tap on a bench, planter or flower bed walks to the nearest free spot next to it, around obstacles
+        route.current = planRoute(pos.current, freePoint(q, plazaObstacles()));
+        return route.current.shift()!;
       },
     );
     const wheel = (e: WheelEvent) => {
@@ -171,6 +181,23 @@ export function LocalPlayer({
       pos.current.z += s.dz;
       facing.current = s.facing;
       autoFollow(cameraState, s, dt); // the camera follows the person
+      // click-to-walk: manual input cancels the route; arriving at a waypoint continues to the next one
+      if (s.mode === "keys" || s.mode === "joy") route.current = [];
+      else if (!nav.target && route.current.length) nav.target = route.current.shift()!;
+      // never push into an obstacle forever: give up a target that makes no progress for 1.5 s
+      const st = stuck.current;
+      if (nav.target) {
+        st.t += dt;
+        if (st.t > 1.5) {
+          if (Math.hypot(pos.current.x - st.x, pos.current.z - st.z) < 0.25) {
+            nav.target = null;
+            route.current = [];
+          }
+          st.t = 0;
+          st.x = pos.current.x;
+          st.z = pos.current.z;
+        }
+      } else st.t = 0;
       if (s.moving) anim.current = run || s.speed > 2.6 ? 2 : 1;
       else {
         const e = w.emote;
@@ -218,13 +245,18 @@ export function LocalPlayer({
     // third-person camera (DESIGN-SPEC §8.1)
     if (!inXR) {
       // short camera push towards the doorway while the door transition fades out
-      const d = entering ? Math.min(cameraState.distance, 3) : cameraState.distance;
-      const cx = pos.current.x + Math.sin(cameraState.yaw) * Math.cos(cameraState.pitch) * d;
-      const cz = pos.current.z + Math.cos(cameraState.yaw) * Math.cos(cameraState.pitch) * d;
-      let cy = 1.6 + Math.sin(cameraState.pitch) * d;
+      const want = entering ? Math.min(cameraState.distance, 3) : cameraState.distance;
+      // spring arm: pull the camera in front of anything solid between the head and the wanted position
+      // (buildings around the plaza, sign totems, lamp posts, kiosks, the gate canopy); snap in, ease out
+      const d = cameraArm(pos.current.x, pos.current.z, cameraState.yaw, cameraState.pitch, want);
+      armLen.current = d < armLen.current ? d : armLen.current + (d - armLen.current) * Math.min(1, dt * 2.5);
+      const L = armLen.current;
+      const cx = pos.current.x + Math.sin(cameraState.yaw) * Math.cos(cameraState.pitch) * L;
+      const cz = pos.current.z + Math.cos(cameraState.yaw) * Math.cos(cameraState.pitch) * L;
+      let cy = 1.6 + Math.sin(cameraState.pitch) * L;
       // keep the camera below the entry gate canopy (soffit at ~5.2 m) instead of clipping through it
       if (Math.abs(cx) < 10 && Math.abs(cz - ENTRY_Z) < 4.6) cy = Math.min(cy, 4.6);
-      camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * 8));
+      camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * (d < L + 0.01 ? 14 : 8)));
       camera.lookAt(pos.current.x, 1.5, pos.current.z);
     }
 

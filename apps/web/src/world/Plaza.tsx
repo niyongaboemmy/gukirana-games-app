@@ -216,7 +216,7 @@ function Fountain() {
     <group>
       <mesh ref={water} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.46, 0]}>
         <ringGeometry args={[1.12, FOUNTAIN_RADIUS - 0.36, 64]} />
-        <meshStandardMaterial color="#2d6f8f" metalness={0.5} roughness={0.04} envMapIntensity={1.8} transparent opacity={0.9} />
+        <meshStandardMaterial color="#2b4a52" metalness={0} roughness={0.03} envMapIntensity={1.9} transparent opacity={0.92} />
       </mesh>
       {/* Player of the Day hologram (SRS §5.10) */}
       <group ref={holo} position={[0, 6.0, 0]}>

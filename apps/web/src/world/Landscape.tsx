@@ -178,19 +178,20 @@ interface Volcano {
 }
 /** Real summits: Karisimbi 4,507 m · Muhabura 4,127 m · Bisoke 3,711 m · Sabyinyo 3,674 m · Gahinga 3,474 m (plain ≈ 1,850 m). */
 export const VOLCANOES: Volcano[] = [
-  { name: "Karisimbi", az: -58, dist: 1050, h: 360, r: 900, p: 1.55 },
-  { name: "Bisoke", az: -36, dist: 860, h: 245, r: 560, p: 1.35, crater: 0.05 },
-  { name: "Sabyinyo", az: -8, dist: 800, h: 235, r: 540, p: 1.5, teeth: true, elong: 1.3 },
-  { name: "Gahinga", az: 13, dist: 760, h: 190, r: 420, p: 1.3, crater: 0.04 },
-  { name: "Muhabura", az: 27, dist: 900, h: 310, r: 600, p: 1.12 },
+  // pushed back to ~1.7–2.3 km (inside the sky dome) and kept to the real 5–8° of elevation seen from Musanze
+  { name: "Karisimbi", az: -58, dist: 2250, h: 355, r: 1750, p: 1.55 },
+  { name: "Bisoke", az: -36, dist: 1900, h: 230, r: 1150, p: 1.35, crater: 0.05 },
+  { name: "Sabyinyo", az: -8, dist: 1800, h: 225, r: 1100, p: 1.5, teeth: true, elong: 1.3 },
+  { name: "Gahinga", az: 13, dist: 1700, h: 185, r: 900, p: 1.3, crater: 0.04 },
+  { name: "Muhabura", az: 27, dist: 2000, h: 320, r: 1300, p: 1.12 },
 ];
 
 const BAND = {
-  farm: new THREE.Color("#5f8f3f"),
-  bamboo: new THREE.Color("#7f9a43"),
-  forest: new THREE.Color("#2f4f2c"),
-  heath: new THREE.Color("#5d5c3c"),
-  rock: new THREE.Color("#3b3733"),
+  farm: new THREE.Color("#66884a"),
+  bamboo: new THREE.Color("#71874a"),
+  forest: new THREE.Color("#3c4f3a"),
+  heath: new THREE.Color("#5f5e4c"),
+  rock: new THREE.Color("#47443f"),
 };
 
 function volcanoHeight(v: Volcano, lx: number, lz: number): number {
@@ -348,23 +349,6 @@ interface Inst {
   m: THREE.Matrix4;
   c: THREE.Color;
 }
-function canopyGeo(seed: number, detail = 1): THREE.BufferGeometry {
-  const g = new THREE.IcosahedronGeometry(1, detail);
-  const p = g.getAttribute("position") as THREE.BufferAttribute;
-  const r = rng(seed);
-  const jit = new Map<string, number>();
-  for (let i = 0; i < p.count; i++) {
-    const key = `${p.getX(i).toFixed(3)},${p.getY(i).toFixed(3)},${p.getZ(i).toFixed(3)}`;
-    let k = jit.get(key);
-    if (k === undefined) {
-      k = 0.82 + r() * 0.36;
-      jit.set(key, k);
-    }
-    p.setXYZ(i, p.getX(i) * k, p.getY(i) * k, p.getZ(i) * k);
-  }
-  g.computeVertexNormals();
-  return g;
-}
 
 function InstancedSet({ geo, mat, items, shadow = false }: { geo: THREE.BufferGeometry; mat: THREE.Material; items: Inst[]; shadow?: boolean }) {
   const mesh = useMemo(() => {
@@ -403,8 +387,7 @@ function Vegetation({ tier }: { tier: Tier }) {
     const bushes: Placement[] = [];
     const rocks: Placement[] = [];
     const boulders: Placement[] = [];
-    const culms: Inst[] = [];
-    const culmLeaves: Inst[] = [];
+    const bananas: Inst[] = [];
     const walls: Inst[] = [];
     const roofs: Inst[] = [];
     const leaf = (base: string, v = 0.12) => new THREE.Color(base).offsetHSL((r() - 0.5) * 0.03, (r() - 0.5) * v, (r() - 0.5) * v);
@@ -430,45 +413,24 @@ function Vegetation({ tier }: { tier: Tier }) {
       else rocks.push({ x, y: y - 0.05, z, rotY: r() * 6, s: 0.6 + r() * 0.8 });
     }
 
-    // eucalyptus woodlots on the hills
-    for (let w = 0; w < (lite ? 14 : 30); w++) {
+    // eucalyptus woodlots: dense blocks of 30–80 trees on the ridges (as on the Musanze hills)
+    for (let w = 0; w < (lite ? 8 : 16); w++) {
       const a = r() * Math.PI * 2;
-      const rad = 110 + r() * 260;
+      const rad = 120 + r() * 300;
       const cx = Math.sin(a) * rad;
       const cz = Math.cos(a) * rad;
       if (-cz / rad > 0.75 && rad > 200) continue; // keep the volcano view open
-      const n = 5 + Math.floor(r() * 9);
+      const rot = r() * Math.PI;
+      const bw = 25 + r() * 30;
+      const bd = 14 + r() * 16;
+      const n = Math.round((lite ? 0.5 : 1) * (30 + r() * 50));
       for (let k = 0; k < n; k++) {
-        const x = cx + (r() - 0.5) * 30;
-        const z = cz + (r() - 0.5) * 30;
+        const u = (r() - 0.5) * bw;
+        const v = (r() - 0.5) * bd;
+        const x = cx + u * Math.cos(rot) - v * Math.sin(rot);
+        const z = cz + u * Math.sin(rot) + v * Math.cos(rot);
         if (!outside(x, z)) continue;
-        euca.push({ x, y: terrainHeight(x, z) - 0.05, z, rotY: r() * Math.PI * 2, s: 0.75 + r() * 0.35, sy: 1 + r() * 0.25 });
-      }
-    }
-    // bamboo groves near the district edge and in the foreground hills
-    for (let g = 0; g < (lite ? 12 : 28); g++) {
-      const a = r() * Math.PI * 2;
-      const rad = 86 + r() * 70;
-      const cx = Math.sin(a) * rad;
-      const cz = Math.cos(a) * rad;
-      if (!outside(cx, cz)) continue; // compound / avenue / gate
-      const y0 = terrainHeight(cx, cz);
-      for (let k = 0; k < 9; k++) {
-        const x = cx + (r() - 0.5) * 3.5;
-        const z = cz + (r() - 0.5) * 3.5;
-        const h = 7 + r() * 4;
-        const lean = (r() - 0.5) * 0.25;
-        const tilt = (r() - 0.5) * 0.25;
-        culms.push({ m: mat4(x, y0 + h / 2, z, 0.06, h, 0.06, 0, lean, tilt), c: leaf("#9aa94e", 0.1) });
-        for (const [f, s] of [
-          [0.62, 0.55],
-          [0.76, 0.7],
-          [0.9, 0.5],
-        ] as const)
-          culmLeaves.push({
-            m: mat4(x - tilt * h * f * 0.5 + (r() - 0.5) * 0.6, y0 + h * f, z + lean * h * f * 0.5 + (r() - 0.5) * 0.6, s, s * 1.6, s, r() * 6, (r() - 0.5) * 0.6),
-            c: leaf("#5f8a35", 0.12),
-          });
+        euca.push({ x, y: terrainHeight(x, z) - 0.05, z, rotY: r() * Math.PI * 2, s: 0.7 + r() * 0.35, sy: 1 + r() * 0.3 });
       }
     }
     // farmhouses with iron-sheet roofs on the hills
@@ -481,16 +443,28 @@ function Vegetation({ tier }: { tier: Tier }) {
       const y = terrainHeight(x, z);
       const rot = r() * Math.PI;
       const w = 5 + r() * 3;
-      walls.push({ m: mat4(x, y + 1.4, z, w, 2.8, 4, rot), c: new THREE.Color(r() > 0.5 ? "#c9a27a" : "#e6dccb") });
-      roofs.push({ m: mat4(x, y + 3.4, z, w + 0.6, 1.4, 4.8, rot), c: new THREE.Color(r() > 0.35 ? "#a9b0b5" : "#8a4b2f") });
+      // ochre / terracotta mud-brick walls sunk into the slope, grey or rusty corrugated iron roofs
+      walls.push({ m: mat4(x, y + 0.9, z, w, 2.8, 4, rot), c: new THREE.Color(["#b9874f", "#c99a62", "#a8723f", "#d1b48c"][Math.floor(r() * 4)]!) });
+      roofs.push({ m: mat4(x, y + 2.9, z, w + 0.6, 1.4, 4.8, rot), c: new THREE.Color(r() > 0.4 ? "#8f969b" : "#7a4630") });
+      // banana clumps around the homestead
+      for (let c = 0; c < (lite ? 1 : 2); c++) {
+        const ba = r() * Math.PI * 2;
+        const bx = x + Math.cos(ba) * (6 + r() * 4);
+        const bz = z + Math.sin(ba) * (6 + r() * 4);
+        for (let k = 0; k < 3 + Math.floor(r() * 3); k++) {
+          const px = bx + (r() - 0.5) * 2.4;
+          const pz = bz + (r() - 0.5) * 2.4;
+          const hh = 2.6 + r() * 1.6;
+          bananas.push({ m: mat4(px, terrainHeight(px, pz) - 0.1, pz, hh / 3.2, hh / 3.2, hh / 3.2, r() * 6), c: leaf("#6f9a3a", 0.1) });
+        }
+      }
     }
-    return { acacia, euca, bushes, rocks, boulders, culms, culmLeaves, walls, roofs };
+    return { acacia, euca, bushes, rocks, boulders, bananas, walls, roofs };
   }, [lite]);
 
   const geos = useMemo(
     () => ({
-      eu: canopyGeo(7, 0),
-      culm: new THREE.CylinderGeometry(0.7, 1, 1, 5),
+      banana: bananaGeometry(),
       box: new THREE.BoxGeometry(1, 1, 1),
       roof: new THREE.CylinderGeometry(0.5, 0.5, 1, 3).rotateZ(Math.PI / 2).rotateX(0).scale(1, 1, 1),
     }),
@@ -498,8 +472,7 @@ function Vegetation({ tier }: { tier: Tier }) {
   );
   const mats = useMemo(
     () => ({
-      bark: new THREE.MeshStandardMaterial({ roughness: 0.9 }),
-      leaf: new THREE.MeshStandardMaterial({ roughness: 0.85 }),
+      banana: new THREE.MeshStandardMaterial({ map: bananaLeafTexture(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.7 }),
       wall: new THREE.MeshStandardMaterial({ roughness: 0.95 }),
       roof: new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.55 }),
     }),
@@ -516,12 +489,75 @@ function Vegetation({ tier }: { tier: Tier }) {
         <InstancedSpecies id="boulder" items={data.boulders} lite={lite} shadows={shadows} />
       </Suspense>
       <Flowers tier={tier} />
-      <InstancedSet geo={geos.culm} mat={mats.bark} items={data.culms} />
-      <InstancedSet geo={geos.eu} mat={mats.leaf} items={data.culmLeaves} />
+      <InstancedSet geo={geos.banana} mat={mats.banana} items={data.bananas} />
       <InstancedSet geo={geos.box} mat={mats.wall} items={data.walls} />
       <InstancedSet geo={geos.roof} mat={mats.roof} items={data.roofs} />
     </group>
   );
+}
+
+/** Banana plant (3.2 m): pseudo-stem + 8 arching, torn leaf blades (alpha-cut), merged into one geometry. */
+function bananaGeometry(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  const stemG = new THREE.CylinderGeometry(0.1, 0.16, 2.0, 7, 1).translate(0, 1.0, 0);
+  // stem uses the dark bottom strip of the leaf texture
+  const suv = stemG.getAttribute("uv") as THREE.BufferAttribute;
+  for (let i = 0; i < suv.count; i++) suv.setXY(i, 0.02 + suv.getX(i) * 0.06, 0.02 + suv.getY(i) * 0.05);
+  parts.push(stemG.toNonIndexed());
+  for (let k = 0; k < 8; k++) {
+    const blade = new THREE.PlaneGeometry(0.62, 2.1, 1, 6);
+    const p = blade.getAttribute("position") as THREE.BufferAttribute;
+    for (let i = 0; i < p.count; i++) {
+      const y = p.getY(i) + 1.05; // 0 … 2.1 along the blade
+      const t = y / 2.1;
+      p.setXYZ(i, p.getX(i), Math.sin(t * 1.9) * 1.25, -Math.cos(t * 1.9) * 1.25 + 1.25 - t * 0.6);
+    }
+    blade.rotateX(-0.25 - (k % 3) * 0.12).rotateY((k / 8) * Math.PI * 2 + (k % 2) * 0.3).translate(0, 1.85 + (k % 3) * 0.12, 0);
+    blade.computeVertexNormals();
+    parts.push(blade.toNonIndexed());
+  }
+  const g = mergeGeometries(parts, false)!;
+  parts.forEach((x) => x.dispose());
+  return g;
+}
+
+function bananaLeafTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 128;
+  c.height = 256;
+  const g = c.getContext("2d")!;
+  const r = rng(77);
+  // blade: midrib + parallel veins, ragged wind-torn edges
+  g.fillStyle = "#5f8d34";
+  g.beginPath();
+  g.moveTo(64, 254);
+  for (let y = 250; y >= 6; y -= 6) g.lineTo(64 - (56 - (254 - y) * 0.05) * (0.85 + r() * 0.15) * (y % 30 < 4 ? 0.55 : 1), y);
+  g.lineTo(64, 2);
+  for (let y = 6; y <= 250; y += 6) g.lineTo(64 + (56 - (254 - y) * 0.05) * (0.85 + r() * 0.15) * (y % 36 < 5 ? 0.5 : 1), y);
+  g.closePath();
+  g.fill();
+  g.strokeStyle = "#86ad55";
+  g.lineWidth = 1;
+  for (let y = 10; y < 250; y += 5) {
+    g.beginPath();
+    g.moveTo(64, y);
+    g.lineTo(8, y - 10);
+    g.moveTo(64, y);
+    g.lineTo(120, y - 10);
+    g.stroke();
+  }
+  g.strokeStyle = "#c9d78a";
+  g.lineWidth = 3;
+  g.beginPath();
+  g.moveTo(64, 254);
+  g.lineTo(64, 2);
+  g.stroke();
+  // pseudo-stem strip (bottom-left corner)
+  g.fillStyle = "#6b6a3a";
+  g.fillRect(0, 240, 12, 16);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
 
 /* ---------------- mist ---------------- */
@@ -540,10 +576,16 @@ function Mist({ tier }: { tier: Tier }) {
     const list: MistDef[] = [];
     for (const v of VOLCANOES) {
       const c = az(v.az, v.dist - v.r * 0.45);
-      list.push({ x: c.x, y: v.h * 0.32, z: c.z, w: v.r * 1.8, h: v.h * 0.45, o: 0.75 });
-      if (v.name === "Karisimbi" || v.name === "Muhabura") {
-        const s = az(v.az, v.dist - v.r * 0.06);
-        list.push({ x: s.x, y: v.h * 0.82, z: s.z, w: v.r * 0.75, h: v.h * 0.32, o: 0.95 });
+      list.push({ x: c.x, y: v.h * 0.3, z: c.z, w: v.r * 1.6, h: v.h * 0.4, o: 0.42 });
+      if (v.name === "Karisimbi" || v.name === "Muhabura" || v.name === "Bisoke") {
+        // cloud caps clinging to the summits (Karisimbi is usually in cloud)
+        for (const [off, k, o] of [
+          [-0.04, 1, 0.92],
+          [0.05, 0.8, 0.75],
+        ] as const) {
+          const s = az(v.az + off * 20, v.dist - v.r * 0.04);
+          list.push({ x: s.x, y: v.h * (0.9 - off), z: s.z, w: v.r * 0.55 * k, h: v.h * 0.26 * k, o: v.name === "Bisoke" ? o * 0.6 : o });
+        }
       }
     }
     if (tier === "lite") return list.slice(0, 4);
@@ -586,7 +628,7 @@ function Mist({ tier }: { tier: Tier }) {
           renderOrder={-1}
         >
           <planeGeometry args={[d.w, d.h]} />
-          <meshBasicMaterial map={tex} transparent opacity={d.o} depthWrite={false} color="#f4f7fa" />
+          <meshBasicMaterial map={tex} transparent opacity={d.o} depthWrite={false} color="#f4f7fa" fog={false} />
         </mesh>
       ))}
     </group>
@@ -609,6 +651,24 @@ export function Landscape({ tier }: { tier: Tier }) {
     return v;
   }, [tier]);
   const detail = useMemo(() => mountainDetailTexture(), []);
+  const volcanoMat = useMemo(() => {
+    const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, map: detail, fog: false });
+    m.onBeforeCompile = (sh) => {
+      // aerial perspective: blue-grey haze and loss of saturation with distance (km-scale), output (sRGB) space
+      sh.fragmentShader = sh.fragmentShader.replace(
+        "#include <fog_fragment>",
+        `#include <fog_fragment>
+        {
+          float gkD = length(vViewPosition);
+          float gkK = 1.0 - exp(-gkD * 0.00036);
+          vec3 gkG = vec3(dot(gl_FragColor.rgb, vec3(0.3, 0.59, 0.11)));
+          gl_FragColor.rgb = mix(mix(gl_FragColor.rgb, gkG, 0.45 * gkK), vec3(0.66, 0.73, 0.79), gkK * 0.8);
+        }`,
+      );
+    };
+    m.customProgramCacheKey = () => "gk-volcano-haze";
+    return m;
+  }, [detail]);
   // CC0 photographic lawn texture (Poly Haven "leafy_grass"), tinted per field by the vertex colours
   const ground = useMemo(() => {
     const load = (url: string, srgb: boolean) => {
@@ -620,7 +680,7 @@ export function Landscape({ tier }: { tier: Tier }) {
     };
     return { map: load("/assets/env/ground-grass.webp", true), normal: tier === "lite" ? null : load("/assets/env/ground-grass-n.webp", false) };
   }, [tier]);
-  const tint = useMemo(() => new THREE.Color("#ffffff").multiplyScalar(1.9), []);
+  const tint = useMemo(() => new THREE.Color("#ffffff").multiplyScalar(1.35), []);
   useEffect(
     () => () => {
       terrain.dispose();
@@ -633,19 +693,17 @@ export function Landscape({ tier }: { tier: Tier }) {
       <mesh geometry={terrain} receiveShadow>
         <meshStandardMaterial vertexColors map={ground.map} normalMap={ground.normal} normalScale={new THREE.Vector2(0.8, 0.8)} color={tint} roughness={1} />
       </mesh>
-      <mesh geometry={volcanoes.geo}>
-        <meshStandardMaterial vertexColors roughness={1} map={detail} />
-      </mesh>
+      <mesh geometry={volcanoes.geo} material={volcanoMat} />
       {LAKES.map((l) => (
         <mesh key={l.name} position={[l.x, l.level, l.z]} rotation={[-Math.PI / 2, 0, l.rot]} scale={[l.rx * 1.35, l.rz * 1.35, 1]}>
           <circleGeometry args={[1, 48]} />
-          <meshStandardMaterial color="#3d6a80" metalness={0.6} roughness={0.08} envMapIntensity={1.4} />
+          <meshStandardMaterial color="#3a5f6e" metalness={0} roughness={0.06} envMapIntensity={1.5} />
         </mesh>
       ))}
       {volcanoes.craters.map((c, i) => (
         <mesh key={i} position={c} rotation={[-Math.PI / 2, 0, 0]}>
           <circleGeometry args={[22, 24]} />
-          <meshStandardMaterial color="#3f6f73" metalness={0.5} roughness={0.1} />
+          <meshStandardMaterial color="#3c6468" metalness={0} roughness={0.08} />
         </mesh>
       ))}
       <Vegetation tier={tier} />

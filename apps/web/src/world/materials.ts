@@ -47,7 +47,8 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
   const glassTexCool = curtainWallTextures("#9fd4ff", 8);
   const m: Record<string, THREE.Material> = {
     lava: std({ map: lavaStoneTexture(), bumpMap: lavaStoneTexture(), bumpScale: 2.5, roughness: 0.92, color: "#9a9890" }),
-    paving: std({ map: pavingTexture(), roughness: 0.62, metalness: 0, envMapIntensity: 0.6 }),
+    // light granite/concrete albedo ≈ 0.4 (was near-white): darker tint, matte
+    paving: std({ map: pavingTexture(), color: "#c4bdb2", roughness: 0.8, metalness: 0, envMapIntensity: 0.45 }),
     concrete: std({ map: concreteTexture(), roughness: 0.85, color: "#e9e4da" }),
     concreteDark: std({ map: concreteTexture(), roughness: 0.8, color: "#6f6c68" }),
     wood: std({ map: woodTexture(), roughness: 0.6, color: "#f0d6b8" }),
@@ -80,7 +81,7 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     grass: std({ map: grassTexture(), roughness: 1, color: "#d8f0c8" }),
     hedge: std({ color: "#2f6b33", roughness: 0.95 }),
     soil: std({ color: "#2b2420", roughness: 1 }),
-    water: std({ color: "#25506b", metalness: 0.4, roughness: 0.05, envMapIntensity: 1.6, transparent: true, opacity: 0.88 }),
+    water: std({ color: "#2b4a52", metalness: 0, roughness: 0.04, envMapIntensity: 1.6, transparent: true, opacity: 0.9 }),
     fabric: std({ color: "#f4efe6", roughness: 0.9, side: THREE.DoubleSide }),
     screenFrame: std({ color: "#15171d", metalness: 0.6, roughness: 0.35 }),
     asphalt: std({ map: concreteTexture(), color: "#3a3c40", roughness: 0.95 }),
