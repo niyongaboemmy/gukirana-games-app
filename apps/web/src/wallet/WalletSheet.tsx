@@ -1,16 +1,23 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as RKeyboardEvent,
+} from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import { create } from "zustand";
-import { ArrowDownToLine, ArrowUpFromLine, ReceiptText, ShieldCheck } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Info, ReceiptText, ShieldCheck } from "lucide-react";
 import { ACT } from "@gukirana/contracts";
 import { coins, coinsToMinor, formatMinor, streakBonus, type CurrencyRate } from "@gukirana/money";
 import { api, claimDailyStars } from "@/lib/session";
 import { useProfile } from "@/lib/profile-store";
 import { doAction } from "@/social/people";
 import type { Limits } from "./WalletExtras";
-import { ActivityBody, FundsBody, PlaySafeBody, type Cur } from "./WalletCards";
+import { ActivityBody, FundsBody, InfoBody, PlaySafeBody, type Cur, type TxRow } from "./WalletCards";
 import type { ClaimState, Panel } from "./WalletScene";
 import { W } from "./strings";
 
@@ -26,6 +33,7 @@ type Tx = { type: string; amount: number; at: string; refType: string | null };
 type WalletData = {
   stars: number;
   history: Tx[];
+  coinHistory?: Tx[];
   dailyStars: number;
   pilotEnabled: boolean;
   economyVersion: number;
@@ -44,19 +52,14 @@ const kigaliDay = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Africa
 /** Kigali has no DST: its midnight is 22:00 UTC. */
 const nextKigaliMidnight = (now = Date.now()) =>
   Date.parse(`${kigaliDay(new Date(now + 24 * HOUR))}T00:00:00+02:00`);
-const fmtTime = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 const fmtWait = (ms: number) => {
   const min = Math.max(1, Math.ceil(ms / 60_000));
   if (min >= 180) return `${Math.floor(min / 60)} h`;
   if (min >= 60) return `${Math.floor(min / 60)} h ${min % 60} min`;
   return `${min} min`;
 };
+/** how long the wallet takes to fold shut and drop away before it unmounts */
+const CLOSE_MS = 280;
 const reducedMotion = () =>
   typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -72,6 +75,9 @@ export function WalletSheet() {
   const [burst, setBurst] = useState<string | null>(null);
   const [hint, setHint] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [shown, setShown] = useState(open); // stays mounted while the close animation plays
+  const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null);
+  const rootRef = useRef<HTMLElement>(null);
   const opener = useRef<string | null>(null);
   const panelRef = useRef<Panel | null>(null);
   panelRef.current = panel;
@@ -89,6 +95,16 @@ export function WalletSheet() {
   const openPanel = (p: Panel) => {
     dismissHint();
     opener.current = p;
+    // the card slides out of the button's slot: remember where that button is on screen
+    const r = document.querySelector<HTMLElement>(`[data-wallet-btn="${p}"]`)?.getBoundingClientRect();
+    setOrigin(
+      r
+        ? {
+            x: r.left + r.width / 2 - window.innerWidth / 2,
+            y: r.top + r.height / 2 - window.innerHeight / 2,
+          }
+        : null,
+    );
     setPanel(p);
   };
   const closePanel = useCallback(() => {
@@ -129,6 +145,41 @@ export function WalletSheet() {
   }, [back]);
 
   useEffect(() => {
+    if (open) {
+      setShown(true);
+      return;
+    }
+    const t = setTimeout(() => setShown(false), reducedMotion() ? 0 : CLOSE_MS);
+    return () => clearTimeout(t);
+  }, [open]);
+
+  // keyboard: focus lands on the first action when the wallet opens; Tab stays inside the wallet
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => {
+      const first =
+        document.querySelector<HTMLElement>('[data-wallet-btn="claim"]:not(:disabled)') ??
+        document.querySelector<HTMLElement>('[data-wallet-btn="topup"]');
+      first?.focus({ preventScroll: true });
+    }, 450);
+    return () => clearTimeout(t);
+  }, [open]);
+  const trapTab = (e: RKeyboardEvent) => {
+    if (e.key !== "Tab" || !rootRef.current) return;
+    const all = [
+      ...rootRef.current.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), input, [tabindex]:not([tabindex="-1"])',
+      ),
+    ].filter((el) => !el.closest("[inert]") && el.offsetParent !== null);
+    const scope = panelRef.current ? all.filter((el) => el.closest(".wcard")) : all;
+    if (!scope.length) return;
+    const i = scope.indexOf(document.activeElement as HTMLElement);
+    const next = e.shiftKey ? (i <= 0 ? scope.length - 1 : i - 1) : i === scope.length - 1 ? 0 : i + 1;
+    e.preventDefault();
+    scope[next]?.focus();
+  };
+
+  useEffect(() => {
     if (!open) {
       setPanel(null);
       return;
@@ -160,18 +211,17 @@ export function WalletSheet() {
   const rate = useMemo(() => eco?.currencies.find((c) => c.code === currency), [eco, currency]);
   const reduced = useMemo(() => reducedMotion(), [open]);
 
-  if (!open) return null;
+  if (!open && !shown) return null;
 
   const coinBalance = data?.coins ?? 0;
   const pilot = !!(data?.pilotEnabled ?? eco?.pilotEnabled);
   const total = data?.stars ?? stars;
   const money = rate ? formatMinor(coinsToMinor(coins(coinBalance), rate as CurrencyRate), rate) : null;
   const codes = (eco?.currencies ?? [{ code: "RWF" }]).map((c) => c.code);
-  const history = (data?.history ?? []).map((tx) => ({
-    label: W.tx[tx.type] ?? tx.type.replace(/_/g, " "),
-    amount: tx.amount,
-    when: fmtTime(tx.at),
-  }));
+  const history: TxRow[] = [
+    ...(data?.history ?? []).map((tx) => ({ ...tx, unit: "star" as const })),
+    ...(data?.coinHistory ?? []).map((tx) => ({ ...tx, unit: "coin" as const })),
+  ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
 
   // claim state: from the API when it reports it, else derived from today's (Kigali day) ledger lines
   const today = kigaliDay(new Date(now));
@@ -214,6 +264,7 @@ export function WalletSheet() {
   };
 
   const cards = {
+    info: { title: W.whatAre, icon: <Info size={24} />, body: <InfoBody pilot={pilot} /> },
     topup: {
       title: W.topUp,
       icon: <ArrowDownToLine size={24} />,
@@ -262,14 +313,19 @@ export function WalletSheet() {
   // above the persistent 3D canvas, with light dimming so it reads clearly; outside tap / Esc steps back.
   return createPortal(
     <section
+      ref={rootRef}
       role="dialog"
       aria-modal="true"
       aria-label={W.title}
-      className="fixed inset-0 z-[90] bg-black/50"
+      onKeyDown={trapTab}
+      className={`wsheet fixed inset-0 z-[90] bg-black/50 ${open ? "" : "is-closing"}`}
     >
       <WalletScene
         stars={total}
-        coinsText={`${coinBalance.toLocaleString()} ${W.coins.toLowerCase()}`}
+        coinCount={coinBalance}
+        pilot={pilot}
+        closing={!open}
+        origin={origin}
         moneyText={money}
         currency={currency}
         currencies={codes}

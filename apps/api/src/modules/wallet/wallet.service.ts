@@ -118,6 +118,11 @@ export class WalletService {
     return this.ledger.balance(userCoins(userId));
   }
 
+  /** Recent coin ledger lines (signed), for the wallet's Activity filter. Empty until the licensed pilot. */
+  coinHistory(userId: string, limit = 20) {
+    return this.ledger.history(userCoins(userId), limit);
+  }
+
   /** Honest quote (what you pay / get, the spread and fee, the rate version). Execution needs the payment provider. */
   async quote(kind: "buy" | "cashout", currency: string, amount: number) {
     const s = await this.economy.current();

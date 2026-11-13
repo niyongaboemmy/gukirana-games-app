@@ -29,6 +29,7 @@ export class WalletController {
       stars: await this.ledger.balance(userStars(u.sub)),
       coins: await this.wallet.coinBalance(u.sub),
       history: await this.ledger.history(userStars(u.sub)),
+      coinHistory: await this.wallet.coinHistory(u.sub),
       dailyStars: s.dailyStars,
       ...(await this.wallet.claimStatus(u.sub)),
       streak,

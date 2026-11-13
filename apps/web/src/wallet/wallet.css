@@ -113,12 +113,54 @@
   }
 }
 
-/* leather currency tabs sticking out above the balance card */
+.wbtn {
+  transition:
+    transform 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease,
+    filter 140ms ease;
+}
+/* a "pilot soon" lock tag in a leather button's corner */
+.wbtn .wbtn-tag {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-family: var(--font-ui, inherit);
+  font-size: 13px;
+  font-weight: 700;
+  color: #e8d6b8;
+  background: rgb(0 0 0 / 0.22);
+  text-shadow: none;
+}
+.wbtn .wbtn-tag svg {
+  width: 13px;
+  height: 13px;
+  color: inherit;
+}
+
+/* "Show coins in" + leather currency tabs above the balance card */
 .wtabs {
   display: flex;
   gap: 8px;
   height: 100%;
   align-items: flex-end;
+}
+.wtabs-cap {
+  align-self: center;
+  width: 78px;
+  flex-shrink: 0;
+  font-family: var(--font-ui, inherit);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #d9c4a2;
 }
 .wtab {
   flex: 1;
@@ -135,6 +177,17 @@
     inset 0 -3px 6px rgb(0 0 0 / 0.3);
   cursor: pointer;
   touch-action: manipulation;
+  transition:
+    transform 140ms ease,
+    background 140ms ease;
+}
+@media (hover: hover) {
+  .wtab:hover:not([aria-checked="true"]) {
+    background: linear-gradient(180deg, #78553b, #5b3e2a);
+  }
+}
+.wtab:active {
+  transform: translateY(2px);
 }
 .wtab[aria-checked="true"] {
   color: #16171a;
@@ -143,12 +196,51 @@
     inset 0 2px 0 #fff,
     0 0 0 2px #d9ab3c;
 }
-.wtab:focus-visible {
+.wtab:focus-visible,
+.winfo-strip:focus-visible {
   outline: 3px solid var(--color-ring, #60a5fa);
   outline-offset: 2px;
 }
 
-/* an opened card: flat, centred, fitted to the screen, dark neutral grey; grows out of the wallet's right half */
+/* the "What are Stars and Coins?" strip printed along the balance card's bottom edge */
+.winfo-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  padding: 0 12px;
+  border-radius: 0 0 10px 10px;
+  border-top: 1px dashed rgb(90 70 40 / 0.35);
+  font-family: var(--font-ui, inherit);
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: #4a3c2a;
+  background: rgb(120 90 50 / 0.06);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 140ms ease;
+}
+.winfo-strip svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: #8a6a1c;
+}
+@media (hover: hover) {
+  .winfo-strip:hover {
+    background: rgb(120 90 50 / 0.14);
+  }
+}
+.winfo-strip:active {
+  background: rgb(120 90 50 / 0.2);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* An opened card: a physical cream card that slides out of the wallet (from the button that opened it), flat,     */
+/* front-facing and centred. Leather header band with stitching; cream card stock with a faint grain; dark ink.     */
+/* ---------------------------------------------------------------------------------------------------------------- */
 .wcard-layer {
   position: absolute;
   inset: 0;
@@ -156,31 +248,53 @@
   display: grid;
   place-items: center;
   padding: 12px;
-  background: rgb(14 15 17 / 0.7);
-  animation: wfade 220ms ease-out both;
+  background: rgb(14 15 17 / 0.62);
+  animation: wfade 240ms ease-out both;
 }
 .wcard {
+  --ink: #1f1b16;
+  --ink-2: #3a3228;
+  --muted: #6b6153;
+  --line: rgb(70 50 25 / 0.16);
+  --paper: #efe8da;
+  --paper-2: #f7f2e8;
+  --plus: #15803d;
+  --minus: #b42318;
+  --accent: #2563eb;
+  position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  width: min(780px, 94vw);
+  width: min(820px, 94vw);
   max-height: min(620px, 92dvh);
-  border-radius: 24px;
-  color: var(--color-on-glass, #f2f3f5);
-  background: var(--color-ink-800, #18191c);
-  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 22px;
+  color: var(--ink);
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .27 0 0 0 0 .16 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    linear-gradient(180deg, var(--paper-2), var(--paper));
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.06),
-    0 24px 60px -20px rgb(0 0 0 / 0.8);
+    0 0 0 1px rgb(60 40 20 / 0.35),
+    0 2px 0 #c9bca3,
+    0 30px 70px -24px rgb(0 0 0 / 0.85);
   font-size: 18px;
   line-height: 1.35;
-  animation: wcard-in 260ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+  transform-origin: center;
+  animation: wcard-in 340ms cubic-bezier(0.2, 0.85, 0.25, 1) both;
+}
+/* stitched edge, inset from the card's border */
+.wcard::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border-radius: 17px;
+  border: 1.5px dashed rgb(110 80 45 / 0.28);
+  pointer-events: none;
 }
 .wcard-layer.is-closing {
-  animation: wfade 200ms ease-in reverse both;
+  animation: wfade 220ms ease-in reverse both;
 }
 .wcard-layer.is-closing .wcard {
-  animation: wcard-in 200ms ease-in reverse both;
+  animation: wcard-in 220ms ease-in reverse both;
 }
 .wcard-layer.is-still,
 .wcard-layer.is-still .wcard {
@@ -191,76 +305,52 @@
     opacity: 0;
   }
 }
+/* slides out of the slot the button sits in (--wx/--wy: the button's offset from the centre) */
 @keyframes wcard-in {
   from {
     opacity: 0;
-    transform: translate(24%, 4%) scale(0.42);
+    transform: translate(var(--wx, 0px), var(--wy, 0px)) scale(0.28) rotate(-3deg);
+  }
+  55% {
+    opacity: 1;
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .wcard-layer,
-  .wcard {
+  .wcard,
+  .wflow-body {
     animation: none !important;
   }
 }
-.wfunds {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  align-items: start;
-}
-@media (max-width: 600px) {
-  .wfunds {
-    grid-template-columns: 1fr;
-  }
-}
-/* phone landscape: same layout, slightly tighter */
-@media (max-height: 500px) {
-  .wcard {
-    max-height: 94dvh;
-    font-size: 16px;
-    border-radius: 18px;
-  }
-  .wcard-head {
-    padding: 6px 8px 6px 10px !important;
-  }
-  .wcard-head h2 {
-    font-size: 20px !important;
-  }
-  .wcard-close {
-    width: 44px !important;
-    height: 44px !important;
-  }
-  .wcard-icon {
-    width: 36px !important;
-    height: 36px !important;
-  }
-  .wcard-body {
-    padding: 10px 12px 12px !important;
-  }
-  .wseg button {
-    min-height: 44px !important;
-    font-size: 16px !important;
-  }
-  .winput {
-    min-height: 48px !important;
-  }
-  .winput input {
-    font-size: 22px !important;
-  }
-}
 .wcard-head {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 12px 12px 14px;
-  border-bottom: 1px solid rgb(255 255 255 / 0.08);
-  background: var(--color-ink-700, #1e1f23);
+  padding: 10px 12px 12px 12px;
+  color: #f6ead8;
+  background: linear-gradient(180deg, #6a4a33, #4f3524);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    0 3px 0 #2b1b11;
+}
+.wcard-head::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 5px;
+  border-bottom: 2px dashed rgb(236 214 182 / 0.38);
+  pointer-events: none;
 }
 .wcard-head h2 {
   flex: 1;
-  font-size: 24px;
+  font-family: var(--font-display, inherit);
+  font-size: 26px;
   font-weight: 800;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 0.45);
 }
 .wcard-icon {
   display: grid;
@@ -268,8 +358,9 @@
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: rgb(255 255 255 / 0.06);
-  color: var(--color-accent, #60a5fa);
+  color: #f3d9a4;
+  background: rgb(0 0 0 / 0.2);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.35);
 }
 .wcard-close {
   display: grid;
@@ -277,95 +368,1010 @@
   width: 52px;
   height: 52px;
   border-radius: 14px;
-  color: var(--color-on-glass, #f2f3f5);
-  background: rgb(255 255 255 / 0.07);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+  color: #f6ead8;
+  background: linear-gradient(180deg, #7a573d, #5d412c);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.1),
+    0 3px 0 #2b1b11;
   cursor: pointer;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease;
 }
-.wcard-close:hover {
-  background: rgb(255 255 255 / 0.13);
+@media (hover: hover) {
+  .wcard-close:hover {
+    background: linear-gradient(180deg, #86613f, #67482f);
+  }
+}
+.wcard-close:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #2b1b11;
 }
 .wcard-close:focus-visible {
   outline: 3px solid var(--color-ring, #60a5fa);
   outline-offset: 2px;
 }
 .wcard-body {
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 14px 16px 16px;
+  padding: 16px 20px 18px;
   scrollbar-width: thin;
-  scrollbar-color: rgb(255 255 255 / 0.2) transparent;
+  scrollbar-color: rgb(80 60 30 / 0.3) transparent;
 }
-.wmuted {
-  color: var(--color-on-glass-muted, #a7abb2);
+.wcard:has(.wflow) {
+  height: min(540px, 92dvh);
 }
+.wcard-body:has(.wflow) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 14px;
+}
+
+/* text helpers on cream */
+.wcard .wmuted {
+  color: var(--muted);
+}
+.wlabel {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.wnote {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 16px;
+  color: var(--ink-2);
+  background: rgb(120 90 50 / 0.08);
+}
+.wnote svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #8a6a1c;
+}
+
+/* segmented choices: pressed-in leather when selected (the blue accent is kept for the primary action) */
 .wseg {
   display: flex;
   gap: 8px;
 }
 .wseg button {
   flex: 1;
-  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 50px;
   border-radius: 12px;
+  font-family: var(--font-display, inherit);
   font-weight: 800;
   font-size: 18px;
-  background: rgb(255 255 255 / 0.05);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+  color: var(--ink-2);
+  background: var(--paper-2, #f7f2e8);
+  box-shadow:
+    inset 0 0 0 1px rgb(70 50 25 / 0.22),
+    0 2px 0 rgb(70 50 25 / 0.18);
   cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    background 120ms ease;
+}
+@media (hover: hover) {
+  .wseg button:hover {
+    background: #fffaf1;
+  }
+}
+.wseg button:active {
+  transform: translateY(2px);
+  box-shadow: inset 0 0 0 1px rgb(70 50 25 / 0.22);
 }
 .wseg button[aria-pressed="true"],
 .wseg button[aria-checked="true"] {
-  background: rgb(59 130 246 / 0.2);
-  box-shadow: inset 0 0 0 2px rgb(96 165 250 / 0.85);
+  color: #f6ead8;
+  background: linear-gradient(180deg, #5d412c, #6d4c34);
+  box-shadow:
+    inset 0 2px 5px rgb(0 0 0 / 0.35),
+    0 0 0 2px #d9ab3c;
 }
-.wseg button:focus-visible,
+.wcard button:focus-visible,
 .winput:focus-within {
   outline: 3px solid var(--color-ring, #60a5fa);
   outline-offset: 2px;
 }
-.winput {
+
+/* the blue primary action (the only use of the accent) and the quiet secondary */
+.wbtn-primary,
+.wbtn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 54px;
+  padding: 0 22px;
+  border-radius: 14px;
+  font-family: var(--font-display, inherit);
+  font-size: 20px;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    background 120ms ease,
+    opacity 120ms ease;
+}
+.wbtn-primary {
+  color: #fff;
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.25),
+    0 3px 0 #1e40af;
+}
+@media (hover: hover) {
+  .wbtn-primary:hover:not(:disabled) {
+    background: linear-gradient(180deg, #4b8df7, #2f6cf0);
+  }
+}
+.wbtn-primary:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 #1e40af;
+}
+.wbtn-primary:disabled {
+  cursor: not-allowed;
+  color: rgb(255 255 255 / 0.85);
+  background: #9aa6ba;
+  box-shadow: 0 3px 0 #7c879a;
+}
+.wbtn-ghost {
+  color: var(--ink-2);
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgb(70 50 25 / 0.3);
+}
+.wbtn-ghost:active {
+  transform: translateY(2px);
+}
+
+/* ---------------------------------------------------------------- flow (top up / cash out) ----------------------- */
+.wflow {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 12px;
+}
+.wflow-body {
+  flex: 1;
+  min-height: 0;
+  margin: -4px;
+  padding: 4px; /* room for the selected chip's ring and lift inside the scroll box */
+  overflow-y: auto;
+  scrollbar-width: thin;
+  animation: wstep-fwd 260ms cubic-bezier(0.2, 0.85, 0.25, 1) both;
+}
+.wflow-body.is-back {
+  animation-name: wstep-back;
+}
+@keyframes wstep-fwd {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+@keyframes wstep-back {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+}
+.wcols {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 600px) {
+  .wcols {
+    grid-template-columns: 1fr;
+  }
+}
+.wflow-foot {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 56px;
-  padding: 0 14px;
-  border-radius: 14px;
-  background: rgb(0 0 0 / 0.3);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
 }
-.winput input {
+.wflow-foot .wbtn-primary {
+  min-width: 170px;
+}
+
+/* step indicator: 1 Amount — 2 Review — 3 Pay */
+.wsteps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+}
+.wsteps li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.wsteps li + li::before {
+  content: "";
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgb(70 50 25 / 0.2);
+}
+.wsteps li > span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 800;
+  box-shadow: inset 0 0 0 1.5px rgb(70 50 25 / 0.3);
+}
+.wsteps li em {
+  font-style: normal;
+}
+.wsteps li.is-now {
+  color: var(--ink);
+}
+.wsteps li.is-now > span {
+  color: #f6ead8;
+  background: #5d412c;
+  box-shadow: 0 0 0 2px #d9ab3c;
+}
+.wsteps li.is-done > span {
+  color: #fff;
+  background: var(--plus);
+  box-shadow: none;
+}
+
+/* the big printed amount, embossed into the card */
+.wamount {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 16px 12px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgb(120 90 50 / 0.1), rgb(120 90 50 / 0.04));
+  box-shadow:
+    inset 0 2px 4px rgb(70 50 25 / 0.18),
+    inset 0 -1px 0 rgb(255 255 255 / 0.6);
+}
+.wamount output {
+  font-family: var(--font-display, inherit);
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  text-shadow:
+    0 1px 0 rgb(255 255 255 / 0.85),
+    0 -1px 0 rgb(70 50 25 / 0.22);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wamount output.is-empty {
+  color: rgb(70 50 25 / 0.35);
+}
+.wamount-sub {
+  min-height: 1.35em;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--plus);
+}
+.wamount-sub.is-warn {
+  color: var(--minus);
+}
+
+/* quick amounts as notes / coin tokens */
+.wchips {
+  display: flex;
+  gap: 8px;
+}
+.wchips button {
+  position: relative;
   flex: 1;
-  min-width: 0;
-  background: transparent;
-  outline: none;
+  min-height: 54px;
+  font-family: var(--font-display, inherit);
+  font-size: 18px;
+  font-weight: 800;
+  color: #22301f;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease;
+}
+.wchips .is-note {
+  border-radius: 8px;
+  background:
+    repeating-radial-gradient(ellipse at 70% 50%, rgb(0 0 0 / 0.035) 0 2px, transparent 2px 7px),
+    linear-gradient(135deg, var(--tint, #e9dcc4), #f4efe3);
+  box-shadow:
+    inset 0 0 0 1px rgb(40 50 30 / 0.25),
+    0 3px 0 rgb(70 50 25 / 0.28);
+}
+.wchips .is-note::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 5px;
+  border: 1px solid rgb(40 50 30 / 0.22);
+  pointer-events: none;
+}
+.wchips .is-coin {
+  border-radius: 999px;
+  color: #262a30;
+  background: radial-gradient(circle at 35% 30%, #f3f4f6, #c9cdd3 70%, #b3b8bf);
+  box-shadow:
+    inset 0 0 0 3px rgb(255 255 255 / 0.45),
+    inset 0 0 0 4px rgb(80 85 95 / 0.25),
+    0 3px 0 #8d939b;
+}
+.wchips button:active {
+  transform: translateY(3px);
+  box-shadow: inset 0 0 0 1px rgb(40 50 30 / 0.25);
+}
+.wchips button[aria-pressed="true"] {
+  box-shadow:
+    inset 0 0 0 1px rgb(40 50 30 / 0.25),
+    0 0 0 3px #d9ab3c,
+    0 3px 0 rgb(70 50 25 / 0.28);
+  transform: translateY(-2px);
+}
+
+/* POS keypad */
+.wkeys {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 10px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #3a2a1e, #2c1f16);
+  box-shadow:
+    inset 0 2px 6px rgb(0 0 0 / 0.45),
+    0 1px 0 rgb(255 255 255 / 0.5);
+}
+.wkeys button {
+  display: grid;
+  place-items: center;
+  min-height: 54px;
+  border-radius: 12px;
+  font-family: var(--font-display, inherit);
   font-size: 26px;
   font-weight: 800;
-  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  background: linear-gradient(180deg, #fbf8f1, #ebe3d3);
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 3px 0 #b9ab92;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    transform 90ms ease,
+    box-shadow 90ms ease;
 }
-.wquote {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 6px 12px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: rgb(255 255 255 / 0.04);
-  font-variant-numeric: tabular-nums;
+.wkeys button.is-fn {
+  color: #f6ead8;
+  background: linear-gradient(180deg, #7a573d, #5d412c);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.1),
+    0 3px 0 #1d130c;
 }
-.wquote dd {
+.wkeys button:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 #b9ab92;
+}
+
+/* the receipt slip: whiter paper, perforated top and bottom, tabular numerals */
+.wslip {
+  --hole: 7px;
+  position: relative;
+  padding: 18px 18px 16px;
+  color: #1c1c1c;
+  background: #fdfcf8;
+  font-family: ui-monospace, "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 16px;
+  -webkit-mask:
+    radial-gradient(circle var(--hole) at 50% 0, #0000 98%, #000) 0 0 / 22px 51% repeat-x,
+    radial-gradient(circle var(--hole) at 50% 100%, #0000 98%, #000) 0 100% / 22px 51% repeat-x;
+  mask:
+    radial-gradient(circle var(--hole) at 50% 0, #0000 98%, #000) 0 0 / 22px 51% repeat-x,
+    radial-gradient(circle var(--hole) at 50% 100%, #0000 98%, #000) 0 100% / 22px 51% repeat-x;
+  filter: drop-shadow(0 2px 0 rgb(70 50 25 / 0.15));
+}
+.wslip-head {
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1.5px dashed rgb(0 0 0 / 0.25);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #555;
+}
+.wslip-swap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+}
+.wslip-swap > span {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+}
+.wslip-swap > span:last-child {
   text-align: right;
+}
+.wslip-swap small {
+  font-size: 13px;
+  color: #666;
+}
+.wslip-swap b {
+  font-size: 22px;
   font-weight: 800;
+  white-space: nowrap;
+}
+.wslip-swap svg {
+  flex-shrink: 0;
+  color: #8a6a1c;
+}
+.wslip dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 10px;
+  padding: 10px 0;
+  border-top: 1.5px dashed rgb(0 0 0 / 0.25);
+  font-size: 15px;
+}
+.wslip dt {
+  color: #444;
+}
+.wslip dd {
+  text-align: right;
+  font-weight: 700;
+}
+.wslip-foot {
+  padding-top: 8px;
+  border-top: 1.5px dashed rgb(0 0 0 / 0.25);
+  font-size: 13px;
+  color: #666;
+  text-align: center;
+}
+
+/* payment method tiles */
+.wmethods {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wmethods button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 8px 14px 8px 10px;
+  border-radius: 14px;
+  color: var(--ink);
+  background: var(--paper-2, #f7f2e8);
+  box-shadow:
+    inset 0 0 0 1px rgb(70 50 25 / 0.22),
+    0 3px 0 rgb(70 50 25 / 0.18);
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease;
+}
+.wmethods button b {
+  display: block;
+  font-size: 18px;
+}
+.wmethods button small {
+  display: block;
+  font-size: 14px;
+  color: var(--muted);
+}
+.wmethods button:active:not(:disabled) {
+  transform: translateY(2px);
+}
+.wmethods button[aria-checked="true"] {
+  box-shadow:
+    inset 0 0 0 2px #5d412c,
+    0 0 0 2px #d9ab3c;
+}
+.wmethods button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+  box-shadow: inset 0 0 0 1px rgb(70 50 25 / 0.2);
+}
+.wmethod-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  color: #f6ead8;
+  background: linear-gradient(180deg, #6a4a33, #4f3524);
+}
+
+/* pay step: summary + slide-to-pay */
+.wpay {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  min-height: 100%;
+}
+.wpay-sum {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 0 4px;
+  text-align: center;
+}
+.wpay-sum b {
+  font-family: var(--font-display, inherit);
+  font-size: 34px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.wslide {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 64px;
+  margin: 0 auto;
+  width: min(560px, 100%);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #2f5fd0, #2563eb);
+  box-shadow:
+    inset 0 2px 6px rgb(0 0 0 / 0.3),
+    0 1px 0 rgb(255 255 255 / 0.6);
+  touch-action: none;
+}
+.wslide.is-locked {
+  background: linear-gradient(180deg, #d9d1c1, #e6dfd1);
+  box-shadow:
+    inset 0 2px 6px rgb(70 50 25 / 0.25),
+    0 1px 0 rgb(255 255 255 / 0.6);
+}
+.wslide-label {
+  padding: 0 70px;
+  font-family: var(--font-display, inherit);
+  font-size: 19px;
+  font-weight: 800;
+  color: #fff;
+  text-align: center;
+  pointer-events: none;
+}
+.wslide.is-locked .wslide-label {
+  color: #5a4e3e;
+}
+.wslide-thumb {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  color: #2563eb;
+  background: #fff;
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.3);
+  cursor: grab;
+  touch-action: none;
+  transition: transform 240ms cubic-bezier(0.2, 0.85, 0.25, 1);
+}
+.wslide.is-locked .wslide-thumb {
+  color: #7a6d5a;
+  background: #f4efe5;
+  box-shadow: 0 2px 4px rgb(70 50 25 / 0.25);
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------- activity ---------------------------------------- */
+.wday {
+  margin: 4px 0 2px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.wlist {
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.45);
+  box-shadow: inset 0 0 0 1px var(--line);
+  padding: 0 12px;
 }
 .wrow {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 10px 0;
-  border-bottom: 1px solid rgb(255 255 255 / 0.06);
+  border-bottom: 1px solid var(--line);
 }
 .wrow:last-child {
   border-bottom: 0;
+}
+.wrow-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 12px;
+}
+.wrow-icon.is-plus {
+  color: var(--plus);
+  background: rgb(21 128 61 / 0.12);
+}
+.wrow-icon.is-minus {
+  color: var(--minus);
+  background: rgb(180 35 24 / 0.1);
+}
+.wamt {
+  flex-shrink: 0;
+  font-family: var(--font-display, inherit);
+  font-size: 21px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.wamt small {
+  margin-left: 5px;
+  font-family: var(--font-ui, inherit);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.wamt.is-plus {
+  color: var(--plus);
+}
+.wamt.is-minus {
+  color: var(--minus);
+}
+
+/* ---------------------------------------------------------------- info ------------------------------------------- */
+.winfo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.winfo-col {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.5);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.winfo-col header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.winfo-col header b {
+  display: block;
+  font-family: var(--font-display, inherit);
+  font-size: 22px;
+  line-height: 1.1;
+}
+.winfo-col header small {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.winfo-col li {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 16px;
+}
+.winfo-col li svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--muted);
+}
+.winfo-col li.is-key {
+  font-weight: 800;
+}
+.wtoken {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+}
+.wtoken-gold {
+  color: #6b4a08;
+  background: radial-gradient(circle at 35% 30%, #f8dc8a, #d9ab3c 70%, #b98a26);
+  box-shadow: inset 0 0 0 3px rgb(255 255 255 / 0.3);
+}
+.wtoken-silver {
+  color: #3b4048;
+  background: radial-gradient(circle at 35% 30%, #f3f4f6, #c9cdd3 70%, #a9aeb6);
+  box-shadow: inset 0 0 0 3px rgb(255 255 255 / 0.4);
+}
+
+/* ---------------------------------------------------------------- play safe -------------------------------------- */
+.wsafe {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.5);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.wsafe h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display, inherit);
+  font-size: 20px;
+  font-weight: 800;
+}
+.wsafe h3 svg {
+  color: #8a6a1c;
+}
+.wsafe p {
+  font-size: 16px;
+}
+@media (max-width: 600px) {
+  .wsafe,
+  .winfo {
+    grid-template-columns: 1fr;
+  }
+}
+.winput {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 54px;
+  padding: 0 14px;
+  border-radius: 14px;
+  background: #fdfaf3;
+  box-shadow: inset 0 2px 4px rgb(70 50 25 / 0.18);
+}
+.winput input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  outline: none;
+  color: var(--ink);
+  font-size: 24px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.winput input::placeholder {
+  color: rgb(70 50 25 / 0.4);
+}
+
+/* ---------------------------------------------------------------- phone landscape -------------------------------- */
+@media (max-height: 500px) {
+  .wcard:has(.wflow) {
+    height: 95dvh;
+  }
+  .wcard {
+    width: min(820px, 96vw);
+    max-height: 95dvh;
+    font-size: 16px;
+    border-radius: 18px;
+  }
+  .wcard::after {
+    inset: 4px;
+    border-radius: 15px;
+  }
+  .wcard-head {
+    gap: 10px;
+    padding: 5px 8px 8px 8px;
+  }
+  .wcard-head::after {
+    bottom: 3px;
+  }
+  .wcard-head h2 {
+    font-size: 21px;
+  }
+  .wcard-close {
+    width: 44px;
+    height: 44px;
+  }
+  .wcard-icon {
+    width: 36px;
+    height: 36px;
+  }
+  .wcard-body {
+    padding: 8px 14px 10px;
+  }
+  .wcard-body:has(.wflow) {
+    padding-bottom: 8px;
+  }
+  .wflow {
+    gap: 6px;
+  }
+  .wflow-foot {
+    padding-top: 6px;
+  }
+  .wcols {
+    gap: 12px;
+  }
+  .wcols > div {
+    gap: 6px !important;
+  }
+  .wseg button,
+  .wchips button {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .wamount {
+    padding: 4px 12px 4px;
+  }
+  .wamount output {
+    font-size: 30px;
+  }
+  .wamount-sub {
+    font-size: 14px;
+  }
+  .wlabel {
+    font-size: 12px;
+  }
+  .wkeys {
+    gap: 5px;
+    padding: 6px;
+  }
+  .wkeys button {
+    min-height: 44px;
+    font-size: 22px;
+  }
+  .wbtn-primary,
+  .wbtn-ghost {
+    min-height: 46px;
+    font-size: 18px;
+    padding: 0 16px;
+  }
+  .wflow-foot .wbtn-primary {
+    min-width: 140px;
+  }
+  .wsteps li > span {
+    width: 24px;
+    height: 24px;
+  }
+  .wslip {
+    padding: 12px 14px 10px;
+    font-size: 14px;
+  }
+  .wslip-swap {
+    padding: 6px 0;
+  }
+  .wslip-swap b {
+    font-size: 18px;
+  }
+  .wslip dl {
+    padding: 6px 0;
+    font-size: 13px;
+    gap: 3px 8px;
+  }
+  .wslip-foot {
+    padding-top: 4px;
+  }
+  .wmethods {
+    gap: 6px;
+  }
+  .wmethods button {
+    min-height: 48px;
+    padding: 4px 12px 4px 6px;
+  }
+  .wmethod-icon {
+    width: 36px;
+    height: 36px;
+  }
+  .wmethods button b {
+    font-size: 16px;
+  }
+  .wmethods button small {
+    font-size: 13px;
+  }
+  .wpay-sum {
+    padding: 2px 0 0;
+  }
+  .wpay-sum b {
+    font-size: 26px;
+  }
+  .wslide {
+    height: 56px;
+  }
+  .wslide-thumb {
+    width: 48px;
+    height: 48px;
+  }
+  .wnote {
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+  .wsafe {
+    padding: 8px 12px;
+    gap: 10px;
+  }
+  .wsafe h3 {
+    font-size: 18px;
+  }
+  .wsafe p {
+    font-size: 14px;
+  }
+  .winput {
+    min-height: 46px;
+  }
+  .winput input {
+    font-size: 20px;
+  }
+  .winfo-col {
+    padding: 8px 12px;
+  }
+  .winfo-col li {
+    font-size: 14px;
+    padding: 1px 0;
+  }
+  .wamt {
+    font-size: 18px;
+  }
+  .wrow {
+    padding: 6px 0;
+  }
+}
+/* narrow phones (portrait): stack the step indicator text */
+@media (max-width: 700px) {
+  .wsteps li em {
+    display: none;
+  }
+  .wsteps li.is-now em {
+    display: inline;
+  }
+}
+
+/* the whole wallet layer fades its dimming as the wallet folds shut */
+.wsheet {
+  animation: wfade 220ms ease-out both;
+  transition: background-color 260ms ease;
+}
+.wsheet.is-closing {
+  background-color: transparent;
+  pointer-events: none;
+}
+.wsheet.is-closing .wfloat,
+.wsheet.is-closing .icon-button {
+  opacity: 0;
+  transition: opacity 160ms ease;
 }
 
 /* overlay controls around the 3D wallet */
@@ -374,7 +1380,11 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .wbtn,
-  .wtab {
+  .wtab,
+  .wseg button,
+  .wchips button,
+  .wkeys button,
+  .wslide-thumb {
     transition: none;
   }
 }
