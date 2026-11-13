@@ -16,6 +16,7 @@ const TURN_MS = 30_000;
 const JOIN_MS = 60_000;
 const RECONNECT_S = 60;
 const MAX_STRIKES = 3;
+const DRAW_OFFER_COOLDOWN_MS = 30_000;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const MODULES: Record<string, GameModule<any, any, any>> = { igisoro: igisoroModule, ludo: ludoModule, pool: poolModule };
@@ -42,7 +43,8 @@ export interface MatchOptions {
  * commit-reveal RNG; the final result is Ed25519-signed and settled by the API.
  */
 export class MatchRoom extends Room {
-  override maxClients = 4;
+  // players only (onAuth), but a player may hold a second tab or re-join after a reload while the old seat waits
+  override maxClients = 8;
   private opts!: MatchOptions;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private mod!: GameModule<any, any, any>;
@@ -58,6 +60,8 @@ export class MatchRoom extends Room {
   private turnTimer: ReturnType<typeof setTimeout> | null = null;
   private joinTimer: ReturnType<typeof setTimeout> | null = null;
   private finished = false;
+  private drawOffer: { from: string; at: number } | null = null;
+  private lastDrawOffer = new Map<string, number>();
 
   override onCreate(options: MatchOptions): void {
     this.opts = options;
@@ -75,7 +79,28 @@ export class MatchRoom extends Room {
       if (!v.ok) return client.send("rejected", { reason: v.reason });
       this.state_ = this.mod.apply(this.state_, userId, parsed.data, this.rng!);
       this.strikes.set(userId, 0);
+      this.drawOffer = null; // a move answers (declines) a pending draw offer
       this.afterChange();
+    });
+
+    // draw by agreement (2-player games): stakes are split by the API (equal ranks)
+    this.onMessage("draw-offer", (client) => {
+      const userId = this.sessions.get(client.sessionId);
+      if (!userId || !this.state_ || this.finished || this.opts.players.length !== 2) return;
+      const last = this.lastDrawOffer.get(userId) ?? 0;
+      if (Date.now() - last < DRAW_OFFER_COOLDOWN_MS) return client.send("rejected", { reason: "DRAW_OFFER_COOLDOWN" });
+      this.lastDrawOffer.set(userId, Date.now());
+      this.drawOffer = { from: userId, at: Date.now() };
+      this.broadcast("draw-offer", { from: userId });
+    });
+    this.onMessage("draw-reply", (client, raw: { accept?: unknown }) => {
+      const userId = this.sessions.get(client.sessionId);
+      const offer = this.drawOffer;
+      if (!userId || !offer || offer.from === userId || this.finished) return;
+      this.drawOffer = null;
+      if (raw?.accept === true) {
+        void this.finish("normal", Object.fromEntries(this.opts.players.map((p) => [p.userId, 1])));
+      } else this.broadcast("draw-declined", { by: userId });
     });
 
     // re-attach after a client re-mount/reconnect: resend setup + current state
@@ -111,7 +136,12 @@ export class MatchRoom extends Room {
     client.send("init", { you: auth.userId, game: this.opts.game, stake: this.opts.stake, players: this.opts.players, commit: this.commit, matchId: this.opts.matchId });
     const joined = new Set(this.sessions.values());
     if (!this.state_ && this.opts.players.every((p) => joined.has(p.userId))) this.start();
-    else if (this.state_) this.sendState(client);
+    else if (this.state_) {
+      // a fresh join mid-game (page reload, new tab): the seat is theirs again
+      this.broadcast("presence", { userId: auth.userId, connected: true });
+      this.sendState(client);
+      if (this.drawOffer && this.drawOffer.from !== auth.userId) client.send("draw-offer", { from: this.drawOffer.from });
+    }
   }
 
   override async onLeave(client: Client, consented: boolean): Promise<void> {
@@ -128,7 +158,8 @@ export class MatchRoom extends Room {
       this.broadcast("presence", { userId, connected: true });
       this.sendState(re);
     } catch {
-      if (!this.finished) await this.forfeit(userId);
+      // they came back through a fresh join (reload) instead of the reconnection token → no forfeit
+      if (!this.finished && ![...this.sessions.values()].includes(userId)) await this.forfeit(userId);
     }
   }
 
@@ -143,12 +174,15 @@ export class MatchRoom extends Room {
     this.rng = createFairRng(this.seed, seeds, this.opts.matchId);
     const refs = this.opts.players.map((p) => ({ id: p.userId, seat: p.seat, rating: p.rating }));
     this.state_ = this.mod.init({}, refs, this.rng);
-    this.lock();
+    // not locked: a player reloading the page must be able to join again by id (onAuth admits only the players)
     this.afterChange();
   }
 
   private afterChange(): void {
     if (this.mod.isTerminal(this.state_)) {
+      // everyone sees the deciding move (the winning shot, the last token home) before the result
+      this.deadline = 0;
+      for (const c of this.clients) this.sendState(c);
       const r = this.mod.result(this.state_);
       void this.finish(r.reason, r.ranks);
       return;

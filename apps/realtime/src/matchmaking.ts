@@ -25,10 +25,12 @@ interface Waiting {
 }
 
 /** Quick Match queue (in-process for now; moves to Valkey in P1-MM-01). */
-class QuickMatchQueue {
+export class QuickMatchQueue {
   private queues = new Map<string, Waiting[]>();
 
   join(game: GameId, stake: number, w: Waiting): Waiting | null {
+    // one queue per person: switching game or stake replaces the old ticket (never matched twice)
+    this.leave(w.userId);
     const key = `${game}:${stake}`;
     const q = (this.queues.get(key) ?? []).filter((x) => x.userId !== w.userId);
     const other = q.shift();
@@ -43,6 +45,11 @@ class QuickMatchQueue {
 
   leave(userId: string): void {
     for (const [k, q] of this.queues) this.queues.set(k, q.filter((x) => x.userId !== userId));
+  }
+
+  /** People waiting for this game and stake (lobby counters, tests). */
+  size(game: GameId, stake: number): number {
+    return this.queues.get(`${game}:${stake}`)?.length ?? 0;
   }
 }
 
