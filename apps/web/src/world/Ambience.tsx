@@ -44,12 +44,14 @@ function ensureBed(): Bed | null {
   const fSrc = ctx.createBufferSource();
   fSrc.buffer = noiseBuffer(ctx, 3, 11);
   fSrc.loop = true;
+  // soft, rounded water: no harsh hiss (cut the highs, keep a gentle mid "babble")
   const fHp = ctx.createBiquadFilter();
   fHp.type = "highpass";
-  fHp.frequency.value = 500;
+  fHp.frequency.value = 280;
   const fLp = ctx.createBiquadFilter();
   fLp.type = "lowpass";
-  fLp.frequency.value = 5200;
+  fLp.frequency.value = 1500;
+  fLp.Q.value = 0.4;
   const fountain = ctx.createGain();
   fountain.gain.value = 0;
   fSrc.connect(fHp).connect(fLp).connect(fountain).connect(master);
@@ -99,6 +101,27 @@ function birdCall(rnd: () => number) {
   }
 }
 
+/** One water droplet landing in the basin: a soft rounded "plip" (pitch drops as the bubble closes). */
+function droplet(rnd: () => number, level: number) {
+  const ctx = uiAudio();
+  if (!ctx || !bed || level < 0.002) return;
+  const t = ctx.currentTime + 0.01;
+  const f0 = 700 + rnd() * 900;
+  const o = ctx.createOscillator();
+  o.type = "sine";
+  o.frequency.setValueAtTime(f0, t);
+  o.frequency.exponentialRampToValueAtTime(f0 * (1.6 + rnd() * 0.5), t + 0.045); // rising "plip" of a small drop
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(level * (0.5 + rnd() * 0.5), t + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09 + rnd() * 0.05);
+  const pan = ctx.createStereoPanner();
+  pan.pan.value = rnd() * 1.2 - 0.6;
+  o.connect(g).connect(pan).connect(bed.master);
+  o.start(t);
+  o.stop(t + 0.16);
+}
+
 /** A plaza sensor door sliding open/closed, attenuated by distance from the listener. */
 export function plazaDoorSound(x: number, z: number, opening: boolean) {
   const ctx = uiAudio();
@@ -128,6 +151,7 @@ export function plazaDoorSound(x: number, z: number, opening: boolean) {
 function Soundscape() {
   const rnd = useMemo(() => lcg(77), []);
   const nextBird = useRef(0);
+  const nextDrop = useRef(0);
   useEffect(
     () => () => {
       // leaving the plaza (into a hall, signing out): fade the bed out
@@ -143,7 +167,14 @@ function Soundscape() {
     if (!b || !ctx) return;
     const t = clock.elapsedTime;
     const d = Math.hypot(selfPose.x, selfPose.z); // fountain at the plaza centre
-    b.fountain.gain.setTargetAtTime(0.11 / (1 + Math.max(0, d - 3) * 0.28), ctx.currentTime, 0.25);
+    // near the basin it is a calm murmur (not a roar); it fades out within ~20 m
+    const near = 1 / (1 + Math.max(0, d - 3) * 0.45);
+    b.fountain.gain.setTargetAtTime(0.022 * near, ctx.currentTime, 0.4);
+    // a few soft droplets per second close by, fewer and fainter further away
+    if (near > 0.15 && t > nextDrop.current) {
+      droplet(rnd, 0.012 * near);
+      nextDrop.current = t + 0.12 + rnd() * (0.5 / near);
+    }
     // gusts: two slow sines → loudness and brightness drift
     const gust = 0.5 + 0.3 * Math.sin(t * 0.21) + 0.2 * Math.sin(t * 0.53 + 1.3);
     b.wind.gain.setTargetAtTime(0.03 + gust * 0.04, ctx.currentTime, 0.8);
