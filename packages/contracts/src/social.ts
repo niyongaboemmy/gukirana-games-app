@@ -57,7 +57,7 @@ const PLAZA_SEAT_IDS = new Set(PLAZA_SEATS.map((s) => s.id));
 export const HALL_SEATING = {
   pool: { tables: 12, chairs: 2 },
   ludo: { tables: 16, chairs: 2 }, // 1-v-1 live matches: two player armchairs per table (P1-WLD-05)
-  igisoro: { tables: 6, chairs: 2 },
+  igisoro: { tables: 16, chairs: 2 }, // 16 low Igisoro tables, two stools each (P1-WLD-05)
 } as const;
 export type HallId = keyof typeof HALL_SEATING;
 export const isHallId = (g: unknown): g is HallId => g === "pool" || g === "ludo" || g === "igisoro";

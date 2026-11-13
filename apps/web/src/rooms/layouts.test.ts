@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HALL_SEATING, isValidSeat } from "@gukirana/contracts";
-import { HALLS, LUDO_POUF, POOL_CUE_CLEARANCE, type HallLayout } from "./layouts";
+import { HALLS, IGISORO_STOOL_Z, LUDO_POUF, POOL_CUE_CLEARANCE, type HallLayout } from "./layouts";
 import { freeChair, nearestTable, tableAt, tableStatuses } from "./table-status";
 
 const overlaps = (a: { x: number; z: number; w: number; d: number }, b: { x: number; z: number; w: number; d: number }) =>
@@ -137,5 +137,71 @@ describe("hall layouts", () => {
     expect(t && st[t.id]).toBe("free");
     expect(tableAt(ludo, ludo.tables[6]!.x + 0.4, ludo.tables[6]!.z)?.id).toBe("t6");
     expect(tableAt(ludo, 0, ludo.size.d / 2 - 1)).toBeNull();
+  });
+
+  const igi = HALLS.igisoro;
+  it("igisoro: big court (≥ 2× the old 24 × 18 m), 12–16 tables × 2 stools, door centred on the south wall", () => {
+    expect(igi.size.w * igi.size.d).toBeGreaterThanOrEqual(2 * 24 * 18);
+    expect(igi.tables.length).toBeGreaterThanOrEqual(12);
+    expect(igi.tables.length).toBeLessThanOrEqual(16);
+    expect(igi.seats.length).toBe(igi.tables.length * 2);
+    expect(igi.door).toEqual({ x: 0, w: 2.6 });
+    // the two players face each other across the long sides of the board
+    for (const t of igi.tables) {
+      const [a, b] = igi.seats.filter((s) => s.table === t.id);
+      expect(a!.z - t.z).toBeCloseTo(IGISORO_STOOL_Z);
+      expect(b!.z - t.z).toBeCloseTo(-IGISORO_STOOL_Z);
+      expect(Math.abs(a!.yaw)).toBeCloseTo(Math.PI); // s0 (south) faces north, towards the table
+    }
+  });
+
+  it("igisoro: ≥ 1.2 m walkway between table clusters; nothing inside a cluster; all inside the walls", () => {
+    // a cluster = the table plus its two stools (≈ 0.5 m round) and the knee gap
+    const cluster = (t: { x: number; z: number; w: number }) => ({ x: t.x, z: t.z, w: t.w, d: 2 * IGISORO_STOOL_Z + 0.5 });
+    for (const t of igi.tables) {
+      const c = cluster(t);
+      const zone = { ...c, w: c.w + 2 * 1.2, d: c.d + 2 * 1.2 };
+      for (const o of igi.tables) if (o !== t) expect(overlaps({ ...zone, w: c.w + 1.2, d: c.d + 1.2 }, cluster(o)), `${t.id} vs ${o.id}`).toBe(false);
+      for (const f of igi.colliders) expect(overlaps({ ...c, w: c.w + 2.0, d: c.d + 2.0 }, f), `${t.id} vs collider at ${f.x},${f.z}`).toBe(false);
+      expect(Math.abs(t.x) + zone.w / 2).toBeLessThan(igi.size.w / 2);
+      expect(Math.abs(t.z) + zone.d / 2).toBeLessThan(igi.size.d / 2);
+    }
+  });
+
+  it("igisoro: the aisles are table-, stool- and furniture-free and reach the open band in front of the door", () => {
+    expect(igi.aisles.length).toBeGreaterThanOrEqual(4);
+    for (const a of igi.aisles) {
+      expect(Math.abs(a)).toBeLessThan(igi.size.w / 2 - 0.6);
+      for (const t of igi.tables) expect(Math.abs(t.x - a)).toBeGreaterThan(t.w / 2 + 1.05);
+      for (const s of igi.seats) expect(Math.abs(s.x - a)).toBeGreaterThan(0.28 + 0.35);
+      for (const f of igi.colliders) if (f.z > -igi.size.d / 2 + 1.5 && f.z < igi.size.d / 2 - 1.5) expect(Math.abs(f.x - a) > f.w / 2 + 0.35, `aisle ${a} vs ${f.x},${f.z}`).toBe(true);
+    }
+    const lastChair = Math.max(...igi.seats.map((s) => s.z));
+    expect(igi.size.d / 2 - 2.4).toBeGreaterThan(lastChair + 0.8);
+    // the band in front of the door (the last leg of the Leave route) is free of furniture except the corner plants
+    for (const f of igi.colliders) if (f.z + f.d / 2 > igi.size.d / 2 - 2.8) expect(Math.abs(f.x), `${f.x},${f.z}`).toBeGreaterThan(igi.size.w / 2 - 1.2);
+  });
+
+  it("igisoro: the stand point in front of each stool is outside the table's collision box (the staged sit can reach it)", () => {
+    const chairR = 0.28;
+    for (const s of igi.seats) {
+      const t = igi.tables.find((x) => x.id === s.table)!;
+      const sz = s.z + Math.cos(s.yaw) * (chairR + 0.13);
+      expect(Math.abs(sz - t.z)).toBeGreaterThan(t.d / 2 + 0.32 - 0.05);
+    }
+  });
+
+  it("igisoro: table status and free-chair picking work for this hall too", () => {
+    const seats = { t0s0: "A", t5s0: "B", t5s1: "C" };
+    const st = tableStatuses(igi, seats);
+    expect(st.t0).toBe("waiting");
+    expect(st.t5).toBe("playing");
+    expect(st.t15).toBe("free");
+    expect(freeChair(igi, "t0", seats, "me", 0, 0)?.id).toBe("t0s1");
+    expect(freeChair(igi, "t5", seats, "me", 0, 0)).toBeNull();
+    const t = nearestTable(igi, st, "free", 0, igi.size.d / 2);
+    expect(t && st[t.id]).toBe("free");
+    expect(tableAt(igi, igi.tables[9]!.x + 0.7, igi.tables[9]!.z)?.id).toBe("t9");
+    expect(tableAt(igi, 0, igi.size.d / 2 - 1)).toBeNull();
   });
 });
