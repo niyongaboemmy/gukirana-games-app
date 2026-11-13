@@ -54,7 +54,9 @@ export const PLAZA_ARCS: ArcBed[] = (() => {
 /** Linear beds along the avenue from the plaza gate to the ring road, hedged on the walkway side. */
 export const AVENUE_BEDS: RectBed[] = (() => {
   const out: RectBed[] = [];
-  for (let z = 37; z < 72; z += 7.5) for (const s of [-1, 1]) out.push({ x: s * 6.9, z: z + 3.1, hw: 2.0, hd: 3.1, rot: 0, h: 0.38, hedge: true });
+  // the short avenue between the plaza's entry gate and the arrival gate: one hedged bed on the west side (the
+  // arrival gate's wardrobe stands on the east side), then the forecourt beyond the arrival gate
+  out.push({ x: -6.9, z: (36.4 + (GATE_Z - 4.6)) / 2, hw: 2.0, hd: (GATE_Z - 4.6 - 36.4) / 2, rot: 0, h: 0.38, hedge: true });
   return out;
 })();
 

@@ -35,7 +35,7 @@ const PLAZA_IN_Z = 27.6;
 const FLIGHT_MS = 3200;
 /** walking pace through the gate (m/s); the plaza step-out carries the same stride on across the cut */
 const GATE_WALK = 2.4;
-const LEAVE_WALK = 1.6;
+const LEAVE_WALK = 2.0; // a purposeful stride out (the walk-out from the kiosk lasts ≈ 6–7 s)
 
 function useLocalLook() {
   const p = useProfile();

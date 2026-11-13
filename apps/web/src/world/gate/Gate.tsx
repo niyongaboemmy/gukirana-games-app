@@ -16,7 +16,12 @@ import { DEFAULT_LOOK } from "../outfits";
  * an ID-check kiosk, a welcome LED screen, and a wardrobe/locker station just inside for new players.
  * Visitors approach from +z (south) and walk −z (north) into the arena district.
  */
-export const GATE_Z = 96;
+/**
+ * The arrival gate stands a short avenue (≈ 12 m of open walk between the canopies) south of the plaza's entry
+ * gate, inside the ring road, so signing in is one continuous walk of ≈ 8–10 s from the tablet to the plaza (it
+ * used to stand 64 m away beyond the ring road: a 29 s walk). P1-WLD-05.
+ */
+export const GATE_Z = 48;
 export const KIOSK = { x: -1.55, z: GATE_Z + 1.9, rotY: 0.55 };
 export const STAND = { x: 0.45, z: GATE_Z + 2.6 }; // where the avatar stands to show ID
 export const INSIDE = { x: 0, z: GATE_Z - 4 };
@@ -36,10 +41,13 @@ export function buildGate(tier: Tier, Z: number = GATE_Z, variant: "arrival" | "
   const entry = variant === "entry";
   const flat = (g: THREE.BufferGeometry) => g.rotateX(-Math.PI / 2);
   if (!entry) {
-    // forecourt + avenue link over the ring road
-    b.add("paving", flat(new THREE.CircleGeometry(19, tier === "lite" ? 48 : 96)), { p: [0, 0.018, Z], tile: 4 });
-    b.box("paving", 8, 0.02, Z - 81 - 15, { p: [0, 0.012, (81 + Z - 15) / 2], tile: 4 });
-    b.add("lava", flat(new THREE.RingGeometry(19, 19.6, 96, 1)), { p: [0, 0.022, Z], tile: 1.2 });
+    // forecourt (the half towards the ring road: the avenue to the plaza continues on the other side), its link
+    // to the ring road, and the paved compound just inside the gate (turnstiles → wardrobe → avenue)
+    const seg = tier === "lite" ? 48 : 96;
+    b.add("paving", flat(new THREE.CircleGeometry(19, seg, Math.PI, Math.PI)), { p: [0, 0.018, Z], tile: 4 });
+    b.add("lava", flat(new THREE.RingGeometry(19, 19.6, seg, 1, Math.PI, Math.PI)), { p: [0, 0.022, Z], tile: 1.2 });
+    if (74.5 > Z + 18.8) b.box("paving", 8, 0.02, 74.5 - (Z + 18.8), { p: [0, 0.012, (74.5 + Z + 18.8) / 2], tile: 4 });
+    b.box("paving", 18.8, 0.02, 8.2, { p: [0, 0.015, Z - 4.1], tile: 4 });
   }
   // canopy: white slab, timber soffit battens, LED edges
   b.box("white", 19, 0.45, 8.4, { p: [0, 5.6, Z] });
