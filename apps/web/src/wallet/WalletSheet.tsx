@@ -9,6 +9,7 @@ import { coins, coinsToMinor, formatMinor, type CurrencyRate } from "@gukirana/m
 import { api, claimDailyStars } from "@/lib/session";
 import { useProfile } from "@/lib/profile-store";
 import { doAction } from "@/social/people";
+import { ExchangeCard, PlaySafeCard, StreakRow, type Limits } from "./WalletExtras";
 
 const Wallet3D = dynamic(() => import("./Wallet3D").then((m) => m.Wallet3D), { ssr: false });
 
@@ -16,7 +17,7 @@ const Wallet3D = dynamic(() => import("./Wallet3D").then((m) => m.Wallet3D), { s
 export const useWalletSheet = create<{ open: boolean; set: (open: boolean) => void }>()((set) => ({ open: false, set: (open) => set({ open }) }));
 
 type Tx = { type: string; amount: number; at: string; refType: string | null };
-type WalletData = { stars: number; history: Tx[]; dailyStars: number; pilotEnabled: boolean; economyVersion: number; coins?: number };
+type WalletData = { stars: number; history: Tx[]; dailyStars: number; pilotEnabled: boolean; economyVersion: number; coins?: number; streak?: number; limits?: Limits; stakedToday?: number };
 type Economy = { version: number; currencies: Pick<CurrencyRate, "code" | "exponent" | "minorPerCoinMicro">[]; pilotEnabled: boolean };
 
 /** Plain-language labels; amounts are always shown signed (+ won / − paid), never disguised. */
@@ -27,6 +28,7 @@ const TX_LABEL: Record<string, string> = {
   settle: "Match result",
   refund: "Stake refunded",
   level_up: "Level-up gift",
+  stars_streak: "Streak bonus",
 };
 
 const fmtTime = (iso: string) => new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -39,6 +41,7 @@ export function WalletSheet() {
   const [currency, setCurrency] = useState("RWF");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [nextBonus, setNextBonus] = useState<number | null>(null);
   const stars = useProfile((s) => s.stars);
 
   // B key toggles the wallet (W is walk); Escape closes it
@@ -68,8 +71,9 @@ export function WalletSheet() {
   const claim = async () => {
     setBusy(true);
     try {
-      const r = await claimDailyStars();
-      setMsg(r.granted ? `+${r.granted} Stars added` : "Already claimed today — come back tomorrow");
+      const r = (await claimDailyStars()) as { granted: number; stars: number; streak?: number; streakBonus?: number; nextStreakBonus?: number };
+      setMsg(r.granted ? `+${r.granted} Stars added${r.streakBonus ? ` · +${r.streakBonus} streak bonus` : ""}` : "Already claimed today — come back tomorrow");
+      setNextBonus(r.nextStreakBonus ?? null);
       setData((d) => (d ? { ...d, stars: r.stars } : d));
       void api<WalletData>("/wallet").then(setData).catch(() => undefined); // refresh the activity list
     } catch {
@@ -109,6 +113,7 @@ export function WalletSheet() {
                 <Gift size={16} /> Claim daily Stars{data ? ` (+${data.dailyStars})` : ""}
               </button>
               {msg && <p role="status" className="mt-2 text-center text-xs text-on-glass-muted">{msg}</p>}
+              <StreakRow streak={data?.streak ?? 0} next={nextBonus} />
             </section>
 
             {/* Coins: real money (licensed pilot only), shown in the chosen currency as an estimate */}
@@ -133,6 +138,9 @@ export function WalletSheet() {
                 </p>
               )}
             </section>
+
+            <ExchangeCard currency={currency} cur={rate} pilot={pilot} />
+            <PlaySafeCard limits={data?.limits ?? null} stakedToday={data?.stakedToday ?? 0} onChange={(l) => setData((d) => (d ? { ...d, limits: l } : d))} />
 
             {/* honest history: every change shown with its sign */}
             <section className="glass rounded-card p-3">

@@ -1,5 +1,6 @@
 "use client";
 import { useWalletSheet, WalletSheet } from "@/wallet/WalletSheet";
+import { PlayReminder } from "@/wallet/WalletExtras";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -168,6 +169,7 @@ export function WorldHud() {
         </div>
       )}
       <WalletSheet />
+      <PlayReminder />
       {settingsOpen && (
         <div className="pointer-events-auto">
           <SettingsModal

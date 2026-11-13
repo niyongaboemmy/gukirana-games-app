@@ -33,6 +33,7 @@ import { saveDoorPose, takeWorldPose } from "@/lib/return-point";
 import { preloadHall } from "@/rooms/preload";
 import { autoFollow, nav, onReleaseInput, pointerNav, steer, TargetMarker } from "./navigation";
 import { useVoice } from "@/voice/voice";
+import { useWalletSheet } from "@/wallet/WalletSheet";
 import { applyBenchSeat, benchBusy } from "@/social/bench";
 import { applyPeople, lookTarget as personLook, nearSpot, people, SPOTS } from "@/social/people";
 import { useSocial } from "@/social/social-store";
@@ -79,6 +80,7 @@ export function LocalPlayer({
   level: number;
   tier?: Tier;
 }) {
+  const walletOpen = useWalletSheet((s) => s.open);
   const bodyType = useProfile((s) => s.bodyType);
   const skinTone = useProfile((s) => s.skinTone);
   const hairStyle = useProfile((s) => s.hairStyle);
@@ -448,6 +450,7 @@ export function LocalPlayer({
           shadows={tier !== "lite"}
           quality={tier}
           self
+          holdWallet={walletOpen}
           lookAtRef={lookAt}
           showTag={false}
           seedId={you ?? name}

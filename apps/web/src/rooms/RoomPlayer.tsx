@@ -11,6 +11,7 @@ import { useRoom } from "./room-store";
 import { takeReturnFor } from "@/lib/return-point";
 import { autoFollow, nav, onReleaseInput, pointerNav, steer, TargetMarker } from "@/world/navigation";
 import { useDoorway } from "@/world/doorway";
+import { useWalletSheet } from "@/wallet/WalletSheet";
 import { clearHandoff, peekHandoff } from "@/world/stage";
 import type { HallLayout, Seat } from "./layouts";
 import { freeChair, tableAt } from "./table-status";
@@ -53,6 +54,7 @@ const clearPick = () => Object.assign(pick, { req: null, table: null, seat: null
 export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExit: () => void; tier: "lite" | "standard" }) {
   const group = useRef<THREE.Group>(null);
   const anim = useRef(0);
+  const walletOpen = useWalletSheet((s) => s.open);
   // back from a game → same spot / same chair; otherwise appear in the open doorway and walk in automatically
   const back = useRef(typeof window !== "undefined" ? takeReturnFor(`/room/${layout.game}`) : null);
   // walked in through the plaza door: the exact spot / heading / pace you crossed the door line with (world/stage.ts
@@ -638,7 +640,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     <>
     <TargetMarker />
     <group ref={group}>
-      <Avatar look={look} name={profile.name} level={1} animRef={anim} shadows={tier !== "lite"} showTag={false} self />
+      <Avatar look={look} name={profile.name} level={1} animRef={anim} shadows={tier !== "lite"} showTag={false} self holdWallet={walletOpen} />
     </group>
     </>
   );

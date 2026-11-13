@@ -51,6 +51,8 @@ export interface AvatarProps {
   tagRange?: number;
   /** Hold a phone in both hands, forearms raised (signing in at the gate). */
   holdPhone?: boolean;
+  /** Hold your open wallet (the wallet sheet is open): same arm pose as the phone, a leather bifold in the hand. */
+  holdWallet?: boolean;
   /** Person id (session / account): seeds this person's idle habits, timing and gait offsets. */
   seedId?: string;
   /** Sit / stand root motion: "clip" (plaza benches: origin on the seat / at the standing spot) or "inPlace" (default). */
@@ -210,8 +212,22 @@ function buildProps() {
   screen.position.z = 0.0048;
   phone.add(body, screen);
   // in the palm: the phone's long side along the fingers, its screen facing out of the palm
+  // a leather bifold held open (the wallet sheet is open): two matte halves with notes peeking out
+  const wallet = new THREE.Group();
+  const leather = mat(new THREE.MeshStandardMaterial({ color: "#5a3b26", roughness: 0.92 }));
+  const halfA = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.085, 0.008), leather);
+  const halfB = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.085, 0.008), leather);
+  halfA.position.set(-0.048, 0, 0);
+  halfA.rotation.y = 0.35;
+  halfB.position.set(0.048, 0, 0);
+  halfB.rotation.y = -0.35;
+  const notes = new THREE.Mesh(new THREE.PlaneGeometry(0.088, 0.05), mat(new THREE.MeshStandardMaterial({ color: "#cdd8c4", roughness: 0.9, side: THREE.DoubleSide })));
+  notes.position.set(0.045, 0.02, 0.006);
+  notes.rotation.y = -0.35;
+  wallet.add(halfA, halfB, notes);
+  wallet.visible = false;
   const inHand = new THREE.Group();
-  inHand.add(phone);
+  inHand.add(phone, wallet);
   phone.position.set(0, 0, 0);
   inHand.visible = false;
   // takeaway coffee cup: paper cup with a lid and a sleeve
@@ -237,7 +253,7 @@ function buildProps() {
   const chalk = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.022, 0.022), mat(new THREE.MeshStandardMaterial({ color: "#2f6fd6", roughness: 0.9 })));
   chalk.visible = false;
   for (const o of [inHand, cup, cue, chalk]) o.traverse((c) => ((c as THREE.Mesh).isMesh ? ((c as THREE.Mesh).castShadow = true) : undefined));
-  return { phone: inHand, cup, cue, chalk, mats };
+  return { phone: inHand, phoneMesh: phone, wallet, cup, cue, chalk, mats };
 }
 
 const _v = new THREE.Vector3();
@@ -276,6 +292,7 @@ function HumanBody({
   talkingRef,
   lookAtRef,
   holdPhone = false,
+  holdWallet = false,
   seed,
   rootMotion,
   socialRef,
@@ -283,6 +300,8 @@ function HumanBody({
   footsteps,
 }: {
   holdPhone?: boolean;
+  /** Hold your open wallet (the wallet sheet is open): same arm pose as the phone, a leather bifold in the hand. */
+  holdWallet?: boolean;
   look: AvatarLook;
   animRef: React.RefObject<number>;
   shadows: boolean;
@@ -430,6 +449,8 @@ function HumanBody({
 
     // props
     props.phone.visible = animator.out.phone > 0.5 || s.phone > 0.5;
+    props.wallet.visible = holdWallet;
+    props.phoneMesh.visible = !holdWallet;
     props.cup.visible = animator.out.cup > 0.35;
     const chalkW = proc.chalkWeight;
     props.cue.visible = props.chalk.visible = chalkW > 0.4;
@@ -443,7 +464,7 @@ function HumanBody({
     }
 
     // holding a phone: upper arms down by the sides, forearms raised ~70° towards the chest, phone in the right hand
-    s.phone += ((holdPhone ? 1 : 0) - s.phone) * (1 - Math.exp(-step * 6));
+    s.phone += ((holdPhone || holdWallet ? 1 : 0) - s.phone) * (1 - Math.exp(-step * 6));
     if (s.phone > 0.01 && inst.arms.length) {
       root.getWorldQuaternion(_q2);
       for (const arm of inst.arms) {
@@ -580,6 +601,7 @@ export function Avatar({
   keepClothes = false,
   tagRange,
   holdPhone = false,
+  holdWallet = false,
   seedId,
   rootMotion = "inPlace",
   socialRef,
@@ -633,6 +655,7 @@ export function Avatar({
           talkingRef={talkingRef}
           lookAtRef={lookAtRef}
           holdPhone={holdPhone}
+          holdWallet={holdWallet}
           seed={seed}
           rootMotion={rootMotion}
           socialRef={socialRef}
