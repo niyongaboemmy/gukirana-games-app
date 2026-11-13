@@ -1,4 +1,5 @@
 "use client";
+import { SceneReady } from "@/world/doorway";
 import { Suspense, useMemo, useState, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import { AdaptiveDpr, PerformanceMonitor } from "@react-three/drei";
@@ -32,7 +33,7 @@ export default function RoomCanvas({
   const [fx, setFx] = useState(tier === "standard");
   return (
     <Canvas
-      shadows={tier !== "lite"}
+      shadows={tier === "lite" ? false : "percentage"}
       dpr={tier === "lite" ? [1, 1.25] : [1, 1.75]}
       camera={{ fov: 55, near: 0.05, far: 120, position: [0, 4, 14] }}
       gl={{
@@ -52,6 +53,7 @@ export default function RoomCanvas({
       {/* the room fills in when ready; the player (avatars are already cached) is never hidden behind it */}
       <Suspense fallback={<QuickShell layout={layout} />}>
         <RoomScene layout={layout} lite={tier === "lite"} />
+        <SceneReady />
       </Suspense>
       <Suspense fallback={null}>
         <RoomPlayer layout={layout} onExit={onExit} tier={tier} />

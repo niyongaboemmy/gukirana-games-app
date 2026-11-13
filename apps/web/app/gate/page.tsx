@@ -1,4 +1,5 @@
 "use client";
+import { useDoorway } from "@/world/doorway";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -64,7 +65,8 @@ export default function GatePage() {
   useEffect(() => {
     if (step !== "entering") return;
     clearPositions(); // coming in through the gate: spawn just inside it
-    const t = setTimeout(() => router.push("/world"), 2300);
+    // through the turnstiles, then the plaza doors close behind you while it loads and open onto the plaza
+    const t = setTimeout(() => useDoorway.getState().pass("Gukirana Plaza", () => router.push("/world")), 1740);
     return () => clearTimeout(t);
   }, [step, router]);
 

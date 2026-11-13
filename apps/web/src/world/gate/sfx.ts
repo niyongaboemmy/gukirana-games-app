@@ -1,16 +1,6 @@
 "use client";
 /** Tiny synthesized UI sounds (WebAudio, no audio files). Muted users: browsers block audio until a gesture anyway. */
-let ctx: AudioContext | null = null;
-function ac(): AudioContext | null {
-  if (typeof window === "undefined") return null;
-  try {
-    ctx ??= new AudioContext();
-    if (ctx.state === "suspended") void ctx.resume();
-    return ctx;
-  } catch {
-    return null;
-  }
-}
+import { uiAudio as ac } from "@/lib/audio";
 
 function tone(freq: number, start: number, dur: number, type: OscillatorType = "sine", gain = 0.12) {
   const a = ac();

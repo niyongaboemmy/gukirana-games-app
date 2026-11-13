@@ -1,4 +1,5 @@
 "use client";
+import { SceneReady } from "./doorway";
 import { Suspense, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { AdaptiveDpr, PerformanceMonitor } from "@react-three/drei";
@@ -83,6 +84,7 @@ export default function WorldCanvas({
             <RemotePlayers tier={tier} />
             <SocialLayer />
             <VROrigin />
+            <SceneReady />
           </Suspense>
           <MaybeEffects enabled={fx} />
         </XR>

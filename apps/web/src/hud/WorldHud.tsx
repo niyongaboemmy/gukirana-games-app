@@ -1,4 +1,5 @@
 "use client";
+import { useDoorway } from "@/world/doorway";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Joystick } from "./Joystick";
@@ -75,7 +76,10 @@ export function WorldHud() {
   };
   // E / the big button: door → bench place (stand up when seated) → the person in front of you (person menu)
   const interact = () => {
-    if (portal?.href) return router.push(portal.href);
+    if (portal?.href) {
+      const href = portal.href;
+      return useDoorway.getState().pass(portal.label, () => router.push(href));
+    }
     if (seatedOnBench) return standFromBench();
     if (benchSeat && !portal) return sitNearest();
     if (other) useSocial.setState({ menu: other.id });

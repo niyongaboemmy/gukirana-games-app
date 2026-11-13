@@ -5,6 +5,8 @@ import { LogOut } from "lucide-react";
 import { useWorld } from "@/lib/world-store";
 import { logout } from "@/lib/session";
 import { useTransition } from "./transition";
+import { useDoorway } from "./doorway";
+import { PORTALS } from "./layout";
 
 /** UI strings (to move to @gukirana/i18n keys `world.exit.*`). */
 const STR = {
@@ -27,11 +29,11 @@ export function WorldOverlays() {
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // door transition: fade, then navigate (the room route starts the player on its own porch)
+  // door transition: the hall's glass doors close in front of you, the room loads behind them, then they open inside
   useEffect(() => {
     if (!entering) return;
-    const t = setTimeout(() => router.push(entering), 650);
-    return () => clearTimeout(t);
+    const label = PORTALS.find((p) => p.href === entering)?.label ?? "";
+    useDoorway.getState().pass(label, () => router.push(entering));
   }, [entering, router]);
   useEffect(() => () => useTransition.getState().reset(), []);
 
@@ -59,11 +61,6 @@ export function WorldOverlays() {
 
   return (
     <>
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 z-40 bg-black transition-opacity duration-500 ease-in"
-        style={{ opacity: entering ? 1 : 0 }}
-      />
       {nearGateExit && !confirm && (
         <div className="pointer-events-none fixed bottom-[48%] left-1/2 z-20 -translate-x-1/2">
           <button

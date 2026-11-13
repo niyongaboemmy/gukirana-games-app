@@ -48,7 +48,10 @@ export class IdentityController {
   @Post("auth/refresh")
   @HttpCode(200)
   async refresh(@Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
-    const t = await this.identity.refresh(req.cookies[COOKIE] ?? "", req.headers["user-agent"]);
+    // a first-time visitor has no session yet: that is a normal answer, not an error (a bad/expired cookie still 401s)
+    const cookie = req.cookies[COOKIE];
+    if (!cookie) return { accessToken: null };
+    const t = await this.identity.refresh(cookie, req.headers["user-agent"]);
     this.setCookie(res, t);
     return { accessToken: t.accessToken };
   }

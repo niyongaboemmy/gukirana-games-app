@@ -7,6 +7,7 @@ import { selfPose } from "@/lib/world-store";
 import { useRoom } from "./room-store";
 import type { HallLayout } from "./layouts";
 import { GltfInstances, Instanced, model, type Xform } from "./interior-kit";
+import { uiAudio } from "@/lib/audio";
 
 const FONT = "/fonts/Baloo2.ttf";
 /** The doors start sliding at ~4.2 m and are fully open by ~2 m, so you can walk straight in without stopping. */
@@ -14,12 +15,10 @@ const DOOR_START = 4.2;
 const DOOR_FULL = 2.0;
 
 /* ---------------- door chime: a soft pneumatic "whoosh" (filtered noise, WebAudio, no asset) ---------------- */
-let audio: AudioContext | null = null;
 function whoosh(opening: boolean) {
   try {
-    audio ??= new AudioContext();
-    if (audio.state === "suspended") void audio.resume();
-    const ctx = audio;
+    const ctx = uiAudio();
+    if (!ctx) return;
     const len = 0.7;
     const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * len), ctx.sampleRate);
     const data = buf.getChannelData(0);

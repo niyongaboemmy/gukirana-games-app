@@ -10,6 +10,7 @@ import { sendMove, sitAt, standUp } from "@/lib/realtime";
 import { useRoom } from "./room-store";
 import { takeReturnFor } from "@/lib/return-point";
 import { autoFollow, nav, pointerNav, steer, TargetMarker } from "@/world/navigation";
+import { useDoorway } from "@/world/doorway";
 import type { HallLayout } from "./layouts";
 
 const SIT_ANIM = 13;
@@ -31,6 +32,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   const intro = useRef(back.current ? 0 : 1.9);
   const facing = useRef(back.current?.yaw ?? Math.PI); // facing into the room (−z)
   const exited = useRef(false);
+  const leaveStart = useRef(0);
   const { camera, gl } = useThree();
   const profile = useProfile();
   const look = lookOf(profile);
@@ -87,7 +89,17 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     const dt = Math.min(raw, 0.05);
     const W = useWorld.getState();
     const R = useRoom.getState();
+    if (!R.leaving) leaveStart.current = 0;
+    if (R.leaving && !exited.current && (leaveStart.current ||= performance.now()) && performance.now() - leaveStart.current > 8000) {
+      // fail-safe: whatever blocks the way out (a person in the aisle, a chair), Leave always gets you out
+      exited.current = true;
+      nav.target = null;
+      nav.goal = null;
+      onExit();
+    }
     if (R.leaving && !exited.current) {
+      nav.goal = null; // the leave route is re-planned every frame; no click-to-walk detours fighting it
+      nav.progress.detours = 2;
       if (R.seated) {
         standUp();
         R.set({ seated: null });
@@ -120,12 +132,12 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       facing.current = seat.yaw;
       anim.current = SIT_ANIM;
     } else if (intro.current > 0 && !wantsToWalk && !keys.has("KeyA") && !keys.has("KeyD") && !keys.has("ArrowLeft") && !keys.has("ArrowRight")) {
-      // automatic entry walk (doors close behind as you move away)
-      intro.current -= dt;
-      const sp = 1.35 * Math.min(1, intro.current / 0.4 + 0.2);
+      // automatic entry walk (doors close behind as you move away); waits until the doorway transition has opened
+      if (useDoorway.getState().phase !== "closed") intro.current -= dt;
+      const sp = useDoorway.getState().phase === "closed" ? 0 : 1.35 * Math.min(1, intro.current / 0.4 + 0.2);
       pos.current.z -= sp * dt;
       facing.current = Math.PI;
-      anim.current = intro.current > 0.05 ? 1 : 0;
+      anim.current = intro.current > 0.05 && sp > 0 ? 1 : 0;
     } else {
       intro.current = 0;
       const s = steer({ keys, joyX: W.input.x, joyY: W.input.y, camYaw: cameraState.yaw, facing: facing.current, x: pos.current.x, z: pos.current.z, walkSpeed: WALK_SPEEDS[W.speed] ?? WALK_SPEEDS.slow, run, dt });

@@ -11,11 +11,12 @@ import { useWorld } from "@/lib/world-store";
 import { useSession } from "@/lib/session";
 import { MatchmakingPanel } from "@/match/MatchmakingPanel";
 import { WorldControls } from "@/hud/WorldControls";
+import { useDoorway } from "@/world/doorway";
 
 const WorldCanvas = dynamic(() => import("@/world/WorldCanvas"), {
   ssr: false,
   // preloaded at the gate; if anything is still loading, show a calm sky + hills instead of a spinner screen
-  loading: () => <div className="h-full bg-gradient-to-b from-[#9cc8ea] via-[#d9ecf7] to-[#7fae72]" />,
+  loading: () => <div className="h-full bg-[#1c1d22]" />, // hidden behind the closed doors
 });
 
 export default function WorldPage() {
@@ -36,6 +37,7 @@ export default function WorldPage() {
 
   useEffect(() => {
     setReady(true);
+    useDoorway.getState().hold("Gukirana Plaza"); // no-op when you just walked through a door (already shut)
   }, []);
   useEffect(() => {
     if (!ready || session.status === "loading") return;
@@ -52,13 +54,12 @@ export default function WorldPage() {
     };
   }, [ready, session.status, profile.onboarded, router]);
 
-  if (!ready || !profile.onboarded) return <div className="fixed inset-0 bg-gradient-to-b from-[#9cc8ea] via-[#d9ecf7] to-[#7fae72]" />;
+  if (!ready || !profile.onboarded) return <div className="fixed inset-0 bg-[#1c1d22]" />;
   return (
-    <div className="fixed inset-0 overflow-hidden bg-gradient-to-b from-[#9cc8ea] via-[#d9ecf7] to-[#7fae72]">
+    <div className="fixed inset-0 overflow-hidden bg-[#1c1d22]">
       <WorldCanvas profile={{ name: profile.name, color: profile.color, level: levelForXp(profile.xp) }} />
       <WorldHud />
       <MatchmakingPanel />
-      {fromRoom && <div className="gk-fade-in pointer-events-none fixed inset-0 z-50 bg-black" aria-hidden />}
       {fromRoom && (
         <div role="status" className="gk-toast pointer-events-none fixed left-1/2 top-16 z-30 -translate-x-1/2 rounded-full border border-white/20 bg-[#151935]/85 px-4 py-2 text-sm font-bold text-white shadow-xl backdrop-blur-md">
           Back in the plaza · walk to any lit door to enter a room

@@ -49,8 +49,12 @@ async function raw<T>(path: string, init: RequestInit = {}, token = useSession.g
 
 let refreshing: Promise<boolean> | null = null;
 export function refreshSession(): Promise<boolean> {
-  refreshing ??= raw<{ accessToken: string }>("/auth/refresh", { method: "POST" }, null)
+  refreshing ??= raw<{ accessToken: string | null }>("/auth/refresh", { method: "POST" }, null)
     .then(async ({ accessToken }) => {
+      if (!accessToken) {
+        useSession.setState({ status: "anonymous", accessToken: null, me: null });
+        return false;
+      }
       useSession.setState({ accessToken });
       await loadMe();
       return true;

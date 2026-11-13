@@ -17,6 +17,7 @@ import {
   SPAWN,
 } from "./layout";
 import { doorOpen, useTransition } from "./transition";
+import { useDoorway } from "./doorway";
 import { cameraArm, freePoint, planRoute, plazaObstacles, resolve } from "./obstacles";
 import type { Tier } from "./materials";
 import { useWorld } from "@/lib/world-store";
@@ -158,11 +159,17 @@ export function LocalPlayer({
     const entering = useTransition.getState().entering;
     if (!inXR && !entering && stepOut.current > 0 && !keys.size && Math.hypot(w.input.x, w.input.y) < 0.1 && !nav.target) {
       // stepping out of a hall: a few natural steps towards the plaza while the door closes behind
-      stepOut.current -= dt;
-      const sp = 1.35 * Math.min(1, stepOut.current / 0.4 + 0.2);
+      const held = useDoorway.getState().phase === "closed"; // step out once the doors have opened
+      if (!held) stepOut.current -= dt;
+      const sp = held ? 0 : 1.35 * Math.min(1, stepOut.current / 0.4 + 0.2);
       pos.current.x += Math.sin(facing.current) * sp * dt;
       pos.current.z += Math.cos(facing.current) * sp * dt;
-      anim.current = stepOut.current > 0.05 ? 1 : 0;
+      anim.current = stepOut.current > 0.05 && sp > 0 ? 1 : 0;
+    } else if (!inXR && entering) {
+      // walking in through the door while the doors close behind the camera
+      pos.current.x += Math.sin(facing.current) * 1.35 * dt;
+      pos.current.z += Math.cos(facing.current) * 1.35 * dt;
+      anim.current = 1;
     } else if (!inXR && !entering) {
       stepOut.current = 0;
       const s = steer({
@@ -247,8 +254,7 @@ export function LocalPlayer({
 
     // third-person camera (DESIGN-SPEC §8.1)
     if (!inXR) {
-      // short camera push towards the doorway while the door transition fades out
-      const want = entering ? Math.min(cameraState.distance, 3) : cameraState.distance;
+      const want = cameraState.distance;
       // spring arm: pull the camera in front of anything solid between the head and the wanted position
       // (buildings around the plaza, sign totems, lamp posts, kiosks, the gate canopy); snap in, ease out
       const d = cameraArm(pos.current.x, pos.current.z, cameraState.yaw, cameraState.pitch, want);
@@ -259,7 +265,8 @@ export function LocalPlayer({
       let cy = 1.6 + Math.sin(cameraState.pitch) * L;
       // keep the camera below the entry gate canopy (soffit at ~5.2 m) instead of clipping through it
       if (Math.abs(cx) < 10 && Math.abs(cz - ENTRY_Z) < 4.6) cy = Math.min(cy, 4.6);
-      camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * (d < L + 0.01 ? 14 : 8)));
+      // going through a door: the camera stays on the plaza side and watches you walk in (it never follows into the wall)
+      if (!entering) camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * (d < L + 0.01 ? 14 : 8)));
       camera.lookAt(pos.current.x, 1.5, pos.current.z);
     }
 

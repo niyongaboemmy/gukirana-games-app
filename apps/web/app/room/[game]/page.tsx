@@ -13,10 +13,11 @@ import { levelForXp, useProfile } from "@/lib/profile-store";
 import { connectPlaza, leavePlaza } from "@/lib/realtime";
 import { useSession } from "@/lib/session";
 import { useWorld } from "@/lib/world-store";
+import { useDoorway } from "@/world/doorway";
 
 const RoomCanvas = dynamic(() => import("@/rooms/RoomCanvas"), {
   ssr: false,
-  loading: () => <div className="grid h-full place-items-center bg-[#0b0d1a] font-bold text-white">Opening the doors…</div>,
+  loading: () => <div className="h-full bg-[#1c1d22]" />, // hidden behind the closed doors
 });
 
 /** Game hall interior: walk in through the auto door, choose a table, sit, play (SRS §8.4.6). */
@@ -26,8 +27,10 @@ export default function RoomPage() {
   const session = useSession();
   const profile = useProfile();
   const [ready, setReady] = useState(false);
-  const [leaving, setLeaving] = useState(false);
-  useEffect(() => setReady(true), []);
+  useEffect(() => {
+    setReady(true);
+    if (isHallGame(game)) useDoorway.getState().hold(HALLS[game].title); // back from a game / reload: open onto the hall
+  }, [game]);
 
   useEffect(() => {
     if (!ready || session.status === "loading" || !isHallGame(game)) return;
@@ -46,13 +49,13 @@ export default function RoomPage() {
       <RoomCanvas
         layout={layout}
         onExit={() => {
-          setLeaving(true); // fade out as you step through the door, then the plaza fades in outside it
           try {
             sessionStorage.setItem("gk-from-room", "1");
           } catch {
             /* private mode */
           }
-          setTimeout(() => router.push("/world"), 650);
+          // the hall's doors close behind you, the plaza loads, and they open onto it
+          useDoorway.getState().pass("Gukirana Plaza", () => router.push("/world"));
         }}
       />
       <WorldHud />
@@ -60,8 +63,6 @@ export default function RoomPage() {
       <WorldControls />
       <RoomOverlay layout={layout} />
       <RotateGuard />
-      <div className="gk-fade-in pointer-events-none fixed inset-0 z-50 bg-black" aria-hidden />
-      <div className="pointer-events-none fixed inset-0 z-50 bg-black transition-opacity duration-500" style={{ opacity: leaving ? 1 : 0 }} aria-hidden />
     </div>
   );
 }
