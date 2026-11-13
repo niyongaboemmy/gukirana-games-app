@@ -1,8 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Armchair, Bot, ChevronLeft, Loader2, Mic, Star, Swords, Users, X, Zap } from "lucide-react";
+import { Armchair, Bot, DoorOpen, Loader2, Mic, Star, Swords, Users, X, Zap } from "lucide-react";
 import { useWorld } from "@/lib/world-store";
 import { useMatch, STAKES } from "@/lib/match-store";
 import { propose, quickMatchJoin, quickMatchLeave } from "@/lib/realtime";
@@ -18,7 +17,13 @@ const glass = "rounded-2xl border border-white/20 bg-[#151935]/85 text-white sha
 /** Hall HUD: room title, sit prompt, seat panel (practice / find opponent here / stand). */
 export function RoomOverlay({ layout }: { layout: HallLayout }) {
   const router = useRouter();
-  const { nearSeat, seated } = useRoom();
+  const { nearSeat, seated, nearExit, leaving } = useRoom();
+  // arrival hint (orientation): where you are, what to do, where the exit is
+  const [hint, setHint] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setHint(false), 6000);
+    return () => clearTimeout(t);
+  }, []);
   const seats = useWorld((s) => s.seats);
   const you = useWorld((s) => s.you);
   const seatTaken = useWorld((s) => s.seatTaken);
@@ -48,6 +53,7 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
       if ((e.target as HTMLElement)?.tagName === "INPUT" || e.code !== "KeyE") return;
       const r = useRoom.getState();
       if (r.seated) getUp();
+      else if (r.nearExit && !r.nearSeat) r.set({ leaving: true });
       else if (r.nearSeat) sitDown(r.nearSeat);
     };
     window.addEventListener("keydown", onKey);
@@ -61,9 +67,14 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
     <div className="pointer-events-none fixed inset-0 z-20 text-white">
       {/* room title + back */}
       <div className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2">
-        <Link href="/world" className={`${glass} pointer-events-auto flex items-center gap-1 px-3 py-2 text-sm font-semibold`}>
-          <ChevronLeft size={16} /> Plaza
-        </Link>
+        <button
+          type="button"
+          onClick={() => useRoom.getState().set({ leaving: true })}
+          disabled={leaving}
+          className={`${glass} pointer-events-auto flex items-center gap-1.5 px-3 py-2 text-sm font-bold disabled:opacity-60`}
+        >
+          <DoorOpen size={16} /> {leaving ? "Leaving…" : "Leave"}
+        </button>
         <div className={`${glass} flex items-center gap-2 px-4 py-2 text-sm font-bold`}>
           <span className="size-2.5 rounded-full" style={{ background: layout.color }} />
           {layout.title}
@@ -136,6 +147,24 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* arrival hint */}
+      {hint && !seated && (
+        <div className={`${glass} absolute left-1/2 top-16 -translate-x-1/2 px-4 py-2.5 text-center text-sm`}>
+          <p className="font-bold">You&apos;re in the {layout.title}</p>
+          <p className="text-white/70">Sit at any table to play · the exit door is behind you · tap Leave anytime</p>
+        </div>
+      )}
+
+      {/* leave prompt near the exit (inside) */}
+      {nearExit && !nearSeat && !seated && !leaving && (
+        <div className="absolute bottom-[34%] left-1/2 -translate-x-1/2">
+          <button type="button" onClick={() => useRoom.getState().set({ leaving: true })} className="pointer-events-auto flex items-center gap-3 rounded-full border border-white/30 bg-[#22266E]/90 py-2 pl-2 pr-5 text-lg font-bold shadow-2xl backdrop-blur-md active:scale-95">
+            <span className="grid size-9 place-items-center rounded-full bg-white text-base font-black text-[#22266E]">E</span>
+            <DoorOpen size={20} /> Leave to the plaza
+          </button>
         </div>
       )}
 

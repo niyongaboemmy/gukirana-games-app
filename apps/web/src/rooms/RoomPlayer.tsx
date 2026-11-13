@@ -84,6 +84,17 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     const dt = Math.min(raw, 0.05);
     const W = useWorld.getState();
     const R = useRoom.getState();
+    if (R.leaving && !exited.current) {
+      if (R.seated) {
+        standUp();
+        R.set({ seated: null });
+      }
+      insideOnce.current = true;
+      intro.current = 0;
+      // line up with the door first (avoids cutting through tables), then straight out
+      const lined = Math.abs(pos.current.x - layout.door.x) < 0.6;
+      nav.target = lined || pos.current.z > d / 2 - 2.2 ? { x: layout.door.x, z: d / 2 + 1.2 } : { x: layout.door.x, z: Math.max(pos.current.z, d / 2 - 2.6) };
+    }
     const seat = R.seated ? layout.seats.find((s) => s.id === R.seated) : undefined;
     const run = W.input.run || keys.has("ShiftLeft") || keys.has("ShiftRight");
     const wantsToWalk = keys.has("KeyW") || keys.has("ArrowUp") || keys.has("KeyS") || keys.has("ArrowDown") || Math.hypot(W.input.x, W.input.y) > 0.3 || !!nav.target;
@@ -201,6 +212,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       }
     }
     if (nearSeat !== R.nearSeat) R.set({ nearSeat });
+    const nearExit = !seat && pos.current.z > d / 2 - 3 && Math.abs(pos.current.x - layout.door.x) < 2.2 && insideOnce.current;
+    if (nearExit !== R.nearExit) R.set({ nearExit });
     if (nearPlayer !== W.nearPlayer) W.set({ nearPlayer });
 
     sendMove(pos.current.x, pos.current.z, facing.current, anim.current);

@@ -56,3 +56,7 @@ body {
 /* room entry: continue the plaza's fade-to-black at the doorway */
 @keyframes gk-fade-in { from { opacity: 1; } to { opacity: 0; } }
 .gk-fade-in { animation: gk-fade-in 0.8s ease-out 0.15s both; }
+
+/* short arrival toast */
+@keyframes gk-toast { 0% { opacity: 0; transform: translate(-50%, -6px); } 10%, 80% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; } }
+.gk-toast { animation: gk-toast 4.5s ease-out 0.6s both; }

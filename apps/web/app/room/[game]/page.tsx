@@ -32,7 +32,7 @@ export default function RoomPage() {
   useEffect(() => {
     if (!ready || session.status === "loading" || !isHallGame(game)) return;
     if (session.status === "anonymous" || !profile.onboarded) return void router.replace("/gate");
-    useRoom.getState().set({ seated: null, nearSeat: null, doorOpen: false });
+    useRoom.getState().set({ seated: null, nearSeat: null, doorOpen: false, leaving: false, nearExit: false });
     // plaza proximity state must not leak into the hall ("Enter Pool Hall" prompt while already inside)
     useWorld.getState().set({ nearPortal: null, nearPlayer: null });
     void connectPlaza({ name: profile.name, color: profile.color, level: levelForXp(profile.xp), token: session.accessToken, look: session.me?.look ?? undefined }, { name: "hall", game });
