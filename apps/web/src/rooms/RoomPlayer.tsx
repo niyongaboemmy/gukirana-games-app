@@ -8,6 +8,7 @@ import { lookOf, useProfile } from "@/lib/profile-store";
 import { selfPose, useWorld } from "@/lib/world-store";
 import { sendMove, sitAt, standUp } from "@/lib/realtime";
 import { useRoom } from "./room-store";
+import { takeReturnFor } from "@/lib/return-point";
 import type { HallLayout } from "./layouts";
 
 const SIT_ANIM = 13;
@@ -21,16 +22,31 @@ const keys = new Set<string>();
 export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExit: () => void; tier: "lite" | "standard" }) {
   const group = useRef<THREE.Group>(null);
   const anim = useRef(0);
-  // arrive OUTSIDE the entrance: the glass doors slide open as you walk up, then you step inside
-  const pos = useRef(new THREE.Vector3(layout.door.x + (Math.random() - 0.5) * 0.8, 0, layout.size.d / 2 + 3.2));
-  const insideOnce = useRef(false);
-  const facing = useRef(Math.PI); // facing into the room (−z)
+  // back from a game → same spot / same chair; otherwise arrive OUTSIDE the entrance and walk in
+  const back = useRef(typeof window !== "undefined" ? takeReturnFor(`/room/${layout.game}`) : null);
+  const pos = useRef(back.current ? new THREE.Vector3(back.current.x, 0, back.current.z) : new THREE.Vector3(layout.door.x + (Math.random() - 0.5) * 0.8, 0, layout.size.d / 2 + 3.2));
+  const insideOnce = useRef(!!back.current);
+  const facing = useRef(back.current?.yaw ?? Math.PI); // facing into the room (−z)
   const exited = useRef(false);
   const { camera, gl } = useThree();
   const profile = useProfile();
   const look = lookOf(profile);
   const { w, d } = layout.size;
   const seatedNow = useRoom((s) => s.seated);
+
+  // re-take the same chair once the hall connection is up (server confirms the seat)
+  useEffect(() => {
+    const seat = back.current?.seat;
+    if (!seat) return;
+    let tries = 0;
+    const id = setInterval(() => {
+      if (useWorld.getState().you || ++tries > 20) {
+        clearInterval(id);
+        if (useWorld.getState().you) sitDown(seat);
+      }
+    }, 250);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     cameraState.yaw = 0;

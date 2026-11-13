@@ -1,5 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { returnLabel, returnPath } from "@/lib/return-point";
 import { commitSeed, createFairRng, newSeed, type FairRng } from "@gukirana/fairness";
 import { initLudo, ludoBotMove, moveToken, movableTokens, rollDice, type LudoState } from "@gukirana/ludo";
 import { GameShell, Modal, ResultModal } from "./GameShell";
@@ -79,6 +81,9 @@ export default function LudoGame() {
             <button type="button" onClick={() => start(2)} className="rounded-xl bg-[#FF8A1F] py-3 font-bold">1 vs 1</button>
             <button type="button" onClick={() => start(4)} className="rounded-xl bg-white/10 py-3 font-bold">4 players</button>
           </div>
+          <Link href={returnPath()} className="mt-3 block text-center text-sm font-semibold text-white/60 hover:text-white">
+            {returnLabel()}
+          </Link>
         </Modal>
       </GameShell>
     );

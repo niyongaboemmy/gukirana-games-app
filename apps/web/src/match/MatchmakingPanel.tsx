@@ -8,6 +8,8 @@ import { GAME_LABEL, STAKES, useMatch, type GameId } from "@/lib/match-store";
 import { propose, quickMatchJoin, quickMatchLeave, respondProposal } from "@/lib/realtime";
 import { useSession } from "@/lib/session";
 import { DieIcon, PoolBallIcon, SeedsIcon } from "@/ui/game-icons";
+import { rememberBeforeGame } from "@/lib/return-point";
+import { useRoom } from "@/rooms/room-store";
 
 const GAMES: { id: GameId; icon: typeof DieIcon; color: string }[] = [
   { id: "igisoro", icon: SeedsIcon, color: "#27AE60" },
@@ -98,7 +100,9 @@ export function MatchmakingPanel() {
     .slice(0, 20);
 
   useEffect(() => {
-    if (ready) router.push(`/match/${ready.roomId}?game=${ready.game}&stake=${ready.stake}`);
+    if (!ready) return;
+    rememberBeforeGame(useRoom.getState().seated);
+    router.push(`/match/${ready.roomId}?game=${ready.game}&stake=${ready.stake}`);
   }, [ready, router]);
   useEffect(() => {
     if (!notice) return;

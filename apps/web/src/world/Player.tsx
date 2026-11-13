@@ -11,6 +11,7 @@ import { useWorld } from "@/lib/world-store";
 import { lookOf, useProfile } from "@/lib/profile-store";
 import { sendMove } from "@/lib/realtime";
 import { selfPose } from "@/lib/world-store";
+import { takeWorldPose } from "@/lib/return-point";
 
 /** Walking speeds (m/s): real walking pace by default; the player can change it (HUD speed control). */
 export const WALK_SPEEDS = { slow: 1.4, normal: 2.2, fast: 3.2 } as const;
@@ -47,8 +48,10 @@ export function LocalPlayer({ color, name, level, tier = "standard" }: { color: 
   );
   const group = useRef<THREE.Group>(null);
   const anim = useRef(0);
-  const pos = useRef(spawnPoint(name));
-  const facing = useRef(Math.PI);
+  // come back exactly where you were (after a game / a room); otherwise spawn by the gate
+  const restored = useRef(typeof window !== "undefined" ? takeWorldPose() : null);
+  const pos = useRef(restored.current ? new THREE.Vector3(restored.current.x, 0, restored.current.z) : spawnPoint(name));
+  const facing = useRef(restored.current?.yaw ?? Math.PI);
   const { camera, gl } = useThree();
   const inXR = useXR((s) => s.session != null);
 

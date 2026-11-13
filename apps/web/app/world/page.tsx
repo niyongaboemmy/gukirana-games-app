@@ -6,6 +6,7 @@ import { WorldHud } from "@/hud/WorldHud";
 import { RotateGuard } from "@/hud/RotateGuard";
 import { levelForXp, useProfile } from "@/lib/profile-store";
 import { connectPlaza, leavePlaza } from "@/lib/realtime";
+import { saveWorldPose } from "@/lib/return-point";
 import { useSession } from "@/lib/session";
 import { MatchmakingPanel } from "@/match/MatchmakingPanel";
 import { WorldControls } from "@/hud/WorldControls";
@@ -38,7 +39,10 @@ export default function WorldPage() {
       return;
     }
     void connectPlaza({ name: profile.name, color: profile.color, level: levelForXp(profile.xp), token: session.accessToken, look: session.me?.look ?? undefined });
-    return () => leavePlaza();
+    return () => {
+      saveWorldPose();
+      leavePlaza();
+    };
   }, [ready, session.status, profile.onboarded, router]);
 
   if (!ready || !profile.onboarded) return null;

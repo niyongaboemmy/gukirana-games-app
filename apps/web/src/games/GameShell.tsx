@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState, type ComponentType } from "react";
+import { returnLabel, returnPath } from "@/lib/return-point";
 import { Bot, ChevronLeft, Handshake, ShieldCheck, Star, Trophy, User } from "lucide-react";
 
 export interface PanelPlayer {
@@ -84,7 +85,7 @@ export function GameShell({
             <button type="button" onClick={() => setLeaving(false)} className="flex-1 rounded-xl bg-white/10 py-2 font-semibold">
               Stay
             </button>
-            <Link href="/world" onClick={onLeave} className="flex-1 rounded-xl bg-[#EF4444] py-2 text-center font-semibold">
+            <Link href={returnPath()} onClick={onLeave} className="flex-1 rounded-xl bg-[#EF4444] py-2 text-center font-semibold">
               Leave
             </Link>
           </div>
@@ -157,8 +158,8 @@ export function ResultModal({ won, starsDelta, xp, summary, onRematch }: { won: 
           </div>
         </div>
         <div className="mt-5 flex gap-2">
-          <Link href="/world" className="flex-1 rounded-xl bg-white/10 py-2.5 font-semibold">
-            Back to Plaza
+          <Link href={returnPath()} className="flex-1 rounded-xl bg-white/10 py-2.5 font-semibold">
+            {returnLabel()}
           </Link>
           <button type="button" onClick={onRematch} className="flex-1 rounded-xl bg-[#3DA9FC] py-2.5 font-bold">
             Rematch

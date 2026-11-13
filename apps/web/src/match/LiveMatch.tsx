@@ -15,6 +15,7 @@ import { PoolLiveBoard } from "./PoolLiveBoard";
 import { DieIcon, PoolBallIcon, SeedsIcon } from "@/ui/game-icons";
 import { loadMe, refreshSession, useSession } from "@/lib/session";
 import { levelForXp } from "@/lib/profile-store";
+import { returnPath } from "@/lib/return-point";
 
 interface PlayerInfo {
   userId: string;
@@ -234,13 +235,13 @@ export function LiveMatch({ roomId }: { roomId: string }) {
           starsDelta={starsDelta}
           xp={result.settlement?.xp?.[myId] ?? 0}
           summary={result.reason === "forfeit" ? (won ? "Your opponent forfeited." : "You forfeited the match.") : result.reason === "void" ? "Match voided: stakes refunded." : won ? "Settled by the server: the pot is yours." : draw ? "Draw: stakes returned." : "Well played. Rematch?"}
-          onRematch={() => router.push("/world")}
+          onRematch={() => router.push(returnPath())}
         />
       )}
       {error && !state && (
         <Modal>
           <p className="text-lg font-bold">{error}</p>
-          <button type="button" onClick={() => router.push("/world")} className="mt-4 w-full rounded-xl bg-white/10 py-2 font-semibold">Back to the Plaza</button>
+          <button type="button" onClick={() => router.push(returnPath())} className="mt-4 w-full rounded-xl bg-white/10 py-2 font-semibold">Go back</button>
         </Modal>
       )}
     </GameShell>

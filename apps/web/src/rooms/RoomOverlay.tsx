@@ -7,6 +7,7 @@ import { useWorld } from "@/lib/world-store";
 import { useMatch, STAKES } from "@/lib/match-store";
 import { propose, quickMatchJoin, quickMatchLeave } from "@/lib/realtime";
 import { useVoice } from "@/voice/voice";
+import { rememberBeforeGame } from "@/lib/return-point";
 import { useSession } from "@/lib/session";
 import { useRoom } from "./room-store";
 import { getUp, sitDown } from "./RoomPlayer";
@@ -165,7 +166,10 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
             </button>
           ) : (
             <div className="grid gap-2 sm:grid-cols-2">
-              <button type="button" onClick={() => router.push(`/play/${layout.game}`)} className="flex items-center justify-center gap-2 rounded-xl bg-white/10 py-3 font-bold hover:bg-white/15">
+              <button type="button" onClick={() => {
+                  rememberBeforeGame(seated);
+                  router.push(`/play/${layout.game}`);
+                }} className="flex items-center justify-center gap-2 rounded-xl bg-white/10 py-3 font-bold hover:bg-white/15">
                 <Bot size={18} /> Practice vs AI
               </button>
               {livePlay && authed ? (
