@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Ban, Footprints, Gift, LogOut, Mic, MicOff, Shirt, Sparkles, Star, Trophy, X } from "lucide-react";
+import { Ban, Footprints, Gift, LogOut, Mic, MicOff, Shirt, Sparkles, Star, Trophy, Vibrate, Volume2, VolumeX, X, type LucideIcon } from "lucide-react";
+import { useGamePrefs } from "@/games/feedback";
 import { claimDailyStars, logout, useSession } from "@/lib/session";
 import { totalXpForLevel, useProfile } from "@/lib/profile-store";
 import { useWorld } from "@/lib/world-store";
@@ -27,6 +28,7 @@ export function SettingsModal({ onClose, onEditAvatar }: { onClose: () => void; 
   const color = useProfile((s) => s.color);
   const speed = useWorld((s) => s.speed);
   const voice = useVoice((s) => s.status);
+  const gameSound = useGamePrefs((s) => s.sound);
   const blocked = useSocial((s) => s.blocked);
   const [daily, setDaily] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
@@ -140,6 +142,8 @@ export function SettingsModal({ onClose, onEditAvatar }: { onClose: () => void; 
               <span className={`absolute top-0.5 size-6 rounded-full bg-white shadow transition-all ${voice === "on" ? "left-[22px]" : "left-0.5"}`} />
             </button>
           </div>
+          <GameSwitch k="sound" label="Game sounds" icon={gameSound ? Volume2 : VolumeX} />
+          <GameSwitch k="haptics" label="Vibration in games" icon={Vibrate} />
         </div>
 
         {/* blocked people (block = invisible + silent to each other) */}
@@ -189,5 +193,19 @@ export function SettingsModal({ onClose, onEditAvatar }: { onClose: () => void; 
       </section>
     </div>,
     document.body,
+  );
+}
+
+/** Game-screen preference switch (shared with the in-game menu: games/feedback.ts). */
+function GameSwitch({ k, label, icon: Icon }: { k: "sound" | "haptics"; label: string; icon: LucideIcon }) {
+  const on = useGamePrefs((s) => s[k]);
+  return (
+    <div className="flex items-center gap-2">
+      <Icon size={16} className={on ? "text-success" : "text-white/60"} />
+      <span className="flex-1 text-sm font-semibold">{label}</span>
+      <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={() => useGamePrefs.getState().set({ [k]: !on })} className={`relative h-7 w-12 rounded-full transition ${on ? "bg-primary" : "bg-white/20"}`}>
+        <span className={`absolute top-0.5 size-6 rounded-full bg-white shadow transition-all ${on ? "left-[22px]" : "left-0.5"}`} />
+      </button>
+    </div>
   );
 }

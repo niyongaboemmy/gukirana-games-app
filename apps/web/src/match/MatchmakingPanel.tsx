@@ -34,13 +34,15 @@ const glass = "glass rounded-card";
 
 function GameStakePicker({ onConfirm, confirmLabel, onCancel, initialGame = "igisoro" }: { onConfirm: (g: GameId, s: number) => void; confirmLabel: string; onCancel: () => void; initialGame?: GameId }) {
   const [game, setGame] = useState<GameId>(initialGame);
-  const [stake, setStake] = useState(25);
   const stars = useSession((s) => s.me?.stars ?? 0);
+  // default to 25 Stars, or the biggest stake the player can afford (a disabled default could not be sent)
+  const [stake, setStake] = useState(() => [...STAKES].reverse().find((s) => s <= Math.min(25, stars)) ?? 0);
+  const affordable = stake <= stars;
   return (
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-3 gap-2">
         {GAMES.map((g) => (
-          <button key={g.id} type="button" onClick={() => setGame(g.id)} className={`press flex items-center gap-2 rounded-xl border-2 px-3 py-2.5 font-semibold ${game === g.id ? "border-accent bg-primary/25 shadow-[0_0_0_3px_rgb(96_165_250/.18)]" : "border-white/10 bg-white/4 hover:bg-white/8"}`}>
+          <button key={g.id} type="button" onClick={() => setGame(g.id)} className={`press flex min-h-12 items-center gap-2 rounded-xl border-2 px-3 py-2.5 font-semibold ${game === g.id ? "border-accent bg-primary/25 shadow-[0_0_0_3px_rgb(96_165_250/.18)]" : "border-white/10 bg-white/4 hover:bg-white/8"}`}>
             <span className="grid size-8 place-items-center rounded-lg" style={{ background: `${g.color}33`, color: g.color }}><g.icon size={18} /></span>
             {GAME_LABEL[g.id]}
           </button>
@@ -50,7 +52,7 @@ function GameStakePicker({ onConfirm, confirmLabel, onCancel, initialGame = "igi
         <p className="mb-1.5 text-xs label text-on-glass-muted">Stake each</p>
         <div className="flex flex-wrap gap-1.5">
           {STAKES.map((s) => (
-            <button key={s} type="button" disabled={s > stars} onClick={() => setStake(s)} className={`press flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-bold tabular-nums transition disabled:opacity-30 ${stake === s ? "bg-primary text-white shadow-[inset_0_1px_0_rgb(255_255_255/.28),var(--shadow-glow)]" : "btn-secondary"}`}>
+            <button key={s} type="button" disabled={s > stars} onClick={() => setStake(s)} className={`press flex min-h-10 items-center gap-1 rounded-full px-3.5 py-1.5 text-sm font-bold tabular-nums transition disabled:opacity-30 ${stake === s ? "bg-primary text-white shadow-[inset_0_1px_0_rgb(255_255_255/.28),var(--shadow-glow)]" : "btn-secondary"}`}>
               {s === 0 ? "Friendly" : <>{s} <Star size={12} className="fill-current" /></>}
             </button>
           ))}
@@ -58,8 +60,8 @@ function GameStakePicker({ onConfirm, confirmLabel, onCancel, initialGame = "igi
         <p className="mt-2 text-xs text-on-glass-muted">{stake > 0 ? `Winner gets ${stake * 2} Stars. Stakes are held in escrow by the server.` : "No stake: just for fun and rating."}</p>
       </div>
       <div className="flex gap-2">
-        <button type="button" onClick={onCancel} className="btn-secondary flex-1 rounded-xl py-2.5 font-semibold">Cancel</button>
-        <button type="button" onClick={() => onConfirm(game, stake)} className="btn-primary flex-1 rounded-xl py-2.5 font-extrabold">{confirmLabel}</button>
+        <button type="button" onClick={onCancel} className="btn-secondary min-h-11 flex-1 rounded-xl py-2.5 font-semibold">Cancel</button>
+        <button type="button" disabled={!affordable} onClick={() => onConfirm(game, stake)} className="btn-primary min-h-11 flex-1 rounded-xl py-2.5 font-extrabold disabled:opacity-40">{confirmLabel}</button>
       </div>
     </div>
   );
@@ -95,6 +97,17 @@ export function MatchmakingPanel() {
   const [sheet, setSheet] = useState<null | "challenge" | "quick">(null);
   const [challengeTarget, setChallengeTarget] = useState<{ id: string; name: string } | null>(null);
   const outLeft = useCountdown(outgoing?.expires);
+  // Quick Match: how long we've been waiting (feedback that the search is alive)
+  const [waitStart, setWaitStart] = useState(0);
+  useEffect(() => setWaitStart(quick.status === "waiting" ? Date.now() : 0), [quick.status]);
+  const [nowMs, setNowMs] = useState(0);
+  useEffect(() => {
+    if (!waitStart) return;
+    setNowMs(Date.now());
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [waitStart]);
+  const waited = waitStart ? Math.max(0, Math.floor((nowMs - waitStart) / 1000)) : 0;
   const path = usePathname();
   const hallGame = GAMES.find((g) => path === `/room/${g.id}`)?.id;
   // "Challenge" from the person menu opens this sheet for that person
@@ -137,7 +150,7 @@ export function MatchmakingPanel() {
         {authed ? (
           quick.status === "waiting" ? (
             <button type="button" onClick={quickMatchLeave} className={`${glass} icon-button pointer-events-auto flex items-center gap-2 px-4 py-2.5 text-sm font-bold`}>
-              <Loader2 size={16} className="animate-spin" /> Finding a {GAME_LABEL[quick.game!]} opponent… <X size={14} className="text-on-glass-muted" />
+              <Loader2 size={16} className="animate-spin" /> Finding a {GAME_LABEL[quick.game!]} opponent… <span className="num tabular-nums text-on-glass-muted">{waited}s</span> <X size={14} className="text-on-glass-muted" />
             </button>
           ) : (
             <button type="button" onClick={() => setSheet("quick")} className={`${glass} icon-button pointer-events-auto flex items-center gap-2 px-4 py-2.5 text-sm font-bold`}>
