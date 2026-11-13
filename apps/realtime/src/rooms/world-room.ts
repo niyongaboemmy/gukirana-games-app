@@ -10,7 +10,11 @@ import {
   EMOTE_COOLDOWN_MS,
   EmoteSendSchema,
   isHallId,
+  isKnownAnim,
   NEARBY_CHAT_RANGE,
+  PAIR_MS,
+  PairRequestSchema,
+  PairRespondSchema,
   plazaSeat,
   TargetSchema,
   UnblockSchema,
@@ -26,6 +30,7 @@ import { DmRouter } from "../social/dm.js";
 import { CallRegistry } from "../social/calls.js";
 import { InterestManager, TICK_MS, type Mover } from "../social/interest.js";
 import { RateLimiter } from "../social/rate.js";
+import { PairRegistry } from "../social/pairs.js";
 
 export interface WorldPlayer {
   id: string;
@@ -78,6 +83,7 @@ export class WorldRoom extends Room {
   private calls = new CallRegistry();
   private interest = new InterestManager();
   private rate = new RateLimiter();
+  private pairs = new PairRegistry();
   private lastChat = new Map<string, number>();
   private lastEmote = new Map<string, number>();
   private tick = 0;
@@ -134,6 +140,7 @@ export class WorldRoom extends Room {
         me?.send("left", { id: other });
         them?.send("left", { id: sid });
         this.endCallBetween(sid, other, "BLOCKED");
+        this.pairs.forget(sid, other);
         this.dms.forget(sid, other);
         for (const [id, p] of this.proposals)
           if ((p.from === sid && p.to === other) || (p.from === other && p.to === sid)) {
@@ -185,7 +192,8 @@ export class WorldRoom extends Room {
       p.x = Math.max(-6000, Math.min(6000, m.x));
       p.z = Math.max(-6000, Math.min(6000, m.z));
       p.yaw = m.yaw;
-      p.anim = m.anim;
+      // only known action codes; contact codes (handshake, fist bump, hug) only while consented and paired
+      p.anim = isKnownAnim(m.anim) ? this.pairs.allowAnim(p.id, m.anim, Date.now()) : 0;
       this.seqs.set(p.id, (this.seqs.get(p.id) ?? 0) + 1);
       // walking away from a plaza bench frees the place (hall chairs are freed by the client's "stand")
       const seat = this.seats.seatOf(p.id);
@@ -204,6 +212,51 @@ export class WorldRoom extends Room {
       this.sendVisible(client.sessionId, "emote", { id: client.sessionId, emote });
       if (to && to !== client.sessionId && this.players.has(to) && this.sees(client.sessionId, to))
         this.client(to)?.send("waved", { from: this.publicCard(client.sessionId), emote });
+    });
+
+    // ---- two-person contact actions (handshake, fist bump, hug): ask → the other person accepts → both are placed
+    this.onMessage("pair-request", (client, raw: unknown) => {
+      const parsed = PairRequestSchema.safeParse(raw);
+      const me = this.players.get(client.sessionId);
+      if (!parsed.success || !me) return;
+      const { to, kind } = parsed.data;
+      const fail = (reason: string) => client.send("pair-closed", { id: null, to, reason });
+      const them = this.players.get(to);
+      if (!them || !this.sees(me.id, to)) return fail("UNAVAILABLE");
+      // contact needs signed-in people on both sides (guests can still wave, nod, clap …)
+      if (!me.verified || !them.verified) return fail("LOGIN_REQUIRED");
+      if (this.seats.seatOf(me.id) || this.seats.seatOf(to)) return fail("SEATED");
+      if (!this.rate.allow(`${me.id}:pair`, 6, 60_000, Date.now())) return fail("RATE_LIMITED");
+      const r = this.pairs.request(me.id, to, kind, Math.hypot(me.x - them.x, me.z - them.z) / 100, Date.now());
+      if (typeof r === "string") return fail(r);
+      client.send("pair-pending", { id: r.id, to, kind });
+      this.client(to)?.send("pair-invite", { id: r.id, kind, from: this.publicCard(me.id) });
+    });
+    this.onMessage("pair-respond", (client, raw: unknown) => {
+      const parsed = PairRespondSchema.safeParse(raw);
+      if (!parsed.success) return;
+      const pos = (sid: string) => {
+        const p = this.players.get(sid);
+        return p && { x: p.x / 100, z: p.z / 100 };
+      };
+      const r = this.pairs.respond(parsed.data.id, client.sessionId, parsed.data.accept, pos, Date.now());
+      if (!r) return;
+      const { invite } = r;
+      if ("result" in r) {
+        this.client(invite.from)?.send("pair-closed", { id: invite.id, to: invite.to, reason: r.result });
+        if (r.result !== "DECLINED") client.send("pair-closed", { id: invite.id, to: invite.from, reason: r.result });
+        return;
+      }
+      const msg = {
+        id: invite.id,
+        kind: invite.kind,
+        a: { id: invite.from, ...r.place.a },
+        b: { id: invite.to, ...r.place.b },
+        alignMs: r.alignMs,
+        ms: PAIR_MS[invite.kind],
+      };
+      this.client(invite.from)?.send("pair-start", msg);
+      client.send("pair-start", msg);
     });
 
     // ---- text chat: nearby (≈12 m, speech bubbles) or the whole room; filtered (FR-COM-09)
@@ -403,6 +456,10 @@ export class WorldRoom extends Room {
       this.client(c.from)?.send("call-ended", { id: c.id, reason: "NO_ANSWER" });
       this.client(c.to)?.send("call-ended", { id: c.id, reason: "NO_ANSWER" });
     }
+    for (const inv of this.pairs.sweep(now)) {
+      this.client(inv.from)?.send("pair-closed", { id: inv.id, to: inv.to, reason: "EXPIRED" });
+      this.client(inv.to)?.send("pair-closed", { id: inv.id, to: inv.from, reason: "EXPIRED" });
+    }
     if (this.players.size < 2) return;
     const movers: Mover[] = [];
     for (const p of this.players.values()) movers.push({ id: p.id, x: p.x, z: p.z, yaw: p.yaw, anim: p.anim, seq: this.seqs.get(p.id) ?? 0 });
@@ -467,6 +524,7 @@ export class WorldRoom extends Room {
     this.blocks.forget(sid);
     this.dms.forget(sid);
     this.interest.forget(sid);
+    for (const inv of this.pairs.forget(sid)) this.client(inv.from === sid ? inv.to : inv.from)?.send("pair-closed", { id: inv.id, to: sid, reason: "LEFT" });
     if (this.seats.release(sid)) this.broadcastSeats();
   }
 }

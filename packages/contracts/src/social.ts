@@ -77,7 +77,13 @@ export type ChatScope = z.infer<typeof ChatScopeSchema>;
 export const ChatSendSchema = z.object({ text: z.string().min(1).max(400), scope: ChatScopeSchema.default("room") });
 export const DmSendSchema = z.object({ to: z.string().min(1).max(64), text: z.string().min(1).max(400) });
 export const TargetSchema = z.object({ to: z.string().min(1).max(64) });
-export const EmoteSendSchema = z.object({ emote: z.number().int().min(10).max(20), to: z.string().min(1).max(64).optional() });
+export const EmoteSendSchema = z.object({
+  emote: z
+    .number()
+    .int()
+    .refine((a) => isEmoteAction(a), "not a player emote"),
+  to: z.string().min(1).max(64).optional(),
+});
 export const CallRespondSchema = z.object({ id: z.string().min(1).max(32), accept: z.boolean() });
 export const CallEndSchema = z.object({ id: z.string().min(1).max(32).optional() });
 /** Block keys: `u:<userId>` (signed-in, persisted by the API) or `s:<sessionId>` (guest, this session only). */
@@ -88,3 +94,85 @@ export const UnblockSchema = z.object({ key: BlockKeySchema });
 /** Reasons offered by the Report sheet (DESIGN-SPEC §12.3). */
 export const ReportReasonSchema = z.enum(["harassment", "hate", "scam", "cheating", "inappropriate", "other"]);
 export type ReportReason = z.infer<typeof ReportReasonSchema>;
+
+// ---------------------------------------------------------------------------------------------------------------
+// People actions (P1-WLD-02 / P1-COM-04): the avatar `anim` codes everyone sees in `moves`
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * Avatar animation / action codes carried in the `anim` field of every pose update (`move` → `moves`). Persistent
+ * states (sitting, leaning, drinking a coffee, watching a table) stay in `anim` for as long as they last, so people
+ * who arrive later see them too; one-shot emotes are also announced with an `emote` message for an instant start.
+ * Automatic idle life (weight shifts, glances, phone checks …) is NOT sent: every client derives it from a seed.
+ */
+export const ACT = {
+  idle: 0,
+  walk: 1,
+  run: 2,
+  wave: 10,
+  dance: 11,
+  clap: 12,
+  sit: 13,
+  nod: 14,
+  shakeHead: 15,
+  laugh: 16,
+  thumbsUp: 17,
+  point: 18,
+  shrug: 19,
+  cheer: 20,
+  handshake: 21,
+  fistBump: 22,
+  hug: 23,
+  think: 24,
+  disappointed: 25,
+  chalk: 26,
+  phone: 27,
+  coffee: 28,
+  photo: 29,
+  lean: 30,
+  watch: 31,
+} as const;
+export type ActCode = (typeof ACT)[keyof typeof ACT];
+
+/** Two-person contact actions: only while the server has paired both people (consent given). */
+export const PAIR_KINDS = ["handshake", "fistBump", "hug"] as const;
+export type PairKind = (typeof PAIR_KINDS)[number];
+export const PAIR_ACT: Record<PairKind, ActCode> = { handshake: ACT.handshake, fistBump: ACT.fistBump, hug: ACT.hug };
+/** Pelvis-to-pelvis distance the two people stand at (m): a handshake at arm's length, a hug close. */
+export const PAIR_DISTANCE: Record<PairKind, number> = { handshake: 0.95, fistBump: 0.98, hug: 0.42 };
+/** How long the contact lasts once both stand in place (ms). */
+export const PAIR_MS: Record<PairKind, number> = { handshake: 2600, fistBump: 1500, hug: 3000 };
+/** Max distance (m) between the two people to ask / accept, and how long an invitation waits. */
+export const PAIR_RANGE = 3;
+export const PAIR_INVITE_MS = 15_000;
+/** Time both clients get to walk into place before the contact starts (ms). */
+export const PAIR_ALIGN_MS = 650;
+
+const CONTACT = new Set<number>([ACT.handshake, ACT.fistBump, ACT.hug]);
+const KNOWN = new Set<number>(Object.values(ACT));
+export const isContactAction = (a: number): boolean => CONTACT.has(a);
+/** Any code a client may put in its own `anim` (contact codes additionally need an active pair on the server). */
+export const isKnownAnim = (a: unknown): a is ActCode => typeof a === "number" && KNOWN.has(a);
+/** Codes a player can trigger with an `emote` message (not locomotion, not sitting, not contact). */
+export const isEmoteAction = (a: unknown): a is ActCode => isKnownAnim(a) && a >= 10 && a !== ACT.sit && !CONTACT.has(a);
+
+export const PairKindSchema = z.enum(PAIR_KINDS);
+export const PairRequestSchema = z.object({ to: z.string().min(1).max(64), kind: PairKindSchema });
+export const PairRespondSchema = z.object({ id: z.string().min(1).max(32), accept: z.boolean() });
+
+/** Where each of the two people stands for a contact action: facing each other `PAIR_DISTANCE` apart (m). */
+export function pairPlacement(kind: PairKind, a: { x: number; z: number }, b: { x: number; z: number }) {
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  const d = Math.hypot(dx, dz);
+  const ux = d > 1e-4 ? dx / d : 0;
+  const uz = d > 1e-4 ? dz / d : 1;
+  const mx = (a.x + b.x) / 2;
+  const mz = (a.z + b.z) / 2;
+  const h = PAIR_DISTANCE[kind] / 2;
+  const yawA = Math.atan2(ux, uz);
+  return {
+    a: { x: mx - ux * h, z: mz - uz * h, yaw: yawA },
+    b: { x: mx + ux * h, z: mz + uz * h, yaw: Math.atan2(-ux, -uz) },
+  };
+}
