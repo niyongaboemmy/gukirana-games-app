@@ -11,6 +11,8 @@ export interface AccountRef {
   allowNegative?: boolean;
 }
 
+/** Real-money coins (licensed pilot only). */
+export const userCoins = (userId: string): AccountRef => ({ ownerType: "user", ownerId: userId, kind: "available", currency: "COIN" });
 export const userStars = (userId: string): AccountRef => ({ ownerType: "user", ownerId: userId, kind: "stars", currency: "STAR" });
 /** Source of practice Stars (no cash value). Contra account, may go negative. */
 export const starsBudget = (): AccountRef => ({ ownerType: "platform", ownerId: PLATFORM_ID, kind: "budget", currency: "STAR", allowNegative: true });

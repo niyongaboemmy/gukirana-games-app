@@ -13,6 +13,7 @@ import { env } from "../../common/env.js";
 import { kigaliDay, newId } from "../../common/ids.js";
 import { LedgerService } from "../ledger/ledger.service.js";
 import { EconomyService } from "../economy/economy.service.js";
+import { WalletService } from "../wallet/wallet.service.js";
 import { matchEscrow, userStars } from "../ledger/accounts.js";
 import { LevelsService } from "../levels/levels.service.js";
 import { eloUpdate, xpForMatch } from "../levels/xp.js";
@@ -37,6 +38,7 @@ export class GamesService {
     private readonly ledger: LedgerService,
     private readonly levels: LevelsService,
     private readonly economy: EconomyService,
+    private readonly wallet: WalletService,
   ) {}
 
   async create(
@@ -46,6 +48,8 @@ export class GamesService {
     players: { userId: string; seat: number; rating: number; name: string; color: string }[];
   }> {
     const ids = input.players.map((p) => p.userId);
+    // responsible play: a player on a break, or over their own daily stake limit, can't be staked into a match
+    if (input.stake > 0) for (const id of ids) await this.wallet.assertCanStake(id, input.stake);
     if (new Set(ids).size !== ids.length) throw new BadRequestException({ code: "DUPLICATE_PLAYER" });
     const found = await this.db.select().from(users).where(inArray(users.id, ids));
     if (found.length !== ids.length) throw new NotFoundException({ code: "UNKNOWN_PLAYER" });

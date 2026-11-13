@@ -14,3 +14,17 @@ export const economySettings = pgTable("economy_settings", {
   createdBy: text("created_by").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Responsible play (player-set, enforced by the server): a daily stake limit, a play-time reminder and "take a break"
+ * (self-exclusion). Lowering a limit applies at once; raising one only after 24 h (cooling-off).
+ */
+export const walletLimits = pgTable("wallet_limits", {
+  userId: uuid("user_id").primaryKey(),
+  dailyStakeLimit: integer("daily_stake_limit"),
+  pendingStakeLimit: integer("pending_stake_limit"),
+  pendingFrom: timestamp("pending_from", { withTimezone: true }),
+  reminderMinutes: integer("reminder_minutes").notNull().default(60),
+  selfExcludedUntil: timestamp("self_excluded_until", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
