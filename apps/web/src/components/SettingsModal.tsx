@@ -2,12 +2,14 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Footprints, Gift, LogOut, Mic, MicOff, Shirt, Sparkles, Star, Trophy, X } from "lucide-react";
+import { Ban, Footprints, Gift, LogOut, Mic, MicOff, Shirt, Sparkles, Star, Trophy, X } from "lucide-react";
 import { claimDailyStars, logout, useSession } from "@/lib/session";
 import { totalXpForLevel, useProfile } from "@/lib/profile-store";
 import { useWorld } from "@/lib/world-store";
 import { disableVoice, enableVoice, useVoice } from "@/voice/voice";
 import { DieIcon, PoolBallIcon, SeedsIcon } from "@/ui/game-icons";
+import { useSocial } from "@/social/social-store";
+import { unblockKey } from "@/lib/realtime";
 
 const GAMES = [
   { id: "pool", label: "Pool", icon: PoolBallIcon, color: "#2F80ED" },
@@ -26,6 +28,7 @@ export function SettingsModal({ onClose, onEditAvatar }: { onClose: () => void; 
   const color = useProfile((s) => s.color);
   const speed = useWorld((s) => s.speed);
   const voice = useVoice((s) => s.status);
+  const blocked = useSocial((s) => s.blocked);
   const [daily, setDaily] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [shown, setShown] = useState(false);
@@ -139,6 +142,25 @@ export function SettingsModal({ onClose, onEditAvatar }: { onClose: () => void; 
             </button>
           </div>
         </div>
+
+        {/* blocked people (block = invisible + silent to each other) */}
+        {blocked.length > 0 && (
+          <div className="mt-3 rounded-2xl bg-white/[.06] p-3">
+            <p className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-white/50">
+              <Ban size={12} /> Blocked people
+            </p>
+            <div className="max-h-32 space-y-1 overflow-y-auto">
+              {blocked.map((b) => (
+                <p key={b.key} className="flex items-center gap-2 text-sm">
+                  <span className="flex-1 truncate">{b.name || "Player"}</span>
+                  <button type="button" onClick={() => void unblockKey(b.key)} className="rounded-lg bg-white/10 px-2.5 py-1 text-xs font-bold hover:bg-white/20">
+                    Unblock
+                  </button>
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* actions */}
         <div className="mt-3 grid grid-cols-2 gap-2">

@@ -13,6 +13,7 @@ import type { Tier } from "./materials";
 import { useWorld } from "@/lib/world-store";
 import { WorldOverlays } from "./GateExitPrompt";
 import { preloadHumans } from "./Avatar";
+import { SocialLayer } from "@/social/SocialLayer";
 
 // start streaming the realistic human models + animation sets as soon as the world bundle loads
 if (typeof window !== "undefined") preloadHumans();
@@ -80,6 +81,7 @@ export default function WorldCanvas({
             <Plaza nearPortal={nearPortal} tier={tier} />
             <LocalPlayer color={profile.color} name={profile.name} level={profile.level} tier={tier} />
             <RemotePlayers tier={tier} />
+            <SocialLayer />
             <VROrigin />
           </Suspense>
           <MaybeEffects enabled={fx} />

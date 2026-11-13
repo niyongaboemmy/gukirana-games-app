@@ -18,7 +18,6 @@ import {
 } from "./layout";
 import { doorOpen, useTransition } from "./transition";
 import { cameraArm, freePoint, planRoute, plazaObstacles, resolve } from "./obstacles";
-import { decodeLook } from "./outfits";
 import type { Tier } from "./materials";
 import { useWorld } from "@/lib/world-store";
 import { lookOf, useProfile } from "@/lib/profile-store";
@@ -28,6 +27,7 @@ import { saveDoorPose, takeWorldPose } from "@/lib/return-point";
 import { preloadHall } from "@/rooms/preload";
 import { autoFollow, nav, pointerNav, steer, TargetMarker } from "./navigation";
 import { useVoice } from "@/voice/voice";
+import { applyBenchSeat } from "@/social/bench";
 
 /** Walking speeds (m/s): real walking pace by default; the player can change it (HUD speed control). */
 export const WALK_SPEEDS = { slow: 1.4, normal: 2.2, fast: 3.2 } as const;
@@ -237,6 +237,9 @@ export function LocalPlayer({
     // solid furniture, planters, flower beds, lamp posts, kiosks: slide along them (body radius 0.32 m)
     resolve(pos.current, plazaObstacles());
 
+    // plaza benches: seated / sitting down / standing up overrides the pose (social/bench.ts)
+    applyBenchSeat(pos.current, facing, anim);
+
     if (group.current) {
       group.current.position.copy(pos.current);
       group.current.rotation.y = facing.current;
@@ -329,67 +332,5 @@ export function LocalPlayer({
   );
 }
 
-function RemoteAvatar({ id, tier }: { id: string; tier: Tier }) {
-  const p = useWorld((s) => s.players[id]);
-  const lookStr = p?.look;
-  const color = p?.color ?? "#3DA9FC";
-  // `look` is optional on the wire; without it the avatar falls back to the default look in the player's colour
-  const bodyType = p?.bodyType;
-  const look = useMemo(() => {
-    const l = decodeLook(lookStr, color);
-    // server may send the chosen body type on its own (no full look yet)
-    if (!lookStr && (bodyType === "feminine" || bodyType === "masculine" || bodyType === "neutral"))
-      l.bodyType = bodyType;
-    return l;
-  }, [lookStr, color, bodyType]);
-  const group = useRef<THREE.Group>(null);
-  const anim = useRef(0);
-  const lookAt = useRef<THREE.Vector3 | null>(null);
-  const lookTarget = useMemo(() => new THREE.Vector3(), []);
-  useFrame((_, dt) => {
-    const cur = useWorld.getState().players[id];
-    if (!cur || !group.current) return;
-    // remote avatars glance at the local player while they are speaking nearby
-    const near = Math.hypot(selfPose.x - group.current.position.x, selfPose.z - group.current.position.z) < 5;
-    lookAt.current =
-      near && useVoice.getState().selfTalking ? lookTarget.set(selfPose.x, 1.6, selfPose.z) : null;
-    const k = Math.min(1, dt * 10); // interpolation
-    group.current.position.x += (cur.x / 100 - group.current.position.x) * k;
-    group.current.position.z += (cur.z / 100 - group.current.position.z) * k;
-    const yaw = (cur.yaw / 65535) * Math.PI * 2;
-    let diff = yaw - group.current.rotation.y;
-    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-    group.current.rotation.y += diff * k;
-    anim.current = cur.emoteUntil && cur.emoteUntil > Date.now() ? cur.anim : cur.anim >= 10 ? 0 : cur.anim;
-  });
-  if (!p) return null;
-  return (
-    <group ref={group} position={[p.x / 100, 0, p.z / 100]}>
-      <Avatar
-        look={look}
-        name={p.name}
-        level={p.level}
-        animRef={anim}
-        lod
-        shadows={tier !== "lite"}
-        quality={tier}
-        voiceId={id}
-        lookAtRef={lookAt}
-      />
-    </group>
-  );
-}
-
-export function RemotePlayers({ tier = "standard" }: { tier?: Tier }) {
-  const ids = useWorld((s) => Object.keys(s.players).join(","));
-  return (
-    <>
-      {ids
-        .split(",")
-        .filter(Boolean)
-        .map((id) => (
-          <RemoteAvatar key={id} id={id} tier={tier} />
-        ))}
-    </>
-  );
-}
+// Remote people (interpolation, seats, bubbles, crowd budget) live in social/RemotePlayers.tsx
+export { RemotePlayers } from "@/social/RemotePlayers";

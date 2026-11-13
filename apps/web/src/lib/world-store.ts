@@ -16,6 +16,8 @@ export interface RemotePlayer {
   /** Server-side verified account (OTP); unverified players are not offered as interaction targets. */
   verified?: boolean;
   bodyType?: string;
+  /** Account id of signed-in players (public profile lookups, persistent blocks). */
+  uid?: string;
 }
 
 export interface ChatLine {
@@ -26,9 +28,15 @@ export interface ChatLine {
   t: number;
   masked?: boolean;
   system?: boolean;
+  /** "nearby" (≈12 m, speech bubbles) or "room" (whole plaza / hall); system lines have none */
+  scope?: "nearby" | "room";
 }
 
-/** Local avatar pose, written every frame by the player controller (non-reactive, for audio). */
+/**
+ * Local avatar pose, written every frame by the player controller (non-reactive, for audio).
+ * Remote players' `x`/`z` in `players` are kept equal to their RENDERED (interpolated) pose by social/motion.ts,
+ * updated in place so movement never re-renders React; reactive consumers only re-render on join/leave/meta.
+ */
 export const selfPose = { x: 0, z: 16, yaw: Math.PI };
 
 export type PortalId = "pool" | "ludo" | "igisoro" | "arena" | "soon-left" | "soon-right";
@@ -87,5 +95,5 @@ export const useWorld = create<WorldState>()((set, get) => ({
     delete players[id];
     set({ players });
   },
-  pushChat: (c) => set({ chat: [...get().chat.slice(-49), c] }),
+  pushChat: (c) => set({ chat: [...get().chat.slice(-119), c] }),
 }));

@@ -3,14 +3,18 @@ import { create } from "zustand";
 import { selfPose, useWorld } from "@/lib/world-store";
 
 /**
- * Proximity voice (SRS FR-COM-01/02/03/13) — peer-to-peer WebRTC with spatial (HRTF) audio.
- * Signalling goes through the plaza room. Push-to-talk by default. Good for small groups / MVP;
- * production swaps the transport for a LiveKit SFU behind the same API (plan P1-COM-03).
+ * Proximity voice (SRS FR-COM-01/02/03/07/13) — peer-to-peer WebRTC with spatial (HRTF) audio.
+ * Signalling goes through the plaza / hall room (the server never relays across a block). Push-to-talk by default:
+ * hold the mic button (or V) to talk, tap it to lock the mic open. Private 1:1 calls (voice/call.ts) reuse the same
+ * peer connection with a separate, always-open track and no distance falloff.
+ * Good for small groups / MVP; production swaps the transport for a LiveKit SFU behind the same API (P1-COM-03).
  */
 export const VOICE_RANGE = 8; // metres — silent beyond this (DESIGN-SPEC §6.1)
 const CONNECT_RANGE = 10;
 const DISCONNECT_RANGE = 14;
 const MAX_PEERS = 8;
+/** a press shorter than this on the mic button / V toggles the open-mic lock instead of push-to-talk */
+export const TAP_MS = 260;
 
 type Status = "off" | "starting" | "on" | "denied" | "error";
 interface VoiceState {
@@ -22,10 +26,32 @@ interface VoiceState {
   /** remote sessionId → has voice switched on */
   available: Record<string, boolean>;
   muted: Record<string, boolean>;
+  /** remote sessionId → volume 0…1.5 (default 1) */
+  volume: Record<string, number>;
   connected: string[];
+  /** connected people within hearing range right now ("N people can hear you") */
+  hearers: number;
   selfTalking: boolean;
+  /** private call partner (session id) */
+  callPeer: string | null;
+  callMuted: boolean;
+  callPeerTalking: boolean;
 }
-export const useVoice = create<VoiceState>()(() => ({ status: "off", transmitting: false, openMic: false, talking: {}, available: {}, muted: {}, connected: [], selfTalking: false }));
+export const useVoice = create<VoiceState>()(() => ({
+  status: "off",
+  transmitting: false,
+  openMic: false,
+  talking: {},
+  available: {},
+  muted: {},
+  volume: {},
+  connected: [],
+  hearers: 0,
+  selfTalking: false,
+  callPeer: null,
+  callMuted: false,
+  callPeerTalking: false,
+}));
 
 type Send = (type: string, payload: unknown) => void;
 let send: Send = () => undefined;
@@ -36,11 +62,13 @@ interface Peer {
   polite: boolean;
   makingOffer: boolean;
   ignoreOffer: boolean;
+  sender?: RTCRtpSender;
   audio?: HTMLAudioElement;
-  nodes?: { source: MediaStreamAudioSourceNode; panner: PannerNode; gain: GainNode };
+  nodes?: { source: MediaStreamAudioSourceNode; panner: PannerNode; gain: GainNode; level: AnalyserNode };
 }
 const peers = new Map<string, Peer>();
 let stream: MediaStream | null = null;
+let callTrack: MediaStreamTrack | null = null;
 let ctx: AudioContext | null = null;
 let analyser: AnalyserNode | null = null;
 let manageTimer: ReturnType<typeof setInterval> | null = null;
@@ -56,11 +84,14 @@ function iceServers(): RTCIceServer[] {
 }
 const me = () => useWorld.getState().you ?? "";
 const syncConnected = () => useVoice.setState({ connected: [...peers.keys()] });
+const mainTrack = () => stream?.getAudioTracks()[0] ?? null;
+const trackFor = (id: string) => (id === useVoice.getState().callPeer && callTrack ? callTrack : mainTrack());
 
 function createPeer(id: string): Peer {
   const pc = new RTCPeerConnection({ iceServers: iceServers() });
   const peer: Peer = { pc, polite: me() > id, makingOffer: false, ignoreOffer: false };
-  stream?.getAudioTracks().forEach((t) => pc.addTrack(t, stream!));
+  const track = trackFor(id);
+  if (track && stream) peer.sender = pc.addTrack(track, stream);
   pc.onicecandidate = ({ candidate }) => candidate && send("voice-signal", { to: id, data: { candidate: candidate.toJSON() } });
   pc.onnegotiationneeded = async () => {
     try {
@@ -90,11 +121,15 @@ function attachAudio(peer: Peer, remote: MediaStream) {
   audio.muted = true;
   void audio.play().catch(() => undefined);
   const source = ctx.createMediaStreamSource(remote);
+  // inverse falloff from 2 m, plus a soft fade to silence at the edge of the range (spatialize)
   const panner = new PannerNode(ctx, { panningModel: "HRTF", distanceModel: "inverse", refDistance: 2, maxDistance: VOICE_RANGE, rolloffFactor: 1.5 });
   const gain = ctx.createGain();
+  const level = ctx.createAnalyser();
+  level.fftSize = 256;
+  source.connect(level);
   source.connect(panner).connect(gain).connect(ctx.destination);
   peer.audio = audio;
-  peer.nodes = { source, panner, gain };
+  peer.nodes = { source, panner, gain, level };
 }
 
 export function dropPeer(id: string, notify = false) {
@@ -110,12 +145,24 @@ export function dropPeer(id: string, notify = false) {
 }
 
 /** Perfect negotiation (W3C pattern): either side may offer; the "polite" peer yields on collision. */
-export async function handleSignal(from: string, data: { description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit; bye?: boolean }) {
-  if (data?.bye) return dropPeer(from);
+export async function handleSignal(from: string, data: { description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit; bye?: boolean; ready?: boolean }) {
+  if (data?.ready) {
+    // call partner's mic is up: (re)start the connection from the offering side so no early offer is lost
+    if (from === useVoice.getState().callPeer && useVoice.getState().status === "on" && me() < from && peers.get(from)?.pc.connectionState !== "connected") {
+      dropPeer(from);
+      createPeer(from);
+    }
+    return;
+  }
+  if (data?.bye) {
+    if (from !== useVoice.getState().callPeer) dropPeer(from);
+    return;
+  }
   if (useVoice.getState().status !== "on") return;
   let peer = peers.get(from);
   if (!peer) {
-    if (peers.size >= MAX_PEERS) return;
+    const isCall = from === useVoice.getState().callPeer;
+    if (!isCall && peers.size >= MAX_PEERS) return;
     peer = createPeer(from);
   }
   const pc = peer.pc;
@@ -141,7 +188,7 @@ export async function handleSignal(from: string, data: { description?: RTCSessio
 
 export function handleVoiceState(m: { id: string; on: boolean; talking: boolean }) {
   useVoice.setState((s) => ({ available: { ...s.available, [m.id]: m.on }, talking: { ...s.talking, [m.id]: m.on && m.talking } }));
-  if (!m.on) dropPeer(m.id);
+  if (!m.on && m.id !== useVoice.getState().callPeer) dropPeer(m.id);
 }
 
 export function onPlayerLeft(id: string) {
@@ -155,20 +202,32 @@ export function onPlayerLeft(id: string) {
   });
 }
 
-/** Connect to voice-enabled players in range; disconnect those who walked away (hysteresis). */
+/** Connect to voice-enabled players in range (and the call partner anywhere); drop those who walked away. */
 function manage() {
   const { players } = useWorld.getState();
-  const { available } = useVoice.getState();
+  const { available, callPeer } = useVoice.getState();
+  let hearers = 0;
   for (const p of Object.values(players)) {
     const d = Math.hypot(p.x / 100 - selfPose.x, p.z / 100 - selfPose.z);
     const has = peers.has(p.id);
-    if (!has && available[p.id] && p.verified && d < CONNECT_RANGE && peers.size < MAX_PEERS && me() < p.id) createPeer(p.id);
-    if (has && d > DISCONNECT_RANGE) dropPeer(p.id, true);
+    const isCall = p.id === callPeer;
+    if (!has && p.verified && me() < p.id && (isCall || (available[p.id] && d < CONNECT_RANGE && peers.size < MAX_PEERS))) createPeer(p.id);
+    if (has && !isCall && d > DISCONNECT_RANGE) dropPeer(p.id, true);
+    if (has && available[p.id] && d < VOICE_RANGE && peers.get(p.id)?.pc.connectionState === "connected") hearers++;
   }
   for (const id of peers.keys()) if (!players[id]) dropPeer(id);
+  if (hearers !== useVoice.getState().hearers) useVoice.setState({ hearers });
 }
 
-/** Per-frame spatial update: listener = my avatar, sources = remote avatars. */
+const levelBuf = new Float32Array(256);
+function rms(a: AnalyserNode): number {
+  a.getFloatTimeDomainData(levelBuf);
+  let sum = 0;
+  for (const v of levelBuf) sum += v * v;
+  return Math.sqrt(sum / levelBuf.length);
+}
+
+/** Per-frame spatial update: listener = my avatar, sources = remote avatars (rendered positions). */
 function spatialize() {
   raf = requestAnimationFrame(spatialize);
   if (!ctx) return;
@@ -190,38 +249,48 @@ function spatialize() {
     L.setOrientation(fx, 0, fz, 0, 1, 0);
   }
   const { players } = useWorld.getState();
-  const { muted } = useVoice.getState();
+  const { muted, volume, callPeer } = useVoice.getState();
   for (const [id, peer] of peers) {
     const p = players[id];
     if (!p || !peer.nodes) continue;
+    const vol = muted[id] ? 0 : (volume[id] ?? 1);
+    if (id === callPeer) {
+      // private call: like a phone — right in front of you, no distance falloff
+      peer.nodes.panner.positionX.value = selfPose.x + fx * 0.6;
+      peer.nodes.panner.positionY.value = 1.6;
+      peer.nodes.panner.positionZ.value = selfPose.z + fz * 0.6;
+      peer.nodes.gain.gain.setTargetAtTime(vol * 1.6, ctx.currentTime, 0.08);
+      continue;
+    }
     const x = p.x / 100;
     const z = p.z / 100;
     peer.nodes.panner.positionX.value = x;
     peer.nodes.panner.positionY.value = 1.6;
     peer.nodes.panner.positionZ.value = z;
     const d = Math.hypot(x - selfPose.x, z - selfPose.z);
-    // hard cut beyond range (privacy) with a short fade; mute per person (FR-COM-07)
-    const target = muted[id] ? 0 : d >= VOICE_RANGE ? 0 : d > VOICE_RANGE - 1.5 ? (VOICE_RANGE - d) / 1.5 : 1;
-    peer.nodes.gain.gain.setTargetAtTime(target, ctx.currentTime, 0.08);
+    // hard cut beyond range (privacy) with a short fade; mute / volume per person (FR-COM-07)
+    const range = d >= VOICE_RANGE ? 0 : d > VOICE_RANGE - 1.5 ? (VOICE_RANGE - d) / 1.5 : 1;
+    peer.nodes.gain.gain.setTargetAtTime(vol * range, ctx.currentTime, 0.08);
   }
 }
 
 function detectTalking() {
   if (!analyser) return;
-  const buf = new Float32Array(analyser.fftSize);
-  analyser.getFloatTimeDomainData(buf);
-  let sum = 0;
-  for (const v of buf) sum += v * v;
-  const rms = Math.sqrt(sum / buf.length);
-  const talking = useVoice.getState().transmitting && rms > 0.02;
-  if (talking !== useVoice.getState().selfTalking) {
+  const v = useVoice.getState();
+  const talking = v.transmitting && rms(analyser) > 0.02;
+  if (talking !== v.selfTalking) {
     useVoice.setState({ selfTalking: talking });
     send("voice-state", { on: true, talking });
   }
+  const cp = v.callPeer ? peers.get(v.callPeer) : undefined;
+  const peerTalking = !!cp?.nodes && rms(cp.nodes.level) > 0.015;
+  if (peerTalking !== v.callPeerTalking) useVoice.setState({ callPeerTalking: peerTalking });
 }
 
-export async function enableVoice(): Promise<void> {
-  if (useVoice.getState().status === "on" || useVoice.getState().status === "starting") return;
+export async function enableVoice(): Promise<boolean> {
+  const st = useVoice.getState().status;
+  if (st === "on") return true;
+  if (st === "starting") return false;
   useVoice.setState({ status: "starting" });
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
@@ -236,14 +305,17 @@ export async function enableVoice(): Promise<void> {
     manageTimer = setInterval(manage, 500);
     talkTimer = setInterval(detectTalking, 150);
     raf = requestAnimationFrame(spatialize);
+    return true;
   } catch (e) {
     useVoice.setState({ status: (e as DOMException)?.name === "NotAllowedError" ? "denied" : "error" });
     stream?.getTracks().forEach((t) => t.stop());
     stream = null;
+    return false;
   }
 }
 
 export function disableVoice(): void {
+  endCallAudio();
   for (const id of [...peers.keys()]) dropPeer(id, true);
   if (manageTimer) clearInterval(manageTimer);
   if (talkTimer) clearInterval(talkTimer);
@@ -254,20 +326,73 @@ export function disableVoice(): void {
   ctx = null;
   analyser = null;
   if (useVoice.getState().status === "on") send("voice-state", { on: false, talking: false });
-  useVoice.setState({ status: "off", transmitting: false, openMic: false, selfTalking: false });
+  useVoice.setState({ status: "off", transmitting: false, openMic: false, selfTalking: false, hearers: 0 });
 }
 
 export function setTransmitting(on: boolean): void {
   if (useVoice.getState().status !== "on") return;
   const value = on || useVoice.getState().openMic;
-  stream?.getAudioTracks().forEach((t) => (t.enabled = value));
+  const t = mainTrack();
+  if (t) t.enabled = value;
   useVoice.setState({ transmitting: value });
 }
 
-export function toggleOpenMic(): void {
-  const openMic = !useVoice.getState().openMic;
+export function setOpenMic(openMic: boolean): void {
   useVoice.setState({ openMic });
   setTransmitting(openMic);
 }
+export const toggleOpenMic = () => setOpenMic(!useVoice.getState().openMic);
+
+/** Hold-to-talk with tap-to-lock (mic button and V key share this). */
+let press: { at: number; wasOpen: boolean } | null = null;
+export function pttDown(): void {
+  if (useVoice.getState().status !== "on" || press) return;
+  press = { at: performance.now(), wasOpen: useVoice.getState().openMic };
+  setTransmitting(true);
+}
+export function pttUp(): void {
+  if (!press) return;
+  const { at, wasOpen } = press;
+  press = null;
+  const tap = performance.now() - at < TAP_MS;
+  if (tap) setOpenMic(!wasOpen);
+  else if (!wasOpen) setTransmitting(false);
+}
 
 export const setMuted = (id: string, mute: boolean) => useVoice.setState((s) => ({ muted: { ...s.muted, [id]: mute } }));
+export const setVolume = (id: string, v: number) => useVoice.setState((s) => ({ volume: { ...s.volume, [id]: Math.max(0, Math.min(1.5, v)) } }));
+
+// ---------------------------------------------------------------- private call audio (voice/call.ts drives it)
+
+/** Start the private-call audio path with `id`: an always-open (unless muted) cloned track, no falloff. */
+export async function startCallAudio(id: string): Promise<boolean> {
+  if (!(await enableVoice())) return false;
+  const base = mainTrack();
+  if (!base) return false;
+  callTrack?.stop();
+  callTrack = base.clone();
+  callTrack.enabled = !useVoice.getState().callMuted;
+  useVoice.setState({ callPeer: id });
+  const peer = peers.get(id);
+  if (peer?.sender) await peer.sender.replaceTrack(callTrack).catch(() => undefined);
+  else if (!peer && me() < id) createPeer(id);
+  if (me() > id) send("voice-signal", { to: id, data: { ready: true } });
+  return true;
+}
+
+export function endCallAudio(): void {
+  const id = useVoice.getState().callPeer;
+  if (!id) return;
+  const peer = peers.get(id);
+  const base = mainTrack();
+  if (peer?.sender && base) void peer.sender.replaceTrack(base).catch(() => undefined);
+  callTrack?.stop();
+  callTrack = null;
+  useVoice.setState({ callPeer: null, callPeerTalking: false });
+  // the regular range rules take over again (far away → disconnect on the next manage tick)
+}
+
+export function setCallMuted(m: boolean): void {
+  if (callTrack) callTrack.enabled = !m;
+  useVoice.setState({ callMuted: m });
+}

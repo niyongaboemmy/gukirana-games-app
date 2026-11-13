@@ -43,6 +43,8 @@ export interface AvatarProps {
   model?: HumanModelId;
   /** Keep the base model's own clothes (staff uniforms) instead of the look's outfit colours. */
   keepClothes?: boolean;
+  /** Crowds: hide the name tag + speaking bars beyond this camera distance (m). Default: always shown. */
+  tagRange?: number;
 }
 
 const FONT = "/fonts/Baloo2.ttf";
@@ -317,10 +319,18 @@ export function Avatar({
   lookAtRef,
   model,
   keepClothes = false,
+  tagRange,
 }: AvatarProps) {
   const blob = useMemo(() => blobTexture(), []);
   const talkingRef = useRef(false);
-  useFrame(() => {
+  const tags = useRef<THREE.Group>(null);
+  useFrame(({ camera }) => {
+    if (tags.current) {
+      // seated (anim 13): the head is ~0.75 m lower, so is the name tag
+      const y = tags.current.position.y;
+      tags.current.position.y = y + ((animRef.current === 13 ? -0.72 : 0) - y) * 0.12;
+      if (tagRange) tags.current.visible = camera.position.distanceTo(tags.current.getWorldPosition(_v)) < tagRange;
+    }
     if (!voiceId && !self) return;
     const v = useVoice.getState();
     talkingRef.current = self ? v.selfTalking : !!(voiceId && v.talking[voiceId]);
@@ -336,6 +346,7 @@ export function Avatar({
       <Suspense fallback={<Placeholder />}>
         <HumanBody look={look} animRef={animRef} shadows={shadows} quality={quality} lod={lod} modelId={modelId} keepClothes={keepClothes} talkingRef={talkingRef} lookAtRef={lookAtRef} />
       </Suspense>
+      <group ref={tags}>
       {(voiceId || self) && <SpeakingBars talkingRef={talkingRef} y={showTag && name ? tagY + 0.27 : tagY - 0.05} />}
       {showTag && name && (
         <Billboard position={[0, tagY, 0]}>
@@ -348,6 +359,7 @@ export function Avatar({
           </Text>
         </Billboard>
       )}
+      </group>
     </group>
   );
 }

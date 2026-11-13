@@ -1,15 +1,20 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Joystick } from "./Joystick";
 import { PORTALS } from "@/world/layout";
 import { useWorld } from "@/lib/world-store";
-import { sendChat, sendEmote } from "@/lib/realtime";
+import { playEmote } from "@/lib/realtime";
 import { levelForXp, totalXpForLevel, useProfile } from "@/lib/profile-store";
 import { xrStore } from "@/world/WorldCanvas";
-import { DoorOpen, Glasses, Hand, MessageCircle, Music, PartyPopper, Settings, Shirt, Smile, Star, UserRound, Users, X, Zap, type LucideIcon } from "lucide-react";
+import { Armchair, DoorOpen, Glasses, Hand, MessageCircle, Music, PartyPopper, Settings, Shirt, Smile, Star, UserRound, Users, Zap, type LucideIcon } from "lucide-react";
 import { AvatarCreator } from "@/components/AvatarCreator";
 import { SettingsModal } from "@/components/SettingsModal";
+import { ChatPanel } from "@/social/ChatPanel";
+import { SocialOverlay } from "@/social/SocialOverlay";
+import { totalUnread, useSocial } from "@/social/social-store";
+import { sitNearest, standFromBench } from "@/social/bench";
+import { useRoom } from "@/rooms/room-store";
 
 const EMOTES = [
   { id: 10, icon: Hand, label: "Wave" },
@@ -17,19 +22,21 @@ const EMOTES = [
   { id: 12, icon: PartyPopper, label: "Clap" },
 ];
 
-function RoundButton({ icon: Icon, label, onPress, onRelease, big, active }: { icon: LucideIcon; label: string; onPress?: () => void; onRelease?: () => void; big?: boolean; active?: boolean }) {
+function RoundButton({ icon: Icon, label, onPress, onRelease, big, active, badge, disabled }: { icon: LucideIcon; label: string; onPress?: () => void; onRelease?: () => void; big?: boolean; active?: boolean; badge?: number; disabled?: boolean }) {
   return (
     <button
       type="button"
-      aria-label={label}
+      aria-label={badge ? `${label} (${badge} unread)` : label}
+      disabled={disabled}
       onPointerDown={onPress}
       onPointerUp={onRelease}
       onPointerLeave={onRelease}
-      className={`pointer-events-auto grid ${big ? "size-[72px]" : "size-16"} touch-none select-none place-items-center rounded-full border shadow-lg backdrop-blur-xl transition active:scale-90 ${
+      className={`pointer-events-auto relative grid disabled:opacity-50 ${big ? "size-[72px]" : "size-16"} touch-none select-none place-items-center rounded-full border shadow-lg backdrop-blur-xl transition active:scale-90 ${
         active ? "border-[#FFC83D] bg-[#22266E]/80 text-white ring-4 ring-[#FFC83D]/40" : "border-white/35 bg-white/15 text-white"
       }`}
     >
       <Icon size={big ? 30 : 26} strokeWidth={1.85} absoluteStrokeWidth />
+      {!!badge && <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-[#EF4444] px-1 text-[11px] font-black leading-5">{badge}</span>}
     </button>
   );
 }
@@ -40,35 +47,46 @@ export function WorldHud() {
   const { name, color, xp, stars } = useProfile();
   const level = levelForXp(xp);
   const progress = (xp - totalXpForLevel(level)) / (totalXpForLevel(level + 1) - totalXpForLevel(level));
-  const { nearPortal, nearPlayer, players, connected, chat } = useWorld();
+  const nearPortal = useWorld((s) => s.nearPortal);
+  const online = useWorld((s) => Object.keys(s.players).length + 1);
+  const connected = useWorld((s) => s.connected);
+  const other = useWorld((s) => (s.nearPlayer ? s.players[s.nearPlayer] : undefined));
   const [emotesOpen, setEmotesOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
+  const chatOpen = useSocial((s) => s.chatOpen);
+  const unread = useSocial((s) => totalUnread(s.threads));
+  const nearby = useSocial((s) => s.nearbyCount);
+  const benchSeat = useSocial((s) => s.nearSeat);
+  const seatedOnBench = useSocial((s) => s.seated);
+  // inside a hall the room overlay owns the chair / exit prompts and its own people list
+  const inHall = usePathname()?.startsWith("/room/") ?? false;
+  const roomBusy = useRoom((s) => !!(s.nearSeat || s.seated || s.nearExit));
   const [vr, setVr] = useState(false);
-  const [msg, setMsg] = useState("");
   const [styling, setStyling] = useState(false);
-  const chatEnd = useRef<HTMLDivElement>(null);
   const portal = PORTALS.find((p) => p.id === nearPortal);
-  const other = nearPlayer ? players[nearPlayer] : undefined;
+  const setChatOpen = (v: boolean | ((o: boolean) => boolean)) => useSocial.setState((s) => ({ chatOpen: typeof v === "function" ? v(s.chatOpen) : v }));
 
   useEffect(() => {
     void navigator.xr?.isSessionSupported("immersive-vr").then(setVr).catch(() => setVr(false));
   }, []);
-  useEffect(() => chatEnd.current?.scrollIntoView({ block: "end" }), [chat.length, chatOpen]);
 
   const emote = (id: number) => {
-    useWorld.getState().set({ emote: { id, until: Date.now() + 2500 } });
-    sendEmote(id);
+    playEmote(id);
     setEmotesOpen(false);
   };
+  // E / the big button: door → bench place (stand up when seated) → the person in front of you (person menu)
   const interact = () => {
-    if (portal?.href) router.push(portal.href);
-    else if (other) emote(10);
+    if (portal?.href) return router.push(portal.href);
+    if (seatedOnBench) return standFromBench();
+    if (benchSeat && !portal) return sitNearest();
+    if (other) useSocial.setState({ menu: other.id });
   };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.tagName === "INPUT") return;
-      if (e.code === "KeyE") interact();
+      if ((e.target as HTMLElement)?.tagName === "INPUT" || useSocial.getState().menu) return;
+      // inside a hall the room overlay owns E for chairs and the exit door
+      const r = useRoom.getState();
+      if (e.code === "KeyE" && !(r.nearSeat || r.seated || r.nearExit)) interact();
       if (e.code === "KeyG") setEmotesOpen((v) => !v);
       if (e.code === "KeyT" || e.code === "Enter") {
         e.preventDefault();
@@ -131,9 +149,20 @@ export function WorldHud() {
         Gukirana Plaza ·{" "}
         <span className={connected ? "text-[#22C55E]" : "text-white/60"}>
           <Users size={14} strokeWidth={2} className="mr-1 inline -translate-y-px" />
-          {connected ? `${Object.keys(players).length + 1} online` : "solo"}
+          {connected ? `${online} online` : "solo"}
         </span>
       </div>
+      {/* people here (tap a name → person menu) */}
+      {connected && !inHall && (
+        <button
+          type="button"
+          onClick={() => useSocial.setState((s) => ({ peopleOpen: !s.peopleOpen }))}
+          className="pointer-events-auto absolute left-[max(12px,env(safe-area-inset-left))] top-[134px] flex items-center gap-1.5 rounded-full border border-white/25 bg-[#22266E]/65 px-3 py-1.5 text-xs font-bold shadow-lg backdrop-blur-md [@media(max-height:430px)]:top-[128px]"
+          aria-label={`People: ${nearby} nearby, ${online} here`}
+        >
+          <Users size={14} /> {nearby} nearby · {online - 1} here
+        </button>
+      )}
 
       {/* top-right currency + settings */}
       <div className="absolute right-[max(12px,env(safe-area-inset-right))] top-3 flex items-center gap-2">
@@ -153,61 +182,13 @@ export function WorldHud() {
         </button>
       </div>
 
-      {/* chat */}
-      <div className="absolute bottom-[150px] left-[max(12px,env(safe-area-inset-left))] w-[min(360px,45vw)] sm:bottom-40">
-        {chatOpen ? (
-          <div className="pointer-events-auto flex max-h-[38vh] flex-col rounded-2xl border border-white/20 bg-[#0f1222]/75 backdrop-blur-md">
-            <div className="flex-1 space-y-1 overflow-y-auto p-3 text-sm">
-              {chat.length === 0 && <p className="text-white/50">Say hi to the plaza</p>}
-              {chat.map((c, i) =>
-                c.system ? (
-                  <p key={i} className="text-xs italic text-[#FFC83D]/90">
-                    {c.text}
-                  </p>
-                ) : (
-                  <p key={i}>
-                    <span className="font-bold" style={{ color: c.color }}>
-                      {c.name}:
-                    </span>{" "}
-                    {c.text}
-                  </p>
-                ),
-              )}
-              <div ref={chatEnd} />
-            </div>
-            <form
-              className="flex gap-2 border-t border-white/10 p-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (msg.trim()) sendChat(msg.trim());
-                setMsg("");
-              }}
-            >
-              <input
-                autoFocus
-                value={msg}
-                maxLength={200}
-                onChange={(e) => setMsg(e.target.value)}
-                onKeyDown={(e) => e.key === "Escape" && setChatOpen(false)}
-                placeholder={connected ? "Message the plaza…" : "Offline: start the realtime server"}
-                className="min-w-0 flex-1 rounded-lg bg-white/10 px-3 py-2 text-sm outline-none placeholder:text-white/40"
-              />
-              <button type="button" onClick={() => setChatOpen(false)} aria-label="Close chat" className="rounded-lg px-2 text-white/60">
-                <X size={18} strokeWidth={1.85} />
-              </button>
-            </form>
-          </div>
-        ) : (
-          chat.slice(-2).map((c, i) => (
-            <p key={i} className="mb-1 w-fit max-w-full truncate rounded-lg bg-[#0f1222]/55 px-2 py-1 text-xs backdrop-blur-sm">
-              {c.system ? <span className="italic text-[#FFC83D]">{c.text}</span> : <><b style={{ color: c.color }}>{c.name}:</b> {c.text}</>}
-            </p>
-          ))
-        )}
+      {/* chat (Nearby / Room / Private) */}
+      <div className="absolute bottom-[150px] left-[max(12px,env(safe-area-inset-left))] w-[min(380px,46vw)] sm:bottom-40 [@media(max-height:430px)]:bottom-[118px] [@media(max-height:430px)]:w-[min(340px,44vw)]">
+        <ChatPanel />
       </div>
 
       {/* proximity prompt */}
-      {(portal || other) && (
+      {(portal || other || benchSeat || seatedOnBench) && !roomBusy && (
         <div className="absolute bottom-[38%] left-1/2 -translate-x-1/2">
           <button
             type="button"
@@ -215,7 +196,17 @@ export function WorldHud() {
             className="pointer-events-auto flex items-center gap-3 rounded-full border border-white/30 bg-[#22266E]/85 py-2 pl-2 pr-5 text-lg font-bold shadow-2xl backdrop-blur-md active:scale-95"
           >
             <span className="grid size-9 place-items-center rounded-full bg-white text-base font-black text-[#22266E]">E</span>
-            {portal ? (portal.href ? `Enter ${portal.label}` : `${portal.label} · ${portal.sub}`) : `Wave to ${other!.name}`}
+            {portal ? (
+              portal.href ? `Enter ${portal.label}` : `${portal.label} · ${portal.sub}`
+            ) : seatedOnBench ? (
+              "Stand up"
+            ) : benchSeat ? (
+              <>
+                <Armchair size={20} /> Sit on the bench
+              </>
+            ) : (
+              `Talk to ${other!.name}`
+            )}
           </button>
         </div>
       )}
@@ -228,7 +219,7 @@ export function WorldHud() {
       {/* bottom-right actions */}
       <div className="absolute bottom-[max(14px,env(safe-area-inset-bottom))] right-[max(14px,env(safe-area-inset-right))] flex items-end gap-3">
         <div className="flex flex-col gap-3">
-          <RoundButton icon={MessageCircle} label="Chat" onPress={() => setChatOpen((v) => !v)} />
+          <RoundButton icon={MessageCircle} label="Chat" badge={unread} active={chatOpen} onPress={() => setChatOpen((v) => !v)} />
         </div>
         <RoundButton icon={Zap} label="Run" onPress={() => setRun(true)} onRelease={() => setRun(false)} />
         <div className="relative">
@@ -243,13 +234,14 @@ export function WorldHud() {
           )}
           <RoundButton icon={Smile} label="Emote" onPress={() => setEmotesOpen((v) => !v)} />
         </div>
-        <RoundButton icon={portal ? DoorOpen : Hand} label="Interact" big active={!!(portal || other)} onPress={interact} />
+        <RoundButton icon={portal ? DoorOpen : benchSeat || seatedOnBench ? Armchair : Hand} label="Interact" big active={!!(portal || other || benchSeat || seatedOnBench)} onPress={interact} />
       </div>
 
       {/* desktop hint */}
       <p className="absolute bottom-3 left-1/2 hidden -translate-x-1/2 text-xs text-white/70 [@media(pointer:fine)]:block">
-        W/S walk · A/D turn · click the ground to walk there · drag to look · Shift run · E interact · T chat
+        W/S walk · A/D turn · click the ground to walk there · click a person for options · drag to look · Shift run · E interact · T chat · hold V to talk
       </p>
+      <SocialOverlay />
     </div>
   );
 }

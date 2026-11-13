@@ -56,7 +56,7 @@ const COLOR = /^#[0-9a-f]{6}$/i;
 const LOOK = /^[\w.:;,|#=-]{0,300}$/;
 const PROPOSAL_TTL = 60_000;
 /** A plaza bench place is freed when its holder walks this far away from it (m). */
-const SEAT_LEAVE_M = 1.6;
+const SEAT_LEAVE_M = 2.5;
 
 /**
  * Plaza / hall presence (SRS §8.4): movement (batched, distance-tiered), emotes, proximity + room chat with

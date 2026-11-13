@@ -8,6 +8,7 @@ import { RoomScene } from "./RoomScene";
 import { QuickShell } from "./QuickShell";
 import { RoomPlayer } from "./RoomPlayer";
 import { RemotePlayers } from "@/world/Player";
+import { SocialLayer } from "@/social/SocialLayer";
 import type { HallLayout } from "./layouts";
 
 function pickTier(): "lite" | "standard" {
@@ -54,7 +55,8 @@ export default function RoomCanvas({
       </Suspense>
       <Suspense fallback={null}>
         <RoomPlayer layout={layout} onExit={onExit} tier={tier} />
-        <RemotePlayers tier={tier} />
+        <RemotePlayers tier={tier} hallSeats={layout.seats} />
+        <SocialLayer />
         {children}
       </Suspense>
       {fx && <Effects />}

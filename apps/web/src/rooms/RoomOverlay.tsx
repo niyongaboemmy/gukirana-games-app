@@ -9,6 +9,7 @@ import { useVoice } from "@/voice/voice";
 import { rememberBeforeGame } from "@/lib/return-point";
 import { useSession } from "@/lib/session";
 import { useRoom } from "./room-store";
+import { useSocial } from "@/social/social-store";
 import { getUp, sitDown } from "./RoomPlayer";
 import type { HallLayout } from "./layouts";
 
@@ -101,10 +102,10 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
                     {p.name.slice(0, 1).toUpperCase()}
                     {talking[p.id] && <Mic size={11} className="absolute -bottom-0.5 -right-0.5 rounded-full bg-[#22C55E] p-0.5 text-white" />}
                   </span>
-                  <div className="min-w-0 flex-1 leading-tight">
+                  <button type="button" onClick={() => useSocial.setState({ menu: p.id })} className="min-w-0 flex-1 text-left leading-tight" aria-label={`${p.name}: options`}>
                     <p className="truncate text-sm font-semibold">{p.name}</p>
                     <p className="text-[11px] text-white/55">Lvl {p.level} · {table ? `seated at table ${table}` : "walking"}</p>
-                  </div>
+                  </button>
                   {p.verified && authed && (
                     <button type="button" onClick={() => setChallenge({ id: p.id, name: p.name })} className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold" style={{ background: `${layout.color}33`, color: "#fff" }}>
                       <Swords size={12} /> Play

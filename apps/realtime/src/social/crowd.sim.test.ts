@@ -15,7 +15,7 @@ import { loadEnv } from "@gukirana/config";
 import { NEARBY_CHAT_RANGE, PLAZA_SEATS } from "@gukirana/contracts";
 import { WorldRoom } from "../rooms/world-room.js";
 
-const N = 20;
+const N = Number(process.env.CROWD_N ?? 20); // CROWD_N=45 for a fuller room (max 50 per instance, one late joiner in the block test)
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 interface Bot {

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Check, Loader2, Star, Swords, X, Zap } from "lucide-react";
 import { useWorld } from "@/lib/world-store";
@@ -10,6 +10,7 @@ import { useSession } from "@/lib/session";
 import { DieIcon, PoolBallIcon, SeedsIcon } from "@/ui/game-icons";
 import { rememberBeforeGame } from "@/lib/return-point";
 import { useRoom } from "@/rooms/room-store";
+import { useSocial } from "@/social/social-store";
 
 const GAMES: { id: GameId; icon: typeof DieIcon; color: string }[] = [
   { id: "igisoro", icon: SeedsIcon, color: "#27AE60" },
@@ -29,8 +30,8 @@ function useCountdown(until?: number) {
 
 const glass = "rounded-2xl border border-white/20 bg-[#151935]/85 text-white shadow-2xl backdrop-blur-xl";
 
-function GameStakePicker({ onConfirm, confirmLabel, onCancel }: { onConfirm: (g: GameId, s: number) => void; confirmLabel: string; onCancel: () => void }) {
-  const [game, setGame] = useState<GameId>("igisoro");
+function GameStakePicker({ onConfirm, confirmLabel, onCancel, initialGame = "igisoro" }: { onConfirm: (g: GameId, s: number) => void; confirmLabel: string; onCancel: () => void; initialGame?: GameId }) {
+  const [game, setGame] = useState<GameId>(initialGame);
   const [stake, setStake] = useState(25);
   const stars = useSession((s) => s.me?.stars ?? 0);
   return (
@@ -92,6 +93,16 @@ export function MatchmakingPanel() {
   const [sheet, setSheet] = useState<null | "challenge" | "quick">(null);
   const [challengeTarget, setChallengeTarget] = useState<{ id: string; name: string } | null>(null);
   const outLeft = useCountdown(outgoing?.expires);
+  const path = usePathname();
+  const hallGame = GAMES.find((g) => path === `/room/${g.id}`)?.id;
+  // "Challenge" from the person menu opens this sheet for that person
+  const socialChallenge = useSocial((s) => s.challenge);
+  useEffect(() => {
+    if (!socialChallenge) return;
+    setChallengeTarget(socialChallenge);
+    setSheet("challenge");
+    useSocial.setState({ challenge: null });
+  }, [socialChallenge]);
   const allPlayers = useWorld((s) => s.players);
   // nearest first, then everyone else who is signed in (plaza instances hold ≤ 50 people)
   const challengeable = Object.values(allPlayers)
@@ -174,6 +185,7 @@ export function MatchmakingPanel() {
               </div>
             )}
             <GameStakePicker
+              initialGame={hallGame}
               confirmLabel={sheet === "quick" ? "Find opponent" : "Send challenge"}
               onCancel={() => setSheet(null)}
               onConfirm={(g, s) => {
