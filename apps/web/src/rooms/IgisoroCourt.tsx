@@ -475,7 +475,7 @@ export function IgisoroCourt({ layout, lite }: { layout: HallLayout; lite: boole
       {/* -------- shell -------- */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[w, d]} />
-        <meshStandardMaterial {...floor} color="#d8a080" roughness={0.75} />
+        <meshStandardMaterial map={floor.map} normalMap={floor.normalMap} color="#d8a080" roughness={1} metalness={0} envMapIntensity={0.15} />
       </mesh>
       {ceil.map((c, i) => (
         <mesh key={i} position={[c.x, h, c.z]} rotation={[Math.PI / 2, 0, 0]}>

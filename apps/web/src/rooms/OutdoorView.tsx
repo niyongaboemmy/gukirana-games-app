@@ -47,7 +47,8 @@ export function OutdoorView({
   const rt = useMemo(
     () =>
       new THREE.WebGLCubeRenderTarget(lite ? 512 : 1024, {
-        type: THREE.HalfFloatType,
+        type: THREE.UnsignedByteType, // widely supported (half-float cube targets render black on some GPUs/browsers)
+        colorSpace: THREE.SRGBColorSpace,
         generateMipmaps: false,
         minFilter: THREE.LinearFilter,
         magFilter: THREE.LinearFilter,

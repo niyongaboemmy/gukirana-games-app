@@ -506,7 +506,8 @@ export function PoolHall({ layout, lite }: { layout: HallLayout; lite: boolean }
       {/* -------- shell -------- */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[w, d]} />
-        <meshStandardMaterial {...floor} color="#a08070" roughness={0.6} />
+        {/* matte floor: no glossy light streaks (the texture's roughness map is glossy) */}
+        <meshStandardMaterial map={floor.map} normalMap={floor.normalMap} color="#a08070" roughness={0.95} metalness={0} envMapIntensity={0.15} />
       </mesh>
       {rugs.map((r, i) => (
         <mesh key={i} position={[r.x, 0.006, r.z]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>

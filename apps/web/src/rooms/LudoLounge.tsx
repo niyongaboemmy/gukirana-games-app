@@ -354,7 +354,7 @@ export function LudoLounge({ layout, lite }: { layout: HallLayout; lite: boolean
       {lite && <ambientLight intensity={0.4} />}
       <directionalLight
         position={sunPos}
-        intensity={lite ? 1.1 : 1.6}
+        intensity={lite ? 0.85 : 1.05}
         color="#ffe6c4"
         castShadow={!lite}
         shadow-mapSize={[2048, 2048]}
@@ -368,7 +368,7 @@ export function LudoLounge({ layout, lite }: { layout: HallLayout; lite: boolean
         shadow-camera-far={70}
       />
       {/* window skylight fill (no shadow) */}
-      <directionalLight position={[0, 5, -20]} intensity={lite ? 0.6 : 0.9} color="#dcecff" />
+      <directionalLight position={[0, 5, -20]} intensity={lite ? 0.35 : 0.45} color="#dcecff" />
       {!lite &&
         tables.map((t) => (
           <pointLight
@@ -384,7 +384,8 @@ export function LudoLounge({ layout, lite }: { layout: HallLayout; lite: boolean
       {/* -------- shell -------- */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[w, d]} />
-        <meshStandardMaterial {...floor} color="#f0dcc0" roughness={0.95} envMapIntensity={0.6} />
+        {/* warm oak, matte-satin: keeps its grain and colour in the sun patches (no washed-out white) */}
+        <meshStandardMaterial map={floor.map} normalMap={floor.normalMap} color="#d9b98f" roughness={1} metalness={0} envMapIntensity={0.12} />
       </mesh>
       <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, h, 0]}>
         <planeGeometry args={[w, d]} />
