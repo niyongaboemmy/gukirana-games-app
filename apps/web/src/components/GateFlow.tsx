@@ -39,7 +39,7 @@ function Card({ children, label, busy = false }: { children: React.ReactNode; la
         aria-label={label}
         className={`${first ? "gk-tablet-in" : "[transform:rotateX(8deg)_rotateZ(-2deg)]"} relative w-[min(400px,48vw)] rounded-[34px] bg-gradient-to-b from-[#d9dde5] via-[#9aa1ad] to-[#6d7380] p-[7px] shadow-[0_40px_80px_-20px_rgba(0,0,0,.75),0_0_0_1px_rgba(255,255,255,.35)_inset] max-sm:w-[min(360px,56vw)] [@media(max-height:430px)]:w-[min(340px,44vw)] phone:w-[min(290px,34vw)]! phone:rounded-[26px]! phone:p-[5px]!`}
       >
-        <div className="relative overflow-hidden rounded-[28px] bg-[radial-gradient(ellipse_at_30%_0%,#232832_0%,var(--color-ink-950)_70%)] ring-1 ring-black phone:rounded-[21px]!" aria-busy={busy}>
+        <div className="relative overflow-hidden rounded-[28px] bg-[radial-gradient(ellipse_at_30%_0%,#26282c_0%,var(--color-ink-950)_70%)] ring-1 ring-black phone:rounded-[21px]!" aria-busy={busy}>
           {busy && <div className="gk-progress absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-primary-500 to-ring" role="progressbar" aria-label="Loading" />}
           {/* status bar */}
           <div className="flex items-center justify-between px-5 pb-1 pt-2 text-[11px] font-semibold text-white/85 phone:px-3.5! phone:pt-1.5! phone:text-[10px]!">

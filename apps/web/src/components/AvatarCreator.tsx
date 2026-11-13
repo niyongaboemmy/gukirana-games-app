@@ -145,7 +145,7 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label={STR.title} className="scrim fixed inset-0 z-50 grid place-items-center bg-ink-950/75! p-2 sm:p-4">
       <div className="grid h-full max-h-[720px] w-full max-w-5xl grid-rows-[minmax(0,38%)_minmax(0,1fr)] overflow-hidden rounded-3xl glass-elevated bg-ink-900/85! sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] sm:grid-rows-1 landscape:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] landscape:grid-rows-1">
-        <div className="relative min-h-0 bg-[radial-gradient(ellipse_at_50%_35%,#2a303b_0%,var(--color-ink-900)_75%)]">
+        <div className="relative min-h-0 bg-[radial-gradient(ellipse_at_50%_35%,#2a2b2f_0%,var(--color-ink-900)_75%)]">
           <AvatarPreview look={look} emote={emote} />
           <button
             type="button"

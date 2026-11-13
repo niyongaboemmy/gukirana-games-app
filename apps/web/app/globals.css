@@ -35,13 +35,13 @@
   --color-primary: #3b82f6;
   --color-accent: #60a5fa;
   --color-ring: #60a5fa;
-  /* graphite neutrals (near-black base → raised surfaces) */
-  --color-ink-950: #0b0d10;
-  --color-ink-900: #121418;
-  --color-ink-800: #16191f;
-  --color-ink-700: #1c2027;
-  --color-ink-600: #232832;
-  --color-ink-500: #2c323d;
+  /* neutral greys, no blue tint (near-black base → raised surfaces) */
+  --color-ink-950: #0e0f11;
+  --color-ink-900: #121314;
+  --color-ink-800: #18191c;
+  --color-ink-700: #1e1f23;
+  --color-ink-600: #26282c;
+  --color-ink-500: #2f3136;
   /* semantic, tuned for dark backgrounds */
   --color-success: #22c55e;
   --color-success-soft: #86efac;
@@ -53,8 +53,8 @@
   --color-gold: #fbbf24;
   --color-star: #fbbf24;
   /* text on glass */
-  --color-on-glass: #f3f4f6;
-  --color-on-glass-muted: rgb(209 213 219 / 0.78);
+  --color-on-glass: #f2f3f5;
+  --color-on-glass-muted: #a7abb2;
 
   --radius-card: 14px;
   --radius-control: 10px;
@@ -65,27 +65,27 @@
 }
 
 :root {
-  /* glass-1: graphite frost (chips, buttons, prompts) */
-  --glass-1: linear-gradient(180deg, rgb(255 255 255 / 0.06), rgb(255 255 255 / 0) 60%), rgb(22 25 31 / 0.74);
-  --glass-1-hover: linear-gradient(180deg, rgb(255 255 255 / 0.09), rgb(255 255 255 / 0.01) 60%), rgb(35 40 50 / 0.82);
+  /* glass-1: neutral grey frost (chips, buttons, prompts) */
+  --glass-1: linear-gradient(180deg, rgb(255 255 255 / 0.06), rgb(255 255 255 / 0) 60%), rgb(24 25 28 / 0.86);
+  --glass-1-hover: linear-gradient(180deg, rgb(255 255 255 / 0.09), rgb(255 255 255 / 0.01) 60%), rgb(38 40 44 / 0.9);
   /* glass-2: elevated (menus, sheets, dialogs, chat) */
-  --glass-2: linear-gradient(180deg, rgb(255 255 255 / 0.05), rgb(255 255 255 / 0) 40%), rgb(18 20 24 / 0.84);
+  --glass-2: linear-gradient(180deg, rgb(255 255 255 / 0.05), rgb(255 255 255 / 0) 40%), rgb(20 21 23 / 0.9);
   /* solid fallbacks (Lite tier, no backdrop-filter, reduced transparency) */
-  --glass-solid-1: linear-gradient(180deg, rgb(255 255 255 / 0.05), rgb(255 255 255 / 0) 60%), rgb(22 25 31 / 0.94);
-  --glass-solid-2: linear-gradient(180deg, rgb(255 255 255 / 0.04), rgb(255 255 255 / 0) 40%), rgb(16 18 22 / 0.97);
+  --glass-solid-1: linear-gradient(180deg, rgb(255 255 255 / 0.05), rgb(255 255 255 / 0) 60%), rgb(24 25 28 / 0.95);
+  --glass-solid-2: linear-gradient(180deg, rgb(255 255 255 / 0.04), rgb(255 255 255 / 0) 40%), rgb(18 19 20 / 0.97);
   --glass-edge: rgb(255 255 255 / 0.09);
   --glass-edge-top: rgb(255 255 255 / 0.18);
   --glass-hi: inset 0 1px 0 rgb(255 255 255 / 0.07);
-  --glass-filter: blur(18px) saturate(140%);
-  --glass-filter-2: blur(22px) saturate(140%);
+  --glass-filter: blur(18px);
+  --glass-filter-2: blur(22px);
   /* thin accent edge line for key panels */
   --edge-accent: linear-gradient(90deg, transparent, rgb(96 165 250 / 0.9) 30%, rgb(96 165 250 / 0.9) 70%, transparent);
 }
 /* phones: lighter blur over WebGL */
 @media (pointer: coarse) {
   :root {
-    --glass-filter: blur(10px) saturate(130%);
-    --glass-filter-2: blur(12px) saturate(130%);
+    --glass-filter: blur(10px);
+    --glass-filter-2: blur(12px);
   }
 }
 html[data-glass="lite"] {
@@ -177,7 +177,7 @@ html[data-glass="lite"] {
     font-weight: 700;
   }
 
-  /* glass-1: graphite frost (chips, pills, round buttons, prompts, toasts) */
+  /* glass-1: neutral grey frost (chips, pills, round buttons, prompts, toasts) */
   .glass,
   .chip,
   .icon-button,
@@ -240,7 +240,7 @@ html[data-glass="lite"] {
   .controller {
     background:
       radial-gradient(circle at 50% 28%, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0) 62%),
-      rgb(22 25 31 / 0.78);
+      rgb(24 25 28 / 0.86);
     box-shadow:
       inset 0 1px 0 rgb(255 255 255 / 0.1),
       inset 0 -3px 8px rgb(0 0 0 / 0.4),
@@ -250,8 +250,8 @@ html[data-glass="lite"] {
   .controller-active,
   .controller-active:hover:not(:disabled) {
     background:
-      radial-gradient(circle at 50% 28%, rgb(147 197 253 / 0.28), rgb(59 130 246 / 0) 65%),
-      rgb(29 50 92 / 0.85);
+      radial-gradient(circle at 50% 28%, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0) 62%),
+      rgb(30 31 35 / 0.88);
     border-color: rgb(96 165 250 / 0.85);
     box-shadow:
       inset 0 1px 0 rgb(255 255 255 / 0.14),
@@ -340,16 +340,16 @@ html[data-glass="lite"] {
 
   /* modal backdrop: deliberately no blur (a full-screen blur over WebGL is the most expensive layer) */
   .scrim {
-    background-color: rgb(5 6 8 / 0.6);
+    background-color: rgb(6 6 7 / 0.6);
   }
   /* keycap hint ("E", "T", "V") */
   .kbd {
     color: #f3f4f6;
-    background: linear-gradient(180deg, #3a404c, #252a33);
+    background: linear-gradient(180deg, #3b3d42, #26282c);
     box-shadow:
       inset 0 1px 0 rgb(255 255 255 / 0.16),
       inset 0 0 0 1px rgb(255 255 255 / 0.06),
-      0 2px 0 #0b0d10,
+      0 2px 0 #0e0f11,
       0 3px 6px rgb(0 0 0 / 0.45);
     text-shadow: none;
   }
@@ -361,7 +361,7 @@ html[data-glass="lite"] {
 
 html,
 body {
-  background: var(--bg);
+  background: var(--color-ink-950);
   color: var(--surface-text);
 }
 

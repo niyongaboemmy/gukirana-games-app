@@ -14,7 +14,7 @@ import { clearPositions } from "@/lib/return-point";
 const GateCanvas = dynamic(() => import("@/world/gate/GateCanvas"), {
   ssr: false,
   loading: () => (
-    <div className="grid h-full place-items-center bg-[#0b0d1a] text-white">
+    <div className="grid h-full place-items-center bg-ink-950 text-white">
       <div className="text-center">
         <div className="mx-auto mb-3 size-12 animate-spin rounded-full border-4 border-white/20 border-t-primary-500" />
         <p className="font-bold">Arriving at Gukirana Playground…</p>
@@ -72,7 +72,7 @@ export default function GatePage() {
 
   if (!ready) return null;
   return (
-    <div className="fixed inset-0 overflow-hidden bg-[#0b0d1a]">
+    <div className="fixed inset-0 overflow-hidden bg-ink-950">
       <GateCanvas />
       <GateFlow />
       <RotateGuard />

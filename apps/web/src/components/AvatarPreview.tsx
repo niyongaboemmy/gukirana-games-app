@@ -59,7 +59,7 @@ export default function AvatarPreview({ look, emote = 0 }: { look: AvatarLook; e
       onCreated={({ camera }) => camera.lookAt(0, 0.92, 0)}
       style={{ touchAction: "none" }}
     >
-      <color attach="background" args={["#141833"]} />
+      <color attach="background" args={["#1a1b1e"]} />
       <hemisphereLight args={["#dfe9ff", "#2a2440", 0.7]} />
       <directionalLight position={[2.5, 4, 3]} intensity={2.2} castShadow shadow-mapSize={[1024, 1024]} shadow-bias={-0.0005} />
       <directionalLight position={[-3, 2, -2]} intensity={0.9} color="#9fc4ff" />

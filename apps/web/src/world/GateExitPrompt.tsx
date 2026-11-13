@@ -66,27 +66,27 @@ export function WorldOverlays() {
           <button
             type="button"
             onClick={() => setConfirm(true)}
-            className="pointer-events-auto flex items-center gap-3 rounded-full border border-white/30 bg-[#22266E]/85 py-2 pl-2 pr-5 text-lg font-bold text-white shadow-2xl backdrop-blur-md active:scale-95"
+            className="chip pointer-events-auto flex items-center gap-3 border-l-primary-400/70 py-2 pl-2 pr-5 text-lg font-semibold"
           >
-            <span className="grid size-9 place-items-center rounded-full bg-white text-base font-black text-[#22266E]">E</span>
+            <span className="kbd grid size-9 place-items-center rounded-lg text-base font-bold">E</span>
             <LogOut size={20} strokeWidth={1.85} /> {STR.prompt}
           </button>
         </div>
       )}
       {confirm && (
-        <div role="dialog" aria-modal="true" aria-label={STR.title} className="fixed inset-0 z-50 grid place-items-end bg-[#05060f]/55 p-3 sm:place-items-center">
-          <div className="w-full max-w-sm rounded-3xl border border-white/15 bg-[#0f1222]/95 p-5 text-white shadow-2xl backdrop-blur-md">
+        <div role="dialog" aria-modal="true" aria-label={STR.title} className="fixed inset-0 z-50 grid place-items-end scrim p-3 sm:place-items-center">
+          <div className="sheet w-full max-w-sm p-5">
             <h2 className="text-lg font-extrabold">{STR.title}</h2>
-            <p className="mt-1 text-sm text-white/70">{STR.body}</p>
+            <p className="mt-1 text-sm text-on-glass-muted">{STR.body}</p>
             <div className="mt-4 flex gap-2">
-              <button type="button" onClick={() => setConfirm(false)} className="flex-1 rounded-full bg-white/10 py-2.5 font-bold hover:bg-white/20">
+              <button type="button" onClick={() => setConfirm(false)} className="btn-secondary flex-1 rounded-full py-2.5 font-bold">
                 {STR.cancel}
               </button>
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => void signOut()}
-                className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#E5484D] py-2.5 font-bold disabled:opacity-60"
+                className="btn-danger flex flex-1 items-center justify-center gap-2 rounded-full py-2.5 font-bold disabled:opacity-60"
               >
                 <LogOut size={18} strokeWidth={1.85} /> {busy ? STR.busy : STR.confirm}
               </button>

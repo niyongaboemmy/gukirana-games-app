@@ -1,6 +1,6 @@
 # UI design system (2D overlay)
 
-Dark gaming UI: graphite glass surfaces, one blue accent used sparingly, gold for Stars. Single source:
+Dark gaming UI: neutral dark-grey glass surfaces (no blue or navy tint in any surface, border or shadow), one blue accent used sparingly, gold for Stars. Single source:
 `apps/web/app/globals.css` (`@theme` tokens + classes in `@layer components`, so any Tailwind utility on the same
 element still wins). Use these instead of hex values in classNames. The 3D scene (world/**, hall interiors) keeps its
 own material colours; game identity colours (Pool / Ludo / Igisoro) stay as data.
@@ -23,8 +23,8 @@ ship `latin-ext` (all Kinyarwanda / French / English letters and diacritics). Lo
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `ink-950` | `#0B0D10` | near-black base (page backdrops, keycap shadow) |
-| `ink-900` / `ink-800` / `ink-700` / `ink-600` / `ink-500` | `#121418` `#16191F` `#1C2027` `#232832` `#2C323D` | graphite surfaces, raised to highest |
+| `ink-950` | `#0E0F11` | near-black base (page backdrops, keycap shadow) |
+| `ink-900` / `ink-800` / `ink-700` / `ink-600` / `ink-500` | `#121314` `#18191C` `#1E1F23` `#26282C` `#2F3136` | neutral grey surfaces, raised to highest |
 | `primary` (`primary-500`) | `#3B82F6` | the accent: primary buttons, active tabs, selection, progress |
 | `primary-600` / `primary-700` | `#2563EB` / `#1D4ED8` | gradient bottom / pressed |
 | `accent`, `ring` (`primary-400`) | `#60A5FA` | focus rings, selected outlines, accent edge lines |
@@ -32,18 +32,18 @@ ship `latin-ext` (all Kinyarwanda / French / English letters and diacritics). Lo
 | `success` / `success-soft` / `success-ink` | `#22C55E` / `#86EFAC` / `#052E16` | accept, online, talking |
 | `warning` / `warning-soft` | `#F59E0B` / `#FCD34D` | timers running out, notices |
 | `danger` / `danger-soft` | `#EF4444` / `#FCA5A5` | decline, block, report, unread badges |
-| `on-glass` / `on-glass-muted` | `#F3F4F6` / `#D1D5DB` at 78% | text on glass |
+| `on-glass` / `on-glass-muted` | `#F2F3F5` / `#A7ABB2` | text on glass |
 
-Glass (CSS variables on `:root`): `--glass-1` graphite `rgb(22 25 31 / .74)` + 6% top sheen; `--glass-2`
-`rgb(18 20 24 / .84)`; solid fallbacks at 94-97%; edge `white / 9%`, top edge `white / 18%`; blur 18 / 22 px
-(10 / 12 px on touch), saturate 140%. Radii: `rounded-card` 14 px, `rounded-control` 10 px, sheets 16 px, chips
+Glass (CSS variables on `:root`): `--glass-1` `rgb(24 25 28 / .86)` + 6% top sheen; `--glass-2`
+`rgb(20 21 23 / .90)`; solid fallbacks at 95-97%; edge `white / 9%`, top edge `white / 18%`; blur 18 / 22 px
+(10 / 12 px on touch), no saturation boost (so the scene behind never tints the grey). Blue is only the accent. Radii: `rounded-card` 14 px, `rounded-control` 10 px, sheets 16 px, chips
 full. Shadows: `shadow-float`, `shadow-elevated`, `shadow-glow` (subtle accent).
 
 ## Surfaces and components
 
 | Class | What |
 | --- | --- |
-| `glass` | glass-1: graphite frost, crisp 1 px edge with brighter top, soft deep shadow. HUD chips, pills, prompts. |
+| `glass` | glass-1: neutral grey frost, crisp 1 px edge with brighter top, soft deep shadow. HUD chips, pills, prompts. |
 | `glass-elevated` | glass-2: darker and more opaque, bigger shadow. Menus, chat. |
 | `glass-solid` | the same look without blur (nested surfaces, static backdrops). |
 | `sheet` | glass-2 + a thin accent line on the top edge: dialogs, the seat sheet, person menu, settings, match sheets. |

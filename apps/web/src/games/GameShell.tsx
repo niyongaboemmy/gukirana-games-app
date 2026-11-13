@@ -47,7 +47,7 @@ export function GameShell({
   const [leaving, setLeaving] = useState(false);
   const [fairOpen, setFairOpen] = useState(false);
   return (
-    <div className="fixed inset-0 flex flex-col bg-[radial-gradient(ellipse_at_top,#262b35_0%,var(--color-ink-950)_70%)] text-white">
+    <div className="fixed inset-0 flex flex-col bg-[radial-gradient(ellipse_at_top,#26282c_0%,var(--color-ink-950)_70%)] text-white">
       <header className="flex items-center gap-2 px-[max(12px,env(safe-area-inset-left))] py-2 phone:py-1">
         <button type="button" onClick={() => setLeaving(true)} className="btn-secondary rounded-xl px-3 py-2 text-sm font-semibold">
           <span className="flex items-center gap-1"><ChevronLeft size={16} /> Leave</span>
@@ -57,7 +57,7 @@ export function GameShell({
           {title} <span className="text-xs font-semibold text-white/50">· {mode}</span>
         </h1>
         <div className="ml-auto flex items-center gap-2">
-          <span className="flex items-center gap-1.5 rounded-full bg-primary/20 px-3 py-1.5 text-sm font-extrabold tabular-nums ring-1 ring-primary-400/35">{pot > 0 ? <>POT {pot} <Star size={14} className="fill-star text-star" /></> : "Practice · no stake"}</span>
+          <span className="flex items-center gap-1.5 num rounded-full bg-white/8 px-3 py-1.5 text-sm font-extrabold tabular-nums ring-1 ring-white/12">{pot > 0 ? <>POT {pot} <Star size={14} className="fill-star text-star" /></> : "Practice · no stake"}</span>
           {fairness && (
             <button type="button" onClick={() => setFairOpen(true)} className="press flex items-center gap-1.5 rounded-full bg-success/18 px-3 py-1.5 text-sm font-bold text-success-soft ring-1 ring-success/30 hover:bg-success/26">
               <ShieldCheck size={16} /> Fair

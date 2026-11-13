@@ -53,7 +53,7 @@ export function Joystick() {
       <div className="absolute inset-3 rounded-full border border-white/10 shadow-[inset_0_0_18px_rgb(0_0_0/.35)]" />
       <span className="absolute left-1/2 top-1 -translate-x-1/2 font-display text-[10px] font-bold text-white/80">N</span>
       <div
-        className="absolute left-1/2 top-1/2 size-[52px] phone:size-[44px] rounded-full bg-gradient-to-b from-[#f4f5f7] to-[#c9ced6] shadow-[0_6px_16px_-4px_rgb(0_0_0/.6),inset_0_-2px_0_rgb(0_0_0/.15),inset_0_1px_0_#fff]"
+        className="absolute left-1/2 top-1/2 size-[52px] phone:size-[44px] rounded-full bg-gradient-to-b from-[#f5f5f6] to-[#cbccd0] shadow-[0_6px_16px_-4px_rgb(0_0_0/.6),inset_0_-2px_0_rgb(0_0_0/.15),inset_0_1px_0_#fff]"
         style={{ transform: `translate(calc(-50% + ${knob.x}px), calc(-50% + ${knob.y}px))` }}
       >
         <div className="absolute inset-0 grid place-items-center text-primary">

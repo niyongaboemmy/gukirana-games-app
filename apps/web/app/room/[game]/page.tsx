@@ -45,7 +45,7 @@ export default function RoomPage() {
   if (!ready || !isHallGame(game)) return null;
   const layout = HALLS[game];
   return (
-    <div className="fixed inset-0 overflow-hidden bg-[#0b0d1a]">
+    <div className="fixed inset-0 overflow-hidden bg-ink-950">
       <RoomCanvas
         layout={layout}
         onExit={() => {

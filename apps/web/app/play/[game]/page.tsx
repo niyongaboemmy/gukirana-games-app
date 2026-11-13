@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { RotateGuard } from "@/hud/RotateGuard";
 
-const Loading = () => <div className="fixed inset-0 grid place-items-center bg-[#0b0d1a] font-bold text-white">Setting up the table…</div>;
+const Loading = () => <div className="fixed inset-0 grid place-items-center bg-ink-950 font-bold text-white">Setting up the table…</div>;
 const GAMES = {
   pool: dynamic(() => import("@/games/PoolGame"), { ssr: false, loading: Loading }),
   ludo: dynamic(() => import("@/games/LudoGame"), { ssr: false, loading: Loading }),
@@ -16,7 +16,7 @@ export default function PlayPage() {
   const Game = GAMES[game as keyof typeof GAMES];
   if (!Game)
     return (
-      <div className="grid min-h-dvh place-items-center bg-[#0b0d1a] text-white">
+      <div className="grid min-h-dvh place-items-center bg-ink-950 text-white">
         <Link href="/world">Unknown game. Back to the Plaza</Link>
       </div>
     );
