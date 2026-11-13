@@ -5,6 +5,7 @@ import { AdaptiveDpr, PerformanceMonitor } from "@react-three/drei";
 import * as THREE from "three";
 import { Effects } from "@/world/Lighting";
 import { RoomScene } from "./RoomScene";
+import { QuickShell } from "./QuickShell";
 import { RoomPlayer } from "./RoomPlayer";
 import { RemotePlayers } from "@/world/Player";
 import type { HallLayout } from "./layouts";
@@ -47,8 +48,11 @@ export default function RoomCanvas({
         onFallback={() => setFx(false)}
       />
       <AdaptiveDpr pixelated={false} />
-      <Suspense fallback={null}>
+      {/* the room fills in when ready; the player (avatars are already cached) is never hidden behind it */}
+      <Suspense fallback={<QuickShell layout={layout} />}>
         <RoomScene layout={layout} lite={tier === "lite"} />
+      </Suspense>
+      <Suspense fallback={null}>
         <RoomPlayer layout={layout} onExit={onExit} tier={tier} />
         <RemotePlayers tier={tier} />
         {children}

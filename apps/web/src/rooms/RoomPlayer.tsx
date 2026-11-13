@@ -172,7 +172,13 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     let cx: number;
     let cy: number;
     let cz: number;
-    if (seat) {
+    if (intro.current > 0) {
+      // walk-in shot: a camera inside the hall watching you step through the door, then the normal follow
+      cx = layout.door.x + 2.6;
+      cy = 2.0;
+      cz = d / 2 - 5.2;
+      target.set(pos.current.x, 1.35, pos.current.z);
+    } else if (seat) {
       cx = pos.current.x - Math.sin(seat.yaw) * 2.2;
       cz = pos.current.z - Math.cos(seat.yaw) * 2.2;
       cy = 2.2;

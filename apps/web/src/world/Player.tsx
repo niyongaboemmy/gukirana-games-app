@@ -25,6 +25,7 @@ import { lookOf, useProfile } from "@/lib/profile-store";
 import { sendMove } from "@/lib/realtime";
 import { selfPose } from "@/lib/world-store";
 import { saveDoorPose, takeWorldPose } from "@/lib/return-point";
+import { preloadHall } from "@/rooms/preload";
 import { autoFollow, nav, pointerNav, steer, TargetMarker } from "./navigation";
 import { useVoice } from "@/voice/voice";
 
@@ -226,7 +227,9 @@ export function LocalPlayer({
     let nearPortal: (typeof PORTALS)[number]["id"] | null = null;
     for (const p of PORTALS) {
       const t = portalTransform(p);
-      if (Math.hypot(t.entryX - pos.current.x, t.entryZ - pos.current.z) >= INTERACT_RADIUS) continue;
+      const doorDist = Math.hypot(t.entryX - pos.current.x, t.entryZ - pos.current.z);
+      if (doorDist < 12 && (p.id === "pool" || p.id === "ludo" || p.id === "igisoro")) preloadHall(p.id); // warm the hall while walking up
+      if (doorDist >= INTERACT_RADIUS) continue;
       // no "Enter …" prompt while stepping out of a hall or when walking away from that door
       if (performance.now() < reentryAfter.current) continue;
       const towardX = t.entryX - pos.current.x;
