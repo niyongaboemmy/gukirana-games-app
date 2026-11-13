@@ -9,6 +9,8 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string().default("pglite://.data/pglite"),
   JWT_SECRET: z.string().min(16).default("dev-only-jwt-secret-change-me-please"),
   INTERNAL_SERVICE_TOKEN: z.string().min(12).default("dev-internal-service-token"),
+  /** back-office (apps/admin) → api: economy settings + reports. Header x-admin-token. */
+  ADMIN_SERVICE_TOKEN: z.string().min(12).default("dev-admin-service-token"),
   RESULT_SIGNING_SEED: z.string().regex(/^[0-9a-f]{64}$/i).optional(),
   API_INTERNAL_URL: z.string().default("http://127.0.0.1:4200"),
   VALKEY_URL: z.string().url().default("redis://localhost:6379"),
@@ -28,8 +30,8 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
   const env = parsed.data;
   if (env.NODE_ENV === "production") {
     // never run production with dev defaults (plan §4.1)
-    if (env.JWT_SECRET.startsWith("dev-") || env.INTERNAL_SERVICE_TOKEN.startsWith("dev-") || !env.RESULT_SIGNING_SEED) {
-      throw new Error("Production requires JWT_SECRET, INTERNAL_SERVICE_TOKEN and RESULT_SIGNING_SEED");
+    if (env.JWT_SECRET.startsWith("dev-") || env.INTERNAL_SERVICE_TOKEN.startsWith("dev-") || env.ADMIN_SERVICE_TOKEN.startsWith("dev-") || !env.RESULT_SIGNING_SEED) {
+      throw new Error("Production requires JWT_SECRET, INTERNAL_SERVICE_TOKEN, ADMIN_SERVICE_TOKEN and RESULT_SIGNING_SEED");
     }
   }
   return env;

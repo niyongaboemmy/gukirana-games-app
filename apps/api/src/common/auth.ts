@@ -50,6 +50,18 @@ export class AuthGuard implements CanActivate {
   }
 }
 
+/** Back-office calls (apps/admin → api): economy settings and reports. Constant-time token check. */
+@Injectable()
+export class AdminGuard implements CanActivate {
+  canActivate(ctx: ExecutionContext): boolean {
+    const req = ctx.switchToHttp().getRequest<Req>();
+    const given = Buffer.from(String(req.headers["x-admin-token"] ?? ""));
+    const expected = Buffer.from(env().ADMIN_SERVICE_TOKEN);
+    if (given.length !== expected.length || !timingSafeEqual(given, expected)) throw new UnauthorizedException();
+    return true;
+  }
+}
+
 /** Service-to-service calls (realtime → api). */
 @Injectable()
 export class InternalGuard implements CanActivate {

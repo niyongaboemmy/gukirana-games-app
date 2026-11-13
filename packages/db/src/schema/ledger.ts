@@ -1,4 +1,4 @@
-import { bigint, bigserial, boolean, char, pgEnum, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { bigint, bigserial, boolean, char, integer, pgEnum, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 /**
  * Double-entry, append-only ledger (SRS §6, plan Appendix A.1).
@@ -47,6 +47,8 @@ export const journalEntries = pgTable("journal_entries", {
   refType: text("ref_type"),
   refId: uuid("ref_id"),
   createdBy: text("created_by").notNull(),
+  /** economy_settings.version in effect when this entry was posted (fees / rates used) */
+  economyVersion: integer("economy_version"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

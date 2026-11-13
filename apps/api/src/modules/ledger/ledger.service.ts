@@ -16,6 +16,8 @@ export interface PostEntry {
   ref?: { type: string; id: string };
   createdBy: string;
   lines: PostLine[];
+  /** economy settings version in effect (fees / rates used) — recorded for audit */
+  economyVersion?: number;
 }
 
 export class InsufficientFunds extends ConflictException {
@@ -80,7 +82,7 @@ export class LedgerService {
       }
 
       const entryId = newId();
-      await tx.insert(journalEntries).values({ id: entryId, type: cmd.type, idempotencyKey: cmd.idempotencyKey, refType: cmd.ref?.type, refId: cmd.ref?.id, createdBy: cmd.createdBy });
+      await tx.insert(journalEntries).values({ id: entryId, type: cmd.type, idempotencyKey: cmd.idempotencyKey, refType: cmd.ref?.type, refId: cmd.ref?.id, createdBy: cmd.createdBy, economyVersion: cmd.economyVersion ?? null });
       await tx.insert(journalLines).values(cmd.lines.map((l) => ({ entryId, accountId: ids.get(accKey(l.account))!.id, amount: l.amount, direction: l.direction })));
       for (const s of sorted) {
         await tx.update(accountBalances).set({ balance: balances.get(s.id)!.balance }).where(eq(accountBalances.accountId, s.id));
