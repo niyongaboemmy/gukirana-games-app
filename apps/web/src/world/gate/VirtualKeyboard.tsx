@@ -50,7 +50,7 @@ export function VirtualKeyboard({ mode, onKey, width = 0.8, accent = "#3DA9FC" }
   const draw = () => {
     const g = canvas.getContext("2d");
     if (!g) return;
-    g.fillStyle = "#0f1222";
+    g.fillStyle = "#121314";
     g.fillRect(0, 0, W, H);
     rows.forEach((row, ri) => {
       const rowW = row.reduce((s, x) => s + x.w, 0) * keyPx;
@@ -58,7 +58,7 @@ export function VirtualKeyboard({ mode, onKey, width = 0.8, accent = "#3DA9FC" }
       for (const key of row) {
         const w = key.w * keyPx;
         const on = pressed.current === key.k;
-        g.fillStyle = on ? accent : key.k === "OK" ? "#2F80ED" : key.k === "DEL" ? "#3a3f5c" : "#22266E";
+        g.fillStyle = on ? accent : key.k === "OK" ? "#2F80ED" : key.k === "DEL" ? "#2F3136" : "#1E1F23";
         g.beginPath();
         g.roundRect(x + 6, ri * rowPx + 6, w - 12, rowPx - 12, 18);
         g.fill();
