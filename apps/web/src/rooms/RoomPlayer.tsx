@@ -15,6 +15,7 @@ import type { HallLayout } from "./layouts";
 
 const SIT_ANIM = 13;
 const SEAT_RANGE = 1.5;
+const INTRO_S = 1.9;
 const keys = new Set<string>();
 
 /**
@@ -26,10 +27,21 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   const anim = useRef(0);
   // back from a game → same spot / same chair; otherwise appear in the open doorway and walk in automatically
   const back = useRef(typeof window !== "undefined" ? takeReturnFor(`/room/${layout.game}`) : null);
-  const pos = useRef(back.current ? new THREE.Vector3(back.current.x, 0, back.current.z) : new THREE.Vector3(layout.door.x, 0, layout.size.d / 2 - 0.2));
+  // just inside the open doors, facing into the hall (−z), with the follow camera already behind you
+  const pos = useRef(back.current ? new THREE.Vector3(back.current.x, 0, back.current.z) : new THREE.Vector3(layout.door.x, 0, layout.size.d / 2 - 1.0));
   const insideOnce = useRef(!!back.current);
   /** scripted entry: a few natural steps into the hall (any input takes over immediately) */
-  const intro = useRef(back.current ? 0 : 1.9);
+  const intro = useRef(back.current ? 0 : INTRO_S);
+  /** the camera snaps (no easing) until the doors have opened, so the first visible frame is already the final pose */
+  const snapped = useRef(false);
+  const camInit = useRef(false);
+  if (!camInit.current) {
+    // before the very first rendered frame: behind the player, looking into the hall (no 180° whip-pan on arrival)
+    camInit.current = true;
+    cameraState.yaw = 0;
+    cameraState.pitch = 0.2;
+    cameraState.distance = 5.8;
+  }
   const facing = useRef(back.current?.yaw ?? Math.PI); // facing into the room (−z)
   const exited = useRef(false);
   const leaveStart = useRef(0);
@@ -212,11 +224,14 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     let cy: number;
     let cz: number;
     if (intro.current > 0) {
-      // walk-in shot: a camera inside the hall watching you step through the door, then the normal follow
-      cx = layout.door.x + 2.6;
-      cy = 2.0;
-      cz = d / 2 - 5.2;
-      target.set(pos.current.x, 1.35, pos.current.z);
+      // walk-in shot: the normal follow camera (behind you, held inside the doorway) looking into the hall; the
+      // view settles from the hall ahead onto your shoulders as you step in, ending exactly on the follow pose
+      const dd = cameraState.distance;
+      cx = pos.current.x + Math.sin(cameraState.yaw) * Math.cos(cameraState.pitch) * dd;
+      cz = pos.current.z + Math.cos(cameraState.yaw) * Math.cos(cameraState.pitch) * dd;
+      cy = 1.6 + Math.sin(cameraState.pitch) * dd;
+      const k = THREE.MathUtils.smoothstep(1 - intro.current / INTRO_S, 0, 1);
+      target.set(pos.current.x, THREE.MathUtils.lerp(1.2, 1.55, k), pos.current.z - (1 - k) * 3.4);
     } else if (seat) {
       cx = pos.current.x - Math.sin(seat.yaw) * 2.2;
       cz = pos.current.z - Math.cos(seat.yaw) * 2.2;
@@ -279,7 +294,10 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     cx = THREE.MathUtils.clamp(cx, -w / 2 + 0.3, w / 2 - 0.3);
     cz = THREE.MathUtils.clamp(cz, -d / 2 + 0.3, d / 2 - 0.35); // camera always inside the hall
     cy = Math.min(cy, layout.size.h - 0.3);
-    camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * 6));
+    const doorsShut = useDoorway.getState().phase === "closed";
+    if (!snapped.current || doorsShut) camera.position.set(cx, cy, cz);
+    else camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * 6));
+    snapped.current = !doorsShut;
     camera.lookAt(target);
 
     // nearest free chair / nearest signed-in player
@@ -305,7 +323,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       }
     }
     if (nearSeat !== R.nearSeat) R.set({ nearSeat });
-    const nearExit = !seat && pos.current.z > d / 2 - 3 && Math.abs(pos.current.x - layout.door.x) < 2.2 && insideOnce.current;
+    const nearExit = !seat && intro.current <= 0 && pos.current.z > d / 2 - 3 && Math.abs(pos.current.x - layout.door.x) < 2.2 && insideOnce.current;
     if (nearExit !== R.nearExit) R.set({ nearExit });
     if (nearPlayer !== W.nearPlayer) W.set({ nearPlayer });
 

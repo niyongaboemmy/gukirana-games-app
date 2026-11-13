@@ -8,6 +8,7 @@ import { useRoom } from "./room-store";
 import type { HallLayout } from "./layouts";
 import { GltfInstances, Instanced, model, type Xform } from "./interior-kit";
 import { uiAudio } from "@/lib/audio";
+import { PlazaGlimpse } from "./PlazaGlimpse";
 
 const FONT = "/fonts/Baloo2.ttf";
 /** The doors start sliding at ~4.2 m and are fully open by ~2 m, so you can walk straight in without stopping. */
@@ -252,17 +253,17 @@ export function SouthWall({ layout, children }: { layout: HallLayout; children: 
 
 /* ---------------- what you glimpse through the glass doors ---------------- */
 
-/** Plaza paving and greenery right outside the entrance (seen only through the glass; no porch to walk on). */
-export function DoorGlimpse({ layout }: { layout: HallLayout }) {
+/**
+ * Right outside the entrance (seen only through the glass; no porch to walk on): the plaza itself at its true bearing
+ * (paving, fountain + Agaseke, ring planters, the arena drum and the neighbouring halls; PlazaGlimpse) and a pair of
+ * potted plants flanking the door.
+ */
+export function DoorGlimpse({ layout, lite = false }: { layout: HallLayout; lite?: boolean }) {
   const { d } = layout.size;
   const z0 = d / 2 + 0.3;
   return (
     <group>
-      <mesh position={[layout.door.x, -0.01, z0 + 12]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[40, 24]} />
-        {/* same tone as the plaza paving outside, no separate dark strip */}
-        <meshStandardMaterial color="#a8a299" roughness={0.95} />
-      </mesh>
+      <PlazaGlimpse layout={layout} lite={lite} />
       <GltfInstances
         url={model("potted_plant_02")}
         items={[

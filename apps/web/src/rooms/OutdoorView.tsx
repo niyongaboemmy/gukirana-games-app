@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { Landscape } from "@/world/Landscape";
 import { FOG_COLOR, SUN_DIR } from "@/world/Lighting";
 import { DOOR_RING, PORTALS, ringPoint } from "@/world/layout";
+import { LAWN_BEDS } from "@/world/beds";
 import type { HallLayout } from "./layouts";
 
 /**
@@ -131,6 +132,19 @@ export function OutdoorView({
             <circleGeometry args={[95, 48]} />
             <meshStandardMaterial color="#6f9a4f" roughness={1} />
           </mesh>
+          {/* the lawn beds seen through the windows stand on a raked-gravel apron with a steel edge, not bare lawn */}
+          {LAWN_BEDS.map((b, i) => (
+            <group key={i} position={[b.x, 0, b.z]} rotation={[0, b.rot, 0]}>
+              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]}>
+                <planeGeometry args={[b.hw * 2 + 2.4, b.hd * 2 + 2.4]} />
+                <meshStandardMaterial color="#5c5750" roughness={1} />
+              </mesh>
+              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+                <planeGeometry args={[b.hw * 2 + 2.2, b.hd * 2 + 2.2]} />
+                <meshStandardMaterial color="#b8b0a2" roughness={1} />
+              </mesh>
+            </group>
+          ))}
         </group>
       </group>
     </>,

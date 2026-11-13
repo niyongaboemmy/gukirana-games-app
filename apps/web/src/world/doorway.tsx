@@ -22,8 +22,9 @@ type DoorwayState = {
   ready: () => void;
 };
 
-const CLOSE_MS = 560;
-const OPEN_MS = 760;
+// a warm passage (scene already cached) takes < 1 s door-to-door: 350 ms close, a few frames to settle, 450 ms open
+const CLOSE_MS = 350;
+const OPEN_MS = 450;
 const MAX_CLOSED_MS = 9000; // never trap anyone behind closed doors if a scene is slow or fails
 
 let openTimer: ReturnType<typeof setTimeout> | undefined;
@@ -57,16 +58,24 @@ export const useDoorway = create<DoorwayState>()((set, get) => ({
   },
 }));
 
+// dev-only hook for automated walk-through tests (like window.__gkNav)
+if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") (window as unknown as { __gkDoorway: typeof useDoorway }).__gkDoorway = useDoorway;
+
 let frames = 0;
 
-/** Put inside the destination's main <Suspense>: opens the doors once the scene has rendered a few real frames. */
+/**
+ * Put inside the destination's main <Suspense>: opens the doors once the scene has rendered real frames AND a frame
+ * has settled (rendered on time, i.e. shader compiles / texture uploads are done), so the doors never open onto a
+ * hitch or a camera still easing into place. A slow device still opens after ~40 frames.
+ */
 export function SceneReady() {
   useEffect(() => {
     frames = 0;
   }, []);
-  useFrame(() => {
+  useFrame((_, dt) => {
     frames++;
-    if (frames === 4) useDoorway.getState().ready();
+    if (frames < 3 || frames > 41) return;
+    if (dt < 1 / 24 || frames === 41) useDoorway.getState().ready();
   });
   return null;
 }
@@ -144,7 +153,7 @@ export function DoorTransition() {
           transition:
             phase === "opening"
               ? `transform ${OPEN_MS}ms cubic-bezier(.4,0,.2,1), opacity ${OPEN_MS * 0.5}ms ease-in ${OPEN_MS * 0.5}ms`
-              : `transform 1400ms ease-out`,
+              : `transform ${CLOSE_MS * 2.5}ms ease-out`,
         }}
       >
         {/* door leaves */}
