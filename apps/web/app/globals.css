@@ -411,3 +411,75 @@ body {
 @keyframes gk-frame-push { from { transform: scale(1); filter: blur(0); } to { transform: scale(1.06); filter: blur(1.6px); } }
 .gk-frame-push { animation: gk-frame-push 3.2s cubic-bezier(.2,.6,.3,1) both; transform-origin: 50% 55%; }
 @media (prefers-reduced-motion: reduce) { .gk-frame-push { animation: none; } }
+
+/* ---------- game-controller action buttons (hud/WorldHud.tsx RoundButton) ---------- */
+@layer components {
+  /* top-lit glass dome inside a thin outer ring, with an inner bevel: reads as a physical controller button */
+  .game-btn {
+    border: 1px solid rgb(255 255 255 / 0.14);
+    background:
+      radial-gradient(120% 90% at 50% 12%, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0.03) 46%, rgb(0 0 0 / 0) 60%),
+      radial-gradient(circle at 50% 100%, rgb(0 0 0 / 0.35), rgb(0 0 0 / 0) 55%),
+      rgb(24 25 28 / 0.88);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.16),
+      inset 0 -2px 0 rgb(0 0 0 / 0.35),
+      inset 0 0 0 4px rgb(255 255 255 / 0.025),
+      0 0 0 3px rgb(10 11 12 / 0.35),
+      0 10px 24px -8px rgb(0 0 0 / 0.65);
+    transition: transform 120ms ease-out, box-shadow 160ms ease-out, border-color 160ms ease-out, background 160ms ease-out;
+  }
+  .game-btn-icon {
+    filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.55));
+    transition: transform 120ms ease-out;
+  }
+  @media (hover: hover) {
+    .game-btn:hover:not(:disabled) {
+      border-color: rgb(255 255 255 / 0.24);
+    }
+  }
+  /* press: the cap sinks, the bevel inverts, a quick ring flash */
+  .game-btn:active:not(:disabled) {
+    transform: scale(0.94);
+    box-shadow:
+      inset 0 2px 6px rgb(0 0 0 / 0.55),
+      inset 0 -1px 0 rgb(255 255 255 / 0.06),
+      0 0 0 3px rgb(96 165 250 / 0.28),
+      0 4px 12px -6px rgb(0 0 0 / 0.6);
+  }
+  .game-btn:active:not(:disabled) .game-btn-icon {
+    transform: translateY(1px);
+  }
+  /* main action: larger, an accent ring that lights up when there is something to do */
+  .game-btn-main {
+    border-width: 1.5px;
+  }
+  .game-btn-main.controller-active {
+    border-color: rgb(96 165 250 / 0.9);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.18),
+      inset 0 -2px 0 rgb(0 0 0 / 0.35),
+      0 0 0 3px rgb(59 130 246 / 0.25),
+      0 0 22px -2px rgb(59 130 246 / 0.6),
+      0 10px 24px -8px rgb(0 0 0 / 0.65);
+    animation: game-btn-ready 2.4s ease-in-out infinite;
+  }
+  .game-btn-action {
+    color: #f2f3f5;
+    background: rgb(37 99 235 / 0.92);
+    box-shadow: 0 0 0 1px rgb(147 197 253 / 0.45), 0 4px 12px -4px rgb(37 99 235 / 0.8);
+    animation: game-btn-action-in 180ms ease-out both;
+  }
+  @keyframes game-btn-ready {
+    0%, 100% { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18), inset 0 -2px 0 rgb(0 0 0 / 0.35), 0 0 0 3px rgb(59 130 246 / 0.25), 0 0 18px -4px rgb(59 130 246 / 0.5), 0 10px 24px -8px rgb(0 0 0 / 0.65); }
+    50% { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18), inset 0 -2px 0 rgb(0 0 0 / 0.35), 0 0 0 4px rgb(59 130 246 / 0.32), 0 0 26px 0 rgb(59 130 246 / 0.7), 0 10px 24px -8px rgb(0 0 0 / 0.65); }
+  }
+  @keyframes game-btn-action-in {
+    from { opacity: 0; transform: translate(-50%, 4px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .game-btn-main.controller-active, .game-btn-action { animation: none; }
+    .game-btn:active:not(:disabled) { transform: none; }
+  }
+}

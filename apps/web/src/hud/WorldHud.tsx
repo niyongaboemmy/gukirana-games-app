@@ -26,20 +26,28 @@ import { openQuickMatch, usePhoneHud } from "./usePhoneHud";
 import { useGlassTier } from "@/ui/glass";
 
 
-function RoundButton({ icon: Icon, label, onPress, onRelease, big, active, badge, hint, disabled, compact }: { icon: LucideIcon; label: string; onPress?: () => void; onRelease?: () => void; big?: boolean; active?: boolean; badge?: number; hint?: number; disabled?: boolean; compact?: boolean }) {
+/**
+ * Game-controller action button: thin outer ring, top-lit glass dome, inner bevel, raised icon; sinks on press.
+ * `keycap` shows the keyboard key on desktop; `action` (main button only) shows the current context action above it.
+ */
+function RoundButton({ icon: Icon, label, onPress, onRelease, big, active, badge, hint, disabled, compact, keycap, action }: { icon: LucideIcon; label: string; onPress?: () => void; onRelease?: () => void; big?: boolean; active?: boolean; badge?: number; hint?: number; disabled?: boolean; compact?: boolean; keycap?: string; action?: string | null }) {
   // compact = phone landscape: 48 px buttons (52 px for the main action), smaller icons
   const size = compact ? (big ? "size-[52px]" : "size-12") : big ? "size-[72px]" : "size-16";
   return (
     <button
       type="button"
-      aria-label={badge ? `${label} (${badge} unread)` : hint ? `${label} (${hint} nearby)` : label}
+      aria-label={badge ? `${label} (${badge} unread)` : hint ? `${label} (${hint} nearby)` : action ? `${label}: ${action}` : label}
       disabled={disabled}
       onPointerDown={onPress}
       onPointerUp={onRelease}
       onPointerLeave={onRelease}
-      className={`icon-button controller pointer-events-auto relative disabled:opacity-50 ${size} touch-none select-none rounded-full ${active ? "controller-active" : ""}`}
+      className={`icon-button controller game-btn pointer-events-auto relative disabled:opacity-50 ${size} touch-none select-none rounded-full ${big ? "game-btn-main" : ""} ${active ? "controller-active" : ""}`}
     >
-      <Icon size={compact ? (big ? 24 : 21) : big ? 30 : 26} strokeWidth={1.85} absoluteStrokeWidth />
+      <Icon size={compact ? (big ? 24 : 21) : big ? 30 : 26} strokeWidth={1.85} absoluteStrokeWidth className="game-btn-icon" />
+      {big && action && (
+        <span className="game-btn-action label pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[10px] phone:-top-6 phone:text-[9px]">{action}</span>
+      )}
+      {keycap && <span className="kbd pointer-events-none absolute -bottom-1.5 left-1/2 -translate-x-1/2 px-1 text-[9px] leading-[14px] phone:hidden">{keycap}</span>}
       {badge ? (
         <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-[11px] font-black leading-5 shadow-sm ring-2 ring-ink-900/40">{badge}</span>
       ) : hint ? (
@@ -83,6 +91,8 @@ export function WorldHud() {
   }, []);
 
   // E / the big button: door → bench place (stand up when seated) → the person in front of you (person menu)
+  // the context action the main button will perform (shown above it, like a game's action prompt)
+  const actionLabel = portal?.href ? "Enter" : seatedOnBench ? "Stand" : benchSeat ? "Sit" : other ? "Talk" : null;
   const interact = () => {
     if (portal?.href) {
       const href = portal.href;
@@ -267,23 +277,23 @@ export function WorldHud() {
             )}
             <RoundButton compact icon={quickWaiting ? Loader2 : Ellipsis} label="More actions" active={more} onPress={() => setMore((v) => !v)} />
           </div>
-          <RoundButton compact icon={portal ? DoorOpen : benchSeat || seatedOnBench ? Armchair : Hand} label="Interact" big active={!!(portal || other || benchSeat || seatedOnBench)} onPress={interact} />
+          <RoundButton compact icon={portal ? DoorOpen : benchSeat || seatedOnBench ? Armchair : Hand} label="Interact" big action={actionLabel} active={!!(portal || other || benchSeat || seatedOnBench)} onPress={interact} />
         </div>
       ) : (
       <div className="absolute bottom-[max(14px,env(safe-area-inset-bottom))] right-[max(14px,env(safe-area-inset-right))] flex items-end gap-3">
         <div className="flex flex-col gap-3">
-          <RoundButton icon={MessageCircle} label="Chat" badge={unread} active={chatOpen} onPress={() => setChatOpen((v) => !v)} />
+          <RoundButton icon={MessageCircle} label="Chat" badge={unread} active={chatOpen} keycap="T" onPress={() => setChatOpen((v) => !v)} />
         </div>
-        <RoundButton icon={Zap} label="Run" onPress={() => setRun(true)} onRelease={() => setRun(false)} />
+        <RoundButton icon={Zap} label="Run" keycap="Shift" onPress={() => setRun(true)} onRelease={() => setRun(false)} />
         <div className="relative">
           {emotesOpen && (
             <div className="absolute bottom-20 left-1/2 -translate-x-1/2">
               <EmotePicker onPick={() => setEmotesOpen(false)} />
             </div>
           )}
-          <RoundButton icon={Smile} label="Emote" onPress={() => setEmotesOpen((v) => !v)} />
+          <RoundButton icon={Smile} label="Emote" keycap="G" active={emotesOpen} onPress={() => setEmotesOpen((v) => !v)} />
         </div>
-        <RoundButton icon={portal ? DoorOpen : benchSeat || seatedOnBench ? Armchair : Hand} label="Interact" big active={!!(portal || other || benchSeat || seatedOnBench)} onPress={interact} />
+        <RoundButton icon={portal ? DoorOpen : benchSeat || seatedOnBench ? Armchair : Hand} label="Interact" big keycap="E" action={actionLabel} active={!!(portal || other || benchSeat || seatedOnBench)} onPress={interact} />
       </div>
       )}
 
