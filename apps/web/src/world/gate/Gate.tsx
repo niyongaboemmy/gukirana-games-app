@@ -44,8 +44,8 @@ export function buildGate(tier: Tier, Z: number = GATE_Z, variant: "arrival" | "
   // canopy: white slab, timber soffit battens, LED edges
   b.box("white", 19, 0.45, 8.4, { p: [0, 5.6, Z] });
   for (let x = -9.2; x <= 9.2; x += 0.46) b.box("wood", 0.1, 0.14, 8.0, { p: [x, 5.31, Z], tile: 1 });
-  b.box("led-sky", 19.04, 0.1, 0.06, { p: [0, 5.42, Z + 4.22] });
-  b.box("led-gold", 19.04, 0.1, 0.06, { p: [0, 5.42, Z - 4.22] });
+  b.box("led-warm", 19.04, 0.02, 0.03, { p: [0, 5.4, Z + 4.22] }); // slim 2 cm warm-white strip (daytime)
+  b.box("led-warm", 19.04, 0.02, 0.03, { p: [0, 5.4, Z - 4.22] });
   // basalt pylons with Imigongo inlays
   for (const s of [-1, 1]) {
     b.box("lava", 1.6, 5.4, 2.4, { p: [s * 8.6, 2.7, Z], tile: 1.2 });
@@ -73,8 +73,8 @@ export function buildGate(tier: Tier, Z: number = GATE_Z, variant: "arrival" | "
   // guard booth
   b.frame([6.4, 0, Z + 1.6], 0, () => {
     b.box("lava", 2.8, 0.5, 2.6, { p: [0, 0.25, 0], tile: 1.2 });
-    b.box("glassCool", 2.6, 2.3, 0.08, { p: [0, 1.65, 1.25], tile: 3 });
-    for (const s of [-1, 1]) b.box("glassCool", 0.08, 2.3, 2.5, { p: [s * 1.3, 1.65, 0], tile: 3 });
+    b.box("glassCool", 2.6, 2.3, 0.08, { p: [0, 1.65, 1.25], tile: 6 });
+    for (const s of [-1, 1]) b.box("glassCool", 0.08, 2.3, 2.5, { p: [s * 1.3, 1.65, 0], tile: 6 });
     b.box("wood", 2.6, 2.3, 0.08, { p: [0, 1.65, -1.25], tile: 1 });
     b.box("wood", 3.4, 0.25, 3.2, { p: [0, 2.92, 0], tile: 1 });
     b.box("white", 2.0, 0.9, 0.5, { p: [0, 0.95, 0.6] });
@@ -92,7 +92,7 @@ export function buildGate(tier: Tier, Z: number = GATE_Z, variant: "arrival" | "
     b.box("woodDark", 2.4, 0.45, 0.45, { p: [0, 0.23, 1.0], tile: 1 });
     b.box("wood", 6.4, 0.25, 3.0, { p: [0, 3.0, 0.8], tile: 1 });
     for (const s of [-1, 1]) b.box("steel", 0.12, 3.0, 0.12, { p: [s * 3.0, 1.5, 2.1] });
-    b.box("led-gold", 6.42, 0.06, 0.06, { p: [0, 2.9, 2.32] });
+    b.box("led-gold", 6.42, 0.025, 0.03, { p: [0, 2.9, 2.32] });
   });
   // planters with hedges along the forecourt
   for (const x of [-13, -10.5, 10.5, 13]) {
@@ -228,7 +228,7 @@ function WelcomeScreen({ tier }: { tier: Tier }) {
       <group position={[WARDROBE.x, 0, WARDROBE.z]} rotation={[0, -Math.PI / 2, 0]}>
         <Text font={FONT} fontSize={0.32} position={[0, 3.0, 2.34]} anchorX="center" anchorY="middle" letterSpacing={0.08}>
           WARDROBE
-          <meshBasicMaterial color={new THREE.Color(GAME_COLORS.gold).multiplyScalar(1.5)} toneMapped={false} />
+          <meshBasicMaterial color={new THREE.Color(GAME_COLORS.gold).multiplyScalar(1.1)} toneMapped={false} />
         </Text>
       </group>
     </group>

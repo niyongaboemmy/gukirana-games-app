@@ -150,6 +150,8 @@ function cameraBlocked(x: number, y: number, z: number, list: Obstacle[]): boole
   for (const o of list) {
     if (y > (o.h ?? 1) + 0.25) continue;
     if (o.kind === "circle") {
+      // thin poles (lamp posts) never pull the camera in: they only hide a sliver of the view for a moment
+      if (o.r < 0.3) continue;
       if (Math.hypot(x - o.x, z - o.z) < o.r + 0.3) return true;
     } else {
       const c = Math.cos(o.rot);

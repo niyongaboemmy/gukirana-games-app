@@ -122,63 +122,160 @@ export function imigongoDiamondTexture(dark = "#1B1B1B", accent = "#B5532A", bas
   });
 }
 
-/** Black volcanic lava-rock wall (typical of Musanze): irregular basalt stones with light mortar. 1 UV unit ≈ 1.2 m. */
+/**
+ * Musanze lava-rock rubble (P1-WLD-03): irregular basalt stones (tileable jittered Voronoi, no coursed rows), each
+ * stone grey-brown with a warm/cool jitter and vesicles, set in narrow recessed dark joints. Doubles as the bump map
+ * (joints are the low points). 1 UV unit ≈ 1.2 m.
+ */
 export function lavaStoneTexture(): THREE.CanvasTexture {
   return cached("lava", () => {
-    const { c, g } = canvas(512, 512);
+    const S = 512;
+    const { c, g } = canvas(S, S);
     const r = rng(11);
-    g.fillStyle = "#8b8a86";
-    g.fillRect(0, 0, 512, 512);
-    let y = 0;
-    while (y < 512) {
-      const rowH = 34 + r() * 26;
-      let x = -r() * 40;
-      while (x < 512) {
-        const w = 40 + r() * 60;
-        const shade = 26 + r() * 30;
-        g.fillStyle = `rgb(${shade},${shade - 2},${shade - 4})`;
-        g.beginPath();
-        const inset = 3;
-        g.moveTo(x + inset + r() * 6, y + inset);
-        g.lineTo(x + w - inset - r() * 6, y + inset + r() * 4);
-        g.lineTo(x + w - inset, y + rowH - inset - r() * 6);
-        g.lineTo(x + inset + r() * 4, y + rowH - inset);
-        g.closePath();
-        g.fill();
-        // vesicles (gas bubbles) typical of basalt
-        for (let k = 0; k < 6; k++) {
-          g.fillStyle = `rgba(0,0,0,${0.25 + r() * 0.3})`;
-          g.beginPath();
-          g.arc(x + 8 + r() * (w - 16), y + 8 + r() * (rowH - 16), 1 + r() * 2.4, 0, Math.PI * 2);
-          g.fill();
+    const G = 6; // ~6 stones per 1.2 m row → 15–30 cm stones
+    const cell = S / G;
+    const pts: { x: number; y: number; v: number; warm: number }[] = [];
+    for (let j = 0; j < G; j++)
+      for (let i = 0; i < G; i++) pts.push({ x: (i + 0.15 + r() * 0.7) * cell, y: (j + 0.15 + r() * 0.7) * cell, v: 60 + r() * 40, warm: (r() - 0.5) * 14 });
+    const img = g.createImageData(S, S);
+    const d = img.data;
+    for (let y = 0; y < S; y++)
+      for (let x = 0; x < S; x++) {
+        const ci = Math.floor(x / cell);
+        const cj = Math.floor(y / cell);
+        let d1 = 1e9;
+        let d2 = 1e9;
+        let best = 0;
+        for (let dj = -1; dj <= 1; dj++)
+          for (let di = -1; di <= 1; di++) {
+            const ii = (ci + di + G) % G;
+            const jj = (cj + dj + G) % G;
+            const p = pts[jj * G + ii]!;
+            const px = p.x + (ci + di - ii) * cell;
+            const py = p.y + (cj + dj - jj) * cell;
+            const dd = (x - px) * (x - px) + (y - py) * (y - py);
+            if (dd < d1) {
+              d2 = d1;
+              d1 = dd;
+              best = jj * G + ii;
+            } else if (dd < d2) d2 = dd;
+          }
+        const edge = Math.sqrt(d2) - Math.sqrt(d1); // ≈ 2 × distance to the joint
+        const p = pts[best]!;
+        const o = (y * S + x) * 4;
+        if (edge < 5) {
+          // recessed joint #2e2d2a
+          d[o] = 46;
+          d[o + 1] = 45;
+          d[o + 2] = 42;
+        } else {
+          // rounded stone edge: darker near the joint, slight surface noise
+          const k = Math.min(1, (edge - 5) / 18);
+          const n = (r() - 0.5) * 10;
+          const v = p.v * (0.72 + 0.28 * k) + n;
+          d[o] = v + p.warm * 0.6;
+          d[o + 1] = v - 1;
+          d[o + 2] = v - p.warm * 0.6 - 3;
         }
-        x += w;
+        d[o + 3] = 255;
       }
-      y += rowH;
+    g.putImageData(img, 0, 0);
+    // vesicles (gas bubbles) typical of basalt
+    for (let k = 0; k < 900; k++) {
+      g.fillStyle = `rgba(20,19,18,${0.35 + r() * 0.35})`;
+      g.beginPath();
+      g.arc(r() * S, r() * S, 0.8 + r() * 2.2, 0, Math.PI * 2);
+      g.fill();
     }
-    speckle(g, 512, 512, r, 2500, 0.08);
+    speckle(g, S, S, r, 2500, 0.07);
     return finish("lava", c);
   });
 }
 
-/** Large-format plaza paving: honed light stone slabs with darker basalt bands. 1 UV unit = 4 m. */
+/**
+ * Plaza paving (P1-WLD-03): honed granite slabs 0.6 × 1.2 m in stretcher bond with only ±4 % tone variance (no
+ * checkerboard), fine grain and slightly worn arrises. Large-scale grime / wear comes from `pavingWearTexture`.
+ * 1 UV unit = 4.8 m (4 slabs across, 8 courses).
+ */
 export function pavingTexture(): THREE.CanvasTexture {
   return cached("paving", () => {
-    const { c, g } = canvas(512, 512);
+    const S = 512;
+    const { c, g } = canvas(S, S);
     const r = rng(5);
-    g.fillStyle = "#9c968c";
-    g.fillRect(0, 0, 512, 512);
-    const n = 4;
-    const s = 512 / n;
-    for (let y = 0; y < n; y++)
-      for (let x = 0; x < n; x++) {
-        const v = 176 + r() * 26;
-        g.fillStyle = `rgb(${v},${v - 6},${v - 16})`;
-        g.fillRect(x * s + 1, y * s + 1, s - 2, s - 2);
+    g.fillStyle = "#8e8981"; // joint
+    g.fillRect(0, 0, S, S);
+    const w = S / 4;
+    const h = S / 8;
+    for (let row = 0; row < 8; row++) {
+      const off = row % 2 ? w / 2 : 0;
+      for (let k = -1; k < 5; k++) {
+        const v = 196 * (1 + (r() - 0.5) * 0.08);
+        g.fillStyle = `rgb(${v},${v - 5},${v - 12})`;
+        g.fillRect(k * w + off + 1, row * h + 1, w - 2, h - 2);
       }
-    speckle(g, 512, 512, r, 6000, 0.12, false);
-    speckle(g, 512, 512, r, 3000, 0.1);
+    }
+    speckle(g, S, S, r, 9000, 0.09, false);
+    speckle(g, S, S, r, 5000, 0.07);
+    // a few darker mineral flecks
+    for (let i = 0; i < 1400; i++) {
+      g.fillStyle = `rgba(40,38,36,${0.15 + r() * 0.2})`;
+      g.fillRect(r() * S, r() * S, 1, 1);
+    }
     return finish("paving", c);
+  });
+}
+
+/**
+ * Low-frequency grime and foot-traffic wear over the whole plaza (one texture across ±33 m, sampled in world space):
+ * soft blotches at 8–16 m, darker worn lines from the entrance to the fountain and on to every door, and scuffed
+ * rings around the benches. Grey = 1.0 (neutral) at 50 % … darker below.
+ */
+export function pavingWearTexture(paths: { x: number; z: number }[][], spots: { x: number; z: number; r: number }[]): THREE.CanvasTexture {
+  return cached("paving-wear", () => {
+    const S = 256;
+    const half = 33;
+    const { c, g } = canvas(S, S);
+    const r = rng(17);
+    const px = (x: number) => ((x + half) / (half * 2)) * S;
+    g.fillStyle = "rgb(250,250,250)";
+    g.fillRect(0, 0, S, S);
+    // soft grime blotches (8–16 m)
+    for (let i = 0; i < 70; i++) {
+      const x = r() * S;
+      const y = r() * S;
+      const rad = ((4 + r() * 8) / (half * 2)) * S;
+      const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+      gr.addColorStop(0, `rgba(60,55,45,${0.05 + r() * 0.07})`);
+      gr.addColorStop(1, "rgba(60,55,45,0)");
+      g.fillStyle = gr;
+      g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    }
+    // worn walking lines (soft, ~1.6 m wide)
+    g.lineCap = "round";
+    g.lineJoin = "round";
+    for (const [w, a] of [
+      [((2.2 / (half * 2)) * S), 0.07],
+      [((1.0 / (half * 2)) * S), 0.07],
+    ] as const) {
+      g.strokeStyle = `rgba(70,62,50,${a})`;
+      g.lineWidth = w;
+      for (const p of paths) {
+        g.beginPath();
+        p.forEach((q, i) => (i ? g.lineTo(px(q.x), px(q.z)) : g.moveTo(px(q.x), px(q.z))));
+        g.stroke();
+      }
+    }
+    for (const s of spots) {
+      const rad = (s.r / (half * 2)) * S;
+      const gr = g.createRadialGradient(px(s.x), px(s.z), 0, px(s.x), px(s.z), rad);
+      gr.addColorStop(0, "rgba(70,62,50,0.13)");
+      gr.addColorStop(1, "rgba(70,62,50,0)");
+      g.fillStyle = gr;
+      g.fillRect(px(s.x) - rad, px(s.z) - rad, rad * 2, rad * 2);
+    }
+    const t = finish("paving-wear", c, { aniso: 1, srgb: false });
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    return t;
   });
 }
 
@@ -250,48 +347,52 @@ export function brickTexture(): THREE.CanvasTexture {
 }
 
 /**
- * Curtain wall: mullion grid + interior seen through glass. Lit panes (warm) are encoded in an emissive map so the
- * building glows at dusk without any real lights. 1 UV unit = one 1.5 m bay.
+ * Curtain wall (P1-WLD-03): neutral dark glazing (#1f2b33, reflections come from the sky environment, no baked
+ * sunset gradient) in a slim aluminium mullion grid. A sparse emissive mask lights ~12 % of the panes with a soft
+ * warm interior glow (#e9d3ae, brighter towards the ceiling) — the rest stay dark. 1 UV unit = 6 m (4 × 4 bays of
+ * 1.5 m, each split by a transom), so the lit panes don't repeat in an obvious grid.
  */
-export function curtainWallTextures(tint: string, seed = 3): { map: THREE.CanvasTexture; emissive: THREE.CanvasTexture } {
-  const key = `curtain-${tint}-${seed}`;
+export function curtainWallTextures(seed = 3): { map: THREE.CanvasTexture; emissive: THREE.CanvasTexture } {
+  const key = `curtain3-${seed}`;
   const hit = cache.get(key);
   const hitE = cache.get(`${key}-e`);
   if (hit && hitE) return { map: hit as THREE.CanvasTexture, emissive: hitE as THREE.CanvasTexture };
   const r = rng(seed);
-  const { c, g } = canvas(256, 256);
-  const { c: ce, g: ge } = canvas(256, 256);
-  g.fillStyle = "#1d2430";
-  g.fillRect(0, 0, 256, 256);
+  const S = 512;
+  const B = S / 4;
+  const { c, g } = canvas(S, S);
+  const { c: ce, g: ge } = canvas(S, S);
+  g.fillStyle = "#1f2b33";
+  g.fillRect(0, 0, S, S);
   ge.fillStyle = "#000";
-  ge.fillRect(0, 0, 256, 256);
-  // two bays per tile
-  for (let by = 0; by < 2; by++)
-    for (let bx = 0; bx < 2; bx++) {
-      const x = bx * 128;
-      const y = by * 128;
-      const grad = g.createLinearGradient(x, y, x + 128, y + 128);
-      grad.addColorStop(0, "#5f7d96");
-      grad.addColorStop(0.55, "#2c3d52");
-      grad.addColorStop(1, "#435a70");
-      g.fillStyle = grad;
-      g.fillRect(x + 4, y + 4, 120, 120);
-      if (r() > 0.35) {
-        const warm = ge.createLinearGradient(x, y + 128, x, y);
-        warm.addColorStop(0, tint);
-        warm.addColorStop(0.5, "rgba(255,214,160,0.75)");
-        warm.addColorStop(1, "rgba(255,214,160,0.15)");
-        ge.fillStyle = warm;
-        ge.globalAlpha = 0.35 + r() * 0.5;
-        ge.fillRect(x + 4, y + 4, 120, 120);
-        ge.globalAlpha = 1;
+  ge.fillRect(0, 0, S, S);
+  for (let by = 0; by < 4; by++)
+    for (let bx = 0; bx < 4; bx++)
+      for (const [y0, hh] of [
+        [3, 82],
+        [88, 37],
+      ] as const) {
+        const x = bx * B + 3;
+        const y = by * B + y0;
+        const v = 0.92 + r() * 0.08; // tiny pane-to-pane tint differences
+        g.fillStyle = `rgb(${Math.round(31 * v)},${Math.round(43 * v)},${Math.round(51 * v)})`;
+        g.fillRect(x, y, B - 6, hh);
+        if (r() < 0.12) {
+          const warm = ge.createLinearGradient(x, y, x, y + hh);
+          warm.addColorStop(0, "rgba(233,211,174,0.9)");
+          warm.addColorStop(0.5, "rgba(233,211,174,0.5)");
+          warm.addColorStop(1, "rgba(233,211,174,0.28)");
+          ge.fillStyle = warm;
+          ge.fillRect(x, y, B - 6, hh);
+        }
       }
-    }
-  g.fillStyle = "#c8ccd2";
-  for (const p of [0, 126, 254]) {
-    g.fillRect(p, 0, 4, 256);
-    g.fillRect(0, p, 256, 4);
+  g.fillStyle = "#9aa1a8";
+  for (let k = 0; k <= 4; k++) {
+    const p = Math.min(S - 3, k * B - 1.5);
+    g.fillRect(p, 0, 3, S);
+    g.fillRect(0, p, S, 3);
   }
+  for (let by = 0; by < 4; by++) g.fillRect(0, by * B + 86, S, 2);
   const map = finish(key, c);
   const emissive = finish(`${key}-e`, ce);
   return { map, emissive };
@@ -683,5 +784,161 @@ export function fabricTexture(id: PrintId): THREE.CanvasTexture {
       }
     }
     return finish(`fabric-${id}`, c, { aniso: 4 });
+  });
+}
+
+/**
+ * Grass thatch (P1-WLD-03): dense dry-grass fibres (#a08560) laid in overlapping courses, each course's butt ends
+ * casting a soft shadow line. u runs around the roof, v down the slope. 1 UV unit ≈ 1.2 m of roof.
+ */
+export function thatchTexture(): THREE.CanvasTexture {
+  return cached("thatch", () => {
+    const S = 256;
+    const { c, g } = canvas(S, S);
+    const r = rng(29);
+    g.fillStyle = "#8e7552";
+    g.fillRect(0, 0, S, S);
+    const courses = 5;
+    const ch = S / courses;
+    for (let k = 0; k < courses; k++) {
+      const y0 = k * ch;
+      for (let i = 0; i < 1300; i++) {
+        const x = r() * S;
+        const y = y0 - ch * 0.35 + r() * ch * 1.25;
+        const len = ch * (0.5 + r() * 0.7);
+        const tone = 125 + r() * 70;
+        g.strokeStyle = `rgba(${tone + 22},${tone + 2},${tone - 38},${0.35 + r() * 0.45})`;
+        g.lineWidth = 0.6 + r() * 0.9;
+        g.beginPath();
+        g.moveTo(x, y);
+        g.lineTo(x + (r() - 0.5) * 5, y + len);
+        g.stroke();
+      }
+      // butt-end shadow at the bottom of each course
+      const sh = g.createLinearGradient(0, y0 + ch * 0.82, 0, y0 + ch);
+      sh.addColorStop(0, "rgba(40,28,15,0)");
+      sh.addColorStop(1, "rgba(40,28,15,0.42)");
+      g.fillStyle = sh;
+      g.fillRect(0, y0 + ch * 0.82, S, ch * 0.18);
+    }
+    return finish("thatch", c);
+  });
+}
+
+/** Round game badge for the small sign above each hall door (transparent outside the disc). */
+export function doorBadgeTexture(kind: IconKind, color: string): THREE.CanvasTexture {
+  const key = `badge-${kind}-${color}`;
+  return cached(key, () => {
+    const { c, g } = canvas(128, 128);
+    g.clearRect(0, 0, 128, 128);
+    g.fillStyle = "#1a1c22";
+    g.beginPath();
+    g.arc(64, 64, 62, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = color;
+    g.lineWidth = 5;
+    g.beginPath();
+    g.arc(64, 64, 57, 0, Math.PI * 2);
+    g.stroke();
+    drawIcon(g, kind, 64, 64, 70, color);
+    const t = finish(key, c, { aniso: 4 });
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    return t;
+  });
+}
+
+/**
+ * Out-of-focus view into a hall, seen at the back of the entrance vestibule. Painted tiny (96 × 64) and upscaled
+ * with linear filtering, which gives a natural defocus without any blur pass.
+ */
+export function hallGlimpseTexture(kind: IconKind): THREE.CanvasTexture {
+  const key = `glimpse-${kind}`;
+  return cached(key, () => {
+    const W = 48;
+    const H = 64;
+    const { c, g } = canvas(W, H);
+    const pal: Record<IconKind, { wall: string; floor: string; ceil: string; table: string; lamp: string }> = {
+      pool: { wall: "#3a2c22", floor: "#4a3322", ceil: "#1e1a17", table: "#1f5a36", lamp: "#ffd9a0" },
+      ludo: { wall: "#b08a62", floor: "#a8723f", ceil: "#6a5038", table: "#7a4a2a", lamp: "#ffe2b0" },
+      igisoro: { wall: "#a8794a", floor: "#8a5232", ceil: "#6a4a2a", table: "#5a3a22", lamp: "#ffd79a" },
+      arena: { wall: "#4a4a58", floor: "#6a6a70", ceil: "#22232a", table: "#3a3a48", lamp: "#e8eeff" },
+      soon: { wall: "#555", floor: "#666", ceil: "#333", table: "#444", lamp: "#ddd" },
+    };
+    const p = pal[kind];
+    // ceiling / wall / floor bands in perspective
+    g.fillStyle = p.ceil;
+    g.fillRect(0, 0, W, H * 0.3);
+    g.fillStyle = p.wall;
+    g.fillRect(0, H * 0.3, W, H * 0.32);
+    const fl = g.createLinearGradient(0, H * 0.62, 0, H);
+    fl.addColorStop(0, p.floor);
+    fl.addColorStop(1, "#000000");
+    g.fillStyle = fl;
+    g.fillRect(0, H * 0.62, W, H * 0.38);
+    // tables and their warm pendant pools
+    for (const [x, w, y] of [
+      [8, 14, 0.6],
+      [28, 16, 0.62],
+      [18, 10, 0.55],
+    ] as const) {
+      const lg = g.createRadialGradient(x + w / 2, H * 0.36, 0, x + w / 2, H * 0.36, 7);
+      lg.addColorStop(0, p.lamp);
+      lg.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = lg;
+      g.fillRect(x - 4, H * 0.28, w + 8, 14);
+      g.fillStyle = p.table;
+      g.fillRect(x, H * y, w, 4);
+      g.fillStyle = "rgba(0,0,0,0.5)";
+      g.fillRect(x + 1, H * y + 4, 2, 5);
+      g.fillRect(x + w - 3, H * y + 4, 2, 5);
+    }
+    // a far window band with daylight
+    g.fillStyle = "rgba(220,232,240,0.45)";
+    g.fillRect(4, H * 0.34, W - 8, 6);
+    const t = finish(key, c, { aniso: 1 });
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    t.generateMipmaps = false;
+    t.minFilter = THREE.LinearFilter;
+    return t;
+  });
+}
+
+/** Brushed aluminium (vertical grain) for the backs and sides of the sign totems. */
+export function brushedAluTexture(): THREE.CanvasTexture {
+  return cached("brushed-alu", () => {
+    const { c, g } = canvas(128, 256);
+    const r = rng(41);
+    g.fillStyle = "#c2c6cc";
+    g.fillRect(0, 0, 128, 256);
+    for (let i = 0; i < 700; i++) {
+      const v = 150 + r() * 90;
+      g.fillStyle = `rgba(${v},${v + 2},${v + 6},0.35)`;
+      g.fillRect(r() * 128, 0, 0.6 + r() * 0.8, 256);
+    }
+    return finish("brushed-alu", c);
+  });
+}
+
+/** Tournament poster lightbox for the arena lobby glazing. */
+export function posterTexture(title: string, sub: string, color: string): THREE.CanvasTexture {
+  const key = `poster-${title}-${sub}-${color}`;
+  return cached(key, () => {
+    const { c, g } = canvas(128, 256);
+    const gr = g.createLinearGradient(0, 0, 0, 256);
+    gr.addColorStop(0, "#14162a");
+    gr.addColorStop(1, color);
+    g.fillStyle = gr;
+    g.fillRect(0, 0, 128, 256);
+    drawIcon(g, "arena", 64, 92, 70, color);
+    g.fillStyle = "#ffffff";
+    g.textAlign = "center";
+    g.font = "800 15px system-ui, sans-serif";
+    g.fillText(title, 64, 170);
+    g.font = "600 11px system-ui, sans-serif";
+    g.fillStyle = "rgba(255,255,255,0.8)";
+    g.fillText(sub, 64, 190);
+    const t = finish(key, c, { aniso: 4 });
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    return t;
   });
 }

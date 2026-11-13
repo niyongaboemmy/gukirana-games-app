@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import {
+  blobTexture,
   brickTexture,
+  brushedAluTexture,
   concreteTexture,
   agasekeTexture,
   curtainWallTextures,
@@ -10,8 +12,11 @@ import {
   imigongoTexture,
   lavaStoneTexture,
   pavingTexture,
+  pavingWearTexture,
+  thatchTexture,
   woodTexture,
 } from "./textures";
+import { BENCHES, PORTALS, ringPoint, SPAWN } from "./layout";
 
 export type Tier = "lite" | "standard";
 
@@ -29,49 +34,84 @@ export const GAME_COLORS = {
 export type LedKey = keyof typeof GAME_COLORS;
 
 /**
- * LED material: unlit, not tone-mapped, colour pushed above 1.0 so Bloom (Standard tier, threshold 1) only catches
- * the LED ribbons. On Lite there is no bloom, so the boost is small to keep the hue.
+ * LED material: unlit, not tone-mapped. It is daytime in the playground, so LEDs only just reach the Bloom threshold
+ * (Standard, threshold 1) instead of glowing like night signage; on Lite (no bloom) they stay at their plain hue.
  */
+export const LED_BOOST = { lite: 1.0, standard: 1.2 } as const;
 export function ledMaterial(color: string, tier: Tier, boost = 1): THREE.MeshBasicMaterial {
-  const c = new THREE.Color(color).multiplyScalar((tier === "lite" ? 1.15 : 2.6) * boost);
+  const c = new THREE.Color(color).multiplyScalar(LED_BOOST[tier] * boost);
   return new THREE.MeshBasicMaterial({ color: c, toneMapped: false, fog: true });
 }
 
 let shared: { tier: Tier; m: Record<string, THREE.Material> } | null = null;
 
+/** Worn walking lines across the plaza: entrance → fountain → every door, plus the bench ring. */
+function wearPaths(): { x: number; z: number }[][] {
+  const paths: { x: number; z: number }[][] = [[{ x: SPAWN.x, z: SPAWN.z + 6 }, { x: 0, z: 4.5 }]];
+  for (const p of PORTALS) paths.push([ringPoint(p.angleDeg, 4.6), ringPoint(p.angleDeg, 27)]);
+  const ring: { x: number; z: number }[] = [];
+  for (let a = 0; a <= 360; a += 10) ring.push(ringPoint(a, 9.6));
+  paths.push(ring);
+  return paths;
+}
+
+/** Paving: slab texture (4.8 m tile) × a plaza-wide wear map sampled in world space (±33 m). */
+function pavingMaterial(): THREE.MeshStandardMaterial {
+  const wear = pavingWearTexture(wearPaths(), [...BENCHES.map((b) => ({ x: b.x, z: b.z, r: 2.2 })), { x: 0, z: 0, r: 6 }]);
+  const m = new THREE.MeshStandardMaterial({ map: pavingTexture(), color: "#bcb4a8", roughness: 0.85, metalness: 0, envMapIntensity: 0.45 });
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uWear = { value: wear };
+    sh.vertexShader = "varying vec2 vGkW;\n" + sh.vertexShader.replace("#include <worldpos_vertex>", "#include <worldpos_vertex>\n  vGkW = (modelMatrix * vec4(transformed, 1.0)).xz;");
+    sh.fragmentShader =
+      "uniform sampler2D uWear;\nvarying vec2 vGkW;\n" +
+      sh.fragmentShader.replace(
+        "#include <map_fragment>",
+        "#include <map_fragment>\n  diffuseColor.rgb *= 0.55 + 0.45 * texture2D(uWear, vGkW / 66.0 + 0.5).r * 1.0204;",
+      );
+  };
+  m.customProgramCacheKey = () => "gk-paving-wear";
+  return m;
+}
+
 /** The PBR palette: volcanic stone, concrete, timber, terracotta, glass, aluminium, Imigongo panels, LEDs. */
 export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
   if (shared && shared.tier === tier) return shared.m;
   const std = (p: THREE.MeshStandardMaterialParameters) => new THREE.MeshStandardMaterial(p);
-  const glassTex = curtainWallTextures("#FFB46B", 3);
-  const glassTexCool = curtainWallTextures("#9fd4ff", 8);
+  const glassTex = curtainWallTextures(3);
+  const glassTexCool = curtainWallTextures(8);
+  const glassP = (t: { map: THREE.Texture; emissive: THREE.Texture }): THREE.MeshStandardMaterialParameters => ({
+    map: t.map,
+    emissiveMap: t.emissive,
+    emissive: new THREE.Color("#e9d3ae"),
+    emissiveIntensity: 0.3,
+    metalness: 0,
+    roughness: 0.05,
+    envMapIntensity: 1.0,
+  });
   const m: Record<string, THREE.Material> = {
-    lava: std({ map: lavaStoneTexture(), bumpMap: lavaStoneTexture(), bumpScale: 2.5, roughness: 0.92, color: "#9a9890" }),
-    // light granite/concrete albedo ≈ 0.4 (was near-white): darker tint, matte
-    paving: std({ map: pavingTexture(), color: "#c4bdb2", roughness: 0.8, metalness: 0, envMapIntensity: 0.45 }),
+    lava: std({ map: lavaStoneTexture(), bumpMap: lavaStoneTexture(), bumpScale: 1.2, roughness: 0.95, color: "#8e8b84" }),
+    // honed granite slabs, albedo ≈ 0.35, with world-space grime / foot-traffic wear
+    paving: pavingMaterial(),
+    // flush sawn-basalt band under the wayfinding LEDs, granite + brass spawn medallion
+    basalt: std({ map: concreteTexture(), color: "#4a4844", roughness: 0.72 }),
+    granite: std({ map: pavingTexture(), color: "#a39c92", roughness: 0.7 }),
+    basinFloor: std({ map: concreteTexture(), color: "#6d6a64", roughness: 0.9 }),
+    brass: std({ color: "#9a7a45", metalness: 1, roughness: 0.45 }),
+    aluBrushed: std({ map: brushedAluTexture(), color: "#d4d8de", metalness: 0.85, roughness: 0.42 }),
+    // lamp heads: a faint warm glow on the diffuser by day (no bloom)
+    lampHead: std({ color: "#f4f0e6", emissive: new THREE.Color("#ffe2b8"), emissiveIntensity: 0.15, roughness: 0.4 }),
+    // soft contact / ambient-occlusion decals under furniture (the only grounding on Lite)
+    ao: new THREE.MeshBasicMaterial({ map: blobTexture(), color: "#000000", transparent: true, opacity: tier === "lite" ? 0.5 : 0.32, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
     concrete: std({ map: concreteTexture(), roughness: 0.85, color: "#e9e4da" }),
     concreteDark: std({ map: concreteTexture(), roughness: 0.8, color: "#6f6c68" }),
     wood: std({ map: woodTexture(), roughness: 0.6, color: "#f0d6b8" }),
     woodDark: std({ map: woodTexture(), roughness: 0.55, color: "#7a5236" }),
     brick: std({ map: brickTexture(), roughness: 0.88 }),
-    glass: std({
-      map: glassTex.map,
-      emissiveMap: glassTex.emissive,
-      emissive: new THREE.Color("#ffffff"),
-      emissiveIntensity: 1.25,
-      metalness: 0.85,
-      roughness: 0.08,
-      envMapIntensity: 1.4,
-    }),
-    glassCool: std({
-      map: glassTexCool.map,
-      emissiveMap: glassTexCool.emissive,
-      emissive: new THREE.Color("#ffffff"),
-      emissiveIntensity: 1.0,
-      metalness: 0.85,
-      roughness: 0.06,
-      envMapIntensity: 1.5,
-    }),
+    // dark neutral glazing reflecting the sky (no baked sunset), sparse warm interior panes
+    glass: std(glassP(glassTex)),
+    glassCool: std(glassP(glassTexCool)),
+    // see-through shopfront glass (café): the interior behind it is modelled
+    glassClear: std({ color: "#3a4a52", metalness: 0, roughness: 0.04, envMapIntensity: 1.0, transparent: true, opacity: 0.32, depthWrite: false }),
     alu: std({ color: "#d8dce2", metalness: 1, roughness: 0.32 }),
     steel: std({ color: "#3a3f47", metalness: 0.9, roughness: 0.4 }),
     white: std({ color: "#f3f1ec", roughness: 0.45, metalness: 0.05 }),
@@ -85,7 +125,7 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     fabric: std({ color: "#f4efe6", roughness: 0.9, side: THREE.DoubleSide }),
     screenFrame: std({ color: "#15171d", metalness: 0.6, roughness: 0.35 }),
     asphalt: std({ map: concreteTexture(), color: "#3a3c40", roughness: 0.95 }),
-    thatch: std({ map: woodTexture(), color: "#b08a55", roughness: 0.95 }),
+    thatch: std({ map: thatchTexture(), bumpMap: thatchTexture(), bumpScale: 1.5, color: "#c2a47a", roughness: 1, side: THREE.DoubleSide }),
     agaseke: std({ map: agasekeTexture(), roughness: 0.8 }),
     hoarding: std({ map: hoardingTexture(), roughness: 0.7 }),
     "paint-orange": std({ color: "#F28C28", roughness: 0.7, side: THREE.DoubleSide }),

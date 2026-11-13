@@ -6,12 +6,14 @@ import * as THREE from "three";
 import { ARENA, buildDistrict } from "./District";
 import { Landscape } from "./Landscape";
 import { Lighting } from "./Lighting";
-import { DOOR, DOOR_OPEN_RADIUS, DOOR_RING, FOUNTAIN_RADIUS, PORTALS, portalTransform, ringPoint, SERVICE_ANGLE, TOTEMS, type PortalDef } from "./layout";
+import { DOOR, DOOR_OPEN_RADIUS, DOOR_RING, PORTALS, portalTransform, ringPoint, SERVICE_ANGLE, TOTEMS, type PortalDef } from "./layout";
 import { doorOpen } from "./transition";
 import { selfPose } from "@/lib/world-store";
 import { EntryGate } from "./gate/EntryGate";
-import { GAME_COLORS, worldMaterials, type Tier } from "./materials";
-import { arenaScreenTexture, doorPreviewTexture } from "./textures";
+import { GAME_COLORS, LED_BOOST, worldMaterials, type Tier } from "./materials";
+import { arenaScreenTexture, posterTexture } from "./textures";
+import { FountainWater } from "./Fountain";
+import { DoorBadge, Vestibule } from "./Vestibule";
 
 const FONT = "/fonts/Baloo2.ttf";
 
@@ -23,7 +25,7 @@ function District({ tier }: { tier: Tier }) {
   // the arena's LED ribbons slowly cycle purple → blue → gold (one shared material, cheap to animate)
   const halo = mats["led-halo"] as THREE.MeshBasicMaterial;
   const base = useMemo(() => [new THREE.Color(GAME_COLORS.arena), new THREE.Color(GAME_COLORS.sky), new THREE.Color(GAME_COLORS.gold)], []);
-  const boost = tier === "lite" ? 1.15 : 2.6;
+  const boost = LED_BOOST[tier];
   useFrame(({ clock }) => {
     const t = (clock.elapsedTime * 0.08) % 3;
     const i = Math.floor(t);
@@ -45,26 +47,46 @@ function District({ tier }: { tier: Tier }) {
   );
 }
 
-/** Door: interior glimpse + floor halo that brightens when you're close (interaction point, §6.2). */
+/** Small game sign over each door: on the wall above the door, on the lintel (Ludo) or the porch fascia (Igisoro). */
+const BADGE: Record<PortalDef["kind"], [number, number] | null> = {
+  pool: [4.62, -0.28],
+  ludo: [5.0, 0.87],
+  igisoro: [4.6, 0.97],
+  arena: [4.62, -0.93],
+  soon: null,
+};
+
+/**
+ * Door: the entrance vestibule behind it (a real lobby, not a poster), the small lit game sign above it and a floor
+ * halo that brightens when you're close (interaction point, §6.2). Construction sites show their closed site gate.
+ */
 function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Tier }) {
   const { x, z, rotY } = portalTransform(def);
-  const tex = useMemo(() => doorPreviewTexture(def.kind, def.color, def.sub), [def]);
   const ring = useRef<THREE.MeshBasicMaterial>(null);
-  const soon = def.href === null;
+  const soon = def.kind === "soon";
   const inset = def.kind === "arena" ? -1.15 : def.kind === "igisoro" ? -2.15 : def.kind === "pool" ? -0.55 : def.kind === "ludo" ? -0.4 : -0.45;
-  const ledColor = useMemo(() => new THREE.Color(def.color).multiplyScalar(tier === "lite" ? 1.1 : 2.2), [def.color, tier]);
+  const ledColor = useMemo(() => new THREE.Color(def.color).multiplyScalar(LED_BOOST[tier]), [def.color, tier]);
+  const hoarding = worldMaterials(tier)["hoarding"];
   useFrame(({ clock }) => {
-    if (ring.current) ring.current.opacity = (active ? 0.95 : 0.45) + Math.sin(clock.elapsedTime * 2.2 + def.angleDeg) * 0.12;
+    if (ring.current) ring.current.opacity = (active ? 0.7 : 0.4) + Math.sin(clock.elapsedTime * 2.2 + def.angleDeg) * 0.04;
   });
   const signY = def.kind === "pool" ? 8.0 : def.kind === "ludo" ? 6.75 : def.kind === "igisoro" ? 5.35 : def.kind === "arena" ? 6.98 : 4.9;
   const signZ = def.kind === "pool" ? 1.44 : def.kind === "ludo" ? 0.3 : def.kind === "igisoro" ? 0.82 : def.kind === "arena" ? 2.08 : -0.28;
+  const badge = BADGE[def.kind];
   return (
     <group position={[x, 0, z]} rotation={[0, rotY, 0]}>
-      <mesh position={[0, DOOR.h / 2, inset]}>
-        <planeGeometry args={[DOOR.w, DOOR.h]} />
-        <meshBasicMaterial map={tex} toneMapped={false} transparent opacity={soon ? 0.7 : 1} />
-      </mesh>
-      {def.href && <AutoDoors def={def} inset={inset} tier={tier} />}
+      {soon ? (
+        // closed site gate: two plywood hoarding leaves between the steel gate posts
+        [-1, 1].map((sd) => (
+          <mesh key={sd} material={hoarding} position={[sd * 0.86, 1.6, inset + 0.05]} castShadow={tier !== "lite"}>
+            <boxGeometry args={[1.66, 3.2, 0.06]} />
+          </mesh>
+        ))
+      ) : (
+        <Vestibule def={def} inset={inset} tier={tier} />
+      )}
+      {badge && <DoorBadge def={def} y={badge[0]} z={badge[1]} />}
+      {!soon && <AutoDoors def={def} inset={inset} tier={tier} locked={!def.href} />}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, DOOR_RING - (DOOR_RING - 2.4) + 0.2]}>
         <ringGeometry args={[0.85, 1.1, 48]} />
         <meshBasicMaterial ref={ring} color={ledColor} transparent opacity={0.5} toneMapped={false} depthWrite={false} />
@@ -74,8 +96,8 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
         <meshBasicMaterial color={ledColor} toneMapped={false} />
       </Text>
       {soon && (
-        <Text font={FONT} fontSize={0.34} color="#ffffff" position={[0, 3.2, -0.25]} anchorX="center" anchorY="middle">
-          {def.sub}
+        <Text font={FONT} fontSize={0.26} color="#1b1b1b" position={[0, 2.6, inset + 0.1]} anchorX="center" anchorY="middle">
+          {`${def.sub} · coming soon`}
         </Text>
       )}
     </group>
@@ -87,7 +109,7 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
  * They start opening when the local player comes within DOOR_OPEN_RADIUS of the entry point and close again when
  * they leave; the open amount is shared with the player controller so the doorway becomes walkable.
  */
-function AutoDoors({ def, inset, tier }: { def: PortalDef; inset: number; tier: Tier }) {
+function AutoDoors({ def, inset, tier, locked = false }: { def: PortalDef; inset: number; tier: Tier; locked?: boolean }) {
   const { entryX, entryZ } = portalTransform(def);
   const wooden = def.kind === "igisoro";
   const left = useRef<THREE.Group>(null);
@@ -103,6 +125,7 @@ function AutoDoors({ def, inset, tier }: { def: PortalDef; inset: number; tier: 
     };
   }, [tier]);
   useFrame((_, rawDt) => {
+    if (locked) return; // not open yet (Tournament Arena): the doors stay shut
     const dt = Math.min(rawDt, 0.05);
     const near = Math.hypot(selfPose.x - entryX, selfPose.z - entryZ) < DOOR_OPEN_RADIUS;
     // eased motion: opening a little quicker than closing, like a real sensor door
@@ -150,7 +173,7 @@ function AutoDoors({ def, inset, tier }: { def: PortalDef; inset: number; tier: 
       </mesh>
       <mesh position={[0, h + 0.09, 0.06]}>
         <boxGeometry args={[0.22, 0.06, 0.02]} />
-        <meshBasicMaterial color={new THREE.Color(def.color).multiplyScalar(1.6)} toneMapped={false} />
+        <meshBasicMaterial color={new THREE.Color(locked ? "#d23c3c" : def.color).multiplyScalar(1.1)} toneMapped={false} />
       </mesh>
       {[-1, 1].map((s) => (
         <group key={s} ref={s < 0 ? left : right} position={[s * (w / 2), 0, s * 0.03]}>
@@ -190,13 +213,35 @@ function ArenaScreen({ tier }: { tier: Tier }) {
   useFrame(({ clock }) => {
     tex.offset.x = Math.floor(clock.elapsedTime / 5) * 0.25 + Math.min(1, (clock.elapsedTime % 5) / 0.6) * 0.25 - 0.25;
   });
-  const gold = useMemo(() => new THREE.Color(GAME_COLORS.gold).multiplyScalar(tier === "lite" ? 1.1 : 1.8), [tier]);
+  const gold = useMemo(() => new THREE.Color(GAME_COLORS.gold).multiplyScalar(LED_BOOST[tier]), [tier]);
+  const posters = useMemo(
+    () =>
+      [posterTexture("WEEKEND CUP", "Pool · Ludo · Igisoro", GAME_COLORS.arena), posterTexture("LIVE FINALS", "Coming soon", "#2F80ED")].map(
+        (t) => new THREE.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: "#ffffff", emissiveIntensity: 0.45, roughness: 0.3 }),
+      ),
+    [],
+  );
   return (
     <group position={[x, 0, z]} rotation={[0, rotY, 0]}>
       <mesh position={[0, 12.6, ARENA.cz + ARENA.rz + 1.17]}>
         <planeGeometry args={[16.4, 4.8]} />
         <meshBasicMaterial map={tex} toneMapped={false} color={tier === "lite" ? "#ffffff" : "#d8d8d8"} />
       </mesh>
+      {/* poster lightboxes on the lobby glazing, right of the doors; ticket window sign on the left */}
+      {posters.map((m, i) => (
+        <group key={i} position={[3.15 + i * 1.5, 2.0, -1.13]}>
+          <mesh material={m}>
+            <planeGeometry args={[1.0, 2.0]} />
+          </mesh>
+          <mesh position={[0, 0, -0.03]}>
+            <boxGeometry args={[1.1, 2.1, 0.05]} />
+            <meshStandardMaterial color="#c9ced6" metalness={0.85} roughness={0.35} />
+          </mesh>
+        </group>
+      ))}
+      <Text font={FONT} fontSize={0.2} color="#f4f1ea" position={[-4.6, 2.62, -0.69]} anchorX="center" anchorY="middle" letterSpacing={0.12}>
+        TICKETS
+      </Text>
       <Text font={FONT} fontSize={1.5} position={[0, 16.4, ARENA.cz + ARENA.rz + 0.95]} anchorX="center" anchorY="middle" letterSpacing={0.08}>
         GUKIRANA PLAYGROUND
         <meshBasicMaterial color={gold} toneMapped={false} />
@@ -205,19 +250,14 @@ function ArenaScreen({ tier }: { tier: Tier }) {
   );
 }
 
-function Fountain() {
-  const water = useRef<THREE.Mesh>(null);
+function Fountain({ tier }: { tier: Tier }) {
   const holo = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
-    if (water.current) water.current.position.y = 0.46 + Math.sin(clock.elapsedTime * 1.6) * 0.008;
     if (holo.current) holo.current.rotation.y = clock.elapsedTime * 0.5;
   });
   return (
     <group>
-      <mesh ref={water} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.46, 0]}>
-        <ringGeometry args={[1.12, FOUNTAIN_RADIUS - 0.36, 64]} />
-        <meshStandardMaterial color="#2b4a52" metalness={0} roughness={0.03} envMapIntensity={1.9} transparent opacity={0.92} />
-      </mesh>
+      <FountainWater tier={tier} />
       {/* Player of the Day hologram (SRS §5.10) */}
       <group ref={holo} position={[0, 6.0, 0]}>
         <mesh>
@@ -240,15 +280,13 @@ function Fountain() {
   );
 }
 
-/** Ludo Lounge signature: a giant floating die over the rooftop garden (DESIGN-SPEC §6.3). */
+/** Ludo Lounge signature (DESIGN-SPEC §6.3): a giant die turning slowly on its axle in a steel fork on the roof terrace. */
 function GiantDie() {
   const p = PORTALS.find((x) => x.kind === "ludo")!;
   const { x, z, rotY } = portalTransform(p);
   const die = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
-    if (!die.current) return;
-    die.current.rotation.set(clock.elapsedTime * 0.3, clock.elapsedTime * 0.45, 0.4);
-    die.current.position.y = 11.6 + Math.sin(clock.elapsedTime * 0.9) * 0.25;
+    if (die.current) die.current.rotation.x = clock.elapsedTime * 0.35;
   });
   const pips: [number, number, number][] = [
     [0, 0, 1],
@@ -257,7 +295,12 @@ function GiantDie() {
   ];
   return (
     <group position={[x, 0, z]} rotation={[0, rotY, 0]}>
-      <group ref={die} position={[0, 11.6, -6.5]}>
+      {/* axle through the fork arms (District.ts ludoLounge) */}
+      <mesh position={[4, 11.7, -12]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.05, 0.05, 2.6, 8]} />
+        <meshStandardMaterial color="#3a3f47" metalness={0.9} roughness={0.4} />
+      </mesh>
+      <group ref={die} position={[4, 11.7, -12]}>
         <RoundedBox args={[2.2, 2.2, 2.2]} radius={0.32} smoothness={3} castShadow>
           <meshStandardMaterial color="#f7f4ee" roughness={0.25} metalness={0.05} />
         </RoundedBox>
@@ -320,7 +363,7 @@ export function Plaza({ nearPortal, tier = "standard" }: { nearPortal: string | 
       <Lighting tier={tier} />
       <Landscape tier={tier} />
       <District tier={tier} />
-      <Fountain />
+      <Fountain tier={tier} />
       {PORTALS.map((p) => (
         <Door key={p.id} def={p} active={nearPortal === p.id} tier={tier} />
       ))}

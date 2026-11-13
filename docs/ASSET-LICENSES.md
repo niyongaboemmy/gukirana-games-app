@@ -148,3 +148,11 @@ wall sets kept at 1024 px, small-surface sets resized to 512 px. Normal maps are
 Procedural (no third-party source, generated at runtime in `src/rooms/room-textures.ts`): Imigongo panels and
 friezes, Kitenge prints, club rug, billiard cloth, numbered pool-ball atlas, Ludo board, dice, Agaseke weave,
 leaf cards, chalk menu. The view through the windows is the plaza's own procedural landscape (`src/world/Landscape.tsx`).
+
+### Plaza exterior realism pass (P1-WLD-03)
+
+No new downloaded assets. Generated at runtime (no third-party source): lava-rock rubble, granite paving slabs and the
+plaza wear map, curtain-wall glazing, grass thatch, brushed aluminium, hall-glimpse and door-badge signs, arena posters
+(`src/world/textures.ts`); fountain ripple normal map, water streams and droplets (`src/world/Fountain.tsx`); cumulus
+cloud billboards (`src/world/Clouds.tsx`). Default avatar looks are a deterministic hash of the account id over the
+existing outfit catalogue (`src/world/outfits.ts`, `apps/api/src/modules/identity/default-look.ts`).
