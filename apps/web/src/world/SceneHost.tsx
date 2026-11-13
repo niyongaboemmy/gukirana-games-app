@@ -117,7 +117,7 @@ function BootScreen({ pathView }: { pathView: View | null }) {
           <img src="/icon.svg" alt="" width={44} height={44} className="size-11 rounded-xl shadow-lg" />
           <div className="leading-none">
             <p className="text-2xl font-black tracking-tight">{STR.brand}</p>
-            <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.32em] text-[#3D8BFF]">{STR.sub}</p>
+            <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.32em] text-white/55">{STR.sub}</p>
           </div>
         </div>
         <div className="mt-7 h-0.75 w-56 overflow-hidden rounded-full bg-white/12">
@@ -130,7 +130,7 @@ function BootScreen({ pathView }: { pathView: View | null }) {
       {view === "gate" ? (
         <>
           <div className="gk-skel absolute left-[max(12px,env(safe-area-inset-left))] top-3 h-8 w-64 rounded-full phone:w-52" />
-          <div className="absolute right-[max(16px,env(safe-area-inset-right))] top-1/2 hidden w-[min(340px,40vw)] -translate-y-1/2 flex-col gap-3 rounded-[28px] border border-white/10 bg-[#16191F]/80 p-5 sm:flex phone:flex phone:w-[min(300px,42vw)] phone:gap-2 phone:p-3">
+          <div className="absolute right-[max(16px,env(safe-area-inset-right))] top-1/2 hidden w-[min(340px,40vw)] -translate-y-1/2 flex-col gap-3 rounded-[28px] border border-white/10 bg-[#1E1F23]/80 p-5 sm:flex phone:flex phone:w-[min(300px,42vw)] phone:gap-2 phone:p-3">
             <div className="gk-skel relative h-4 w-24 rounded-full" />
             <div className="gk-skel relative h-6 w-48 rounded-lg" />
             <div className="gk-skel relative h-11 w-full rounded-xl" />
@@ -177,7 +177,7 @@ export function SceneHost() {
   return (
     <>
       {on && (
-        <div aria-hidden={!view} className="fixed inset-0 z-0 bg-[#121418]" style={{ visibility: view ? "visible" : "hidden" }}>
+        <div aria-hidden={!view} className="fixed inset-0 z-0 bg-[#0E0F11]" style={{ visibility: view ? "visible" : "hidden" }}>
           <SceneCanvas />
         </div>
       )}

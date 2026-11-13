@@ -413,15 +413,15 @@ body {
 @media (prefers-reduced-motion: reduce) { .gk-frame-push { animation: none; } }
 
 /* boot screen of the persistent 3D stage (world/SceneHost.tsx): dark graphite, a slow light sweep, nothing blurred */
-.gk-boot { background: radial-gradient(ellipse at 50% 40%, #232832 0%, #16191f 48%, #121418 100%); }
+.gk-boot { background: radial-gradient(ellipse at 50% 40%, #1c1d20 0%, #141517 50%, #0e0f11 100%); }
 @keyframes gk-boot-sweep { from { transform: translateX(-60%); } to { transform: translateX(60%); } }
 .gk-boot-sweep { background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.035) 50%, transparent 65%); animation: gk-boot-sweep 2.8s ease-in-out infinite alternate; }
 @media (prefers-reduced-motion: reduce) { .gk-boot-sweep { animation: none; } }
 /* boot skeletons: frosted placeholders with a soft shimmer where the real HUD / tablet will appear */
 /* (transform-only animations run on the compositor: they keep moving even while the page builds the 3D scene) */
 @keyframes gk-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
-.gk-skel { overflow: hidden; background: rgba(35, 40, 50, 0.72); border: 1px solid rgba(255, 255, 255, 0.06); }
-.gk-skel::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.07) 50%, transparent 80%); animation: gk-shimmer 1.6s ease-in-out infinite; }
+.gk-skel { overflow: hidden; background: #1e1f23; border: 1px solid rgba(255, 255, 255, 0.05); }
+.gk-skel::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, #26282c 50%, transparent 80%); animation: gk-shimmer 1.6s ease-in-out infinite; }
 @keyframes gk-fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .gk-fade-up { animation: gk-fade-up 0.5s ease-out both; }
 @media (prefers-reduced-motion: reduce) { .gk-skel::after, .gk-fade-up { animation: none; } }

@@ -13,14 +13,14 @@ import { create } from "zustand";
  *   closing  → (pass) the person keeps walking through the real door, the camera holds and watches
  *   closed   → the last frame is held (slow push-in) until the destination area reports ready
  *   opening  → it cross-dissolves (400 ms) onto the destination
- * `hold` (reload / deep link before the stage has anything to show) starts from a soft exposure haze instead.
+ * `hold` (not used by the stage any more: cold loads boot behind world/SceneHost's boot screen) covers with a neutral dark screen.
  * A 9 s safety always reveals.
  */
 type Phase = "idle" | "closing" | "closed" | "cut" | "opening";
 type DoorwayState = {
   phase: Phase;
   label: string;
-  /** snapshot of the last frame of the area you are leaving (null = haze) */
+  /** snapshot of the last frame of the area you are leaving (null = neutral dark cover) */
   frame: HTMLCanvasElement | null;
   /** the frame on screen belongs to a live cut (quick dissolve, no push-in, input passes through) */
   live: boolean;
@@ -158,12 +158,12 @@ export function DoorTransition() {
   if (phase === "idle" || phase === "closing") return null;
   const out = phase === "opening";
   if (!frame) {
-    // no previous frame: a soft over-exposure that clears as the destination's first frames appear (never black)
+    // no previous frame: a neutral dark cover that clears as the destination's first frames appear
     return (
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 z-[60]"
-        style={{ background: "#e9eef1", opacity: out ? 0 : 0.92, transition: out ? `opacity ${HAZE_MS}ms ease-out` : undefined }}
+        style={{ background: "#121314", opacity: out ? 0 : 1, transition: out ? `opacity ${HAZE_MS}ms ease-out` : undefined }}
       />
     );
   }
