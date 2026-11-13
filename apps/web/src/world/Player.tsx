@@ -13,6 +13,7 @@ import { sendMove } from "@/lib/realtime";
 import { selfPose } from "@/lib/world-store";
 import { takeWorldPose } from "@/lib/return-point";
 import { autoFollow, nav, pointerNav, steer, TargetMarker } from "./navigation";
+import { useVoice } from "@/voice/voice";
 
 /** Walking speeds (m/s): real walking pace by default; the player can change it (HUD speed control). */
 export const WALK_SPEEDS = { slow: 1.4, normal: 2.2, fast: 3.2 } as const;
@@ -52,6 +53,8 @@ export function LocalPlayer({ color, name, level, tier = "standard" }: { color: 
   const restored = useRef(typeof window !== "undefined" ? takeWorldPose() : null);
   const pos = useRef(restored.current ? new THREE.Vector3(restored.current.x, 0, restored.current.z) : spawnPoint(name));
   const facing = useRef(restored.current?.yaw ?? Math.PI);
+  const lookAt = useRef<THREE.Vector3 | null>(null);
+  const lookTarget = useMemo(() => new THREE.Vector3(), []);
   const { camera, gl } = useThree();
   const inXR = useXR((s) => s.session != null);
 
@@ -156,6 +159,20 @@ export function LocalPlayer({ color, name, level, tier = "standard" }: { color: 
     }
     if (nearPortal !== w.nearPortal || nearPlayer !== w.nearPlayer) w.set({ nearPortal, nearPlayer });
 
+    // turn the head towards the nearest player who is speaking on voice (within 6 m)
+    const talking = useVoice.getState().talking;
+    let speaker: (typeof w.players)[string] | null = null;
+    let sd = 6;
+    for (const op of Object.values(w.players)) {
+      if (!talking[op.id]) continue;
+      const d = Math.hypot(op.x / 100 - pos.current.x, op.z / 100 - pos.current.z);
+      if (d < sd) {
+        sd = d;
+        speaker = op;
+      }
+    }
+    lookAt.current = speaker ? lookTarget.set(speaker.x / 100, 1.6, speaker.z / 100) : null;
+
     sendMove(pos.current.x, pos.current.z, facing.current, anim.current);
     selfPose.x = pos.current.x;
     selfPose.z = pos.current.z;
@@ -166,7 +183,7 @@ export function LocalPlayer({ color, name, level, tier = "standard" }: { color: 
     <>
     <TargetMarker />
     <group ref={group}>
-      <Avatar look={look} name={name} level={level} animRef={anim} shadows={tier !== "lite"} />
+      <Avatar look={look} name={name} level={level} animRef={anim} shadows={tier !== "lite"} quality={tier} self lookAtRef={lookAt} />
     </group>
     </>
   );
@@ -186,9 +203,14 @@ function RemoteAvatar({ id, tier }: { id: string; tier: Tier }) {
   }, [lookStr, color, bodyType]);
   const group = useRef<THREE.Group>(null);
   const anim = useRef(0);
+  const lookAt = useRef<THREE.Vector3 | null>(null);
+  const lookTarget = useMemo(() => new THREE.Vector3(), []);
   useFrame((_, dt) => {
     const cur = useWorld.getState().players[id];
     if (!cur || !group.current) return;
+    // remote avatars glance at the local player while they are speaking nearby
+    const near = Math.hypot(selfPose.x - group.current.position.x, selfPose.z - group.current.position.z) < 5;
+    lookAt.current = near && useVoice.getState().selfTalking ? lookTarget.set(selfPose.x, 1.6, selfPose.z) : null;
     const k = Math.min(1, dt * 10); // interpolation
     group.current.position.x += (cur.x / 100 - group.current.position.x) * k;
     group.current.position.z += (cur.z / 100 - group.current.position.z) * k;
@@ -201,7 +223,7 @@ function RemoteAvatar({ id, tier }: { id: string; tier: Tier }) {
   if (!p) return null;
   return (
     <group ref={group} position={[p.x / 100, 0, p.z / 100]}>
-      <Avatar look={look} name={p.name} level={p.level} animRef={anim} lod shadows={tier !== "lite"} />
+      <Avatar look={look} name={p.name} level={p.level} animRef={anim} lod shadows={tier !== "lite"} quality={tier} voiceId={id} lookAtRef={lookAt} />
     </group>
   );
 }

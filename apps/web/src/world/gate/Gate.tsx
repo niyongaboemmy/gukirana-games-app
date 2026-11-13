@@ -8,6 +8,8 @@ import { GAME_COLORS, worldMaterials, type Tier } from "../materials";
 import { ledScreenTexture } from "../textures";
 import { useGate } from "./gate-store";
 import { VirtualKeyboard } from "./VirtualKeyboard";
+import { Avatar } from "../Avatar";
+import { DEFAULT_LOOK } from "../outfits";
 
 /**
  * Arrival gate on the southern avenue: basalt pylons, a timber-soffit canopy, five turnstile lanes, a guard booth,
@@ -21,14 +23,24 @@ export const INSIDE = { x: 0, z: GATE_Z - 4 };
 export const WARDROBE = { x: 6.4, z: GATE_Z - 6.5, stand: { x: 4.7, z: GATE_Z - 6.5 } };
 const FONT = "/fonts/Baloo2.ttf";
 
-function buildGate(tier: Tier) {
+/** Guard post beside the booth, relative to the gate centre (non-player staff, never counted or listed). */
+export const GUARD_POST = { x: 4.6, dz: 2.6, rotY: -0.35 };
+
+/**
+ * Gate geometry. `variant` "arrival" is the full arrival gate on the southern avenue (forecourt, kiosk outside,
+ * wardrobe inside); "entry" is the same structure placed at the plaza entry and seen from inside the district:
+ * no forecourt or wardrobe, shorter perimeter walls, and the kiosk pedestal moved inside as the exit kiosk.
+ */
+export function buildGate(tier: Tier, Z: number = GATE_Z, variant: "arrival" | "entry" = "arrival", exitKiosk?: { x: number; z: number; rotY: number }) {
   const b = new GeoBatch();
-  const Z = GATE_Z;
+  const entry = variant === "entry";
   const flat = (g: THREE.BufferGeometry) => g.rotateX(-Math.PI / 2);
-  // forecourt + avenue link over the ring road
-  b.add("paving", flat(new THREE.CircleGeometry(19, tier === "lite" ? 48 : 96)), { p: [0, 0.018, Z], tile: 4 });
-  b.box("paving", 8, 0.02, Z - 81 - 15, { p: [0, 0.012, (81 + Z - 15) / 2], tile: 4 });
-  b.add("lava", flat(new THREE.RingGeometry(19, 19.6, 96, 1)), { p: [0, 0.022, Z], tile: 1.2 });
+  if (!entry) {
+    // forecourt + avenue link over the ring road
+    b.add("paving", flat(new THREE.CircleGeometry(19, tier === "lite" ? 48 : 96)), { p: [0, 0.018, Z], tile: 4 });
+    b.box("paving", 8, 0.02, Z - 81 - 15, { p: [0, 0.012, (81 + Z - 15) / 2], tile: 4 });
+    b.add("lava", flat(new THREE.RingGeometry(19, 19.6, 96, 1)), { p: [0, 0.022, Z], tile: 1.2 });
+  }
   // canopy: white slab, timber soffit battens, LED edges
   b.box("white", 19, 0.45, 8.4, { p: [0, 5.6, Z] });
   for (let x = -9.2; x <= 9.2; x += 0.46) b.box("wood", 0.1, 0.14, 8.0, { p: [x, 5.31, Z], tile: 1 });
@@ -39,8 +51,9 @@ function buildGate(tier: Tier) {
     b.box("lava", 1.6, 5.4, 2.4, { p: [s * 8.6, 2.7, Z], tile: 1.2 });
     b.box("diamond", 1.0, 4.4, 0.04, { p: [s * 8.6, 2.7, Z + 1.22], uv: [1, 4] });
     // perimeter walls with an Imigongo frieze
-    b.box("lava", 17, 2.2, 0.6, { p: [s * 17.9, 1.1, Z], tile: 1.2 });
-    b.box("imigongo", 17, 0.5, 0.62, { p: [s * 17.9, 2.0, Z], uv: [8, 1] });
+    const wl = entry ? 7 : 17;
+    b.box("lava", wl, 2.2, 0.6, { p: [s * (9.4 + wl / 2), 1.1, Z], tile: 1.2 });
+    b.box("imigongo", wl, 0.5, 0.62, { p: [s * (9.4 + wl / 2), 2.0, Z], uv: [Math.round(wl / 2.1), 1] });
   }
   // turnstile cabinets (status LEDs for the centre lane are dynamic)
   for (const x of [-3.75, -2.25, -0.75, 0.75, 2.25, 3.75]) {
@@ -49,8 +62,9 @@ function buildGate(tier: Tier) {
     if (Math.abs(x) > 1) b.box(x > 0 ? "led-igisoro" : "led-red", 0.05, 0.03, 1.4, { p: [x, 1.05, Z] });
   }
   for (const x of [-3, -1.5, 1.5, 3]) for (const s of [-1, 1]) b.box("jet", 0.5, 0.85, 0.02, { p: [x + s * 0.37, 0.75, Z], r: [0, 0, 0] });
-  // kiosk pedestal (screen + keyboard are dynamic)
-  b.frame([KIOSK.x, 0, KIOSK.z], KIOSK.rotY, () => {
+  // kiosk pedestal (screen + keyboard are dynamic); at the plaza entry it is the exit / sign-out kiosk inside
+  const kp = entry && exitKiosk ? exitKiosk : { x: KIOSK.x, z: KIOSK.z - GATE_Z + Z, rotY: KIOSK.rotY };
+  b.frame([kp.x, 0, kp.z], kp.rotY, () => {
     b.box("steel", 0.5, 1.0, 0.36, { p: [0, 0.5, 0] });
     b.box("lava", 0.8, 0.08, 0.6, { p: [0, 0.04, 0], tile: 1.2 });
     b.box("screenFrame", 0.92, 0.66, 0.08, { p: [0, 1.42, -0.02], r: [-0.22, 0, 0] });
@@ -69,6 +83,7 @@ function buildGate(tier: Tier) {
   b.box("screenFrame", 11.4, 2.3, 0.35, { p: [0, 7.0, Z + 3.4] });
   b.box("steel", 0.3, 1.2, 0.3, { p: [-4, 6.1, Z + 3.4] });
   b.box("steel", 0.3, 1.2, 0.3, { p: [4, 6.1, Z + 3.4] });
+  if (entry) return b.build();
   // wardrobe / locker station (inside, east side) under a timber roof
   b.frame([WARDROBE.x, 0, WARDROBE.z], -Math.PI / 2, () => {
     b.box("wood", 5.2, 2.4, 0.6, { p: [0, 1.2, -0.3], tile: 1 });
@@ -220,6 +235,17 @@ function WelcomeScreen({ tier }: { tier: Tier }) {
   );
 }
 
+/** The gate's security guard: a clearly non-player staff character in uniform (no name tag, never in player lists). */
+export function Guard({ x, z, rotY, tier }: { x: number; z: number; rotY: number; tier: Tier }) {
+  const anim = useRef(0);
+  const look = useMemo(() => ({ ...DEFAULT_LOOK, bodyType: "masculine" as const, skinTone: "#4A2C21", hairColor: "#141010" }), []);
+  return (
+    <group position={[x, 0, z]} rotation={[0, rotY, 0]}>
+      <Avatar look={look} animRef={anim} showTag={false} model="guard" keepClothes shadows={tier !== "lite"} quality={tier} lod />
+    </group>
+  );
+}
+
 export function Gate({ tier, inXR }: { tier: Tier; inXR: boolean }) {
   const geos = useMemo(() => buildGate(tier), [tier]);
   const mats = useMemo(() => worldMaterials(tier), [tier]);
@@ -234,6 +260,7 @@ export function Gate({ tier, inXR }: { tier: Tier; inXR: boolean }) {
       })}
       <Flaps />
       <Kiosk inXR={inXR} />
+      <Guard x={GUARD_POST.x} z={GATE_Z + GUARD_POST.dz} rotY={GUARD_POST.rotY} tier={tier} />
       <WelcomeScreen tier={tier} />
     </group>
   );
