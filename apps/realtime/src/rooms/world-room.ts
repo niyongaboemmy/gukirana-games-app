@@ -42,6 +42,7 @@ export class WorldRoom extends Room {
   private lastChat = new Map<string, number>();
   private proposals = new Map<string, Proposal>();
   private seq = 0;
+  private signalBudget = new Map<string, { at: number; n: number }>();
 
   override async onAuth(_c: Client, options: { token?: unknown }): Promise<UserClaims | true> {
     if (!options?.token) return true; // guest
@@ -79,6 +80,25 @@ export class WorldRoom extends Room {
       if (r.blocked) return client.send("chat-warning", { reason: r.reason });
       if (!r.text) return;
       this.broadcast("chat", { id: p.id, name: p.name, color: p.color, text: r.text, t: now, masked: !!r.reason });
+    });
+
+    // ---- proximity voice (SRS FR-COM-01/02): WebRTC signalling relay, signed-in players only ----
+    this.onMessage("voice-signal", (client, raw: { to?: unknown; data?: unknown }) => {
+      if (!this.users.has(client.sessionId) || typeof raw?.to !== "string") return;
+      const target = this.clients.find((c) => c.sessionId === raw.to);
+      if (!target || !this.users.has(target.sessionId)) return;
+      const data = JSON.stringify(raw.data ?? null);
+      if (data.length > 16_000) return; // SDP/ICE only
+      const now = Date.now();
+      const bucket = this.signalBudget.get(client.sessionId) ?? { at: now, n: 0 };
+      if (now - bucket.at > 10_000) Object.assign(bucket, { at: now, n: 0 });
+      if (++bucket.n > 200) return; // flood guard
+      this.signalBudget.set(client.sessionId, bucket);
+      target.send("voice-signal", { from: client.sessionId, data: raw.data });
+    });
+    this.onMessage("voice-state", (client, raw: { on?: unknown; talking?: unknown }) => {
+      if (!this.users.has(client.sessionId)) return;
+      this.broadcast("voice-state", { id: client.sessionId, on: raw?.on === true, talking: raw?.talking === true }, { except: client });
     });
 
     // ---- proposals (walk up → challenge → accept → table) ----
@@ -180,6 +200,7 @@ export class WorldRoom extends Room {
     this.players.delete(client.sessionId);
     this.users.delete(client.sessionId);
     this.lastChat.delete(client.sessionId);
+    this.signalBudget.delete(client.sessionId);
     this.broadcast("left", { id: client.sessionId });
   }
 }

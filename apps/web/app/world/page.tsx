@@ -8,6 +8,7 @@ import { levelForXp, useProfile } from "@/lib/profile-store";
 import { connectPlaza, leavePlaza } from "@/lib/realtime";
 import { useSession } from "@/lib/session";
 import { MatchmakingPanel } from "@/match/MatchmakingPanel";
+import { WorldControls } from "@/hud/WorldControls";
 
 const WorldCanvas = dynamic(() => import("@/world/WorldCanvas"), {
   ssr: false,
@@ -46,6 +47,7 @@ export default function WorldPage() {
       <WorldCanvas profile={{ name: profile.name, color: profile.color, level: levelForXp(profile.xp) }} />
       <WorldHud />
       <MatchmakingPanel />
+      <WorldControls />
       <RotateGuard />
     </div>
   );

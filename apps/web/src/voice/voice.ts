@@ -1,0 +1,273 @@
+"use client";
+import { create } from "zustand";
+import { selfPose, useWorld } from "@/lib/world-store";
+
+/**
+ * Proximity voice (SRS FR-COM-01/02/03/13) — peer-to-peer WebRTC with spatial (HRTF) audio.
+ * Signalling goes through the plaza room. Push-to-talk by default. Good for small groups / MVP;
+ * production swaps the transport for a LiveKit SFU behind the same API (plan P1-COM-03).
+ */
+export const VOICE_RANGE = 8; // metres — silent beyond this (DESIGN-SPEC §6.1)
+const CONNECT_RANGE = 10;
+const DISCONNECT_RANGE = 14;
+const MAX_PEERS = 8;
+
+type Status = "off" | "starting" | "on" | "denied" | "error";
+interface VoiceState {
+  status: Status;
+  transmitting: boolean;
+  openMic: boolean;
+  /** remote sessionId → speaking now */
+  talking: Record<string, boolean>;
+  /** remote sessionId → has voice switched on */
+  available: Record<string, boolean>;
+  muted: Record<string, boolean>;
+  connected: string[];
+  selfTalking: boolean;
+}
+export const useVoice = create<VoiceState>()(() => ({ status: "off", transmitting: false, openMic: false, talking: {}, available: {}, muted: {}, connected: [], selfTalking: false }));
+
+type Send = (type: string, payload: unknown) => void;
+let send: Send = () => undefined;
+export const bindVoiceTransport = (s: Send) => (send = s);
+
+interface Peer {
+  pc: RTCPeerConnection;
+  polite: boolean;
+  makingOffer: boolean;
+  ignoreOffer: boolean;
+  audio?: HTMLAudioElement;
+  nodes?: { source: MediaStreamAudioSourceNode; panner: PannerNode; gain: GainNode };
+}
+const peers = new Map<string, Peer>();
+let stream: MediaStream | null = null;
+let ctx: AudioContext | null = null;
+let analyser: AnalyserNode | null = null;
+let manageTimer: ReturnType<typeof setInterval> | null = null;
+let talkTimer: ReturnType<typeof setInterval> | null = null;
+let raf = 0;
+
+function iceServers(): RTCIceServer[] {
+  try {
+    return JSON.parse(process.env.NEXT_PUBLIC_ICE_SERVERS ?? "[]") as RTCIceServer[];
+  } catch {
+    return [];
+  }
+}
+const me = () => useWorld.getState().you ?? "";
+const syncConnected = () => useVoice.setState({ connected: [...peers.keys()] });
+
+function createPeer(id: string): Peer {
+  const pc = new RTCPeerConnection({ iceServers: iceServers() });
+  const peer: Peer = { pc, polite: me() > id, makingOffer: false, ignoreOffer: false };
+  stream?.getAudioTracks().forEach((t) => pc.addTrack(t, stream!));
+  pc.onicecandidate = ({ candidate }) => candidate && send("voice-signal", { to: id, data: { candidate: candidate.toJSON() } });
+  pc.onnegotiationneeded = async () => {
+    try {
+      peer.makingOffer = true;
+      await pc.setLocalDescription();
+      send("voice-signal", { to: id, data: { description: pc.localDescription?.toJSON() } });
+    } catch {
+      /* renegotiation will retry */
+    } finally {
+      peer.makingOffer = false;
+    }
+  };
+  pc.ontrack = ({ streams }) => streams[0] && attachAudio(peer, streams[0]);
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === "failed" || pc.connectionState === "closed") dropPeer(id);
+  };
+  peers.set(id, peer);
+  syncConnected();
+  return peer;
+}
+
+function attachAudio(peer: Peer, remote: MediaStream) {
+  if (!ctx) return;
+  // Chrome only feeds remote WebRTC audio into Web Audio when an element also plays it (muted)
+  const audio = new Audio();
+  audio.srcObject = remote;
+  audio.muted = true;
+  void audio.play().catch(() => undefined);
+  const source = ctx.createMediaStreamSource(remote);
+  const panner = new PannerNode(ctx, { panningModel: "HRTF", distanceModel: "inverse", refDistance: 2, maxDistance: VOICE_RANGE, rolloffFactor: 1.5 });
+  const gain = ctx.createGain();
+  source.connect(panner).connect(gain).connect(ctx.destination);
+  peer.audio = audio;
+  peer.nodes = { source, panner, gain };
+}
+
+export function dropPeer(id: string, notify = false) {
+  const p = peers.get(id);
+  if (!p) return;
+  if (notify) send("voice-signal", { to: id, data: { bye: true } });
+  p.pc.close();
+  p.nodes?.source.disconnect();
+  p.nodes?.gain.disconnect();
+  if (p.audio) p.audio.srcObject = null;
+  peers.delete(id);
+  syncConnected();
+}
+
+/** Perfect negotiation (W3C pattern): either side may offer; the "polite" peer yields on collision. */
+export async function handleSignal(from: string, data: { description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit; bye?: boolean }) {
+  if (data?.bye) return dropPeer(from);
+  if (useVoice.getState().status !== "on") return;
+  let peer = peers.get(from);
+  if (!peer) {
+    if (peers.size >= MAX_PEERS) return;
+    peer = createPeer(from);
+  }
+  const pc = peer.pc;
+  try {
+    if (data.description) {
+      const collision = data.description.type === "offer" && (peer.makingOffer || pc.signalingState !== "stable");
+      peer.ignoreOffer = !peer.polite && collision;
+      if (peer.ignoreOffer) return;
+      await pc.setRemoteDescription(data.description);
+      if (data.description.type === "offer") {
+        await pc.setLocalDescription();
+        send("voice-signal", { to: from, data: { description: pc.localDescription?.toJSON() } });
+      }
+    } else if (data.candidate) {
+      await pc.addIceCandidate(data.candidate).catch((e) => {
+        if (!peer!.ignoreOffer) throw e;
+      });
+    }
+  } catch {
+    /* ignore transient negotiation errors */
+  }
+}
+
+export function handleVoiceState(m: { id: string; on: boolean; talking: boolean }) {
+  useVoice.setState((s) => ({ available: { ...s.available, [m.id]: m.on }, talking: { ...s.talking, [m.id]: m.on && m.talking } }));
+  if (!m.on) dropPeer(m.id);
+}
+
+export function onPlayerLeft(id: string) {
+  dropPeer(id);
+  useVoice.setState((s) => {
+    const available = { ...s.available };
+    const talking = { ...s.talking };
+    delete available[id];
+    delete talking[id];
+    return { available, talking };
+  });
+}
+
+/** Connect to voice-enabled players in range; disconnect those who walked away (hysteresis). */
+function manage() {
+  const { players } = useWorld.getState();
+  const { available } = useVoice.getState();
+  for (const p of Object.values(players)) {
+    const d = Math.hypot(p.x / 100 - selfPose.x, p.z / 100 - selfPose.z);
+    const has = peers.has(p.id);
+    if (!has && available[p.id] && p.verified && d < CONNECT_RANGE && peers.size < MAX_PEERS && me() < p.id) createPeer(p.id);
+    if (has && d > DISCONNECT_RANGE) dropPeer(p.id, true);
+  }
+  for (const id of peers.keys()) if (!players[id]) dropPeer(id);
+}
+
+/** Per-frame spatial update: listener = my avatar, sources = remote avatars. */
+function spatialize() {
+  raf = requestAnimationFrame(spatialize);
+  if (!ctx) return;
+  const L = ctx.listener;
+  const fx = Math.sin(selfPose.yaw);
+  const fz = Math.cos(selfPose.yaw);
+  if (L.positionX) {
+    L.positionX.value = selfPose.x;
+    L.positionY.value = 1.6;
+    L.positionZ.value = selfPose.z;
+    L.forwardX.value = fx;
+    L.forwardY.value = 0;
+    L.forwardZ.value = fz;
+    L.upX.value = 0;
+    L.upY.value = 1;
+    L.upZ.value = 0;
+  } else {
+    L.setPosition(selfPose.x, 1.6, selfPose.z);
+    L.setOrientation(fx, 0, fz, 0, 1, 0);
+  }
+  const { players } = useWorld.getState();
+  const { muted } = useVoice.getState();
+  for (const [id, peer] of peers) {
+    const p = players[id];
+    if (!p || !peer.nodes) continue;
+    const x = p.x / 100;
+    const z = p.z / 100;
+    peer.nodes.panner.positionX.value = x;
+    peer.nodes.panner.positionY.value = 1.6;
+    peer.nodes.panner.positionZ.value = z;
+    const d = Math.hypot(x - selfPose.x, z - selfPose.z);
+    // hard cut beyond range (privacy) with a short fade; mute per person (FR-COM-07)
+    const target = muted[id] ? 0 : d >= VOICE_RANGE ? 0 : d > VOICE_RANGE - 1.5 ? (VOICE_RANGE - d) / 1.5 : 1;
+    peer.nodes.gain.gain.setTargetAtTime(target, ctx.currentTime, 0.08);
+  }
+}
+
+function detectTalking() {
+  if (!analyser) return;
+  const buf = new Float32Array(analyser.fftSize);
+  analyser.getFloatTimeDomainData(buf);
+  let sum = 0;
+  for (const v of buf) sum += v * v;
+  const rms = Math.sqrt(sum / buf.length);
+  const talking = useVoice.getState().transmitting && rms > 0.02;
+  if (talking !== useVoice.getState().selfTalking) {
+    useVoice.setState({ selfTalking: talking });
+    send("voice-state", { on: true, talking });
+  }
+}
+
+export async function enableVoice(): Promise<void> {
+  if (useVoice.getState().status === "on" || useVoice.getState().status === "starting") return;
+  useVoice.setState({ status: "starting" });
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    ctx = new AudioContext();
+    await ctx.resume();
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 512;
+    ctx.createMediaStreamSource(stream).connect(analyser);
+    stream.getAudioTracks().forEach((t) => (t.enabled = false)); // push-to-talk by default
+    useVoice.setState({ status: "on", transmitting: false, openMic: false });
+    send("voice-state", { on: true, talking: false });
+    manageTimer = setInterval(manage, 500);
+    talkTimer = setInterval(detectTalking, 150);
+    raf = requestAnimationFrame(spatialize);
+  } catch (e) {
+    useVoice.setState({ status: (e as DOMException)?.name === "NotAllowedError" ? "denied" : "error" });
+    stream?.getTracks().forEach((t) => t.stop());
+    stream = null;
+  }
+}
+
+export function disableVoice(): void {
+  for (const id of [...peers.keys()]) dropPeer(id, true);
+  if (manageTimer) clearInterval(manageTimer);
+  if (talkTimer) clearInterval(talkTimer);
+  cancelAnimationFrame(raf);
+  stream?.getTracks().forEach((t) => t.stop());
+  void ctx?.close().catch(() => undefined);
+  stream = null;
+  ctx = null;
+  analyser = null;
+  if (useVoice.getState().status === "on") send("voice-state", { on: false, talking: false });
+  useVoice.setState({ status: "off", transmitting: false, openMic: false, selfTalking: false });
+}
+
+export function setTransmitting(on: boolean): void {
+  if (useVoice.getState().status !== "on") return;
+  const value = on || useVoice.getState().openMic;
+  stream?.getAudioTracks().forEach((t) => (t.enabled = value));
+  useVoice.setState({ transmitting: value });
+}
+
+export function toggleOpenMic(): void {
+  const openMic = !useVoice.getState().openMic;
+  useVoice.setState({ openMic });
+  setTransmitting(openMic);
+}
+
+export const setMuted = (id: string, mute: boolean) => useVoice.setState((s) => ({ muted: { ...s.muted, [id]: mute } }));

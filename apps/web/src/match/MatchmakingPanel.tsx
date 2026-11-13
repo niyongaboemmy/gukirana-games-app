@@ -120,7 +120,7 @@ export function MatchmakingPanel() {
             </button>
           )
         ) : (
-          <Link href="/" className={`${glass} pointer-events-auto flex items-center gap-2 px-4 py-2.5 text-sm font-bold`}>
+          <Link href="/gate" className={`${glass} pointer-events-auto flex items-center gap-2 px-4 py-2.5 text-sm font-bold`}>
             <Zap size={16} className="text-[#FFC83D]" /> Sign in to play people
           </Link>
         )}

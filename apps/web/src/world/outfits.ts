@@ -90,7 +90,6 @@ export const OUTFITS: OutfitItem[] = [
   { id: "sandals", slot: "shoes", label: "Sandals", style: "traditional", suggestedFor: ALL, kind: "sandals", color: "#7a4a26" },
   // accessories
   { id: "none", slot: "accessory", label: "None", style: "casual", suggestedFor: ALL, kind: "none", color: "#000000" },
-  { id: "headset", slot: "accessory", label: "VR headset", style: "street", suggestedFor: ALL, kind: "headset", color: "#f7f8fb", color2: "accent" },
   { id: "glasses", slot: "accessory", label: "Glasses", style: "smart", suggestedFor: ALL, kind: "glasses", color: "#1b1b1b" },
   { id: "sunglasses", slot: "accessory", label: "Sunglasses", style: "street", suggestedFor: ALL, kind: "sunglasses", color: "#111111" },
   { id: "earrings", slot: "accessory", label: "Gold earrings", style: "smart", suggestedFor: ["feminine", "neutral"], kind: "earrings", color: "#FFC83D" },
@@ -122,7 +121,7 @@ export interface AvatarLook {
   accent: string;
 }
 
-export const DEFAULT_OUTFIT: Outfit = { top: "hoodie", bottom: "joggers", shoes: "sneakers", accessory: "headset", headwear: "no-hat" };
+export const DEFAULT_OUTFIT: Outfit = { top: "hoodie", bottom: "joggers", shoes: "sneakers", accessory: "none", headwear: "no-hat" };
 export const DEFAULT_LOOK: AvatarLook = {
   bodyType: "neutral",
   skinTone: SKIN_TONES[4]!,

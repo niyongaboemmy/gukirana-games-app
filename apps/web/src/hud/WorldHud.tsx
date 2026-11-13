@@ -136,7 +136,7 @@ export function WorldHud() {
             <Glasses size={18} strokeWidth={1.85} /> Enter VR
           </button>
         )}
-        <Link href="/" aria-label="Lobby" className="pointer-events-auto grid size-12 place-items-center rounded-2xl border border-white/30 bg-[#22266E]/70 shadow-xl backdrop-blur-md">
+        <Link href="/classic" aria-label="Account and settings" className="pointer-events-auto grid size-12 place-items-center rounded-2xl border border-white/30 bg-[#22266E]/70 shadow-xl backdrop-blur-md">
           <Settings size={22} strokeWidth={1.85} />
         </Link>
       </div>

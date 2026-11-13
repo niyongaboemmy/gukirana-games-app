@@ -10,13 +10,15 @@ import type { Tier } from "./materials";
 import { useWorld } from "@/lib/world-store";
 import { lookOf, useProfile } from "@/lib/profile-store";
 import { sendMove } from "@/lib/realtime";
+import { selfPose } from "@/lib/world-store";
 
-const WALK = 3.0; // m/s (DESIGN-SPEC §6.1)
-const RUN = 5.5;
+/** Walking speeds (m/s): real walking pace by default; the player can change it (HUD speed control). */
+export const WALK_SPEEDS = { slow: 1.4, normal: 2.2, fast: 3.2 } as const;
+const RUN_FACTOR = 1.8;
 const keys = new Set<string>();
 
 /** Camera orbit state shared between the camera rig and the movement code. */
-export const cameraState = { yaw: 0, pitch: 0.3, distance: 5.6 };
+export const cameraState = { yaw: 0, pitch: 0.42, distance: 9 }; // start zoomed out
 // dev-only hook for visual QA scripts (headless screenshots of wide views); stripped from production logic
 if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") (window as unknown as { __gkCam: typeof cameraState }).__gkCam = cameraState;
 
@@ -79,7 +81,7 @@ export function LocalPlayer({ color, name, level, tier = "standard" }: { color: 
     };
     const pu = () => (dragging = false);
     const wheel = (e: WheelEvent) => {
-      cameraState.distance = THREE.MathUtils.clamp(cameraState.distance + e.deltaY * 0.004, 2.5, 10);
+      cameraState.distance = THREE.MathUtils.clamp(cameraState.distance + e.deltaY * 0.006, 2.5, 18);
     };
     el.addEventListener("pointerdown", pd);
     el.addEventListener("pointermove", pm);
@@ -108,19 +110,22 @@ export function LocalPlayer({ color, name, level, tier = "standard" }: { color: 
     if (keys.has("KeyA") || keys.has("ArrowLeft")) ix -= 1;
     if (keys.has("KeyD") || keys.has("ArrowRight")) ix += 1;
     const mag = Math.min(1, Math.hypot(ix, iy));
-    const run = w.input.run || keys.has("ShiftLeft") || keys.has("ShiftRight") || mag > 0.95;
+    // run only on purpose (Run button / Shift) — never just because the joystick hits its edge
+    const run = w.input.run || keys.has("ShiftLeft") || keys.has("ShiftRight");
 
     if (mag > 0.08 && !inXR) {
       // movement relative to the camera
-      const angle = Math.atan2(ix, iy) + cameraState.yaw + Math.PI;
-      const speed = (run ? RUN : WALK) * mag;
+      // camera-relative: up = away from the camera, right = camera's right (x mirrored so D/joystick-right go right)
+      const angle = Math.atan2(-ix, iy) + cameraState.yaw + Math.PI;
+      const walk = WALK_SPEEDS[w.speed] ?? WALK_SPEEDS.slow;
+      const speed = walk * (run ? RUN_FACTOR : 1) * mag;
       pos.current.x += Math.sin(angle) * speed * dt;
       pos.current.z += Math.cos(angle) * speed * dt;
       const target = angle;
       let diff = target - facing.current;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      facing.current += diff * Math.min(1, dt * 12);
-      anim.current = run ? 2 : 1;
+      facing.current += diff * Math.min(1, dt * 8);
+      anim.current = run || speed > 2.6 ? 2 : 1;
     } else {
       const e = w.emote;
       anim.current = e && e.until > Date.now() ? e.id : 0;
@@ -174,6 +179,9 @@ export function LocalPlayer({ color, name, level, tier = "standard" }: { color: 
     if (nearPortal !== w.nearPortal || nearPlayer !== w.nearPlayer) w.set({ nearPortal, nearPlayer });
 
     sendMove(pos.current.x, pos.current.z, facing.current, anim.current);
+    selfPose.x = pos.current.x;
+    selfPose.z = pos.current.z;
+    selfPose.yaw = facing.current;
   });
 
   return (

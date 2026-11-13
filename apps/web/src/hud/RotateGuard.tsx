@@ -22,7 +22,7 @@ export function RotateGuard() {
         </div>
         <p className="text-2xl font-extrabold">Rotate your phone</p>
         <p className="max-w-xs text-sm text-white/70">The games world is built for landscape. Turn your phone sideways to play.</p>
-        <Link href="/" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold">
+        <Link href="/classic" className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold">
           Use the Classic lobby instead
         </Link>
       </div>

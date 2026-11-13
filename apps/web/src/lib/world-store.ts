@@ -28,6 +28,9 @@ export interface ChatLine {
   system?: boolean;
 }
 
+/** Local avatar pose, written every frame by the player controller (non-reactive, for audio). */
+export const selfPose = { x: 0, z: 16, yaw: Math.PI };
+
 export type PortalId = "pool" | "ludo" | "igisoro" | "arena" | "soon-left" | "soon-right";
 
 interface WorldState {
@@ -39,6 +42,8 @@ interface WorldState {
   nearPlayer: string | null;
   input: { x: number; y: number; run: boolean };
   emote: { id: number; until: number } | null;
+  /** walking pace chosen by the player (persisted) */
+  speed: "slow" | "normal" | "fast";
   set: (p: Partial<WorldState>) => void;
   upsertPlayer: (p: Partial<RemotePlayer> & { id: string }) => void;
   removePlayer: (id: string) => void;
@@ -54,6 +59,7 @@ export const useWorld = create<WorldState>()((set, get) => ({
   nearPlayer: null,
   input: { x: 0, y: 0, run: false },
   emote: null,
+  speed: (typeof localStorage !== "undefined" && (localStorage.getItem("gk-speed") as "slow" | "normal" | "fast" | null)) || "slow",
   set: (p) => set(p),
   upsertPlayer: (p) =>
     set({ players: { ...get().players, [p.id]: { ...(get().players[p.id] as RemotePlayer), ...p } } }),

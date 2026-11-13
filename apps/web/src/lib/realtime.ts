@@ -2,6 +2,7 @@
 import { Client, type Room } from "colyseus.js";
 import { useWorld, type RemotePlayer } from "./world-store";
 import { reasonText, useMatch, type IncomingProposal } from "./match-store";
+import { bindVoiceTransport, disableVoice, handleSignal, handleVoiceState, onPlayerLeft } from "@/voice/voice";
 import { lookOf, useProfile } from "./profile-store";
 import { encodeLook } from "@/world/outfits";
 
@@ -34,7 +35,14 @@ export async function connectPlaza(profile: { name: string; color: string; level
       useWorld.getState().upsertPlayer(p);
       useWorld.getState().pushChat({ id: "sys", name: "", color: "", text: `${p.name} joined the plaza`, t: Date.now(), system: true });
     });
-    room.onMessage("left", (m: { id: string }) => useWorld.getState().removePlayer(m.id));
+    room.onMessage("left", (m: { id: string }) => {
+      useWorld.getState().removePlayer(m.id);
+      onPlayerLeft(m.id);
+    });
+    // proximity voice signalling
+    bindVoiceTransport((type, payload) => room?.send(type, payload));
+    room.onMessage("voice-signal", (m: { from: string; data: Parameters<typeof handleSignal>[1] }) => void handleSignal(m.from, m.data));
+    room.onMessage("voice-state", handleVoiceState);
     room.onMessage("move", (m: Partial<RemotePlayer> & { id: string }) => useWorld.getState().upsertPlayer(m));
     room.onMessage("emote", (m: { id: string; emote: number }) =>
       useWorld.getState().upsertPlayer({ id: m.id, anim: m.emote, emoteUntil: Date.now() + 2500 }),
@@ -77,6 +85,7 @@ export async function connectPlaza(profile: { name: string; color: string; level
 }
 
 export function leavePlaza(): void {
+  disableVoice();
   void room?.leave();
   room = null;
 }

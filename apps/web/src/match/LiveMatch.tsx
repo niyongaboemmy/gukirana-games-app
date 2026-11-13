@@ -72,7 +72,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
 
   useEffect(() => {
     if (status === "loading") return;
-    if (status === "anonymous") return void router.replace("/");
+    if (status === "anonymous") return void router.replace("/gate");
     let cancelled = false;
     const pending = pendingLeave.get(roomId);
     if (pending) {
