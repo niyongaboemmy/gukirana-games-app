@@ -93,7 +93,7 @@ export function LocalPlayer({
     hand ? new THREE.Vector3(hand.x, 0, hand.z) : restored.current ? new THREE.Vector3(restored.current.x, 0, restored.current.z) : spawnPoint(name),
   );
   const facing = useRef(hand?.yaw ?? restored.current?.yaw ?? Math.PI);
-  const stepOut = useRef(hand ? hand.walk : restored.current?.fromDoor ? 1.6 : restored.current ? 0 : 1.4); // fresh arrival: walk in from the gate
+  const stepOut = useRef(hand ? hand.walk : restored.current?.fromDoor ? 2.0 : restored.current ? 0 : 1.4); // out of a hall: ~2.6 m out through the door; fresh arrival: walk in from the gate
   /** pace of the scripted step-out / walk-in (m/s): carried over from the walk that came before */
   const stepSpeed = hand?.speed ?? 1.35;
   /** don't pull the player straight back through the door they just came out of */
@@ -265,7 +265,7 @@ export function LocalPlayer({
         if (r > DOOR_RING - 0.9 && !entering && performance.now() > reentryAfter.current) {
           // coming back from the room puts you just outside this door, facing the plaza
           // a few steps out from the door (camera stays on the plaza side, no prompt to walk straight back in)
-          saveDoorPose({ x: Math.sin(a) * (DOOR_RING - 1.7), z: -Math.cos(a) * (DOOR_RING - 1.7), yaw: -a });
+          saveDoorPose({ x: Math.sin(a) * (DOOR_RING - 1.2), z: -Math.cos(a) * (DOOR_RING - 1.2), yaw: -a });
           useTransition.getState().enter(p.href);
         }
       }

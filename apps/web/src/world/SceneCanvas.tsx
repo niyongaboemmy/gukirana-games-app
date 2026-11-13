@@ -1,7 +1,7 @@
 "use client";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Canvas, createPortal, useFrame, useThree } from "@react-three/fiber";
-import { AdaptiveDpr, PerformanceMonitor, useProgress } from "@react-three/drei";
+import { AdaptiveDpr, PerformanceMonitor, useGLTF, useProgress } from "@react-three/drei";
 import { XR, useXR } from "@react-three/xr";
 import { useStore } from "zustand";
 import * as THREE from "three";
@@ -20,6 +20,9 @@ import { HallActors, HallInterior } from "@/rooms/RoomCanvas";
 import { HALLS, type HallGame } from "@/rooms/layouts";
 import { selfPose, useWorld } from "@/lib/world-store";
 import { lookOf, useProfile } from "@/lib/profile-store";
+import { preloadHall } from "@/rooms/preload";
+import { preloadVegetation } from "./Vegetation";
+import { ANIM_SETS, HUMAN_MODELS } from "./human/meta";
 
 /**
  * The ONE persistent WebGL canvas of the session (mounted once by world/SceneHost in the root layout).
@@ -30,6 +33,22 @@ import { lookOf, useProfile } from "@/lib/profile-store";
  * (`AreaWarm`: compileAsync + texture upload + one 1-pixel draw), and the plaza stays mounted while you are in a
  * hall, so walking through a door is a same-frame switch.
  */
+
+/**
+ * Cold boot: request EVERYTHING the first view needs at once, in parallel, before React mounts the tree (nested
+ * components would otherwise each suspend on their own loader in turn — a request waterfall). GLBs go through the
+ * shared loader cache; textures / fonts loaded by plain loaders are warmed in the HTTP cache.
+ */
+function preloadFor(path: string) {
+  preloadVegetation();
+  useGLTF.preload(HUMAN_MODELS.guard.url, false);
+  for (const s of Object.values(ANIM_SETS)) useGLTF.preload(s.lifeUrl, false);
+  for (const url of ["/assets/env/ground-grass.webp", "/assets/env/ground-grass-n.webp", "/assets/env/acacia-imp.webp", "/assets/env/eucalyptus-imp.webp", "/fonts/Baloo2.ttf"])
+    void fetch(url, { cache: "force-cache" }).catch(() => undefined);
+  const hall = /^\/room\/(pool|ludo|igisoro)/.exec(path)?.[1] as HallGame | undefined;
+  if (hall) preloadHall(hall);
+}
+if (typeof window !== "undefined") preloadFor(location.pathname);
 
 /** Hall you walked away from: released beyond this distance from its door (phones keep less around). */
 const COOL_DIST = { lite: 22, standard: 40 } as const;
@@ -115,13 +134,16 @@ function AreaWarm({ area, content }: { area: Area; content: RefObject<THREE.Grou
       mark(`${area}:compiled`);
       // upload textures a few per frame (no single long frame while you are walking)
       const tex = texturesOf(scene);
+      // booting on screen (nobody is walking yet): upload in one go; warming in the background: a few per frame
+      const view = useStage.getState().view;
+      const per = view && areaOf(view) === area ? 1e9 : 4;
       for (let i = 0; i < tex.length; i++) {
         try {
           gl.initTexture(tex[i]!);
         } catch {
           /* exotic texture: uploads on first use */
         }
-        if (i % 4 === 3) {
+        if (i % per === per - 1) {
           prog(0.5 + (0.4 * i) / tex.length);
           await nextFrame();
         }
