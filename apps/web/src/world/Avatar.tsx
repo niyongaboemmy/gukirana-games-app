@@ -111,9 +111,9 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
     mesh.material = m;
     mesh.castShadow = shadows;
     mesh.receiveShadow = false;
-    // skinned bounds come from the bind pose; pad them so animated poses (sitting, dancing) never pop out
-    if (!mesh.boundingSphere) mesh.computeBoundingSphere();
-    if (mesh.boundingSphere) mesh.boundingSphere.radius *= 1.6;
+    // Skinned bounds come from the bind pose, so per-mesh frustum culling wrongly hid the head at some camera
+    // angles (close / looking down). Never cull the parts of a person individually — attachments already do the same.
+    mesh.frustumCulled = false;
     if (part === "body") full.push(mesh);
     else if (part === "lod1") lite.push(mesh);
     if (part === "haircards") mesh.visible = SHOW_CARDS.has(look.hairStyle);
