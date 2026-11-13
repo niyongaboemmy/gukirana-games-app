@@ -48,7 +48,7 @@ export function GameShell({
   const [fairOpen, setFairOpen] = useState(false);
   return (
     <div className="fixed inset-0 flex flex-col bg-[radial-gradient(ellipse_at_top,#2a2f7a_0%,#0b0d1a_70%)] text-white">
-      <header className="flex items-center gap-2 px-[max(12px,env(safe-area-inset-left))] py-2">
+      <header className="flex items-center gap-2 px-[max(12px,env(safe-area-inset-left))] py-2 phone:py-1">
         <button type="button" onClick={() => setLeaving(true)} className="rounded-xl bg-white/10 px-3 py-2 text-sm font-semibold hover:bg-white/15">
           <span className="flex items-center gap-1"><ChevronLeft size={16} /> Leave</span>
         </button>
@@ -66,7 +66,8 @@ export function GameShell({
         </div>
       </header>
 
-      <main className="grid min-h-0 flex-1 grid-cols-[minmax(92px,180px)_1fr_minmax(92px,180px)] gap-2 px-[max(8px,env(safe-area-inset-left))] pb-2">
+      {/* phone (landscape): narrow side panels (~13% each) so the board gets the width */}
+      <main className="grid min-h-0 flex-1 grid-cols-[minmax(92px,180px)_1fr_minmax(92px,180px)] gap-2 px-[max(8px,env(safe-area-inset-left))] pb-2 phone:grid-cols-[minmax(76px,112px)_1fr_minmax(76px,112px)] phone:gap-1.5 phone:pb-1">
         <PlayerPanel p={you} label="You" />
         <section className="grid min-h-0 min-w-0 place-items-center">{children}</section>
         <div className="flex min-h-0 flex-col gap-2 overflow-y-auto">
@@ -109,16 +110,16 @@ export function GameShell({
 function PlayerPanel({ p, label }: { p: PanelPlayer; label: string }) {
   return (
     <div
-      className={`flex flex-col gap-1 rounded-2xl border-2 bg-white/5 p-2 transition sm:p-3 ${p.active ? "shadow-[0_0_24px_-4px] " : "opacity-80"}`}
+      className={`flex flex-col gap-1 rounded-2xl border-2 bg-white/5 p-2 transition sm:p-3 phone:gap-0.5 phone:rounded-xl phone:p-1.5 phone:text-[11px] ${p.active ? "shadow-[0_0_24px_-4px] " : "opacity-80"}`}
       style={{ borderColor: p.active ? p.color : "rgba(255,255,255,.12)", color: "inherit", boxShadow: p.active ? `0 0 22px -6px ${p.color}` : undefined }}
     >
-      <div className="flex items-center gap-2">
-        <div className="grid size-9 shrink-0 place-items-center rounded-full text-white sm:size-11" style={{ background: p.color }}>
-          {p.isBot ? <Bot size={20} /> : <User size={20} />}
+      <div className="flex items-center gap-2 phone:gap-1.5">
+        <div className="grid size-9 shrink-0 place-items-center rounded-full text-white sm:size-11 phone:size-7" style={{ background: p.color }}>
+          {p.isBot ? <Bot size={16} /> : <User size={16} />}
         </div>
         <div className="min-w-0 leading-tight">
-          <p className="truncate text-sm font-bold">{p.name}</p>
-          <p className="flex items-center gap-1 text-xs text-[#FFC83D]"><Star size={11} className="fill-current" /> {p.subtitle ?? `Lvl ${p.level}`} · {label}</p>
+          <p className="truncate text-sm font-bold phone:text-xs">{p.name}</p>
+          <p className="flex items-center gap-1 text-xs text-[#FFC83D] phone:text-[10px]"><Star size={11} className="fill-current" /> {p.subtitle ?? `Lvl ${p.level}`} · {label}</p>
         </div>
       </div>
       {p.active && <p className="flex items-center gap-1.5 text-xs font-bold" style={{ color: p.color }}><span className="size-2 animate-pulse rounded-full" style={{ background: p.color }} /> Turn</p>}

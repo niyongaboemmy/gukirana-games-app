@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { POCKETS, R, TABLE_H, TABLE_W, U, type PoolState } from "@gukirana/pool";
 import { COLORS } from "@/games/pool-physics";
+import { drawCue, paintTable } from "@/games/pool-art";
 
 const PAD = 600; // rail width in 0.1 mm units for drawing
 const WU = TABLE_W / U; // table size in 0.1 mm units
@@ -15,6 +16,7 @@ const isStripe = (n: number) => n >= 9;
  */
 export function PoolLiveBoard({ state, myTurn, onShoot }: { state: PoolState; myTurn: boolean; onShoot: (i: { dx: number; dy: number; power: number; spin: number }) => void }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const tableArt = useRef<HTMLCanvasElement | null>(null);
   const aim = useRef(0);
   const [power, setPower] = useState(0);
   const [spin, setSpin] = useState(0);
@@ -65,27 +67,9 @@ export function PoolLiveBoard({ state, myTurn, onShoot }: { state: PoolState; my
         const scale = c.width / (WU + PAD * 2);
         g.setTransform(scale, 0, 0, scale, PAD * scale, PAD * scale);
         g.clearRect(-PAD, -PAD, WU + PAD * 2, HU + PAD * 2);
-        g.fillStyle = "#5a3418";
-        g.beginPath();
-        g.roundRect(-PAD, -PAD, WU + PAD * 2, HU + PAD * 2, 700);
-        g.fill();
-        const cloth = g.createRadialGradient(WU / 2, HU / 2, 1000, WU / 2, HU / 2, WU * 0.7);
-        cloth.addColorStop(0, "#2a8a92");
-        cloth.addColorStop(1, "#1F6F78");
-        g.fillStyle = cloth;
-        g.fillRect(0, 0, WU, HU);
-        g.strokeStyle = "rgba(255,255,255,.12)";
-        g.lineWidth = 30;
-        g.beginPath();
-        g.moveTo(WU / 4, 0);
-        g.lineTo(WU / 4, HU);
-        g.stroke();
-        for (const [px, py, pr] of POCKETS) {
-          g.fillStyle = "#070707";
-          g.beginPath();
-          g.arc(px / U, py / U, (pr / U) * 0.75, 0, Math.PI * 2);
-          g.fill();
-        }
+        // table art painted once (same look as practice: cloth, walnut rails, diamonds, leather pockets)
+        tableArt.current ??= paintTable({ w: WU, h: HU, pad: PAD, pockets: POCKETS.map(([px, py, pr]) => [px / U, py / U, (pr / U) * 0.75] as const), pocketR: 0, scale });
+        g.drawImage(tableArt.current, -PAD, -PAD, WU + PAD * 2, HU + PAD * 2);
         const balls = shown.current;
         const cue = balls.find((b) => b.n === 0);
         if (myTurn && !replaying && cue) {
@@ -99,13 +83,7 @@ export function PoolLiveBoard({ state, myTurn, onShoot }: { state: PoolState; my
           g.stroke();
           g.setLineDash([]);
           const back = 700 + power * 2400;
-          g.strokeStyle = "#e9c58b";
-          g.lineWidth = 160;
-          g.lineCap = "round";
-          g.beginPath();
-          g.moveTo(cue.x - Math.cos(a) * (BR + back), cue.y - Math.sin(a) * (BR + back));
-          g.lineTo(cue.x - Math.cos(a) * (BR + back + 8000), cue.y - Math.sin(a) * (BR + back + 8000));
-          g.stroke();
+          drawCue(g, cue.x, cue.y, a, BR + back, 8000, 25);
         }
         for (const b of balls) {
           g.fillStyle = "rgba(0,0,0,.35)";

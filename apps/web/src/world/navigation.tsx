@@ -51,8 +51,21 @@ export interface SteerResult {
   mode: "keys" | "joy" | "click" | null;
 }
 
+/**
+ * Locomotion state of the one local person (only one controller runs at a time): the current ground speed (eased,
+ * so starts take ~0.35 s and stops ~0.25 s instead of a single frame), the direction of the last step (a released
+ * S key decays backwards, never glides forwards) and the camera yaw latched while the joystick is held.
+ */
+const motion = { v: 0, dir: 1, last: 0, joyYaw: null as number | null, lateral: false, followFor: 0 };
+
+/** Joystick radial dead zone + response curve: a small thumb movement is a slow walk, not instant full pace. */
+const stickMag = (m: number) => Math.pow(THREE.MathUtils.clamp((m - 0.12) / 0.88, 0, 1), 1.4);
+
 export function steer(i: SteerInput): SteerResult {
   const k = i.keys;
+  const now = performance.now();
+  if (now - motion.last > 200) motion.v = 0; // a scripted walk / seat ran in between: start from rest
+  motion.last = now;
   const fwd = (k.has("KeyW") || k.has("ArrowUp") ? 1 : 0) - (k.has("KeyS") || k.has("ArrowDown") ? 1 : 0);
   const turn = (k.has("KeyD") || k.has("ArrowRight") ? 1 : 0) - (k.has("KeyA") || k.has("ArrowLeft") ? 1 : 0);
   let facing = i.facing;
@@ -60,6 +73,11 @@ export function steer(i: SteerInput): SteerResult {
   let mag = 0;
   let dir = 1;
   let mode: SteerResult["mode"] = null;
+  // turning is rate-limited like a real body: brisk on the spot, gentler while walking (no whip turns)
+  const maxTurn = (7 - 1.5 * Math.min(1, motion.v / Math.max(0.1, i.walkSpeed))) * i.dt;
+  const turnTowards = (h: number) => {
+    facing += THREE.MathUtils.clamp(wrap(h - facing), -maxTurn, maxTurn);
+  };
 
   if (turn) facing -= turn * TURN_RATE * i.dt; // right = clockwise seen from above
   if (fwd) {
@@ -69,24 +87,30 @@ export function steer(i: SteerInput): SteerResult {
     mode = "keys";
   }
   const jm = Math.hypot(i.joyX, i.joyY);
+  if (jm < 0.15) motion.joyYaw = null;
+  motion.lateral = false;
   if (!fwd && jm > 0.08) {
-    heading = Math.atan2(-i.joyX, i.joyY) + i.camYaw + Math.PI; // camera-relative
-    mag = Math.min(1, jm);
+    // camera-relative to the camera as it was when the thumb went down: "right" stays right while the stick is held
+    // (otherwise the follow camera and the heading chase each other and the person walks in circles)
+    motion.joyYaw ??= i.camYaw;
+    heading = Math.atan2(-i.joyX, i.joyY) + motion.joyYaw + Math.PI;
+    mag = stickMag(jm);
     mode = "joy";
-    facing += wrap(heading - facing) * Math.min(1, i.dt * 8);
+    motion.lateral = Math.abs(i.joyX) > 0.5 * Math.abs(i.joyY);
+    turnTowards(heading);
   }
   if (mode || turn) nav.target = null; // manual input cancels click-to-walk
   if (!mode && nav.target) {
     const tx = nav.target.x - i.x;
     const tz = nav.target.z - i.z;
     const d = Math.hypot(tx, tz);
-    const now = performance.now();
     const pr = nav.progress;
     if (d < pr.best - 0.05) {
       pr.best = d;
       pr.since = now;
-    } else if (now - pr.since > 450) {
+    } else if (now - pr.since > 450 && Math.abs(wrap(Math.atan2(tx, tz) - facing)) < 0.6) {
       // blocked (bench, sign, table…): sidestep once around it, then give up instead of sliding on the spot
+      // (not while still turning towards the target: turning in place makes no progress by design)
       if (pr.detours < 2 && d > 0.8) {
         const side = pr.detours === 0 ? 1 : -1;
         const nx = -tz / d;
@@ -109,32 +133,51 @@ export function steer(i: SteerInput): SteerResult {
       nav.goal = null;
       pr.best = Infinity;
       pr.since = now;
-    }
-    else {
+    } else {
       heading = Math.atan2(tx, tz);
       mag = Math.min(1, d / 0.8 + 0.25);
       mode = "click";
-      facing += wrap(heading - facing) * Math.min(1, i.dt * 8);
+      turnTowards(heading);
+      if (Math.abs(wrap(heading - facing)) > 0.6) pr.since = now; // turning on the spot is not "blocked"
     }
   }
-  const speed = i.walkSpeed * (i.run ? 1.8 : 1) * mag * (dir < 0 ? 0.6 : 1);
+  // walk along the body's facing, not the wished heading: past ~90° of error the person turns in place first
+  const align = mode === "keys" ? 1 : Math.max(0, Math.cos(wrap(heading - facing)));
+  const target = i.walkSpeed * (i.run ? 1.8 : 1) * mag * (dir < 0 ? 0.6 : 1) * align;
+  if (mag > 0) motion.dir = dir;
+  motion.v += (target - motion.v) * (1 - Math.exp(-i.dt * 7));
+  if (target === 0 && motion.v < 0.03) motion.v = 0;
+  const v = motion.v;
   return {
-    dx: Math.sin(heading) * speed * i.dt * dir,
-    dz: Math.cos(heading) * speed * i.dt * dir,
+    dx: Math.sin(facing) * v * i.dt * motion.dir,
+    dz: Math.cos(facing) * v * i.dt * motion.dir,
     facing,
-    speed,
-    moving: mag > 0,
-    turning: turn !== 0,
+    speed: v,
+    moving: v > 0.05,
+    turning: turn !== 0 || (mag > 0 && align < 0.95),
     mode,
   };
 }
 
-/** Swings the orbit camera behind the avatar while moving (unless the player just moved the camera). */
+/**
+ * Swings the orbit camera behind the avatar while moving (unless the player just moved the camera). Keyboard turning
+ * keeps the camera tight; joystick / click following eases in and never rotates the world faster than ~1.2 rad/s, and
+ * the joystick does not drag the camera at all while you walk sideways (no motion-sickness spin).
+ */
 export function autoFollow(cam: { yaw: number }, s: Pick<SteerResult, "facing" | "moving" | "turning" | "mode">, dt: number) {
-  if (!s.moving && !s.turning) return;
-  if (performance.now() - nav.lastManualCam < 1200) return;
-  const rate = s.mode === "keys" || s.turning ? 7 : s.mode === "click" ? 2.5 : 1.4;
-  cam.yaw += wrap(s.facing + Math.PI - cam.yaw) * Math.min(1, dt * rate);
+  if ((!s.moving && !s.turning) || performance.now() - nav.lastManualCam < 1200 || (s.mode === "joy" && motion.lateral)) {
+    motion.followFor = 0;
+    return;
+  }
+  const err = wrap(s.facing + Math.PI - cam.yaw);
+  if (s.mode === "keys" || (s.turning && !s.mode)) {
+    cam.yaw += err * Math.min(1, dt * 7);
+    return;
+  }
+  motion.followFor += dt;
+  const rate = s.mode === "click" ? 2.5 : 1.4;
+  const cap = 1.2 * Math.min(1, motion.followFor / 0.5) * dt; // eases in over 0.5 s
+  cam.yaw += THREE.MathUtils.clamp(err * Math.min(1, dt * rate), -cap, cap);
 }
 
 const ray = new THREE.Raycaster();

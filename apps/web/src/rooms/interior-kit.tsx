@@ -1,6 +1,6 @@
 "use client";
 import { useLayoutEffect, useMemo, useRef } from "react";
-import { useGLTF, useTexture } from "@react-three/drei";
+import { ContactShadows, useGLTF, useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import { blobTexture } from "./room-textures";
 
@@ -268,6 +268,22 @@ export interface Blob {
   r?: number;
   o?: number;
 }
+/**
+ * Real contact shadows under each table cluster (table + chairs + board pieces), baked once when the room mounts
+ * (frames = 1, so they cost one small depth render each, then a single textured plane). Standard tier only; Lite
+ * keeps the blob decals. Sits just above the floor rugs / mats (y = 0.012) so those are not captured as occluders.
+ */
+export function TableContactShadows({ tables, size = 3.4, lite }: { tables: { x: number; z: number }[]; size?: number; lite: boolean }) {
+  if (lite) return null;
+  return (
+    <>
+      {tables.map((t, i) => (
+        <ContactShadows key={i} position={[t.x, 0.012, t.z]} scale={size} far={1.4} opacity={0.45} blur={2.5} resolution={256} frames={1} color="#1a120c" />
+      ))}
+    </>
+  );
+}
+
 export function BlobShadows({
   items,
   opacity = 0.55,

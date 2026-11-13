@@ -8,6 +8,8 @@ export function Joystick() {
   const base = useRef<HTMLDivElement>(null);
   const [knob, setKnob] = useState({ x: 0, y: 0 });
   const active = useRef<number | null>(null);
+  /** on touch screens a full push runs (the phone HUD has no separate Run button) */
+  const ranByStick = useRef(false);
 
   const update = (cx: number, cy: number) => {
     const r = base.current!.getBoundingClientRect();
@@ -21,19 +23,23 @@ export function Joystick() {
     }
     setKnob({ x: dx, y: dy });
     const w = useWorld.getState();
-    w.set({ input: { ...w.input, x: dx / max, y: -dy / max } });
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    const run = coarse ? len >= max * 0.97 : w.input.run;
+    if (coarse) ranByStick.current = run;
+    w.set({ input: { ...w.input, x: dx / max, y: -dy / max, run } });
   };
   const end = () => {
     active.current = null;
     setKnob({ x: 0, y: 0 });
     const w = useWorld.getState();
-    w.set({ input: { ...w.input, x: 0, y: 0 } });
+    w.set({ input: { ...w.input, x: 0, y: 0, run: ranByStick.current ? false : w.input.run } });
+    ranByStick.current = false;
   };
 
   return (
     <div
       ref={base}
-      className="pointer-events-auto relative size-[124px] touch-none select-none rounded-full border-2 border-white/40 bg-[#22266E]/45 shadow-lg backdrop-blur-md"
+      className="pointer-events-auto relative size-[124px] phone:size-[104px] touch-none select-none rounded-full border-2 border-white/40 bg-[#22266E]/45 shadow-lg backdrop-blur-md"
       onPointerDown={(e) => {
         active.current = e.pointerId;
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -47,7 +53,7 @@ export function Joystick() {
       <div className="absolute inset-3 rounded-full border border-dashed border-white/25" />
       <span className="absolute left-1/2 top-1 -translate-x-1/2 text-[10px] font-bold text-white/80">N</span>
       <div
-        className="absolute left-1/2 top-1/2 size-[52px] rounded-full bg-gradient-to-b from-white to-[#cfe3ff] shadow-md"
+        className="absolute left-1/2 top-1/2 size-[52px] phone:size-[44px] rounded-full bg-gradient-to-b from-white to-[#cfe3ff] shadow-md"
         style={{ transform: `translate(calc(-50% + ${knob.x}px), calc(-50% + ${knob.y}px))` }}
       >
         <div className="absolute inset-0 grid place-items-center text-[#3DA9FC]">

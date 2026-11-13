@@ -11,6 +11,8 @@ import { DieIcon, PoolBallIcon, SeedsIcon } from "@/ui/game-icons";
 import { rememberBeforeGame } from "@/lib/return-point";
 import { useRoom } from "@/rooms/room-store";
 import { useSocial } from "@/social/social-store";
+import { promptWrap } from "@/hud/Prompt";
+import { QUICK_MATCH_EVENT } from "@/hud/usePhoneHud";
 
 const GAMES: { id: GameId; icon: typeof DieIcon; color: string }[] = [
   { id: "igisoro", icon: SeedsIcon, color: "#27AE60" },
@@ -103,6 +105,13 @@ export function MatchmakingPanel() {
     setSheet("challenge");
     useSocial.setState({ challenge: null });
   }, [socialChallenge]);
+  // phone: Quick Match is in the action bar's "more" menu
+  useEffect(() => {
+    const open = () => setSheet("quick");
+    window.addEventListener(QUICK_MATCH_EVENT, open);
+    return () => window.removeEventListener(QUICK_MATCH_EVENT, open);
+  }, []);
+  const chatOpen = useSocial((s) => s.chatOpen);
   const allPlayers = useWorld((s) => s.players);
   // nearest first, then everyone else who is signed in (plaza instances hold ≤ 50 people)
   const challengeable = Object.values(allPlayers)
@@ -124,7 +133,7 @@ export function MatchmakingPanel() {
   return (
     <div className="pointer-events-none fixed inset-0 z-20">
       {/* Quick Match (under the profile chip) */}
-      <div className="absolute left-[max(12px,env(safe-area-inset-left))] top-[84px]">
+      <div className="absolute left-[max(12px,env(safe-area-inset-left))] top-[84px] phone:hidden">
         {authed ? (
           quick.status === "waiting" ? (
             <button type="button" onClick={quickMatchLeave} className={`${glass} pointer-events-auto flex items-center gap-2 px-4 py-2.5 text-sm font-bold`}>
@@ -144,14 +153,14 @@ export function MatchmakingPanel() {
 
       {/* Challenge the nearby player */}
       {authed && nearPlayer && target?.verified && !outgoing && !sheet && (
-        <div className="absolute bottom-[max(164px,calc(env(safe-area-inset-bottom)+156px))] left-1/2 -translate-x-1/2">
+        <div className={promptWrap(chatOpen, 1)}>
           <button
             type="button"
             onClick={() => {
               setChallengeTarget({ id: target.id, name: target.name });
               setSheet("challenge");
             }}
-            className="pointer-events-auto flex items-center gap-2 rounded-full border border-[#FFC83D]/50 bg-[#22266E]/90 px-5 py-2.5 font-bold text-white shadow-2xl backdrop-blur-md active:scale-95"
+            className="pointer-events-auto flex items-center gap-2 whitespace-nowrap rounded-full border border-[#FFC83D]/50 bg-[#22266E]/90 px-5 py-2.5 font-bold text-white shadow-2xl backdrop-blur-md active:scale-95 phone:max-w-[40vw] phone:overflow-hidden phone:px-3.5 phone:py-1.5 phone:text-sm"
           >
             <Swords size={18} className="text-[#FFC83D]" /> Challenge {target.name}
           </button>
@@ -161,7 +170,7 @@ export function MatchmakingPanel() {
       {/* Sheets */}
       {sheet && (
         <div className="pointer-events-auto absolute inset-0 grid place-items-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setSheet(null)}>
-          <div className={`${glass} w-[min(420px,94vw)] p-5`} onClick={(e) => e.stopPropagation()}>
+          <div className={`${glass} w-[min(420px,94vw)] p-5 phone:max-h-[92vh] phone:overflow-y-auto phone:p-3.5`} onClick={(e) => e.stopPropagation()}>
             <p className="mb-3 flex items-center gap-2 text-lg font-extrabold">
               {sheet === "quick" ? <><Zap size={20} className="text-[#FFC83D]" /> Quick Match</> : <><Swords size={20} className="text-[#FFC83D]" /> Challenge {challengeTarget?.name}</>}
             </p>
@@ -199,7 +208,7 @@ export function MatchmakingPanel() {
       )}
 
       {/* Incoming + outgoing + notices (top-centre stack) */}
-      <div className="absolute left-1/2 top-16 flex -translate-x-1/2 flex-col items-center gap-2">
+      <div className="absolute left-1/2 top-16 flex -translate-x-1/2 flex-col items-center gap-2 phone:top-[46px] phone:gap-1.5">
         {incoming.map((p) => (
           <IncomingCard key={p.id} p={p} />
         ))}

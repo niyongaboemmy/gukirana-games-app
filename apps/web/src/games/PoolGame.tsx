@@ -5,6 +5,7 @@ import { PoolBallIcon } from "@/ui/game-icons";
 import { settlePractice } from "./practice";
 import { COLORS, H, moving, POCKETS, POCKET_R, R, rack, rayHit, segDist, step, W, type Ball, type StepEvents } from "./pool-physics";
 import { levelForXp, useProfile } from "@/lib/profile-store";
+import { drawCue, paintTable } from "./pool-art";
 
 type Group = "solids" | "stripes" | null;
 const isSolid = (n: number) => n >= 1 && n <= 7;
@@ -15,6 +16,7 @@ const MAX_SPEED = 1700;
 export default function PoolGame() {
   const { name, color, xp } = useProfile();
   const canvas = useRef<HTMLCanvasElement>(null);
+  const tableArt = useRef<HTMLCanvasElement | null>(null);
   const balls = useRef<Ball[]>(rack());
   const ev = useRef<StepEvents>({ firstHit: null, pocketed: [] });
   const aim = useRef(0);
@@ -116,28 +118,9 @@ export default function PoolGame() {
       const scale = c.width / (W + pad * 2);
       g.setTransform(scale, 0, 0, scale, pad * scale, pad * scale);
       g.clearRect(-pad, -pad, W + pad * 2, H + pad * 2);
-      // rails
-      g.fillStyle = "#5a3418";
-      g.beginPath();
-      g.roundRect(-pad, -pad, W + pad * 2, H + pad * 2, 28);
-      g.fill();
-      // cloth
-      const cloth = g.createRadialGradient(W / 2, H / 2, 50, W / 2, H / 2, W * 0.7);
-      cloth.addColorStop(0, "#2a8a92");
-      cloth.addColorStop(1, "#1F6F78");
-      g.fillStyle = cloth;
-      g.fillRect(0, 0, W, H);
-      g.strokeStyle = "rgba(255,255,255,.12)";
-      g.beginPath();
-      g.moveTo(250, 0);
-      g.lineTo(250, H);
-      g.stroke();
-      for (const [px, py] of POCKETS) {
-        g.fillStyle = "#0a0a0a";
-        g.beginPath();
-        g.arc(px, py, POCKET_R, 0, Math.PI * 2);
-        g.fill();
-      }
+      // the table (cloth, walnut rails, diamonds, leather pockets) is painted once, then blitted every frame
+      tableArt.current ??= paintTable({ w: W, h: H, pad, pockets: POCKETS, pocketR: POCKET_R, scale });
+      g.drawImage(tableArt.current, -pad, -pad, W + pad * 2, H + pad * 2);
       // guide line (your turn)
       const cue = balls.current[0]!;
       if (!moving(balls.current) && state.current.turn === 0 && !state.current.over && !cue.in) {
@@ -170,13 +153,7 @@ export default function PoolGame() {
         }
         // cue stick
         const back = 30 + power * 90;
-        g.strokeStyle = "#e9c58b";
-        g.lineWidth = 7;
-        g.lineCap = "round";
-        g.beginPath();
-        g.moveTo(cue.x - Math.cos(a) * (R + back), cue.y - Math.sin(a) * (R + back));
-        g.lineTo(cue.x - Math.cos(a) * (R + back + 320), cue.y - Math.sin(a) * (R + back + 320));
-        g.stroke();
+        drawCue(g, cue.x, cue.y, a, R + back, 320);
       }
       // balls
       for (const b of balls.current) {

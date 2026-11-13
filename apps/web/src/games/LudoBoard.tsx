@@ -5,6 +5,11 @@ import { SAFE_SQUARES, type LudoState } from "@gukirana/ludo";
 import { BASE_ORIGIN, HOME_COLUMN, SEAT_COLORS, SEAT_NAMES, TRACK_COORDS, tokenCell } from "./ludo-board";
 import { SeatShape } from "@/ui/game-icons";
 
+/** Paper fibre grain for the printed board (feTurbulence, no image download). */
+const CARDBOARD_GRAIN = `url("data:image/svg+xml;utf8,${encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9 0.35' numOctaves='3' seed='7'/><feColorMatrix values='0 0 0 0 0.45  0 0 0 0 0.36  0 0 0 0 0.25  0 0 0 0.9 0'/></filter><rect width='220' height='220' filter='url(%23n)'/></svg>",
+).replace(/%2523/g, "%23")}")`;
+
 const PIPS: Record<number, number[]> = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
 
 /** Outcome-first die: the face animation is cosmetic, the value always comes from the fair RNG. */
@@ -57,6 +62,9 @@ export function LudoBoard({ state, movable, onMove, myId }: { state: LudoState; 
         </div>
       ))}
       <div className="absolute" style={{ top: "40%", left: "40%", width: "20%", height: "20%", background: `conic-gradient(from 45deg, ${SEAT_COLORS[1]} 0 90deg, ${SEAT_COLORS[2]} 0 180deg, ${SEAT_COLORS[3]} 0 270deg, ${SEAT_COLORS[0]} 0 360deg)` }} />
+      {/* printed-cardboard finish: paper fibre grain (procedural SVG noise) multiplied over the print, a soft sheen */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.32] mix-blend-multiply" style={{ backgroundImage: CARDBOARD_GRAIN, backgroundSize: "220px 220px" }} />
+      <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(135deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,0) 40%, rgba(0,0,0,0) 70%, rgba(0,0,0,.08) 100%)" }} />
       {all.map(({ q: p, qp, qt: t, cell: [r, c] }) => {
         const canMove = p.id === myId && myTurn && movable.includes(t);
         const stack = all.filter((x) => x.cell[0] === r && x.cell[1] === c);

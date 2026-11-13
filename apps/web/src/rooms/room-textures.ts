@@ -336,6 +336,69 @@ export function ludoBoard(): THREE.CanvasTexture {
   return t;
 }
 
+/**
+ * Baked light on a surface (emissive / additive map): warm radial pools at the given points, black elsewhere.
+ * `spots` are in 0..1 surface UV; r is the radius as a fraction of the width. Used for pendant spill on dark
+ * ceilings and for spotlights on the back-bar shelving, where a real light per spot would cost too much on phones.
+ */
+export function spillTexture(spots: { u: number; v: number; r: number; a?: number }[], aspect = 1, size = 512, base = 0): THREE.CanvasTexture {
+  const w = size;
+  const h = Math.max(32, Math.round(size / aspect));
+  const { c, g } = canvas(w, h);
+  const b = Math.round(base * 255);
+  g.fillStyle = `rgb(${b},${b},${b})`; // a faint even fill = the general bounce on the surface
+  g.fillRect(0, 0, w, h);
+  g.globalCompositeOperation = "lighter";
+  for (const s of spots) {
+    const x = s.u * w;
+    const y = (1 - s.v) * h;
+    const r = s.r * w;
+    const grad = g.createRadialGradient(x, y, 0, x, y, r);
+    const a = s.a ?? 1;
+    grad.addColorStop(0, `rgba(255,214,160,${a})`);
+    grad.addColorStop(0.35, `rgba(255,190,120,${a * 0.55})`);
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = grad;
+    g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  const t = tex(c);
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  t.anisotropy = 2;
+  return t;
+}
+
+/**
+ * Daylight falling through a window wall onto the floor (additive decal): bright at the glass (v = 1), fading into
+ * the room, broken by soft, slightly skewed mullion shadows. `bays` = glazing bays across.
+ */
+export function windowLightTexture(bays = 8): THREE.CanvasTexture {
+  const { c, g } = canvas(1024, 256);
+  const fall = g.createLinearGradient(0, 0, 0, 256);
+  fall.addColorStop(0, "rgba(255,255,255,1)");
+  fall.addColorStop(0.25, "rgba(255,255,255,.62)");
+  fall.addColorStop(0.6, "rgba(255,255,255,.2)");
+  fall.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = fall;
+  g.fillRect(0, 0, 1024, 256);
+  g.globalCompositeOperation = "destination-out";
+  for (let i = 0; i <= bays; i++) {
+    const x = (i / bays) * 1024;
+    for (let k = 0; k < 3; k++) {
+      // three passes of widening wedges = a soft-edged shadow without canvas filters
+      g.fillStyle = "rgba(0,0,0,.28)";
+      g.beginPath();
+      g.moveTo(x - 3 - k * 2, 0);
+      g.lineTo(x + 3 + k * 2, 0);
+      g.lineTo(x + 34 + k * 6, 256);
+      g.lineTo(x + 14 - k * 6, 256);
+      g.fill();
+    }
+  }
+  const t = tex(c);
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return t;
+}
+
 /** Dice atlas, 3 × 2 faces (1..6 pips). */
 export function diceAtlas(): THREE.CanvasTexture {
   const F = 128;

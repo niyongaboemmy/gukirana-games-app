@@ -4,7 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import { Environment, Lightformer, RoundedBox, Text } from "@react-three/drei";
 import * as THREE from "three";
 import type { HallLayout, Table } from "./layouts";
-import { BlobShadows, GltfInstances, Instanced, model, usePbr, type Blob, type Xform } from "./interior-kit";
+import { BlobShadows, GltfInstances, Instanced, model, TableContactShadows, usePbr, type Blob, type Xform } from "./interior-kit";
 import { diceAtlas, kitenge, ludoBoard, menuBoard } from "./room-textures";
 import { SouthWall, WindowWall } from "./shell";
 import { hallFrame } from "./OutdoorView";
@@ -387,7 +387,7 @@ export function LudoLounge({ layout, lite }: { layout: HallLayout; lite: boolean
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[w, d]} />
         {/* warm oak, matte-satin: keeps its grain and colour in the sun patches (no washed-out white) */}
-        <meshStandardMaterial map={floor.map} normalMap={floor.normalMap} color="#d9b98f" roughness={1} metalness={0} envMapIntensity={0.12} />
+        <meshStandardMaterial map={floor.map} normalMap={floor.normalMap} color="#bfad8f" roughness={1} metalness={0} envMapIntensity={0.12} />
       </mesh>
       <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, h, 0]}>
         <planeGeometry args={[w, d]} />
@@ -624,6 +624,7 @@ export function LudoLounge({ layout, lite }: { layout: HallLayout; lite: boolean
         ]}
       />
       <BlobShadows items={shadowBlobs} opacity={0.5} />
+      <TableContactShadows tables={tables} lite={lite} size={3.6} />
     </group>
   );
 }
