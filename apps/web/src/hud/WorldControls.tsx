@@ -1,6 +1,6 @@
 "use client";
 import { useEffect } from "react";
-import { Lock, Mic, MicOff, Minus, Plus } from "lucide-react";
+import { Loader2, Lock, Mic, MicOff, Minus, Plus } from "lucide-react";
 import { useSession } from "@/lib/session";
 import { cameraState, MAX_ORBIT } from "@/world/Player";
 import { enableVoice, disableVoice, pttDown, pttUp, toggleOpenMic, useVoice } from "@/voice/voice";
@@ -46,8 +46,17 @@ export function WorldControls() {
       {authed && (
         <div className="flex flex-col items-end gap-2 phone:gap-1">
           {!on ? (
-            <button type="button" onClick={() => void enableVoice()} className={`${btn} w-auto gap-2 px-3 text-sm font-bold phone:w-auto phone:gap-1 phone:px-2.5 phone:text-xs`} title="Turn on voice chat">
-              <MicOff size={16} /> {status === "starting" ? "…" : status === "denied" ? "Mic blocked" : "Voice"}
+            <button
+              type="button"
+              onClick={() => void enableVoice()}
+              aria-label={status === "denied" ? "Microphone blocked: allow it in the browser to use voice" : "Turn on voice chat"}
+              title={status === "denied" ? "Microphone blocked in the browser" : "Turn on voice chat (V to talk)"}
+              className={`${btn} relative flex! flex-col items-center justify-center gap-0.5`}
+            >
+              {status === "starting" ? <Loader2 size={18} className="animate-spin" /> : <MicOff size={18} strokeWidth={1.9} />}
+              {/* desktop: a small caption under the icon; phone: icon only (same size as the zoom buttons) */}
+              <span className="label text-[9px] leading-none tracking-[0.14em] text-on-glass-muted phone:hidden">Voice</span>
+              {status === "denied" && <span aria-hidden className="absolute right-1.5 top-1.5 size-2 rounded-full bg-danger ring-2 ring-ink-900" />}
             </button>
           ) : (
             <>
@@ -62,10 +71,11 @@ export function WorldControls() {
                 onPointerUp={pttUp}
                 onPointerCancel={pttUp}
                 onContextMenu={(e) => e.preventDefault()}
-                className={`${btn} relative size-16 touch-none select-none phone:size-11 ${transmitting ? "border-success! bg-success/40! ring-4 ring-success/30" : ""}`}
+                className={`${btn} relative flex! flex-col items-center justify-center gap-0.5 touch-none select-none ${transmitting ? "border-success! bg-success/35! ring-4 ring-success/25" : ""}`}
               >
-                <Mic size={24} className={selfTalking ? "animate-pulse" : ""} />
-                {openMic && <Lock size={13} className="absolute bottom-1.5 right-1.5 text-success-soft" />}
+                <Mic size={18} strokeWidth={1.9} className={selfTalking ? "animate-pulse" : ""} />
+                <span className="label text-[9px] leading-none tracking-[0.14em] text-on-glass-muted phone:hidden">{transmitting ? "Live" : "Talk"}</span>
+                {openMic && <Lock size={11} className="absolute right-1 top-1 text-success-soft" />}
               </button>
               {transmitting && (
                 <div role="status" className="glass-solid pointer-events-none rounded-xl px-2 py-1 text-[11px] font-bold">
