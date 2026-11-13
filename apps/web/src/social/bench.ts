@@ -87,6 +87,7 @@ export function standFromBench(): void {
     return;
   }
   const stand = fwdOf(id, SIT_TIMING[state.set].upFront);
+  justStood = { at: performance.now(), x: stand.x, z: stand.z };
   state.phase = phase("standing", standUpSeconds(state.set) * 1000, stand, stand);
   standUp();
 }
@@ -218,10 +219,17 @@ export function applyBenchSeat(pos: THREE.Vector3, facing: { current: number }, 
 }
 
 let lastScan = 0;
+/** where/when you last stood up from a bench: no "Sit on the bench" prompt until 1.5 s passed or you moved 1 m */
+let justStood: { at: number; x: number; z: number } | null = null;
 function updateNearSeat(pos: THREE.Vector3) {
   const now = performance.now();
   if (now - lastScan < 150) return;
   lastScan = now;
+  if (justStood && (now - justStood.at > 1500 || Math.hypot(pos.x - justStood.x, pos.z - justStood.z) > 1)) justStood = null;
+  if (justStood) {
+    if (useSocial.getState().nearSeat) useSocial.setState({ nearSeat: null });
+    return;
+  }
   const w = useWorld.getState();
   let best = SEAT_RANGE;
   let near: string | null = null;

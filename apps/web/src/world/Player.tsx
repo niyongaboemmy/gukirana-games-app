@@ -284,7 +284,7 @@ export function LocalPlayer({
       armLen.current = d < armLen.current ? d : armLen.current + (d - armLen.current) * Math.min(1, dt * 2.5);
       const L = armLen.current;
       // close up (< 3 m): slide camera and aim point to the right shoulder
-      const sh = SHOULDER * THREE.MathUtils.smoothstep(3.0 - L, 0, 0.8);
+      const sh = SHOULDER * THREE.MathUtils.smoothstep(3.6 - L, 0, 1.0);
       const rx = Math.cos(cameraState.yaw) * sh;
       const rz = -Math.sin(cameraState.yaw) * sh;
       const cx = pos.current.x + Math.sin(cameraState.yaw) * Math.cos(cameraState.pitch) * L + rx;
@@ -297,7 +297,8 @@ export function LocalPlayer({
       if (Math.abs(cx) < 10 && Math.abs(cz - ENTRY_Z) < 4.6) cy = Math.min(cy, 4.6);
       // going through a door: the camera stays on the plaza side and watches you walk in (it never follows into the wall)
       if (!entering) camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * (d < L + 0.01 ? 14 : 8)));
-      camera.lookAt(pos.current.x + rx, aimY, pos.current.z + rz);
+      // aim only a little right of the head: the camera's own sideways offset then puts you left of centre
+      camera.lookAt(pos.current.x + rx * 0.25, aimY, pos.current.z + rz * 0.25);
     }
 
     // proximity: portals and players

@@ -174,6 +174,15 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
       const m = (c as THREE.Mesh).material;
       if ((c as THREE.Mesh).isMesh && m) (Array.isArray(m) ? m : [m]).forEach((x) => fadeable.push(x));
     });
+  // compile the hashed-alpha variant up front: at opacity 1 it looks identical, and a fade then only changes
+  // opacity (toggling alphaHash at fade time recompiled every avatar shader → ~0.3–0.7 s hitches for onlookers)
+  for (const m of fadeable) {
+    const mm = m as THREE.Material & { alphaHash?: boolean };
+    if (!mm.alphaHash) {
+      mm.alphaHash = true;
+      mm.needsUpdate = true;
+    }
+  }
   return { root, full, lite, materials, fadeable, extras, head, jaw: bone("Bip01_MJaw"), arms, spine: bone("Bip01_Spine1") };
 }
 
@@ -366,13 +375,7 @@ function HumanBody({
     const fade = fadeRef?.current ?? 1;
     if (Math.abs(fade - s.fade) > 0.002 || (fade < 1) !== s.faded) {
       const on = fade < 0.999;
-      for (const m of inst.fadeable) {
-        if ((m as THREE.Material & { alphaHash?: boolean }).alphaHash !== on) {
-          (m as THREE.Material & { alphaHash: boolean }).alphaHash = on;
-          m.needsUpdate = true;
-        }
-        m.opacity = on ? fade : 1;
-      }
+      for (const m of inst.fadeable) m.opacity = on ? fade : 1;
       s.fade = fade;
       s.faded = on;
       root.visible = fade > 0.01;

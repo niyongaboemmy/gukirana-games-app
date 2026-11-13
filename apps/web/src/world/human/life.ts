@@ -75,7 +75,7 @@ const ALONE: Weights = [
   ["phone", 16],
   ["fold", 12],
   ["dust", 9],
-  ["stretch", 4],
+  // "stretch" (arms straight out) reads as a T-pose glitch from behind → not used as an automatic idle
 ];
 /** Someone stands close by: attentive (listening pose, glances, the odd nod), the phone stays mostly away. */
 const COMPANY: Weights = [

@@ -175,6 +175,10 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
         standStage.current = { t: 0, fx: pos.current.x, fz: pos.current.z, tx, tz, chair: from.id };
         leftChair.current = { id: from.id, x: tx, z: tz, at: performance.now() };
         camBlendUntil.current = performance.now() + 800;
+        // the seated camera sits behind the chair: continue from there instead of swinging back to the old yaw
+        cameraState.yaw = from.yaw + Math.PI;
+        cameraState.pitch = 0.25;
+        nav.lastManualCam = performance.now(); // hold auto-follow while you step out, so it doesn't swing again
       }
     }
 
