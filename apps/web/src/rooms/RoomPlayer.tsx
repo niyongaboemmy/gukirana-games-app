@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { Avatar } from "@/world/Avatar";
@@ -35,6 +35,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   const profile = useProfile();
   const look = lookOf(profile);
   const { w, d } = layout.size;
+  const solids = useMemo(() => [...layout.tables, ...layout.colliders], [layout]);
 
   // re-take the same chair once the hall connection is up (server confirms the seat)
   useEffect(() => {
@@ -131,8 +132,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     }
 
     if (!seat) {
-      // tables (rect + body radius)
-      for (const t of layout.tables) {
+      // tables + furniture colliders (rect + body radius)
+      for (const t of solids) {
         const hx = t.w / 2 + 0.32;
         const hz = t.d / 2 + 0.32;
         const dx = pos.current.x - t.x;
