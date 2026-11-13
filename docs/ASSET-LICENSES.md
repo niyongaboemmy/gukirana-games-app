@@ -54,7 +54,7 @@ See docs/PEOPLE-BEHAVIOUR.md.
 | `phone` | `cell_phone_textmessage` (start and end spliced) | phone check |
 | `stretch` | `idle_stretch_arms_01` | stretch |
 | `dust` | `idle_dust_01` | brush down clothes |
-| `fold` | `idle_angry_01` (arms-folded section only) | arms folded, watching, leaning |
+| `fold` | `idle_angry_01` (hands-on-hips section only) | hands on hips, watching a table |
 | `nod` / `shake` | `gestic_listen_accept_01` / `gestic_listen_deny_01` | nod / shake head |
 | `laugh` | `gestic_laugh_loud` (trimmed) | laugh |
 | `shrug` | `gestic_shrug_01` | shrug |

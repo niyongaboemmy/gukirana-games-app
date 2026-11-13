@@ -20,10 +20,10 @@ const SURFACE: Record<Surface, { thump: number; scuff: number; q: number; decay:
   terracotta: { thump: 240, scuff: 2200, q: 1.4, decay: 0.08, gain: 0.85 },
 };
 
-let surface: Surface = "stone";
-/** The floor everyone walks on in the current place (plaza stone; each hall sets its own). */
-export function setFootSurface(s: Surface) {
-  surface = s;
+let surfaceOverride: Surface | null = null;
+/** Force a floor (otherwise: plaza stone; each hall its own floor, from the route). */
+export function setFootSurface(s: Surface | null) {
+  surfaceOverride = s;
 }
 export function footSurfaceFor(path: string | null | undefined): Surface {
   if (!path?.startsWith("/room/")) return "stone";
@@ -77,8 +77,10 @@ export function footstep(dist: number, pan: number, kind: 0 | 1 | 2, level: numb
   const ctx = uiAudio();
   if (!ctx || ctx.state !== "running") return;
   used++;
+  // dev-only counter for automated QA (footsteps can't be heard in a headless browser)
+  if (process.env.NODE_ENV !== "production") (window as unknown as { __gkSteps?: number }).__gkSteps = ((window as unknown as { __gkSteps?: number }).__gkSteps ?? 0) + 1;
   const { noise: buf, master: out } = bus(ctx);
-  const s = SURFACE[surface];
+  const s = SURFACE[surfaceOverride ?? footSurfaceFor(window.location.pathname)];
   const h = ((seed ^ Math.imul(++seq, 2654435761)) >>> 0) / 4294967296; // per-step variation 0..1
   const att = Math.max(0, 1 - dist / RANGE) ** 1.6 / (1 + dist * 0.25);
   const lvl = att * s.gain * (kind === 1 ? 1.25 : kind === 2 ? 0.35 : 0.75) * (0.85 + h * 0.3) * Math.min(1, 0.4 + level);

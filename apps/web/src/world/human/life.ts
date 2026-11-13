@@ -30,7 +30,7 @@ const ACTION_CLIP: Record<number, BaseClipKey | LifeClipKey> = {
   27: "phone",
   28: "drink",
   29: "photo",
-  30: "fold",
+  30: "idle2",
   31: "fold",
 };
 const BASE = new Set<string>(["idle", "talk", "wave", "clap", "dance"]);
@@ -68,7 +68,7 @@ export interface IdleChoice {
 }
 
 type Weights = [LifeClipKey, number][];
-/** On their own: glance around, shift weight, check the phone, fold the arms, brush the clothes, stretch. */
+/** On their own: glance around, shift weight, check the phone, hands on hips, brush the clothes, stretch. */
 const ALONE: Weights = [
   ["look", 28],
   ["idle2", 22],

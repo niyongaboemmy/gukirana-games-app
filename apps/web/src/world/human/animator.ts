@@ -18,7 +18,7 @@ import { actionClip, ONE_SHOT_LIFE, type IdleChoice, IdleDirector } from "./life
  * Everything else is a weighted set of "static" actions cross-faded with smoothed weights: idle, talk, the
  * base emotes, sit-down / seated / stand-up (trimmed transitions with the clip's own root motion), plus the
  * lazily loaded everyday-life clips (life-*.glb): idle fidgets chosen by a per-person seeded IdleDirector,
- * emotes (nod, laugh, shrug, cheer …) and context actions (coffee, photo, phone, arms folded, thinking).
+ * emotes (nod, laugh, shrug, cheer …) and context actions (coffee, photo, phone, hands on hips, thinking).
  */
 
 export const ANIM_IDLE = 0;

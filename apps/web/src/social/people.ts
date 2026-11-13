@@ -136,7 +136,8 @@ export const SPOTS: Spot[] = (() => {
   const along = { x: Math.cos(a), z: Math.sin(a) };
   for (const s of [-3, 3]) out.push({ kind: "lean", x: c.x + along.x * s, z: c.z + along.z * s, yaw: -a });
   const cafe = ringPoint(SERVICE_ANGLE, 26.9);
-  out.push({ kind: "coffee", x: cafe.x + along.x * 0.6, z: cafe.z + along.z * 0.6, yaw: -a + Math.PI });
+  // coffee from the café window, then stand by it facing the plaza (people-watching, Whyte)
+  out.push({ kind: "coffee", x: cafe.x + along.x * 0.6, z: cafe.z + along.z * 0.6, yaw: -a });
   return out;
 })();
 
@@ -285,7 +286,7 @@ export function reactToOutcome(): void {
 
 const hall = { x: 0, z: 0, since: 0, watching: 0 as number, chalkAt: 0 };
 /**
- * In a hall, standing still close to a table where people sit makes you a spectator: arms folded, watching
+ * In a hall, standing still close to a table where people sit makes you a spectator: hands on hips, watching
  * (pool hall: now and then chalking a cue while you wait). Walking away ends it.
  */
 export function hallLife(tables: { x: number; z: number; busy: boolean; pool: boolean }[]): void {

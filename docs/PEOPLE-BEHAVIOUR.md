@@ -26,7 +26,8 @@ how it is animated. The code lives in `apps/web/src/world/human/*`, `apps/web/sr
   - Built: a 6–8 s "take the phone out, look, put it away" clip. It plays often when alone, rarely in company.
 - **Crossed arms carry no fixed meaning.** They can mean comfort, cold or waiting
   ([changingminds](https://www.changingminds.org/techniques/body/parts_body_language/arm_body_language.htm)).
-  - Built: arms folded is a neutral idle fidget and the "watching" pose. It is never used as a hostile signal.
+  - Built: hands on hips (the licensed clip has no crossed arms) is a neutral idle fidget and the "watching"
+    pose. It is never used as a hostile signal; real crossed arms need a new clip (P2).
 
 ### 1.2 Conversation: distance, facing, listening
 
@@ -68,7 +69,7 @@ how it is animated. The code lives in `apps/web/src/world/human/*`, `apps/web/sr
   ([Smith College, Becoming Foreign](https://sites.smith.edu/becoming-foreign/2018/04/08/reflection-3/)).
   - Built: "Point" is an open-hand gesture, palm turned slightly up.
 - **Demeanour.** People are calm and respectful. Nothing in the catalogue is rude, aggressive or comic; the
-  "angry" mocap was cut down to its arms-folded part only.
+  "angry" mocap was cut down to its calm hands-on-hips part only.
 
 ### 1.4 Plazas and cafés
 
@@ -120,7 +121,7 @@ how it is animated. The code lives in `apps/web/src/world/human/*`, `apps/web/sr
 - **Chalking** happens between shots, on your own turn
   ([PoolDawg](https://www.pooldawg.com/article/pool-etiquette-5-ways-to-avoid-being-that-guy/)).
 - **Handshakes** before and after a game are expected ([CSU handout](https://billiards.colostate.edu/resource_files/pool_etiquette_handout.pdf)).
-- Built: standing still near a table where people sit makes you a spectator (arms folded, watching). In the pool
+- Built: standing still near a table where people sit makes you a spectator (hands on hips, watching). In the pool
   hall you chalk a cue now and then. After a match you celebrate a win, or shake your head after a loss.
 
 ## 2. Action catalogue
@@ -160,7 +161,7 @@ how it is animated. The code lives in `apps/web/src/world/human/*`, `apps/web/sr
 | Breathing, weight shift (per-person offset and pace) | idle | P0 | mocap `idle` / `idle2` |
 | Look around | idle | P0 | mocap `look` |
 | Check the phone (phone prop in the hand) | idle, alone more often | P0 | mocap `phone` |
-| Arms folded | idle, also "watch" | P1 | mocap `fold` |
+| Hands on hips | idle, also "watch" | P1 | mocap `fold` |
 | Brush down clothes / adjust | idle | P1 | mocap `dust` |
 | Stretch | idle, rare | P1 | mocap `stretch` |
 | Face someone who stops next to you | social, idle | P0 | Player turns in place (≤ 6 rad/s, step turn) |
@@ -192,8 +193,8 @@ All emotes are in the HUD emote picker. Gestures aimed at a person turn you towa
 
 | Action | Trigger | Pri | Animation |
 | --- | --- | --- | --- |
-| Lean back against a lamp post or the café glass | context prompt "Lean here" | P0 | walk into place, body tilted 5° back from the ankles, arms folded |
-| Coffee at the café window (paper cup, sips) | context prompt "Get a coffee" | P0 | mocap `drink`; cup prop |
+| Lean back against a lamp post or the café glass | context prompt "Lean here" | P0 | walk into place, body tilted 5° back from the ankles, relaxed weight-shift idle |
+| Coffee at the café window (paper cup, sips), standing by it facing the plaza | context prompt "Get a coffee" | P0 | mocap `drink`; cup prop |
 | Watch a table (spectator) | halls: stand still near a busy table, facing it | P1 | mocap `fold` |
 | Chalk a cue | pool hall, while watching | P1 | proc: cue upright in the left hand, right hand twists the chalk |
 | Win celebration / loss reaction | back in a room after a match | P1 | mocap `cheer` / `shake` |

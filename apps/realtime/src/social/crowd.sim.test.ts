@@ -264,4 +264,61 @@ describe(`crowd simulation (${N} clients)`, () => {
     expect(bots[0]!.of<{ id: string; emote: number }>("emote").filter((m) => m.id === a.sid)).toEqual([{ id: a.sid, emote: 11 }]);
     expect(bots.filter((b) => b !== a).every((b) => b.of("emote").length === 1)).toBe(true);
   });
+
+  it("contact actions need consent: no hug in anyone's pose until the other person accepts", async () => {
+    const a = bots[12]!;
+    const b = bots[13]!;
+    const viewer = bots[14]!;
+    send(a, 30, 30, 0, 0);
+    send(b, 31.5, 30, 0, 0);
+    send(viewer, 30.6, 32, 0, 0);
+    await wait(300);
+    clear();
+    // a hug code in a pose update without a pair is rewritten to plain idle
+    send(a, 30, 30, 0, 23);
+    await wait(250);
+    const animOf = (sid: string) => viewer.of<[string, number, number, number, number][]>("moves").flat().filter((e) => e[0] === sid).map((e) => e[4]);
+    expect(animOf(a.sid)).not.toContain(23);
+    // ask → invitation → accept → both get their places, face to face 0.42 m apart
+    a.room.send("pair-request", { to: b.sid, kind: "hug" });
+    await wait(200);
+    const inv = b.of<{ id: string; kind: string; from: { id: string } }>("pair-invite")[0]!;
+    expect(inv.kind).toBe("hug");
+    expect(inv.from.id).toBe(a.sid);
+    expect(a.of("pair-pending")).toHaveLength(1);
+    // someone else cannot answer for b
+    viewer.room.send("pair-respond", { id: inv.id, accept: true });
+    await wait(150);
+    expect(a.of("pair-start")).toHaveLength(0);
+    b.room.send("pair-respond", { id: inv.id, accept: true });
+    await wait(200);
+    const start = a.of<{ kind: string; a: { id: string; x: number; z: number }; b: { id: string; x: number; z: number }; alignMs: number }>("pair-start")[0]!;
+    expect(start.kind).toBe("hug");
+    expect(b.of("pair-start")).toHaveLength(1);
+    expect(Math.hypot(start.a.x - start.b.x, start.a.z - start.b.z)).toBeCloseTo(0.42, 2);
+    // now the hug shows for both
+    clear();
+    send(a, start.a.x, start.a.z, 0, 23);
+    send(b, start.b.x, start.b.z, 0, 23);
+    await wait(250);
+    expect(animOf(a.sid)).toContain(23);
+    expect(animOf(b.sid)).toContain(23);
+    // while hugging, a is busy for anyone else
+    clear();
+    a.room.send("pair-request", { to: viewer.sid, kind: "handshake" });
+    await wait(150);
+    expect(a.of<{ reason: string }>("pair-closed").map((m) => m.reason)).toContain("BUSY");
+    // a declined handshake never starts; the asker is told
+    const c = bots[15]!;
+    send(c, 31, 33.5, 0, 0);
+    await wait(200);
+    clear();
+    c.room.send("pair-request", { to: viewer.sid, kind: "handshake" });
+    await wait(150);
+    const inv2 = viewer.of<{ id: string }>("pair-invite")[0]!;
+    viewer.room.send("pair-respond", { id: inv2.id, accept: false });
+    await wait(150);
+    expect(c.of<{ reason: string }>("pair-closed").map((m) => m.reason)).toContain("DECLINED");
+    expect(c.of("pair-start")).toHaveLength(0);
+  });
 });
