@@ -13,7 +13,6 @@ import { xrStore } from "../WorldCanvas";
 import { Gate, GATE_Z, INSIDE, KIOSK, STAND, WARDROBE } from "./Gate";
 import { useGate } from "./gate-store";
 import { VirtualKeyboard } from "./VirtualKeyboard";
-import { QaCrowd } from "../human/QaCrowd";
 import { lookOf, useProfile } from "@/lib/profile-store";
 import { useWorld } from "@/lib/world-store";
 import { autoFollow, nav, pointerNav, steer, TargetMarker } from "../navigation";
@@ -293,8 +292,6 @@ function pickTier(): Tier {
   return mem <= 3 || (navigator.hardwareConcurrency ?? 8) <= 4 ? "lite" : "standard";
 }
 
-const QA_AT = new THREE.Vector3(0, 0, GATE_Z - 12);
-
 function GateScene({ tier }: { tier: Tier }) {
   const inXR = useXR((s) => s.session != null);
   return (
@@ -302,7 +299,6 @@ function GateScene({ tier }: { tier: Tier }) {
       <Plaza nearPortal={null} tier={tier} />
       <Gate tier={tier} inXR={inXR} />
       <Rig />
-      <QaCrowd at={QA_AT} />
       <VRSetup />
       <XRWatch />
     </>

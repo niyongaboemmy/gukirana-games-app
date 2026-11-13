@@ -1,11 +1,12 @@
 "use client";
-import { useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { grassTexture, mistTexture, rng } from "./textures";
+import { mistTexture, rng } from "./textures";
 import { PLANTERS, ringPoint } from "./layout";
 import type { Tier } from "./materials";
+import { GrassField, InstancedSpecies, type Placement } from "./Vegetation";
 
 /**
  * Northern Rwanda backdrop (Musanze, at the foot of Volcanoes National Park), built procedurally:
@@ -336,46 +337,68 @@ function Vegetation({ tier }: { tier: Tier }) {
   const lite = tier === "lite";
   const data = useMemo(() => {
     const r = rng(42);
-    const trunks: Inst[] = [];
-    const canopies: Inst[] = [];
-    const euTrunks: Inst[] = [];
-    const euCanopies: Inst[] = [];
+    const acacia: Placement[] = [];
+    const broad: Placement[] = [];
+    const euca: Placement[] = [];
+    const bushes: Placement[] = [];
+    const shrubs: Placement[] = [];
+    const ferns: Placement[] = [];
+    const rocks: Placement[] = [];
+    const boulders: Placement[] = [];
     const culms: Inst[] = [];
     const culmLeaves: Inst[] = [];
     const walls: Inst[] = [];
     const roofs: Inst[] = [];
-    const shrubs: Inst[] = [];
     const leaf = (base: string, v = 0.12) => new THREE.Color(base).offsetHSL((r() - 0.5) * 0.03, (r() - 0.5) * v, (r() - 0.5) * v);
-    const broadleaf = (x: number, z: number, s: number) => {
+    const tree = (x: number, z: number, s: number, kind?: "acacia" | "broad") => {
       const y = terrainHeight(x, z) + (Math.hypot(x, z) < 30 ? 0.6 : 0);
-      trunks.push({ m: mat4(x, y + 1.4 * s, z, 0.22 * s, 2.8 * s, 0.22 * s), c: new THREE.Color("#6b4a2f") });
-      canopies.push({ m: mat4(x, y + 3.6 * s, z, 2.2 * s, 1.7 * s, 2.2 * s, r() * 6), c: leaf("#3f7f38") });
-      canopies.push({ m: mat4(x + 0.9 * s, y + 3.0 * s, z + 0.4 * s, 1.4 * s, 1.1 * s, 1.4 * s, r() * 6), c: leaf("#4d913f") });
+      const k = kind ?? (r() < 0.5 ? "acacia" : "broad");
+      (k === "acacia" ? acacia : broad).push({ x, y, z, rotY: r() * Math.PI * 2, s: s * (k === "acacia" ? 0.82 : 0.78) });
     };
-    // plaza planters
-    for (const p of PLANTERS) {
-      broadleaf(p.x, p.z, 1.05 + r() * 0.25);
-      for (let k = 0; k < 4; k++) {
-        const a = r() * Math.PI * 2;
-        shrubs.push({ m: mat4(p.x + Math.cos(a) * p.r * 0.6, 0.75, p.z + Math.sin(a) * p.r * 0.6, 0.55, 0.4, 0.55, a), c: leaf("#2f6b33") });
-      }
-    }
+    // plaza planters: alternating umbrella acacias and broadleaf shade trees, ferns at their feet
+    PLANTERS.forEach((p, i) => {
+      tree(p.x, p.z, 0.95 + r() * 0.2, i % 2 ? "broad" : "acacia");
+      ferns.push({ x: p.x + (r() - 0.5) * 0.8, y: 0.58, z: p.z + (r() - 0.5) * 0.8, rotY: r() * 6, s: 0.9 });
+    });
+    const clearOfBuildings = (x: number, z: number, rad: number) => {
+      const deg = ((Math.atan2(x, -z) * 180) / Math.PI + 360) % 360;
+      const onRay = [-112, -76, -38, 0, 38, 76, 112].some((d) => Math.abs(((deg - d + 540) % 360) - 180) < 13);
+      return !((onRay && rad < 72) || (rad > 72 && rad < 83)) && !(Math.abs(x) < 18 && z > 26 && z < 37);
+    };
     // landscaped lawns around the buildings (r 36–70) and along the avenue
     for (let i = 0; i < (lite ? 26 : 52); i++) {
       const a = r() * Math.PI * 2;
       const rad = 36 + r() * 46;
       const x = Math.sin(a) * rad;
       const z = Math.cos(a) * rad;
-      const deg = ((Math.atan2(x, -z) * 180) / Math.PI + 360) % 360;
-      // keep clear of building footprints (they sit on the door ring rays) and the arena drum
-      const onRay = [-112, -76, -38, 0, 38, 76, 112].some((d) => Math.abs(((deg - d + 540) % 360) - 180) < 13);
-      if ((onRay && rad < 72) || (rad > 72 && rad < 83)) continue;
-      broadleaf(x, z, 0.9 + r() * 0.6);
+      if (!clearOfBuildings(x, z, rad)) continue;
+      tree(x, z, 0.85 + r() * 0.5);
     }
-    for (let z = 40; z < 74; z += 6) for (const x of [-6, 6]) broadleaf(x, z, 0.9);
-    // the elders' tree (umuvumu) next to Igisoro Court
+    for (let z = 40; z < 74; z += 6) for (const x of [-6.5, 6.5]) tree(x, z, 0.85, (z / 6) % 2 ? "broad" : "acacia");
+    // the elders' tree (umuvumu, a big fig) next to Igisoro Court
     const elder = ringPoint(-76 + 13, 31.5);
-    broadleaf(elder.x, elder.z, 1.9);
+    tree(elder.x, elder.z, 1.55, "broad");
+    // flowering bushes and shrubs on the lawns, lava stones and boulders
+    for (let i = 0; i < (lite ? 30 : 70); i++) {
+      const a = r() * Math.PI * 2;
+      const rad = 34 + r() * 52;
+      const x = Math.sin(a) * rad;
+      const z = Math.cos(a) * rad;
+      if (!clearOfBuildings(x, z, rad) || (Math.abs(x) < 5 && z > 0)) continue;
+      const y = terrainHeight(x, z);
+      if (r() < 0.6) bushes.push({ x, y, z, rotY: r() * 6, s: 0.8 + r() * 0.5 });
+      else shrubs.push({ x, y, z, rotY: r() * 6, s: 0.7 + r() * 0.4 });
+    }
+    for (let i = 0; i < (lite ? 24 : 60); i++) {
+      const a = r() * Math.PI * 2;
+      const rad = 34 + r() * 120;
+      const x = Math.sin(a) * rad;
+      const z = Math.cos(a) * rad;
+      if (!clearOfBuildings(x, z, rad) || inLake(x, z) || (Math.abs(x) < 5 && z > 0)) continue;
+      const y = terrainHeight(x, z) - 0.08;
+      if (rad > 90 && r() < 0.5) boulders.push({ x, y, z, rotY: r() * 6, s: 0.8 + r() * 1.4 });
+      else rocks.push({ x, y, z, rotY: r() * 6, s: 0.5 + r() * 0.9 });
+    }
 
     // eucalyptus woodlots on the hills
     for (let w = 0; w < (lite ? 14 : 30); w++) {
@@ -389,18 +412,7 @@ function Vegetation({ tier }: { tier: Tier }) {
         const x = cx + (r() - 0.5) * 30;
         const z = cz + (r() - 0.5) * 30;
         if (inLake(x, z)) continue;
-        const y = terrainHeight(x, z);
-        const h = 12 + r() * 9;
-        euTrunks.push({ m: mat4(x, y + h * 0.45, z, 0.25, h * 0.9, 0.25, 0, (r() - 0.5) * 0.06), c: new THREE.Color("#cfc8bb") });
-        for (const [k, s] of [
-          [0.62, 1.0],
-          [0.78, 0.85],
-          [0.93, 0.55],
-        ] as const)
-          euCanopies.push({
-            m: mat4(x + (r() - 0.5) * 1.2, y + h * k, z + (r() - 0.5) * 1.2, (1.6 + r()) * s, h * 0.13 * s + 1, (1.6 + r()) * s, r() * 6),
-            c: leaf("#6e8c6a", 0.08),
-          });
+        euca.push({ x, y: terrainHeight(x, z) - 0.05, z, rotY: r() * Math.PI * 2, s: 0.75 + r() * 0.35, sy: 1 + r() * 0.25 });
       }
     }
     // bamboo groves near the district edge and in the foreground hills
@@ -418,7 +430,6 @@ function Vegetation({ tier }: { tier: Tier }) {
         const lean = (r() - 0.5) * 0.25;
         const tilt = (r() - 0.5) * 0.25;
         culms.push({ m: mat4(x, y0 + h / 2, z, 0.06, h, 0.06, 0, lean, tilt), c: leaf("#9aa94e", 0.1) });
-        // feathery plume: several narrow leaf masses up the top third of the culm
         for (const [f, s] of [
           [0.62, 0.55],
           [0.76, 0.7],
@@ -443,19 +454,17 @@ function Vegetation({ tier }: { tier: Tier }) {
       walls.push({ m: mat4(x, y + 1.4, z, w, 2.8, 4, rot), c: new THREE.Color(r() > 0.5 ? "#c9a27a" : "#e6dccb") });
       roofs.push({ m: mat4(x, y + 3.4, z, w + 0.6, 1.4, 4.8, rot), c: new THREE.Color(r() > 0.35 ? "#a9b0b5" : "#8a4b2f") });
     }
-    return { trunks, canopies, euTrunks, euCanopies, culms, culmLeaves, walls, roofs, shrubs };
+    return { acacia, broad, euca, bushes, shrubs, ferns, rocks, boulders, culms, culmLeaves, walls, roofs };
   }, [lite]);
 
   const geos = useMemo(
     () => ({
-      trunk: new THREE.CylinderGeometry(0.6, 1, 1, 6),
-      canopy: canopyGeo(3, lite ? 1 : 2),
       eu: canopyGeo(7, 0),
       culm: new THREE.CylinderGeometry(0.7, 1, 1, 5),
       box: new THREE.BoxGeometry(1, 1, 1),
       roof: new THREE.CylinderGeometry(0.5, 0.5, 1, 3).rotateZ(Math.PI / 2).rotateX(0).scale(1, 1, 1),
     }),
-    [lite],
+    [],
   );
   const mats = useMemo(
     () => ({
@@ -466,19 +475,37 @@ function Vegetation({ tier }: { tier: Tier }) {
     }),
     [],
   );
+  const shadows = !lite;
   return (
     <group>
-      <InstancedSet geo={geos.trunk} mat={mats.bark} items={data.trunks} shadow={!lite} />
-      <InstancedSet geo={geos.canopy} mat={mats.leaf} items={data.canopies} shadow={!lite} />
-      <InstancedSet geo={geos.canopy} mat={mats.leaf} items={data.shrubs} />
-      <InstancedSet geo={geos.culm} mat={mats.bark} items={data.euTrunks} />
-      <InstancedSet geo={geos.eu} mat={mats.leaf} items={data.euCanopies} />
+      <Suspense fallback={null}>
+        <InstancedSpecies id="acacia" items={data.acacia} lite={lite} shadows={shadows} />
+        <InstancedSpecies id="broadleaf" items={data.broad} lite={lite} shadows={shadows} />
+        <InstancedSpecies id="eucalyptus" items={data.euca} lite={lite} shadows={false} />
+        <InstancedSpecies id="bush" items={data.bushes} lite={lite} shadows={shadows} />
+        <InstancedSpecies id="shrub" items={data.shrubs} lite={lite} shadows={shadows} />
+        <InstancedSpecies id="fern" items={data.ferns} lite={lite} shadows={false} />
+        <InstancedSpecies id="rock" items={data.rocks} lite={lite} shadows={shadows} />
+        <InstancedSpecies id="boulder" items={data.boulders} lite={lite} shadows={shadows} />
+        <GrassField count={lite ? 450 : 1500} radius={lite ? 15 : 24} accept={onLawn} heightAt={terrainHeight} />
+      </Suspense>
       <InstancedSet geo={geos.culm} mat={mats.bark} items={data.culms} />
       <InstancedSet geo={geos.eu} mat={mats.leaf} items={data.culmLeaves} />
       <InstancedSet geo={geos.box} mat={mats.wall} items={data.walls} />
       <InstancedSet geo={geos.roof} mat={mats.roof} items={data.roofs} />
     </group>
   );
+}
+
+/** Lawn / field ground where grass tufts may grow (not on paving, roads, the avenue or in lakes). */
+function onLawn(x: number, z: number): boolean {
+  const r = Math.hypot(x, z);
+  if (r < 33.5) return false; // plaza paving
+  if (r > 73 && r < 82) return false; // ring road
+  if (Math.abs(x) < 5 && z > 25) return false; // avenue
+  if (Math.abs(x) < 19 && z > 26 && z < 37) return false; // entry gate
+  if (Math.hypot(x, z - 96) < 20.5) return false; // arrival gate forecourt
+  return !inLake(x, z);
 }
 
 /* ---------------- mist ---------------- */
@@ -554,7 +581,18 @@ function Mist({ tier }: { tier: Tier }) {
 export function Landscape({ tier }: { tier: Tier }) {
   const terrain = useMemo(() => buildTerrain(tier), [tier]);
   const volcanoes = useMemo(() => buildVolcanoes(tier), [tier]);
-  const grass = useMemo(() => grassTexture(), []);
+  // CC0 photographic lawn texture (Poly Haven "leafy_grass"), tinted per field by the vertex colours
+  const ground = useMemo(() => {
+    const load = (url: string, srgb: boolean) => {
+      const t = new THREE.TextureLoader().load(url);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.anisotropy = tier === "lite" ? 2 : 8;
+      if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+      return t;
+    };
+    return { map: load("/assets/env/ground-grass.webp", true), normal: tier === "lite" ? null : load("/assets/env/ground-grass-n.webp", false) };
+  }, [tier]);
+  const tint = useMemo(() => new THREE.Color("#ffffff").multiplyScalar(1.9), []);
   useEffect(
     () => () => {
       terrain.dispose();
@@ -565,7 +603,7 @@ export function Landscape({ tier }: { tier: Tier }) {
   return (
     <group>
       <mesh geometry={terrain} receiveShadow>
-        <meshStandardMaterial vertexColors map={grass} roughness={1} />
+        <meshStandardMaterial vertexColors map={ground.map} normalMap={ground.normal} normalScale={new THREE.Vector2(0.8, 0.8)} color={tint} roughness={1} />
       </mesh>
       <mesh geometry={volcanoes.geo}>
         <meshStandardMaterial vertexColors roughness={1} />
