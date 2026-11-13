@@ -207,6 +207,8 @@ const COLD_LIVE_MS = 4400;
 const EXIT_WALK_MS = 380;
 
 let crossing = false;
+/** a live cut updates the route this long after the switch (the dissolve is running) */
+const URL_AFTER_CUT_MS = 340;
 
 type HandoffIn = Omit<Handoff, "to" | "at">;
 
@@ -229,7 +231,12 @@ export function crossTo(view: View, href: string | null, handoff?: HandoffIn | (
   const go = () => {
     walkTarget(null); // a walk target from the place you left must not drive the next controller
     useStage.getState().show(view, (typeof handoff === "function" ? handoff() : handoff) ?? null);
-    if (href && location.pathname !== href) stageNav.push(href);
+    // the URL (and with it the page HUD swap and the realtime room switch) follows a moment later, once the cut
+    // frame is on screen: never in the same frame as the area switch
+    if (href && location.pathname !== href) {
+      if (opts.dissolve === false) stageNav.push(href);
+      else setTimeout(() => location.pathname !== href && useStage.getState().view === view && stageNav.push(href), URL_AFTER_CUT_MS);
+    }
     crossing = false;
   };
   if (opts.dissolve === false) go();

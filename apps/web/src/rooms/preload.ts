@@ -3,6 +3,7 @@ import { useGLTF } from "@react-three/drei";
 import { useLoader } from "@react-three/fiber";
 import { BitmapTextureLoader } from "@/world/bitmap-texture";
 import { INTERIOR_BASE, model, type PbrName } from "./interior-kit";
+import { ballAtlas, clubRug, diceAtlas, feltTexture, imigongo, imigongoPanel, kitenge, leafCard, ludoBoard, menuBoard, windowLightTexture } from "./room-textures";
 import type { HallGame } from "./layouts";
 import { useStage } from "@/world/stage";
 
@@ -36,4 +37,34 @@ export function preloadHall(game: HallGame) {
     const urls = [`${INTERIOR_BASE}/tex/${name}_nor.webp`, `${INTERIOR_BASE}/tex/${name}_rough.webp`, ...(withMap ? [`${INTERIOR_BASE}/tex/${name}_diff.webp`] : [])];
     useLoader.preload(BitmapTextureLoader, urls);
   }
+}
+
+/**
+ * Paint the halls' procedural canvas textures in idle time while you are in the plaza (one per idle slice), so the
+ * pre-warm of a hall you walk up to finds them ready (rooms/room-textures caches them for the session).
+ */
+export function prewarmRoomTextures() {
+  const jobs: (() => unknown)[] = [
+    () => feltTexture("#1a4e85"),
+    () => ballAtlas(),
+    () => clubRug(),
+    () => windowLightTexture(8),
+    () => ludoBoard(),
+    () => diceAtlas(),
+    () => kitenge(["#f3e3c3", "#e2621b", "#0f7c7a", "#f2b632", "#2b2d6e"]),
+    () => kitenge(["#2b2d6e", "#f2b632", "#e2621b", "#0f7c7a", "#f3e3c3"], [2, 2]),
+    () => menuBoard(),
+    () => leafCard(),
+    () => imigongoPanel(0),
+    () => imigongoPanel(1),
+    () => imigongo([20, 1]),
+  ];
+  const idle = (cb: () => void) => (typeof requestIdleCallback === "function" ? requestIdleCallback(cb, { timeout: 4000 }) : setTimeout(cb, 120));
+  const next = () => {
+    const job = jobs.shift();
+    if (!job) return;
+    job();
+    idle(next);
+  };
+  idle(next);
 }

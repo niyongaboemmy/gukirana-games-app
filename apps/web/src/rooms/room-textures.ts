@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { sessionMemo } from "@/world/session-cache";
 
 /**
  * Procedural interior textures (canvas, generated once per room). Photographic PBR sets come from
@@ -42,7 +43,7 @@ export function blobTexture(): THREE.CanvasTexture {
 }
 
 /** Imigongo: concentric diamonds and zig-zags in black / white / red-ochre (DESIGN-SPEC §5.2). */
-export function imigongo(repeat: [number, number], dark = "#1B1B1B", accent = "#B5532A", light = "#F4EFE6"): THREE.CanvasTexture {
+function imigongoBuild(repeat: [number, number], dark = "#1B1B1B", accent = "#B5532A", light = "#F4EFE6"): THREE.CanvasTexture {
   const { c, g } = canvas(256, 256);
   g.fillStyle = light;
   g.fillRect(0, 0, 256, 256);
@@ -69,7 +70,7 @@ export function imigongo(repeat: [number, number], dark = "#1B1B1B", accent = "#
 }
 
 /** Large Imigongo wall panel: stepped zig-zag bands + nested diamonds, with a raised-relief look (painted cow-dung clay). */
-export function imigongoPanel(variant: number): THREE.CanvasTexture {
+function imigongoPanelBuild(variant: number): THREE.CanvasTexture {
   const { c, g } = canvas(512, 1024);
   const K = "#1B1B1B";
   const W = "#EFE7D8";
@@ -134,7 +135,7 @@ export function imigongoPanel(variant: number): THREE.CanvasTexture {
 }
 
 /** Tournament billiard cloth: fine fibre noise over a base colour. */
-export function feltTexture(color: string): THREE.CanvasTexture {
+function feltTextureBuild(color: string): THREE.CanvasTexture {
   const { c, g } = canvas(512, 256);
   g.fillStyle = color;
   g.fillRect(0, 0, 512, 256);
@@ -153,7 +154,7 @@ export function feltTexture(color: string): THREE.CanvasTexture {
 
 const BALL = ["#f4f1e6", "#f2c200", "#1d4fbf", "#d42a26", "#4a2a85", "#ee7a12", "#127a3e", "#7a1a1e", "#111111", "#f2c200", "#1d4fbf", "#d42a26", "#4a2a85", "#ee7a12", "#127a3e", "#7a1a1e"];
 /** 4 × 4 atlas of numbered pool balls (0 = cue ball), equirectangular per cell. */
-export function ballAtlas(): THREE.CanvasTexture {
+function ballAtlasBuild(): THREE.CanvasTexture {
   const CW = 256;
   const CH = 128;
   const { c, g } = canvas(CW * 4, CH * 4);
@@ -192,7 +193,7 @@ export function ballAtlas(): THREE.CanvasTexture {
 }
 
 /** Hand-knotted club rug (pool hall): deep oxblood field, navy border, medallion. */
-export function clubRug(): THREE.CanvasTexture {
+function clubRugBuild(): THREE.CanvasTexture {
   const { c, g } = canvas(512, 384);
   g.fillStyle = "#4a1518";
   g.fillRect(0, 0, 512, 384);
@@ -232,7 +233,7 @@ export function clubRug(): THREE.CanvasTexture {
 }
 
 /** Kitenge (African wax print) inspired pattern for rugs and cushions in the Ludo Lounge. */
-export function kitenge(palette: string[], repeat: [number, number] = [1, 1]): THREE.CanvasTexture {
+function kitengeBuild(palette: string[], repeat: [number, number] = [1, 1]): THREE.CanvasTexture {
   const { c, g } = canvas(512, 512);
   const [bg, a, b, cc, d] = palette as [string, string, string, string, string];
   g.fillStyle = bg;
@@ -273,7 +274,7 @@ export function kitenge(palette: string[], repeat: [number, number] = [1, 1]): T
 }
 
 /** Top of a Ludo table (classic cross layout, colour-blind-safe corners). */
-export function ludoBoard(): THREE.CanvasTexture {
+function ludoBoardBuild(): THREE.CanvasTexture {
   const { c, g } = canvas(512, 512);
   const s = 512 / 15;
   const cols = ["#E53935", "#43A047", "#FDD835", "#1E88E5"];
@@ -371,7 +372,7 @@ export function spillTexture(spots: { u: number; v: number; r: number; a?: numbe
  * Daylight falling through a window wall onto the floor (additive decal): bright at the glass (v = 1), fading into
  * the room, broken by soft, slightly skewed mullion shadows. `bays` = glazing bays across.
  */
-export function windowLightTexture(bays = 8): THREE.CanvasTexture {
+function windowLightTextureBuild(bays = 8): THREE.CanvasTexture {
   const { c, g } = canvas(1024, 256);
   const fall = g.createLinearGradient(0, 0, 0, 256);
   fall.addColorStop(0, "rgba(255,255,255,1)");
@@ -400,7 +401,7 @@ export function windowLightTexture(bays = 8): THREE.CanvasTexture {
 }
 
 /** Dice atlas, 3 × 2 faces (1..6 pips). */
-export function diceAtlas(): THREE.CanvasTexture {
+function diceAtlasBuild(): THREE.CanvasTexture {
   const F = 128;
   const { c, g } = canvas(F * 3, F * 2);
   const pips: Record<number, [number, number][]> = {
@@ -454,7 +455,7 @@ export function diceAtlas(): THREE.CanvasTexture {
 }
 
 /** Leaf cluster card (alpha) for the courtyard tree canopy. */
-export function leafCard(): THREE.CanvasTexture {
+function leafCardBuild(): THREE.CanvasTexture {
   const { c, g } = canvas(256, 256);
   g.clearRect(0, 0, 256, 256);
   for (let i = 0; i < 70; i++) {
@@ -485,7 +486,7 @@ export function leafCard(): THREE.CanvasTexture {
 }
 
 /** Chalk menu board for the coffee counter. */
-export function menuBoard(): THREE.CanvasTexture {
+function menuBoardBuild(): THREE.CanvasTexture {
   const { c, g } = canvas(512, 320);
   g.fillStyle = "#23272a";
   g.fillRect(0, 0, 512, 320);
@@ -521,3 +522,23 @@ export function menuBoard(): THREE.CanvasTexture {
   t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
   return t;
 }
+
+/* ---------------- session cache ----------------
+ * Each canvas texture is a pure function of its arguments: generated once per session (and pre-generated in idle
+ * time while you are in the plaza, rooms/preload.ts), so warming a hall as you walk up to it does not repaint
+ * them inside a frame. */
+const memo =
+  <A extends unknown[]>(name: string, build: (...a: A) => THREE.CanvasTexture) =>
+  (...a: A): THREE.CanvasTexture =>
+    sessionMemo(`room-tex:${name}:${JSON.stringify(a)}`, () => build(...a));
+export const imigongo = memo("imigongo", imigongoBuild);
+export const imigongoPanel = memo("imigongoPanel", imigongoPanelBuild);
+export const feltTexture = memo("felt", feltTextureBuild);
+export const ballAtlas = memo("balls", ballAtlasBuild);
+export const clubRug = memo("clubRug", clubRugBuild);
+export const kitenge = memo("kitenge", kitengeBuild);
+export const ludoBoard = memo("ludoBoard", ludoBoardBuild);
+export const windowLightTexture = memo("windowLight", windowLightTextureBuild);
+export const diceAtlas = memo("dice", diceAtlasBuild);
+export const leafCard = memo("leafCard", leafCardBuild);
+export const menuBoard = memo("menuBoard", menuBoardBuild);
