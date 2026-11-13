@@ -48,6 +48,7 @@ export default function RoomPage() {
       <WorldControls />
       <RoomOverlay layout={layout} />
       <RotateGuard />
+      <div className="gk-fade-in pointer-events-none fixed inset-0 z-50 bg-black" aria-hidden />
     </div>
   );
 }

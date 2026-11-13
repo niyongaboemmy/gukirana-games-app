@@ -52,3 +52,7 @@ body {
 }
 .gk-progress { animation: gk-progress 1.1s ease-in-out infinite; transform-origin: left; }
 @media (prefers-reduced-motion: reduce) { .gk-progress { animation: none; opacity: 0.7; } }
+
+/* room entry: continue the plaza's fade-to-black at the doorway */
+@keyframes gk-fade-in { from { opacity: 1; } to { opacity: 0; } }
+.gk-fade-in { animation: gk-fade-in 0.8s ease-out 0.15s both; }

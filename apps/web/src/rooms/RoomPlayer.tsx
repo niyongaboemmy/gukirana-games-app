@@ -23,17 +23,18 @@ const keys = new Set<string>();
 export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExit: () => void; tier: "lite" | "standard" }) {
   const group = useRef<THREE.Group>(null);
   const anim = useRef(0);
-  // back from a game → same spot / same chair; otherwise arrive OUTSIDE the entrance and walk in
+  // back from a game → same spot / same chair; otherwise appear in the open doorway and walk in automatically
   const back = useRef(typeof window !== "undefined" ? takeReturnFor(`/room/${layout.game}`) : null);
-  const pos = useRef(back.current ? new THREE.Vector3(back.current.x, 0, back.current.z) : new THREE.Vector3(layout.door.x + (Math.random() - 0.5) * 0.8, 0, layout.size.d / 2 + 3.2));
+  const pos = useRef(back.current ? new THREE.Vector3(back.current.x, 0, back.current.z) : new THREE.Vector3(layout.door.x, 0, layout.size.d / 2 - 0.2));
   const insideOnce = useRef(!!back.current);
+  /** scripted entry: a few natural steps into the hall (any input takes over immediately) */
+  const intro = useRef(back.current ? 0 : 1.9);
   const facing = useRef(back.current?.yaw ?? Math.PI); // facing into the room (−z)
   const exited = useRef(false);
   const { camera, gl } = useThree();
   const profile = useProfile();
   const look = lookOf(profile);
   const { w, d } = layout.size;
-  const seatedNow = useRoom((s) => s.seated);
 
   // re-take the same chair once the hall connection is up (server confirms the seat)
   useEffect(() => {
@@ -50,9 +51,9 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   }, []);
 
   useEffect(() => {
-    cameraState.yaw = 0;
-    cameraState.pitch = 0.5;
-    cameraState.distance = 7.5;
+    cameraState.yaw = 0; // behind the player, looking into the hall
+    cameraState.pitch = 0.2; // eye-level-ish: you see the hall, not the floor
+    cameraState.distance = 5.8;
     const down = (e: KeyboardEvent) => (e.target as HTMLElement)?.tagName !== "INPUT" && keys.add(e.code);
     const up = (e: KeyboardEvent) => keys.delete(e.code);
     window.addEventListener("keydown", down);
@@ -97,7 +98,15 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       pos.current.set(seat.x - Math.sin(seat.yaw) * 0.08, 0, seat.z - Math.cos(seat.yaw) * 0.08);
       facing.current = seat.yaw;
       anim.current = SIT_ANIM;
+    } else if (intro.current > 0 && !wantsToWalk && !keys.has("KeyA") && !keys.has("KeyD") && !keys.has("ArrowLeft") && !keys.has("ArrowRight")) {
+      // automatic entry walk (doors close behind as you move away)
+      intro.current -= dt;
+      const sp = 1.35 * Math.min(1, intro.current / 0.4 + 0.2);
+      pos.current.z -= sp * dt;
+      facing.current = Math.PI;
+      anim.current = intro.current > 0.05 ? 1 : 0;
     } else {
+      intro.current = 0;
       const s = steer({ keys, joyX: W.input.x, joyY: W.input.y, camYaw: cameraState.yaw, facing: facing.current, x: pos.current.x, z: pos.current.z, walkSpeed: WALK_SPEEDS[W.speed] ?? WALK_SPEEDS.slow, run, dt });
       pos.current.x += s.dx;
       pos.current.z += s.dz;
@@ -126,18 +135,16 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       const outside = pos.current.z > d / 2;
       const inDoorway = Math.abs(pos.current.x - layout.door.x) < layout.door.w / 2 - 0.3;
       if (outside) {
-        // entrance porch in front of the door
-        pos.current.x = THREE.MathUtils.clamp(pos.current.x, layout.door.x - 2.6, layout.door.x + 2.6);
-        pos.current.z = Math.min(pos.current.z, d / 2 + 4.2);
-        if (pos.current.z < d / 2 + 0.35 && !(inDoorway && R.doorOpen)) pos.current.z = d / 2 + 0.35;
+        // only the doorway itself leads out (no porch): stay in line with the door
+        pos.current.x = THREE.MathUtils.clamp(pos.current.x, layout.door.x - layout.door.w / 2 + 0.3, layout.door.x + layout.door.w / 2 - 0.3);
       } else {
         insideOnce.current ||= pos.current.z < d / 2 - 1.2;
         pos.current.x = THREE.MathUtils.clamp(pos.current.x, -w / 2 + 0.4, w / 2 - 0.4);
         pos.current.z = Math.max(pos.current.z, -d / 2 + 0.5);
         if (!(inDoorway && R.doorOpen)) pos.current.z = Math.min(pos.current.z, d / 2 - 0.4);
       }
-      // walking back out through the door (after having been inside) returns to the plaza
-      if (insideOnce.current && pos.current.z > d / 2 + 2.4 && !exited.current) {
+      // stepping back out through the open door (after having been inside) returns to the plaza
+      if (insideOnce.current && pos.current.z > d / 2 + 0.5 && !exited.current) {
         exited.current = true;
         onExit();
       }
@@ -149,7 +156,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     }
 
     // camera: third person; when seated, over the shoulder towards the table
-    const target = new THREE.Vector3(pos.current.x, seat ? 1.0 : 1.4, pos.current.z);
+    const target = new THREE.Vector3(pos.current.x, seat ? 1.0 : 1.55, pos.current.z);
     let cx: number;
     let cy: number;
     let cz: number;
@@ -165,9 +172,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       cy = 1.6 + Math.sin(cameraState.pitch) * dd;
     }
     // keep the camera inside the room
-    cx = pos.current.z > d / 2 - 0.5 ? THREE.MathUtils.clamp(cx, layout.door.x - 5, layout.door.x + 5) : THREE.MathUtils.clamp(cx, -w / 2 + 0.3, w / 2 - 0.3);
-    // inside: never behind the door header; on the porch the camera may stand outside
-    cz = pos.current.z > d / 2 - 0.5 ? Math.min(cz, d / 2 + 7) : THREE.MathUtils.clamp(cz, -d / 2 + 0.3, d / 2 - 0.35);
+    cx = THREE.MathUtils.clamp(cx, -w / 2 + 0.3, w / 2 - 0.3);
+    cz = THREE.MathUtils.clamp(cz, -d / 2 + 0.3, d / 2 - 0.35); // camera always inside the hall
     cy = Math.min(cy, layout.size.h - 0.3);
     camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * 6));
     camera.lookAt(target);
@@ -207,7 +213,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     <>
     <TargetMarker />
     <group ref={group}>
-      <Avatar look={look} name={profile.name} level={1} animRef={anim} shadows={tier !== "lite"} showTag={!seatedNow} />
+      <Avatar look={look} name={profile.name} level={1} animRef={anim} shadows={tier !== "lite"} showTag={false} />
     </group>
     </>
   );

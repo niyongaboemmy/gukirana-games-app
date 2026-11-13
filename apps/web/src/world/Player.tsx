@@ -261,6 +261,7 @@ export function LocalPlayer({
           quality={tier}
           self
           lookAtRef={lookAt}
+          showTag={false}
         />
       </group>
     </>
