@@ -162,7 +162,7 @@ function AreaWarm({ area, content }: { area: Area; content: RefObject<THREE.Grou
       // booting on screen (nobody walking) the batches are large.
       const drawables: THREE.Object3D[] = [];
       scene.traverse((o) => ((o as THREE.Mesh).isMesh || (o as THREE.Points).isPoints || (o as THREE.Line).isLine || (o as THREE.Sprite).isSprite) && drawables.push(o));
-      const batch = budget > 4 ? 1e9 : 24;
+      const batch = budget > 4 ? 1e9 : 6;
       for (let i = 0; i < drawables.length; i += batch) {
         await new Promise<void>((resolve) => {
           warmDraws.push(() => {
@@ -397,6 +397,7 @@ function Compositor() {
     }
     probe.frames++;
     probe.programs = gl.info.programs?.length ?? 0;
+    (probe as unknown as { list: unknown }).list = gl.info.programs;
     probe.textures = gl.info.memory.textures;
     probe.geometries = gl.info.memory.geometries;
     // a held frame (cold fallback) reveals once the area on screen is ready and frames are on time again

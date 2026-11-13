@@ -38,10 +38,14 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   // maps the plaza door frame onto this door); otherwise (reload, deep link) just inside the open doors
   const [hand] = useState(() => (typeof window !== "undefined" ? peekHandoff(`hall:${layout.game}`) : null));
   useEffect(() => clearHandoff(`hall:${layout.game}`), [layout.game]);
-  // you just walked through the open door: it is open on the very first frame (the door sensor runs after this
-  // controller in a frame, and the wall clamp would otherwise snap you 0.2 m inwards)
+  // you just walked through the open door: it is open on the very first frame (whatever order the door sensor and
+  // this controller run in, the wall clamp would otherwise snap you 0.2 m inwards)
   useLayoutEffect(() => {
-    if (hand) useRoom.getState().set({ doorOpen: true });
+    if (!hand) return;
+    useRoom.getState().set({ doorOpen: true });
+    // and the hall door sensor sees you where you are from its very first frame
+    selfPose.x = hand.x;
+    selfPose.z = hand.z;
   }, [hand]);
   const pos = useRef(
     back.current
