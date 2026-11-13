@@ -305,3 +305,46 @@ UVs are re-projected to **world metres** by the batcher, so texel density stays 
 |---|---|---|
 | `@react-three/postprocessing` ^3.2 + `postprocessing` ^6.39 | One merged bloom and tone-mapping pass on the Standard tier only (DESIGN-SPEC §16.1 "Bloom (low)"). `ToneMappingMode` comes from `postprocessing` | Only in the lazily loaded world chunk |
 | `lucide-react` ^1.72 | MIT line icons replacing emojis in the HUD, creator and gate (no SF Symbols on the web) | Tree-shaken per icon |
+
+## 13. Room interiors (`src/rooms/**`, route `/room/<game>`)
+
+Each hall is a 24 × 18 × 4.4 m room (DESIGN-SPEC §6.4) entered through a glass auto door on the south wall; the
+north wall is full-width glazing. Interiors mix CC0 photographic PBR textures and props from Poly Haven
+(`public/assets/interiors`, 4.0 MB total, see `docs/ASSET-LICENSES.md` "Interiors") with procedural pieces for
+what stock assets cannot provide (Imigongo, Kitenge, Ludo / Igisoro boards, pool balls). Only the hall you enter
+loads its assets (Pool ≈ 1.7 MB, Ludo ≈ 1.1 MB, Igisoro ≈ 1.7 MB — under the §16.2 4 MB per-hall budget).
+
+| Hall | Identity | Key pieces |
+|---|---|---|
+| **Pool Hall** | Dark, moody Kigali billiards club | Four 9-ft tables (walnut rails, pearl diamonds, leather pocket drops, tournament-blue cloth, numbered balls racked / mid-game), three-shade billiard lamps with a down spot each, exposed brick + dark wainscot, acoustic panels, backlit "Break Bar" with bottles and leather stools (west), chesterfield lounge + neon logo + dartboard (east), cue racks, bead scoreboards, live-tables screens |
+| **Ludo Lounge** | Bright social café-lounge | Herringbone oak floor, warm plaster + terracotta accent wall, oak ceiling baffles, six café tables with Ludo boards, tokens and dice, upholstered armchairs, globe pendants, coffee bar (espresso machine, chalk menu, pastry case), velvet sofas, Kitenge rug and bean bags, the floating giant die (§6.3) |
+| **Igisoro Court** | Traditional-modern Rwandan courtyard | Terracotta floor and woven mats, clay walls with tall Imigongo panels between timber posts, thatch-and-timber ceiling, skylight over the elders' tree (Hall of Masters plaque), carved low tables with 4 × 8-pit boards and seeds, low wooden stools (0.46 m seat), Agaseke baskets, woven pendant lamps |
+
+**The real view through the windows** (`OutdoorView.tsx`). The plaza's own `Landscape` (Virunga cones, terraced
+hills, Twin Lakes, mist, woodlots) is mounted once in an offscreen scene, transformed into the hall's frame (the hall
+centre is the portal's door point pushed outward by half the room depth, rotated by the portal bearing — Pool Hall
+looks towards Bisoke / Sabyinyo, Ludo Lounge towards Gahinga / Muhabura, Igisoro Court towards Karisimbi), lit by the
+same morning sun (`SUN_DIR`) and fog, and captured from the room centre into a cube map used as `scene.background`
+(1024² half-float on Standard, 512² on Lite). Everything outside is ≥ 50 m away, so parallax inside the room is
+negligible; the landscape geometry is disposed right after the capture, so the runtime cost is one background cube.
+The same sun direction lights the Ludo Lounge (its window faces the morning sun at a grazing angle); the Pool Hall
+and Igisoro Court face away from it.
+
+**Entrance.** `AutoDoor` (shell.tsx) eases open from ~4.2 m and is fully open by ~2 m (smoothstep on distance), so
+players walk straight through; it plays a soft filtered-noise "whoosh" via WebAudio (no asset) and writes
+`useRoom().doorOpen`. From inside: aluminium frame, pull handles, manifestation band, illuminated EXIT sign, and a
+glimpse of plaza paving and planters through the glass. There is no porch any more (players appear in the doorway).
+
+**Collisions.** `HallLayout.colliders` (axis-aligned rects for bars, counters, sofas, planters, benches) are tested
+together with `tables` in `RoomPlayer`. Seats keep the `t{n}s{m}` ids and face their table; chair models are scaled
+so the seat is ~0.46 m high to match the seated avatar pose.
+
+**Lighting and performance.** Each hall has a local `Environment` built from `Lightformer`s (frames = 1, no HDRI),
+a hemisphere fill and a handful of lights: Pool = 4 shadowed table spots (512² maps, only table + balls cast) + bar /
+lounge points; Ludo = 1 shadowed sun (2048²) + 6 small pendant points; Igisoro = 1 shadowed skylight spot (dappled
+tree shadows) + 6 pendant points. Contact shadows are baked as instanced soft blobs (no per-frame depth pass).
+Props are instanced (one draw call per material per prop type; all pool balls are one merged mesh). Measured in
+Chrome / Apple M2 Pro at 1280 × 720: 60 fps in all halls, 75–180 draw calls, ≈ 260–410k triangles rendered
+including shadow passes. Lite tier: no shadows, no table / pendant lights (emissive + additive light pools instead),
+lower-resolution environment and window cube, bloom off. Bloom (from `world/Lighting` `Effects`) runs on Standard
+and is dropped by `PerformanceMonitor` when frame time is over budget.
