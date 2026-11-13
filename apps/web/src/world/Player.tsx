@@ -31,7 +31,7 @@ import { sendMove } from "@/lib/realtime";
 import { selfPose } from "@/lib/world-store";
 import { saveDoorPose, takeWorldPose } from "@/lib/return-point";
 import { preloadHall } from "@/rooms/preload";
-import { autoFollow, nav, pointerNav, steer, TargetMarker } from "./navigation";
+import { autoFollow, nav, onReleaseInput, pointerNav, steer, TargetMarker } from "./navigation";
 import { useVoice } from "@/voice/voice";
 import { applyBenchSeat, benchBusy } from "@/social/bench";
 import { applyPeople, lookTarget as personLook, nearSpot, people, SPOTS } from "@/social/people";
@@ -41,6 +41,7 @@ import { HUMAN_MODELS } from "./human/meta";
 /** Walking speeds (m/s): real walking pace by default; the player can change it (HUD speed control). */
 export const WALK_SPEEDS = { slow: 1.4, normal: 2.2, fast: 3.2 } as const;
 const keys = new Set<string>();
+onReleaseInput(() => keys.clear()); // lost key-ups (area change, focus, background tab) never keep you walking
 
 /** Camera orbit state shared between the camera rig and the movement code. */
 export const cameraState = { yaw: 0, pitch: 0.42, distance: 9 }; // start zoomed out

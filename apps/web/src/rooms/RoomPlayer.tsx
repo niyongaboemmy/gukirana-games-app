@@ -9,7 +9,7 @@ import { selfPose, useWorld } from "@/lib/world-store";
 import { sendMove, sitAt, standUp } from "@/lib/realtime";
 import { useRoom } from "./room-store";
 import { takeReturnFor } from "@/lib/return-point";
-import { autoFollow, nav, pointerNav, steer, TargetMarker } from "@/world/navigation";
+import { autoFollow, nav, onReleaseInput, pointerNav, steer, TargetMarker } from "@/world/navigation";
 import { useDoorway } from "@/world/doorway";
 import { clearHandoff, peekHandoff } from "@/world/stage";
 import type { HallLayout, Seat } from "./layouts";
@@ -25,6 +25,7 @@ type SitStage = { id: string; t: number; phase: "walk" | "turn" | "lower" | "sea
 type StandStage = { t: number; fx: number; fz: number; tx: number; tz: number; chair: string };
 const INTRO_S = 1.9;
 const keys = new Set<string>();
+onReleaseInput(() => keys.clear());
 
 /**
  * Choosing a table (tap a table, or "Find a free table" in the HUD): walk the aisles to the table's nearest free

@@ -1,6 +1,6 @@
 "use client";
 import { ChevronUp } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useWorld } from "@/lib/world-store";
 
 /** Bottom-left joystick with a built-in compass ring (DESIGN-SPEC §9.2: 120 px base, 52 px knob). */
@@ -36,6 +36,15 @@ export function Joystick() {
     ranByStick.current = false;
   };
 
+  // the joystick unmounts when the HUD swaps (leaving a hall): never leave a held direction behind
+  useEffect(
+    () => () => {
+      const w = useWorld.getState();
+      if (w.input.x !== 0 || w.input.y !== 0) w.set({ input: { ...w.input, x: 0, y: 0, run: false } });
+    },
+    [],
+  );
+
   return (
     <div
       ref={base}
@@ -48,6 +57,7 @@ export function Joystick() {
       onPointerMove={(e) => active.current === e.pointerId && update(e.clientX, e.clientY)}
       onPointerUp={end}
       onPointerCancel={end}
+      onLostPointerCapture={() => active.current !== null && end()}
       aria-label="Move"
     >
       <div className="absolute inset-3 rounded-full border border-white/10 shadow-[inset_0_0_18px_rgb(0_0_0/.35)]" />

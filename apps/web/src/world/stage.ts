@@ -5,7 +5,7 @@ import { create } from "zustand";
 import type { HallGame } from "@/rooms/layouts";
 import { selfPose } from "@/lib/world-store";
 import { useDoorway } from "./doorway";
-import { nav } from "./navigation";
+import { nav, releaseAllInput } from "./navigation";
 import { useGate } from "./gate/gate-store";
 import { doorInset, doorLocal, ENTRY_Z, PORTALS, portalTransform } from "./layout";
 import { doorHold } from "./transition";
@@ -230,6 +230,7 @@ function walkTarget(t: { x: number; z: number } | null) {
 export function crossTo(view: View, href: string | null, handoff?: HandoffIn | (() => HandoffIn) | null, opts: { dissolve?: boolean } = {}) {
   const go = () => {
     walkTarget(null); // a walk target from the place you left must not drive the next controller
+    releaseAllInput(); // nor a key / joystick held across the switch (its key-up / pointer-up may never arrive)
     useStage.getState().show(view, (typeof handoff === "function" ? handoff() : handoff) ?? null);
     // the URL (and with it the page HUD swap and the realtime room switch) follows a moment later, once the cut
     // frame is on screen: never in the same frame as the area switch

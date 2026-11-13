@@ -2,6 +2,7 @@
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { useWorld } from "@/lib/world-store";
 
 /**
  * Shared navigation for plaza, halls and gate (DESIGN-SPEC §8, usability pass):
@@ -11,6 +12,26 @@ import * as THREE from "three";
  * - Click / tap on the ground: walk there (marker shown); any key / joystick input cancels it.
  * - Drag / swipe: free look; auto-follow resumes ~1.2 s after the last manual camera move.
  */
+/**
+ * Held-input registry. A key-up or the joystick's pointer-up can be lost when the controls swap (area change, a
+ * modal, focus moving into an input, the tab going to the background) and the person would then walk forever.
+ * Controllers register their key sets here; `releaseAllInput()` drops everything held.
+ */
+const inputResetters = new Set<() => void>();
+export function onReleaseInput(fn: () => void): () => void {
+  inputResetters.add(fn);
+  return () => inputResetters.delete(fn);
+}
+export function releaseAllInput(): void {
+  inputResetters.forEach((fn) => fn());
+  const w = useWorld.getState();
+  if (w.input.x !== 0 || w.input.y !== 0 || w.input.run) w.set({ input: { x: 0, y: 0, run: false } });
+}
+if (typeof window !== "undefined") {
+  window.addEventListener("blur", releaseAllInput);
+  document.addEventListener("visibilitychange", () => document.hidden && releaseAllInput());
+}
+
 export const nav = {
   lastManualCam: 0,
   target: null as { x: number; z: number } | null,

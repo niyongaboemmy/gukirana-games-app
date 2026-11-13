@@ -15,7 +15,7 @@ import { VirtualKeyboard } from "./VirtualKeyboard";
 import { lookOf, useProfile } from "@/lib/profile-store";
 import { selfPose, useWorld } from "@/lib/world-store";
 import { clearPositions } from "@/lib/return-point";
-import { autoFollow, nav, pointerNav, steer, TargetMarker } from "../navigation";
+import { autoFollow, nav, onReleaseInput, pointerNav, steer, TargetMarker } from "../navigation";
 
 const FONT = "/fonts/Baloo2.ttf";
 
@@ -43,6 +43,7 @@ function useLocalLook() {
 }
 
 const gateKeys = new Set<string>();
+onReleaseInput(() => gateKeys.clear());
 
 /**
  * Moves the arriving avatar: fly-in → FREE ROAM while signing in (the player keeps walking; the tablet is in hand) →
