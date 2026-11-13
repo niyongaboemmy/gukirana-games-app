@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Joystick } from "./Joystick";
 import { PORTALS } from "@/world/layout";
 import { useWorld } from "@/lib/world-store";
@@ -10,6 +9,7 @@ import { levelForXp, totalXpForLevel, useProfile } from "@/lib/profile-store";
 import { xrStore } from "@/world/WorldCanvas";
 import { DoorOpen, Glasses, Hand, MessageCircle, Music, PartyPopper, Settings, Shirt, Smile, Star, UserRound, Users, X, Zap, type LucideIcon } from "lucide-react";
 import { AvatarCreator } from "@/components/AvatarCreator";
+import { SettingsModal } from "@/components/SettingsModal";
 
 const EMOTES = [
   { id: 10, icon: Hand, label: "Wave" },
@@ -35,6 +35,7 @@ function RoundButton({ icon: Icon, label, onPress, onRelease, big, active }: { i
 }
 
 export function WorldHud() {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const router = useRouter();
   const { name, color, xp, stars } = useProfile();
   const level = levelForXp(xp);
@@ -113,6 +114,17 @@ export function WorldHud() {
           <AvatarCreator onClose={() => setStyling(false)} />
         </div>
       )}
+      {settingsOpen && (
+        <div className="pointer-events-auto">
+          <SettingsModal
+            onClose={() => setSettingsOpen(false)}
+            onEditAvatar={() => {
+              setSettingsOpen(false);
+              setStyling(true);
+            }}
+          />
+        </div>
+      )}
 
       {/* top-center breadcrumb */}
       <div className="absolute left-1/2 top-3 hidden -translate-x-1/2 rounded-full bg-[#22266E]/55 px-4 py-1.5 text-sm font-semibold backdrop-blur-md sm:block">
@@ -136,9 +148,9 @@ export function WorldHud() {
             <Glasses size={18} strokeWidth={1.85} /> Enter VR
           </button>
         )}
-        <Link href="/classic" aria-label="Account and settings" className="pointer-events-auto grid size-12 place-items-center rounded-2xl border border-white/30 bg-[#22266E]/70 shadow-xl backdrop-blur-md">
+        <button type="button" onClick={() => setSettingsOpen(true)} aria-label="Account and settings" className="pointer-events-auto grid size-12 place-items-center rounded-2xl border border-white/30 bg-[#22266E]/70 shadow-xl backdrop-blur-md">
           <Settings size={22} strokeWidth={1.85} />
-        </Link>
+        </button>
       </div>
 
       {/* chat */}

@@ -1,16 +1,10 @@
 "use client";
 import { useEffect } from "react";
-import { Footprints, Mic, MicOff, Minus, Plus, Radio } from "lucide-react";
-import { useWorld } from "@/lib/world-store";
+import { Mic, MicOff, Minus, Plus, Radio } from "lucide-react";
 import { useSession } from "@/lib/session";
 import { cameraState } from "@/world/Player";
 import { enableVoice, disableVoice, setTransmitting, toggleOpenMic, useVoice } from "@/voice/voice";
 
-const SPEEDS = [
-  { id: "slow", label: "Slow" },
-  { id: "normal", label: "Normal" },
-  { id: "fast", label: "Fast" },
-] as const;
 
 const btn = "pointer-events-auto grid size-12 place-items-center rounded-2xl border border-white/25 bg-[#22266E]/65 text-white shadow-xl backdrop-blur-md transition active:scale-90";
 
@@ -19,12 +13,11 @@ const zoom = (delta: number) => {
 };
 
 /**
- * Right-edge controls: push-to-talk voice (FR-COM-03), voice on/off, camera zoom, walking speed.
+ * Right-edge controls: push-to-talk voice (FR-COM-03), voice on/off, camera zoom. (Walking pace is in Settings.)
  * Keyboard: hold V to talk · +/- zoom.
  */
 export function WorldControls() {
   const authed = useSession((s) => s.status === "authenticated");
-  const speed = useWorld((s) => s.speed);
   const { status, transmitting, openMic, selfTalking, connected } = useVoice();
   const on = status === "on";
 
@@ -44,17 +37,9 @@ export function WorldControls() {
     };
   }, []);
 
-  const setSpeed = (s: (typeof SPEEDS)[number]["id"]) => {
-    useWorld.getState().set({ speed: s });
-    try {
-      localStorage.setItem("gk-speed", s);
-    } catch {
-      /* private mode */
-    }
-  };
 
   return (
-    <div className="pointer-events-none fixed right-[max(12px,env(safe-area-inset-right))] top-1/2 z-10 flex -translate-y-1/2 flex-col items-end gap-2">
+    <div className="pointer-events-none fixed right-[max(12px,env(safe-area-inset-right))] top-[40%] z-10 flex -translate-y-1/2 flex-col items-end gap-2">
       {/* voice */}
       {authed && (
         <div className="flex flex-col items-end gap-2">
@@ -89,8 +74,8 @@ export function WorldControls() {
         </div>
       )}
 
-      {/* zoom */}
-      <div className="flex flex-col gap-2">
+      {/* zoom (pace lives in Settings) */}
+      <div className="flex flex-col gap-2 [@media(max-height:430px)]:flex-row">
         <button type="button" aria-label="Zoom in" onClick={() => zoom(-1.5)} className={btn}>
           <Plus size={20} />
         </button>
@@ -99,17 +84,6 @@ export function WorldControls() {
         </button>
       </div>
 
-      {/* walking speed */}
-      <div className="pointer-events-auto flex flex-col overflow-hidden rounded-2xl border border-white/25 bg-[#22266E]/65 text-xs font-bold text-white shadow-xl backdrop-blur-md">
-        <span className="flex items-center justify-center gap-1 px-2 pt-1.5 text-[10px] uppercase tracking-wide text-white/60">
-          <Footprints size={11} /> Pace
-        </span>
-        {SPEEDS.map((s) => (
-          <button key={s.id} type="button" onClick={() => setSpeed(s.id)} className={`px-3 py-1.5 ${speed === s.id ? "bg-white/20" : "hover:bg-white/10"}`}>
-            {s.label}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
