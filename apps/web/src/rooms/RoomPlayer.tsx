@@ -123,7 +123,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   const { w, d } = layout.size;
   const solids = useMemo(() => [...layout.tables, ...layout.colliders], [layout]);
   /** chairs / stools are solid too (round footprint at the seat, sized per hall's furniture) */
-  const chairR = layout.game === "pool" ? 0.42 : layout.game === "ludo" ? 0.38 : 0.26;
+  const chairR = layout.game === "pool" ? 0.42 : layout.game === "ludo" ? 0.38 : 0.28;
 
   // re-take the same chair once the hall connection is up (server confirms the seat)
   useEffect(() => {
@@ -190,7 +190,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   const routeTo = (tx: number, tz: number, zs: number) => {
     const px = pos.current.x;
     const pz = pos.current.z;
-    if ((layout.game !== "pool" && !layout.lanes?.length) || !layout.aisles.length) return [{ x: tx, z: tz }];
+    if ((layout.game !== "pool" && layout.game !== "igisoro" && !layout.lanes?.length) || !layout.aisles.length) return [{ x: tx, z: tz }];
     const a0 = layout.aisles.reduce((b, x) => (Math.abs(x - px) < Math.abs(b - px) ? x : b), layout.aisles[0]!);
     const out: { x: number; z: number }[] = [];
     if (Math.abs(pz - zs) > 0.6) {
@@ -227,7 +227,13 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       pick.face = null;
       const st = standOf(s);
       const side = Math.sign(s.z - t.z || 1);
-      if (Math.abs(st.x - t.x) < t.w / 2 + 0.32 && Math.abs(st.z - t.z) < t.d / 2 + 0.32) {
+      const off = Math.abs(s.z - t.z);
+      if (layout.game === "igisoro" && off - t.d / 2 - chairR < 1.0) {
+        // a low Igisoro stool hugs the table: along the walkway beyond the stools, then in past the table end into
+        // the gap between table and stool (the staged sit walks the last metre)
+        const sg = Math.sign(pos.current.x - t.x || 1);
+        startRoute(routeTo(t.x + sg * (t.w / 2 + 0.42), st.z, t.z + side * (off + chairR + 0.6)));
+      } else if (Math.abs(st.x - t.x) < t.w / 2 + 0.32 && Math.abs(st.z - t.z) < t.d / 2 + 0.32) {
         // a café armchair tucked up to a small table: its stand point is under the table edge, so walk up beside the
         // chair (the side you come from) and let the staged sit step in from there
         const ox = -Math.sin(s.yaw);
@@ -298,7 +304,13 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       leaveProgress.current = { best: Infinity, at: leaveStart.current };
     }
     if (R.leaving && !exited.current) {
-      const toDoor = Math.hypot(pos.current.x - layout.door.x, pos.current.z - d / 2);
+      // progress = the remaining length of the aisle route (stepping sideways to an aisle is progress, even though
+      // it does not bring you closer to the door in a straight line, e.g. from behind the Igisoro courtyard tree)
+      const px = pos.current.x;
+      const pz = pos.current.z;
+      const fz = d / 2 - 2.4;
+      const ax = layout.aisles.reduce((b, x) => (Math.abs(x - px) < Math.abs(b - px) ? x : b), layout.aisles[0] ?? layout.door.x);
+      const toDoor = pz > fz - 0.2 ? Math.hypot(px - layout.door.x, pz - d / 2) : Math.abs(px - ax) + (fz - pz) + Math.hypot(ax - layout.door.x, d / 2 - fz);
       if (toDoor < leaveProgress.current.best - 0.3) leaveProgress.current = { best: toDoor, at: performance.now() };
     }
     const stalled = R.leaving && performance.now() - leaveProgress.current.at > 3000;

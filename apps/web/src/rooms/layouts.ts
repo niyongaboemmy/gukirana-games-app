@@ -118,9 +118,29 @@ export const LUDO_PLANTERS: [number, number][] = [
   [-16.3, -8.0],
   [-16.3, 5.0],
 ];
-export const IGISORO_TABLES_X = [-6.8, 6.8];
-export const IGISORO_TABLES_Z = [-5.2, -1.2, 2.8];
-export const IGISORO_TREE = { x: 0, z: -1.6, r: 1.45 };
+/**
+ * Igisoro Court (34 × 26 m, 5 m ceiling): 16 low Igisoro tables in two wings of 2 columns × 4 rows either side of the
+ * central courtyard (the elders' tree under the skylight, ringed by a built-in bench). The two players sit on low
+ * cushioned stools on the long sides, facing each other across the 4 × 8-pit board. Every table cluster keeps a
+ * ≥ 1.2 m walkway round it; aisles run north–south at x = ±4.6 (courtyard edges), ±9.8 (between the wing columns) and
+ * ±15.2 (along the side walls). North: full-width daylight glazing with the spectator lounge in front of it; east: the
+ * Imigongo feature wall over a long spectator banquette; west: tall windows with timber window seats.
+ */
+export const IGISORO_SIZE = { w: 34, d: 26, h: 5 };
+export const IGISORO_TABLES_X = [-12.2, -7.4, 7.4, 12.2];
+export const IGISORO_TABLES_Z = [-8.4, -3.6, 1.2, 6.0];
+/** low Igisoro table: top 1.7 × 0.84 m at 0.55 m (the board sits on it) */
+export const IGISORO_TABLE = { w: 1.7, d: 0.84, h: 0.55 };
+/** stool centre distance from the table centre (across the table, z): close enough to reach the far pits */
+export const IGISORO_STOOL_Z = 1.18;
+export const IGISORO_AISLES = [-15.2, -9.8, -4.6, 4.6, 9.8, 15.2];
+export const IGISORO_TREE = { x: 0, z: -1.2, r: 1.45 };
+/** built-in ring bench round the tree planter (outer radius) */
+export const IGISORO_TREE_BENCH = 1.9;
+/** west-wall window bays (centre z), each with a timber window seat */
+export const IGISORO_WEST_WINDOWS = [-8, -4, 0, 4, 8];
+/** spectator lounge in front of the north glazing */
+export const IGISORO_LOUNGE = { x: 0, z: -10.2 };
 
 export const HALLS: Record<HallGame, HallLayout> = {
   // 9-ft tables: playing surface 2.54 × 1.27 m, frame ≈ 2.9 × 1.65 m; club chairs at the table ends.
@@ -194,28 +214,36 @@ export const HALLS: Record<HallGame, HallLayout> = {
     ],
     { size: LUDO_SIZE, aisles: LUDO_AISLES, lanes: LUDO_LANES },
   ),
-  // low carved tables 1.7 × 0.85 m in two colonnades; the courtyard tree stands under the skylight.
+  // 16 low tables in two wings round the courtyard tree; two cushioned stools per table on the long sides.
   igisoro: build(
     "igisoro",
     "Igisoro Court",
-    "Rwandan strategy · carved tables",
+    "Rwandan strategy · sixteen boards",
     "#27AE60",
-    IGISORO_TABLES_Z.flatMap((z) => IGISORO_TABLES_X.map((x) => ({ x, z, w: 1.7, d: 0.85, h: 0.6 }))),
+    IGISORO_TABLES_Z.flatMap((z) => IGISORO_TABLES_X.map((x) => ({ x, z, ...IGISORO_TABLE }))),
     () => [
-      { x: 0, z: 0.95 },
-      { x: 0, z: -0.95 },
+      { x: 0, z: IGISORO_STOOL_Z }, // s0: south side (towards the entrance)
+      { x: 0, z: -IGISORO_STOOL_Z }, // s1: north side
     ],
     [
-      { x: IGISORO_TREE.x, z: IGISORO_TREE.z, w: IGISORO_TREE.r * 2, d: IGISORO_TREE.r * 2 }, // tree planter
-      { x: 0, z: -4.7, w: 2.4, d: 0.5 }, // benches around the tree
-      { x: 0, z: 1.5, w: 2.4, d: 0.5 },
-      { x: -3.1, z: -1.6, w: 0.5, d: 2.4 },
-      { x: 3.1, z: -1.6, w: 0.5, d: 2.4 },
-      { x: -11.3, z: -8.3, w: 0.9, d: 0.9 }, // baskets / plants in the corners
-      { x: 11.3, z: -8.3, w: 0.9, d: 0.9 },
-      { x: 11.3, z: 8.3, w: 0.9, d: 0.9 },
-      { x: -11.3, z: 8.3, w: 0.9, d: 0.9 },
+      // courtyard: tree planter with its built-in ring bench
+      { x: IGISORO_TREE.x, z: IGISORO_TREE.z, w: IGISORO_TREE_BENCH * 2, d: IGISORO_TREE_BENCH * 2 },
+      // spectator lounge (north glazing): sofa, coffee table, two lounge chairs
+      { x: IGISORO_LOUNGE.x, z: IGISORO_LOUNGE.z - 1.45, w: 2.3, d: 0.95 },
+      { x: IGISORO_LOUNGE.x, z: IGISORO_LOUNGE.z - 0.1, w: 1.3, d: 0.7 },
+      { x: IGISORO_LOUNGE.x - 2.3, z: IGISORO_LOUNGE.z, w: 0.9, d: 0.9 },
+      { x: IGISORO_LOUNGE.x + 2.3, z: IGISORO_LOUNGE.z, w: 0.9, d: 0.9 },
+      // spectator banquette under the Imigongo feature wall (east)
+      { x: 16.45, z: -0.6, w: 0.7, d: 19 },
+      // timber window seats in the west window bays
+      ...IGISORO_WEST_WINDOWS.map((z) => ({ x: -16.55, z, w: 0.6, d: 2.2 })),
+      // tall plants in the four corners
+      { x: -16.3, z: -12.3, w: 0.9, d: 0.9 },
+      { x: 16.3, z: -12.3, w: 0.9, d: 0.9 },
+      { x: 16.3, z: 12.3, w: 0.9, d: 0.9 },
+      { x: -16.3, z: 12.3, w: 0.9, d: 0.9 },
     ],
+    { size: IGISORO_SIZE, aisles: IGISORO_AISLES },
   ),
 };
 

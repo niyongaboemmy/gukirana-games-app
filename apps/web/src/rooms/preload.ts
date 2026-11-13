@@ -19,8 +19,8 @@ const HALL_ASSETS: Record<HallGame, { models: string[]; pbr: [PbrName, boolean][
     pbr: [["herringbone_parquet", true], ["oak_veneer_01", true], ["velour_velvet", false], ["white_plaster_02", false]],
   },
   igisoro: {
-    models: ["potted_plant_02", "wicker_basket_01", "wicker_basket_02", "wooden_bowl_01", "wooden_stool_02"],
-    pbr: [["bark_brown_02", true], ["clay_plaster", true], ["rough_wood", true], ["tatami_mat", true], ["terracotta_floor_tiles", true], ["thatch_roof_angled", true], ["wood_table_worn", true]],
+    models: ["mid_century_lounge_chair", "potted_plant_02", "sofa_02", "wicker_basket_01"],
+    pbr: [["bark_brown_02", true], ["clay_plaster", true], ["rough_wood", true], ["tatami_mat", true], ["oak_veneer_01", true]],
   },
 };
 

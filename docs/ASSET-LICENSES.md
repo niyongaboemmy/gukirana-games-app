@@ -132,23 +132,20 @@ one alpha-cut atlas (`world/Flowers.tsx`) — original work, no third-party cont
 All interior assets come from **Poly Haven** (https://polyhaven.com) and are **CC0 1.0** (public domain, no
 attribution required — credited here anyway). Downloaded at development time through the Poly Haven API
 (`https://api.polyhaven.com/files/<id>`), 1k source files. Each hall only fetches what it uses: Pool Hall ≈ 0.6 MB (since the P1-WLD-05 redesign),
-Ludo Lounge ≈ 0.8 MB (since its P1-WLD-05 redesign), Igisoro Court ≈ 1.7 MB.
+Ludo Lounge ≈ 0.8 MB (since its P1-WLD-05 redesign), Igisoro Court ≈ 0.95 MB (since its P1-WLD-05 redesign: clay-tile floor, stools, Agaseke pendants, boards and seeds are procedural).
 
 ### Models — `models/*.glb`
 
 | File (size) | Poly Haven asset | Author | Used in |
 | --- | --- | --- | --- |
-| `mid_century_lounge_chair.glb` (104 KB) | https://polyhaven.com/a/mid_century_lounge_chair | Kuutti Siitonen | Pool (player chairs, lounge; matte override) |
+| `mid_century_lounge_chair.glb` (104 KB) | https://polyhaven.com/a/mid_century_lounge_chair | Kuutti Siitonen | Pool (player chairs, lounge; matte override); Igisoro (spectator lounge) |
 | `wine_bottles_01.glb` (83 KB) | https://polyhaven.com/a/wine_bottles_01 | Rico Cilliers, Jurita Burger | Pool (back bar) |
-| `sofa_02.glb` (73 KB) | https://polyhaven.com/a/sofa_02 | Kirill Sannikov | Pool (lounge sofa) |
+| `sofa_02.glb` (73 KB) | https://polyhaven.com/a/sofa_02 | Kirill Sannikov | Pool (lounge sofa); Igisoro (spectator lounge) |
 | `Ottoman_01.glb` (82 KB) | https://polyhaven.com/a/Ottoman_01 | Caspian Fortune | Ludo (watchers' poufs; matte, re-coloured) |
 | `potted_plant_02.glb` (189 KB) | https://polyhaven.com/a/potted_plant_02 | Rico Cilliers | all halls, entrance |
 | `modern_arm_chair_01.glb` (110 KB) | https://polyhaven.com/a/modern_arm_chair_01 | Vibrant Nordic | Ludo (player armchairs, lounge chairs; matte, oatmeal cushions) |
 | `potted_plant_04.glb` (139 KB) | https://polyhaven.com/a/potted_plant_04 | James Ray Cock | Ludo (bar shelf plants) |
-| `wooden_stool_02.glb` (143 KB) | https://polyhaven.com/a/wooden_stool_02 | Kuutti Siitonen | Igisoro (player stools, scaled to a 0.46 m seat) |
-| `wicker_basket_01.glb` (143 KB) | https://polyhaven.com/a/wicker_basket_01 | Kuutti Siitonen | Igisoro |
-| `wicker_basket_02.glb` (180 KB) | https://polyhaven.com/a/wicker_basket_02 | Kuutti Siitonen | Igisoro |
-| `wooden_bowl_01.glb` (91 KB) | https://polyhaven.com/a/wooden_bowl_01 | Oliver Harries | Igisoro (seed bowls) |
+| `wicker_basket_01.glb` (143 KB) | https://polyhaven.com/a/wicker_basket_01 | Kuutti Siitonen | Igisoro (lounge baskets) |
 
 Modifications (`@gltf-transform/cli` 4.5.1 `optimize`): glTF + 1k JPG → single GLB; flatten / join / weld / prune;
 meshopt simplification (ratio 0.1–0.5, error ≤ 0.05 — e.g. bottles 28.8k → 3.0k triangles, plant 70k → 5.6k);
@@ -162,20 +159,17 @@ At runtime some materials are tinted or given emissive glass (lamps), and props 
 | `velour_velvet` (64 KB, normal + roughness only) | https://polyhaven.com/a/velour_velvet | colormass, Rico Cilliers | Pool cloth / acoustic panels / banquettes, Ludo sofas |
 | `herringbone_parquet` (126 KB) | https://polyhaven.com/a/herringbone_parquet | Jenelle van Heerden, Sergej Majboroda | Ludo floor (desaturated in the shader to a calm natural oak) |
 | `white_plaster_02` (41 KB) | https://polyhaven.com/a/white_plaster_02 | Rob Tuytel | Ludo walls (normal only); Pool walls and micro-cement floor (normal only) |
-| `oak_veneer_01` (58 KB) | https://polyhaven.com/a/oak_veneer_01 | Jenelle van Heerden | Ludo table tops, bar front and shelving, game library, coffee tables; Pool table rails |
-| `terracotta_floor_tiles` (73 KB) | https://polyhaven.com/a/terracotta_floor_tiles | Dimitrios Savva | Igisoro floor |
+| `oak_veneer_01` (58 KB) | https://polyhaven.com/a/oak_veneer_01 | Jenelle van Heerden | Ludo table tops, bar front and shelving, game library, coffee tables; Pool table rails; Igisoro tables, boards, stools |
 | `clay_plaster` (97 KB) | https://polyhaven.com/a/clay_plaster | Amal Kumar | Igisoro walls, planter |
-| `thatch_roof_angled` (523 KB) | https://polyhaven.com/a/thatch_roof_angled | Rob Tuytel, Dimitrios Savva | Igisoro ceiling |
-| `rough_wood` (74 KB) | https://polyhaven.com/a/rough_wood | Rob Tuytel | Igisoro posts, beams, benches |
-| `tatami_mat` (19 KB) | https://polyhaven.com/a/tatami_mat | Charlotte Baglioni | Igisoro woven mats |
+| `rough_wood` (74 KB) | https://polyhaven.com/a/rough_wood | Rob Tuytel | Igisoro glulam beams, benches, shelves |
+| `tatami_mat` (19 KB) | https://polyhaven.com/a/tatami_mat | Charlotte Baglioni | Igisoro woven mats, woven sisal ceiling |
 | `bark_brown_02` (170 KB) | https://polyhaven.com/a/bark_brown_02 | Rob Tuytel | Igisoro courtyard tree |
-| `wood_table_worn` (39 KB) | https://polyhaven.com/a/wood_table_worn | Dimitrios Savva, Rico Cilliers | Igisoro tables and boards |
 
 Modifications (ImageMagick 7): 1k JPG → WebP (diffuse q78, normal q82, roughness greyscale 512 px q72); floor /
 wall sets kept at 1024 px, small-surface sets resized to 512 px. Normal maps are the OpenGL (`nor_gl`) variant.
 
 Procedural (no third-party source, generated at runtime in `src/rooms/room-textures.ts`): Imigongo panels and
-friezes, Kitenge prints, club rug, Pool Hall table carpet (`loungeRug`), billiard cloth, numbered pool-ball atlas, Ludo board, dice, Agaseke weave,
+friezes, Kitenge prints, club rug, Pool Hall table carpet (`loungeRug`), billiard cloth, numbered pool-ball atlas, Ludo board, dice, Agaseke weave, Igisoro clay-tile floor,
 leaf cards, chalk menu. Ludo Lounge (P1-WLD-05, `src/rooms/ludo-textures.ts`): the table board (the game's real
 15 × 15 track, home columns, safe-square stars, seat shapes, in a calm palette), Kitenge prints for rugs / cushions /
 textile art, the bar menu and the table-number atlas; the sofas, globe pendants, acoustic baffles, bar, stools and game

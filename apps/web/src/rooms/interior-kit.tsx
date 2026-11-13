@@ -18,13 +18,10 @@ export type PbrName =
   | "herringbone_parquet"
   | "white_plaster_02"
   | "oak_veneer_01"
-  | "terracotta_floor_tiles"
-  | "thatch_roof_angled"
   | "rough_wood"
   | "clay_plaster"
   | "tatami_mat"
   | "bark_brown_02"
-  | "wood_table_worn"
   | "velour_velvet";
 
 export interface Pbr {
