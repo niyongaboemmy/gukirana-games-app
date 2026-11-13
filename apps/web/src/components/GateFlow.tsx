@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, BatteryFull, Check, Delete, Glasses, KeyRound, L
 import { useGate, USERNAME_RE } from "@/world/gate/gate-store";
 import { lookOf, useProfile } from "@/lib/profile-store";
 import { BODY_TYPE_HINT, BODY_TYPES } from "@/world/outfits";
+import { Joystick } from "@/hud/Joystick";
 import { xrStore } from "@/world/WorldCanvas";
 
 const AvatarCreator = dynamic(() => import("./AvatarCreator").then((m) => m.AvatarCreator), { ssr: false });
@@ -24,15 +25,22 @@ function useClock() {
  * tilt, sways slightly as if held, and each screen slides in. Realistic device chrome: aluminium bezel, camera,
  * status bar with Kigali time, signal and battery.
  */
-function Card({ children, label }: { children: React.ReactNode; label: string }) {
+let tabletShown = false; // the tablet slides into the hands once; later screens only swap content
+
+function Card({ children, label, busy = false }: { children: React.ReactNode; label: string; busy?: boolean }) {
   const time = useClock();
+  const [first] = useState(() => !tabletShown);
+  useEffect(() => {
+    tabletShown = true;
+  }, []);
   return (
     <div className="gk-tablet-hold pointer-events-auto [perspective:1400px]">
       <section
         aria-label={label}
-        className="gk-tablet-in relative w-[min(400px,48vw)] rounded-[34px] bg-gradient-to-b from-[#d9dde5] via-[#9aa1ad] to-[#6d7380] p-[7px] shadow-[0_40px_80px_-20px_rgba(0,0,0,.75),0_0_0_1px_rgba(255,255,255,.35)_inset] max-sm:w-[min(360px,56vw)] [@media(max-height:430px)]:w-[min(340px,44vw)]"
+        className={`${first ? "gk-tablet-in" : "[transform:rotateX(8deg)_rotateZ(-2deg)]"} relative w-[min(400px,48vw)] rounded-[34px] bg-gradient-to-b from-[#d9dde5] via-[#9aa1ad] to-[#6d7380] p-[7px] shadow-[0_40px_80px_-20px_rgba(0,0,0,.75),0_0_0_1px_rgba(255,255,255,.35)_inset] max-sm:w-[min(360px,56vw)] [@media(max-height:430px)]:w-[min(340px,44vw)]`}
       >
-        <div className="relative overflow-hidden rounded-[28px] bg-[#0b0d1a] ring-1 ring-black">
+        <div className="relative overflow-hidden rounded-[28px] bg-[#0b0d1a] ring-1 ring-black" aria-busy={busy}>
+          {busy && <div className="gk-progress absolute inset-x-0 top-0 h-[3px] bg-[#3DA9FC]" role="progressbar" aria-label="Loading" />}
           {/* status bar */}
           <div className="flex items-center justify-between px-5 pb-1 pt-2 text-[11px] font-semibold text-white/85">
             <span className="tabular-nums">{time}</span>
@@ -107,8 +115,27 @@ const input =
 const primary =
   "flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#3DA9FC] to-[#2F80ED] py-3 text-base font-extrabold shadow-lg disabled:opacity-40 [@media(max-height:430px)]:py-2";
 
+/** Keeps a loading state visible for at least `min` ms so fast responses don't just flicker. */
+function useVisibleBusy(busy: boolean, min = 550) {
+  const [show, setShow] = useState(false);
+  const since = useRef(0);
+  useEffect(() => {
+    if (busy) {
+      since.current = Date.now();
+      setShow(true);
+      return;
+    }
+    const left = min - (Date.now() - since.current);
+    if (left <= 0) return setShow(false);
+    const t = setTimeout(() => setShow(false), left);
+    return () => clearTimeout(t);
+  }, [busy, min]);
+  return show;
+}
+
 export function GateFlow() {
   const g = useGate();
+  const busyShown = useVisibleBusy(g.busy);
   const profile = useProfile();
   const [styling, setStyling] = useState(false);
   const [vr, setVr] = useState(false);
@@ -128,6 +155,22 @@ export function GateFlow() {
       <div className="absolute left-[max(12px,env(safe-area-inset-left))] top-3 flex items-center gap-2 rounded-full bg-[#22266E]/60 px-4 py-1.5 text-sm font-semibold backdrop-blur-md">
         <ShieldCheck size={16} strokeWidth={1.85} className="text-[#7CC4FF]" /> Gukirana Playground · Entrance
       </div>
+      {busyShown && (
+        <div role="status" aria-live="polite" className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-full border border-[#3DA9FC]/50 bg-[#0f1222]/85 px-4 py-2 text-sm font-bold shadow-xl backdrop-blur-md">
+          <Loader2 size={16} className="animate-spin text-[#7CC4FF]" />
+          {g.step === "id" || (g.step === "code" && !g.code) ? "Sending your code…" : g.step === "code" ? "Checking your code…" : g.step === "opening" ? "Verified · opening the gate…" : "Saving your player…"}
+        </div>
+      )}
+      {(g.step === "id" || g.step === "code") && (
+        <>
+          <div className="pointer-events-auto absolute bottom-[max(14px,env(safe-area-inset-bottom))] left-[max(14px,env(safe-area-inset-left))]">
+            <Joystick />
+          </div>
+          <p className="absolute bottom-3 left-1/2 hidden -translate-x-1/2 text-xs text-white/75 [@media(pointer:fine)]:block">
+            Keep walking while you sign in: WASD / arrows (tap the world first), drag to look
+          </p>
+        </>
+      )}
       {vr && (g.step === "id" || g.step === "arrive") && (
         <button
           type="button"
@@ -149,7 +192,7 @@ export function GateFlow() {
       )}
 
       {g.step === "id" && (
-        <Card label="Show your ID">
+        <Card label="Show your ID" busy={busyShown}>
           <form
             className="flex flex-col gap-3"
             onSubmit={(e) => {
@@ -193,7 +236,7 @@ export function GateFlow() {
       )}
 
       {g.step === "code" && (
-        <Card label="Enter your code">
+        <Card label="Enter your code" busy={busyShown}>
           <form
             className="flex flex-col gap-3"
             onSubmit={(e) => {
@@ -267,7 +310,7 @@ export function GateFlow() {
       )}
 
       {g.step === "setup" && (
-        <Card label="Set up your player">
+        <Card label="Set up your player" busy={busyShown}>
           <form
             className="flex flex-col gap-3"
             onSubmit={(e) => {

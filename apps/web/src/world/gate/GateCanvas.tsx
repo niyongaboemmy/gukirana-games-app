@@ -14,6 +14,7 @@ import { Gate, GATE_Z, INSIDE, KIOSK, STAND, WARDROBE } from "./Gate";
 import { useGate } from "./gate-store";
 import { VirtualKeyboard } from "./VirtualKeyboard";
 import { lookOf, useProfile } from "@/lib/profile-store";
+import { useWorld } from "@/lib/world-store";
 
 const FONT = "/fonts/Baloo2.ttf";
 
@@ -29,7 +30,12 @@ function useLocalLook() {
   return useMemo(() => lookOf(p), [p]);
 }
 
-/** Moves the arriving avatar along the gate choreography and drives the camera. */
+const gateKeys = new Set<string>();
+
+/**
+ * Moves the arriving avatar: fly-in → FREE ROAM while signing in (the player keeps walking; the tablet is in hand) →
+ * walk through the opened turnstiles → wardrobe / playground.
+ */
 function Rig() {
   const step = useGate((s) => s.step);
   const set = useGate((s) => s.set);
@@ -45,6 +51,54 @@ function Rig() {
   const t0 = useRef(performance.now());
   const camPos = useRef(SHOTS.arriveFrom.cam.clone());
   const camLook = useRef(SHOTS.arriveFrom.look.clone());
+  const facing = useRef(Math.PI);
+  const orbit = useRef({ yaw: 0, pitch: 0.38, dist: 6.5 });
+  const { gl } = useThree();
+
+  // free roam while signing in: keyboard (ignored while typing on the tablet) + drag to look + wheel zoom
+  useEffect(() => {
+    const keys = gateKeys;
+    const typing = () => {
+      const el = document.activeElement as HTMLElement | null;
+      return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA");
+    };
+    const down = (e: KeyboardEvent) => !typing() && keys.add(e.code);
+    const up = (e: KeyboardEvent) => keys.delete(e.code);
+    const el = gl.domElement;
+    let drag = false;
+    let lx = 0;
+    let ly = 0;
+    const pd = (e: PointerEvent) => {
+      drag = true;
+      lx = e.clientX;
+      ly = e.clientY;
+      (document.activeElement as HTMLElement | null)?.blur?.(); // tapping the world hands the keys back to walking
+    };
+    const pm = (e: PointerEvent) => {
+      if (!drag) return;
+      orbit.current.yaw -= (e.clientX - lx) * 0.006;
+      orbit.current.pitch = THREE.MathUtils.clamp(orbit.current.pitch + (e.clientY - ly) * 0.004, 0.1, 1.1);
+      lx = e.clientX;
+      ly = e.clientY;
+    };
+    const pu = () => (drag = false);
+    const wheel = (e: WheelEvent) => (orbit.current.dist = THREE.MathUtils.clamp(orbit.current.dist + e.deltaY * 0.006, 2.5, 14));
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    el.addEventListener("pointerdown", pd);
+    el.addEventListener("pointermove", pm);
+    window.addEventListener("pointerup", pu);
+    el.addEventListener("wheel", wheel, { passive: true });
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      el.removeEventListener("pointerdown", pd);
+      el.removeEventListener("pointermove", pm);
+      window.removeEventListener("pointerup", pu);
+      el.removeEventListener("wheel", wheel);
+      keys.clear();
+    };
+  }, [gl]);
 
   useEffect(() => {
     t0.current = performance.now();
@@ -65,6 +119,54 @@ function Rig() {
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
     const since = (performance.now() - t0.current) / 1000;
+    const free = !inXR && (step === "id" || step === "code");
+    if (free) {
+      // ---- free roam outside the turnstiles while the player types on the tablet ----
+      const w = useWorld.getState();
+      let ix = w.input.x;
+      let iy = w.input.y;
+      if (gateKeys.has("KeyW") || gateKeys.has("ArrowUp")) iy += 1;
+      if (gateKeys.has("KeyS") || gateKeys.has("ArrowDown")) iy -= 1;
+      if (gateKeys.has("KeyA") || gateKeys.has("ArrowLeft")) ix -= 1;
+      if (gateKeys.has("KeyD") || gateKeys.has("ArrowRight")) ix += 1;
+      const mag = Math.min(1, Math.hypot(ix, iy));
+      if (mag > 0.08) {
+        const run = w.input.run || gateKeys.has("ShiftLeft") || gateKeys.has("ShiftRight");
+        const angle = Math.atan2(-ix, iy) + orbit.current.yaw + Math.PI;
+        const speed = ({ slow: 1.4, normal: 2.2, fast: 3.2 }[w.speed] ?? 1.4) * (run ? 1.8 : 1) * mag;
+        pos.current.x += Math.sin(angle) * speed * dt;
+        pos.current.z += Math.cos(angle) * speed * dt;
+        let diff = angle - facing.current;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        facing.current += diff * Math.min(1, dt * 8);
+        anim.current = run || speed > 2.6 ? 2 : 1;
+      } else anim.current = 0;
+      // stay on the arrival side until the ID check passes; keep clear of the kiosk
+      pos.current.x = THREE.MathUtils.clamp(pos.current.x, -9, 9);
+      pos.current.z = THREE.MathUtils.clamp(pos.current.z, GATE_Z + 1.3, GATE_Z + 22);
+      const kx = pos.current.x - KIOSK.x;
+      const kz = pos.current.z - KIOSK.z;
+      const kd = Math.hypot(kx, kz);
+      if (kd < 0.7 && kd > 0.001) {
+        pos.current.x = KIOSK.x + (kx / kd) * 0.7;
+        pos.current.z = KIOSK.z + (kz / kd) * 0.7;
+      }
+      if (avatar.current) {
+        avatar.current.position.copy(pos.current);
+        avatar.current.rotation.y = facing.current;
+      }
+      const o = orbit.current;
+      const want = new THREE.Vector3(
+        pos.current.x + Math.sin(o.yaw) * Math.cos(o.pitch) * o.dist,
+        1.6 + Math.sin(o.pitch) * o.dist,
+        pos.current.z + Math.cos(o.yaw) * Math.cos(o.pitch) * o.dist,
+      );
+      camPos.current.lerp(want, Math.min(1, dt * 5));
+      camLook.current.lerp(new THREE.Vector3(pos.current.x, 1.35, pos.current.z), Math.min(1, dt * 6));
+      camera.position.copy(camPos.current);
+      camera.lookAt(camLook.current);
+      return;
+    }
     // avatar waypoint for this step
     let target = new THREE.Vector3(STAND.x, 0, STAND.z);
     let face = Math.PI; // facing north (−z)
@@ -90,6 +192,7 @@ function Rig() {
       let diff = face - avatar.current.rotation.y;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
       avatar.current.rotation.y += diff * Math.min(1, dt * 8);
+      facing.current = avatar.current.rotation.y;
     }
 
     if (inXR) {
