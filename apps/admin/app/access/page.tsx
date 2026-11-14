@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { plainError } from "../errors";
 
 /**
  * Access back office (Administrative Block): roles, offices, role → office assignments and user grants, plus the
@@ -129,6 +130,7 @@ export default function Access() {
       } catch {
         /* private mode */
       }
+      setMsg(null); // a stale "Could not load: 401" from before the token was typed must not stay (GAP-015)
       try {
         const [r, o, u, a] = await Promise.all([
           call<Role[]>("/roles"),
@@ -142,7 +144,7 @@ export default function Access() {
         setAudit(a);
         setLoaded(true);
       } catch (e) {
-        setMsg({ ok: false, text: `Could not load: ${(e as Error).message}` });
+        setMsg({ ok: false, text: `Could not load: ${plainError(e)}` });
       }
     },
     [call, q, token],
@@ -156,7 +158,7 @@ export default function Access() {
       await load();
       setMsg({ ok: true, text: label });
     } catch (e) {
-      setMsg({ ok: false, text: `${label} failed: ${(e as Error).message}` });
+      setMsg({ ok: false, text: `${label} failed: ${plainError(e)}` });
     }
   };
 

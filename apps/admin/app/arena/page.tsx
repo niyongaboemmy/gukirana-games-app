@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { plainError } from "../errors";
 
 /**
  * Arena back office (Tournament Arena, P2-ARN-02): open / close the building, events with scopes, capacity and
@@ -213,6 +214,7 @@ export default function Arena() {
     } catch {
       /* private mode */
     }
+    setMsg(null); // a stale "Could not load: 401" from before the token was typed must not stay (GAP-015)
     try {
       const [s, e, b, a] = await Promise.all([
         call<Settings>("/settings"),
@@ -226,7 +228,7 @@ export default function Arena() {
       setAudit(a);
       await loadEvent(sel);
     } catch (e) {
-      setMsg({ ok: false, text: `Could not load: ${(e as Error).message}` });
+      setMsg({ ok: false, text: `Could not load: ${plainError(e)}` });
     }
   }, [call, loadEvent, sel, token]);
 
@@ -237,7 +239,7 @@ export default function Arena() {
       await load();
       setMsg({ ok: true, text: r?.overbooked ? `${label} — ${r.overbooked} passes above the new capacity` : label });
     } catch (e) {
-      setMsg({ ok: false, text: `${label} failed: ${(e as Error).message}` });
+      setMsg({ ok: false, text: `${label} failed: ${plainError(e)}` });
     }
   };
 
