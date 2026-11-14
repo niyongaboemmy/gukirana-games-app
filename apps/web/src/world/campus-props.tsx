@@ -95,19 +95,22 @@ function riderGeometry() {
   ]);
 }
 
+/** Street light: galvanised pole and arm, LED head with its pale diffuser (one model, one draw call). */
 function streetLightGeometry() {
-  const parts: THREE.BufferGeometry[] = [
-    new THREE.CylinderGeometry(0.06, 0.1, 8, 8).translate(0, 4, 0),
-    new THREE.CylinderGeometry(0.18, 0.2, 0.5, 8).translate(0, 0.25, 0),
-    new THREE.BoxGeometry(0.08, 0.08, 1.7).translate(0, 7.95, 0.8),
-    new THREE.BoxGeometry(0.34, 0.12, 0.7).translate(0, 7.92, 1.55),
-  ].map((g) => g.toNonIndexed());
-  const out = mergeGeometries(parts, false)!;
-  out.deleteAttribute("uv");
-  return out;
+  const POLE = "#7d838b";
+  return build([
+    { g: new THREE.CylinderGeometry(0.06, 0.1, 8, 8).translate(0, 4, 0), c: POLE },
+    { g: new THREE.CylinderGeometry(0.18, 0.2, 0.5, 8).translate(0, 0.25, 0), c: "#5a5f66" },
+    box(0.08, 0.08, 1.7, 0, 7.95, 0.8, POLE),
+    box(0.34, 0.12, 0.7, 0, 7.92, 1.55, "#4a4f56"),
+    box(0.28, 0.02, 0.6, 0, 7.85, 1.55, "#fff4dc"),
+  ]);
 }
-const lampHeadGeometry = () => new THREE.BoxGeometry(0.28, 0.02, 0.6).translate(0, 7.85, 1.55);
 const bollardGeometry = () => new THREE.CylinderGeometry(0.09, 0.11, 0.9, 10).translate(0, 0.45, 0);
+
+/** Tight bounds of the two car parks and of the forecourt's small props (moto-taxi stand, moto bays, bollards). */
+const PARK_BOUNDS = [-1, 1].map((s) => new THREE.Sphere(new THREE.Vector3(s * 59, 1, 70), 25));
+const FRONT_BOUNDS = [new THREE.Sphere(new THREE.Vector3(0, 1, 80.4), 23.5), new THREE.Sphere(new THREE.Vector3(-34.7, 1, 83.6), 5.5), ...[-1, 1].map((s) => new THREE.Sphere(new THREE.Vector3(s * 34.3, 1, 65.8), 4.6))];
 
 /** Body colours of the parked cars (Rwandan car parks: white, silver and grey first). */
 const CAR_COLOURS = ["#f2f2ef", "#f2f2ef", "#c9ccd0", "#c9ccd0", "#8e9297", "#2b2e33", "#7b1f1f", "#1f3b6b", "#d9cfb8", "#3d4a3a"];
@@ -150,7 +153,7 @@ function useInstanced(geo: THREE.BufferGeometry, mat: THREE.Material, items: Ins
 /** Parked cars in the bays (about two in three taken), motorbikes in their row and at the moto-taxi stand. */
 export function CampusProps({ tier }: { tier: Tier }) {
   const lite = tier === "lite";
-  const geos = useMemo(() => ({ car: carGeometry(), moto: motoGeometry(), rider: riderGeometry(), light: streetLightGeometry(), head: lampHeadGeometry(), bollard: bollardGeometry() }), []);
+  const geos = useMemo(() => ({ car: carGeometry(), moto: motoGeometry(), rider: riderGeometry(), light: streetLightGeometry(), bollard: bollardGeometry() }), []);
   useEffect(() => () => Object.values(geos).forEach((g) => g.dispose()), [geos]);
   const mats = useMemo(() => {
     const w = worldMaterials(tier);
@@ -158,11 +161,11 @@ export function CampusProps({ tier }: { tier: Tier }) {
       car: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.35, envMapIntensity: 0.9 }),
       moto: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.25 }),
       rider: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }),
+      light: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.6 }),
       steel: w.steel!,
-      head: w.lampHead!,
     };
   }, [tier]);
-  useEffect(() => () => void [mats.car, mats.moto, mats.rider].forEach((m) => m.dispose()), [mats]);
+  useEffect(() => () => void [mats.car, mats.moto, mats.rider, mats.light].forEach((m) => m.dispose()), [mats]);
   const data = useMemo(() => {
     const cars: Inst[] = [];
     for (const b of PARKING_BAYS) {
@@ -193,19 +196,26 @@ export function CampusProps({ tier }: { tier: Tier }) {
   const cars = useInstanced(geos.car, mats.car, data.cars, !lite);
   const motos = useInstanced(geos.moto, mats.moto, data.motos, false);
   const riders = useInstanced(geos.rider, mats.rider, data.riders, false);
-  const lights = useInstanced(geos.light, mats.steel, data.lights, false);
-  const heads = useInstanced(geos.head, mats.head, data.lights, false);
+  const lights = useInstanced(geos.light, mats.light, data.lights, false);
   const bollards = useInstanced(geos.bollard, mats.steel, data.bollards, false);
-  // things too small to see from high above: hidden there (fewer draws in the campus aerial view)
+  // things too small to see from high above are hidden there; the car parks and the forecourt props are drawn only
+  // when their (tight) bounds are in view: one instanced mesh spans both car parks, so its own bounds would contain a
+  // camera on the plaza and never be culled (fewer draws in the plaza ground view and the campus aerial view)
   const small = useRef<THREE.Group>(null);
+  const parks = useRef<THREE.Group>(null);
+  const cull = useMemo(() => ({ f: new THREE.Frustum(), m: new THREE.Matrix4(), parks: PARK_BOUNDS, front: FRONT_BOUNDS }), []);
   useFrame(({ camera }) => {
-    if (small.current) small.current.visible = camera.position.y < 140;
+    cull.m.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    cull.f.setFromProjectionMatrix(cull.m);
+    if (parks.current) parks.current.visible = cull.parks.some((s) => cull.f.intersectsSphere(s));
+    if (small.current) small.current.visible = camera.position.y < 140 && cull.front.some((s) => cull.f.intersectsSphere(s));
   });
   return (
     <group name="campus-props" userData={{ noMerge: true }}>
-      <primitive object={cars} />
+      <group ref={parks}>
+        <primitive object={cars} />
+      </group>
       <primitive object={lights} />
-      <primitive object={heads} />
       <group ref={small}>
         <primitive object={motos} />
         <primitive object={riders} />

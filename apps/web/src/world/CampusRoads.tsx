@@ -4,7 +4,7 @@ import { Text } from "@react-three/drei";
 import * as THREE from "three";
 import { GeoBatch } from "./geo";
 import { worldMaterials, type Tier } from "./materials";
-import { campusMaterials } from "./campus-materials";
+import { campusMaterials, foldPaint } from "./campus-materials";
 import { NearOnly } from "./static-merge";
 import { SITE } from "./campus-strings";
 import { sitePlan } from "./footprints";
@@ -219,7 +219,7 @@ export function buildCampusRoads(): Map<string, THREE.BufferGeometry> {
       b.box("screenFrame", 0.9, 1.9, 0.172, { p: [0, 1.45, 0] });
       b.box("led-warm", 0.92, 0.02, 0.17, { p: [0, 2.58, 0] });
     });
-  return b.build();
+  return foldPaint(b.build());
 }
 
 const SITE_NAME = (id: string) => {

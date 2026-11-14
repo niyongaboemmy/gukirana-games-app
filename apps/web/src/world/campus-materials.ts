@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { rng } from "./textures";
 import type { Tier } from "./materials";
 
@@ -84,10 +85,45 @@ export function campusMaterials(tier: Tier): Record<string, THREE.Material> {
     worldNoise(m, key, `diffuseColor.rgb *= 0.78 + 0.22 * smoothstep(0.25, 0.7, gkN(vGkR * 1.7));`);
     return m;
   };
+  // the road markings are drawn by the asphalt look itself (vertex colour > 1 lifts the grey aggregate to paint white,
+  // worn by the same noise): one draw call for every road and its markings (foldPaint)
+  asphalt.vertexColors = true;
   const m: Record<string, THREE.Material> = {
     asphaltC: asphalt,
     paintW: paint("#e9e6dc", "gk-paint-w"),
   };
   cache = { tier, m };
   return m;
+}
+
+/** Vertex colour of road paint on the asphalt look (≈ #e9e6dc over the aggregate texture × the asphalt tint). */
+const PAINT_RGB = [2.25, 2.22, 2.12] as const;
+/**
+ * Fold the paint geometry into the asphalt geometry of a built GeoBatch (vertex colours: 1 = asphalt, PAINT_RGB =
+ * markings), lifted 2 cm so the markings never fight the road surface for depth in far views.
+ */
+export function foldPaint(geos: Map<string, THREE.BufferGeometry>) {
+  const a = geos.get("asphaltC");
+  const p = geos.get("paintW");
+  const colour = (g: THREE.BufferGeometry, rgb: readonly [number, number, number]) => {
+    const n = g.getAttribute("position").count;
+    const arr = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) arr.set(rgb, i * 3);
+    g.setAttribute("color", new THREE.BufferAttribute(arr, 3));
+    return g;
+  };
+  if (!a) return geos;
+  colour(a, [1, 1, 1]);
+  if (p) {
+    colour(p.translate(0, 0.02, 0), PAINT_RGB);
+    const merged = mergeGeometries([a, p], false);
+    if (merged) {
+      merged.computeBoundingSphere();
+      a.dispose();
+      p.dispose();
+      geos.delete("paintW");
+      geos.set("asphaltC", merged);
+    }
+  }
+  return geos;
 }

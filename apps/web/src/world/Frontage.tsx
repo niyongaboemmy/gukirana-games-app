@@ -4,7 +4,7 @@ import { Text } from "@react-three/drei";
 import * as THREE from "three";
 import { GeoBatch } from "./geo";
 import { worldMaterials, type Tier } from "./materials";
-import { campusMaterials } from "./campus-materials";
+import { campusMaterials, foldPaint } from "./campus-materials";
 import { NearOnly } from "./static-merge";
 import { SITE } from "./campus-strings";
 import { CampusProps } from "./campus-props";
@@ -289,7 +289,7 @@ export function buildFrontage(tier: Tier): Map<string, THREE.BufferGeometry> {
     b.cyl("steel", 0.045, 0.045, 2.8, 8, { p: [s.x - s.w / 2 - 1.2, 1.4 + 0.08, R.c1 + 0.5] });
     b.box("screenFrame", 0.62, 0.62, 0.05, { p: [s.x - s.w / 2 - 1.2, 2.6, R.c1 + 0.5] });
   }
-  return b.build();
+  return foldPaint(b.build());
 }
 
 export function Frontage({ tier }: { tier: Tier }) {
@@ -305,8 +305,8 @@ export function Frontage({ tier }: { tier: Tier }) {
         const unlit = m instanceof THREE.MeshBasicMaterial;
         return <mesh key={key} geometry={g} material={m} castShadow={!unlit && !m.transparent && !FLAT.has(key) && tier !== "lite"} receiveShadow={!unlit && tier !== "lite"} />;
       })}
-      {/* lit lettering on the gate sign, readable from the road and the forecourt (drawn within 40 m) */}
-      <NearOnly max={40} position={[-16.4, 0, 79.56]}>
+      {/* lit lettering on the gate sign, readable from the road and the forecourt (drawn within 30 m) */}
+      <NearOnly max={30} position={[-16.4, 0, 79.56]}>
         <Text font={FONT} fontSize={0.62} position={[0, 1.72, 0]} anchorX="center" anchorY="middle" letterSpacing={0.12}>
           {SITE.gateSign}
           <meshBasicMaterial color={new THREE.Color("#fff6e2").multiplyScalar(1.15)} toneMapped={false} />
