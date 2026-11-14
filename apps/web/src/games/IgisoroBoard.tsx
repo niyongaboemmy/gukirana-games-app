@@ -171,6 +171,7 @@ export function IgisoroBoard({
     <div className="absolute inset-0 grid place-items-center @container-size">
       <div
         ref={board}
+        data-game-board
         className="relative aspect-[2/1] rounded-[28px] border-[6px] border-[#4a2e17] p-[2.2%] shadow-[0_20px_60px_-10px_rgba(0,0,0,.8),inset_0_2px_0_rgba(255,255,255,.15)]"
         style={{ width: "min(100cqw, 200cqh)", background: "repeating-linear-gradient(95deg,#9a6534 0 18px,#8b5a2d 18px 30px,#a36d3a 30px 44px)" }}
         role="group"

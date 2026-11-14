@@ -60,7 +60,11 @@ export function moveFocus(dir: "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRig
   });
   const cur = document.activeElement as HTMLElement | null;
   if (!cur || !root.contains(cur) || cur === document.body) {
-    const first = root.querySelector<HTMLElement>("[data-autofocus]") ?? items[0];
+    // nothing focused (e.g. the pit you just played went disabled for the opponent's turn): an arrow goes back to the
+    // board, never to the top bar's Menu button — Enter / Space there would open the menu mid-game and the next Esc
+    // would only close it again. Board games mark their board with data-game-board; dialogs keep the first control.
+    const onBoard = root.querySelector("[data-game-board]") ? items.find((el) => el.closest("[data-game-board]")) : items[0];
+    const first = root.querySelector<HTMLElement>("[data-autofocus]") ?? onBoard;
     first?.focus();
     return !!first;
   }

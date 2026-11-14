@@ -197,6 +197,7 @@ export function LudoBoard({ state, movable, onMove, myId }: { state: LudoState; 
     <div className="absolute inset-0 grid place-items-center @container-size">
       <div
         ref={board}
+        data-game-board
         className="relative aspect-square overflow-hidden rounded-2xl border-4 border-ink-500 bg-[#f4efe6] shadow-2xl"
         style={{ width: "min(100cqw, 100cqh)" }}
         role="group"
