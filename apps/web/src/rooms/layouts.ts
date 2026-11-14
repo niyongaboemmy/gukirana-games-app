@@ -1,8 +1,9 @@
 /** Hall interiors (metres, DESIGN-SPEC §6.1/§6.4). Room spans x ∈ [-W/2, W/2], z ∈ [-D/2, D/2]; entrance door on the south wall (+z). */
 import { ADMIN_COLLIDERS, ADMIN_COLOR, ADMIN_SEATS, ADMIN_SIZE, ADMIN_WALLS } from "@/admin-block/plan";
 import { ARENA_COLLIDERS, ARENA_COLOR, ARENA_SIZE, BOWL_SEATS } from "@/arena/bowl";
+import { BOXING_AISLES, BOXING_COLLIDERS, BOXING_DOOR, BOXING_SIZE, LOBBY_BENCHES, LOBBY_SIZE, LOBBY_WALLS } from "@/fight/plan";
 
-export type HallGame = "pool" | "ludo" | "igisoro" | "admin" | "arena";
+export type HallGame = "pool" | "ludo" | "igisoro" | "admin" | "arena" | "fight" | "boxing";
 
 export interface Table {
   id: string;
@@ -280,8 +281,39 @@ export const HALLS: Record<HallGame, HallLayout> = {
     colliders: ARENA_COLLIDERS,
     aisles: [0],
   },
+  // Fight Games hall lobby (P3-FGT-01): the foyer with the four sub-hall doors in its back wall (fight/plan.ts)
+  fight: {
+    game: "fight",
+    title: "Fight Games",
+    subtitle: "Boxing · more sports soon",
+    color: "#C8322A",
+    size: { ...LOBBY_SIZE },
+    door: { x: 0, w: 2.6 },
+    spawn: { x: 0, z: LOBBY_SIZE.d / 2 - 2.4 },
+    tables: [],
+    seats: [],
+    colliders: LOBBY_BENCHES.map((b) => ({ ...b })),
+    aisles: [0],
+    walls: LOBBY_WALLS,
+  },
+  // Boxing sub-hall (P3-FGT-01): 50 rings; walking round the platforms and climbing in come from its hall hooks
+  boxing: {
+    game: "boxing",
+    title: "Boxing Hall",
+    subtitle: "50 rings · live fights and practice",
+    color: "#C8322A",
+    size: { ...BOXING_SIZE },
+    door: { ...BOXING_DOOR },
+    spawn: { x: BOXING_DOOR.x, z: BOXING_SIZE.d / 2 - 2.4 },
+    tables: [],
+    seats: [],
+    colliders: BOXING_COLLIDERS,
+    aisles: BOXING_AISLES,
+  },
 };
 
-export const isHallGame = (g: string): g is HallGame => g === "pool" || g === "ludo" || g === "igisoro" || g === "admin" || g === "arena";
+export const isHallGame = (g: string): g is HallGame => g === "pool" || g === "ludo" || g === "igisoro" || g === "admin" || g === "arena" || g === "fight" || g === "boxing";
+/** the Fight Games hall areas (lobby + Boxing sub-hall) */
+export const isFightHall = (g: string): g is "fight" | "boxing" => g === "fight" || g === "boxing";
 /** halls with game tables (seats claimed through the realtime server) */
-export const isGameHall = (g: string): g is Exclude<HallGame, "admin" | "arena"> => g === "pool" || g === "ludo" || g === "igisoro";
+export const isGameHall = (g: string): g is Exclude<HallGame, "admin" | "arena" | "fight" | "boxing"> => g === "pool" || g === "ludo" || g === "igisoro";

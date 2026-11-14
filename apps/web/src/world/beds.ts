@@ -1,4 +1,4 @@
-import { DOOR_RING, ENTRY_Z, EXPANSION_PLOTS, FOUNTAIN_COURT, GATE_CLEAR_DEG, MID_ANGLES, OUTER_PROMENADE, PERIMETER_R, PLANTERS, PLAZA_RADIUS, PROMENADE_BEDS, RING_ANGLES, ringPoint } from "./layout";
+import { DOOR_RING, onFightWalk, ENTRY_Z, EXPANSION_PLOTS, FOUNTAIN_COURT, GATE_CLEAR_DEG, MID_ANGLES, OUTER_PROMENADE, PERIMETER_R, PLANTERS, PLAZA_RADIUS, PROMENADE_BEDS, RING_ANGLES, ringPoint } from "./layout";
 import { GATE_Z } from "./gate/Gate";
 import { inBuilding } from "./footprints";
 
@@ -53,7 +53,14 @@ const EDGE = { r0: PLAZA_RADIUS - 1.1, r1: PLAZA_RADIUS - 0.05 };
 export const PLAZA_ARCS: ArcBed[] = (() => {
   const keep = RING_ANGLES;
   const arcs: ArcBed[] = [];
-  for (let i = 0; i < keep.length - 1; i++) arcs.push({ cx: 0, cz: 0, ...EDGE, a0: keep[i]! + DOOR_CLEAR, a1: keep[i + 1]! - DOOR_CLEAR, h: 0.42 });
+  for (let i = 0; i < keep.length - 1; i++) {
+    const arc = { cx: 0, cz: 0, ...EDGE, a0: keep[i]! + DOOR_CLEAR, a1: keep[i + 1]! - DOOR_CLEAR, h: 0.42 };
+    // the Fight walk leaves the plaza here (P3-FGT-01): this edge bed stays out of its way
+    const midA = (arc.a0 + arc.a1) / 2;
+    const pm = ringPoint(midA, EDGE.r0);
+    if (onFightWalk(pm.x, pm.z, 1.5)) continue;
+    arcs.push(arc);
+  }
   // south-east / south-west: up to the gate approach
   const last = keep[keep.length - 1]!;
   arcs.push({ cx: 0, cz: 0, ...EDGE, a0: last + DOOR_CLEAR, a1: GATE_CLEAR_DEG, h: 0.42 });
@@ -97,7 +104,7 @@ export const LAWN_BEDS: RectBed[] = (() => {
       const c = Math.cos(b.rot);
       const s = Math.sin(b.rot);
       const pts = [-1, 0, 1].flatMap((u) => [-1, 1].map((v) => ({ x: b.x + u * b.hw * c + v * b.hd * s, z: b.z - u * b.hw * s + v * b.hd * c })));
-      if (pts.some((p) => inBuilding(p.x, p.z, 1.5))) continue;
+      if (pts.some((p) => inBuilding(p.x, p.z, 1.5) || onFightWalk(p.x, p.z, 1.2))) continue;
       out.push(b);
     }
   });
@@ -108,7 +115,7 @@ export const LAWN_BEDS: RectBed[] = (() => {
     const a = (deg * Math.PI) / 180;
     const rad = OUTER_PROMENADE.r1 + 2.4;
     const b: RectBed = { x: Math.sin(a) * rad, z: -Math.cos(a) * rad, hw: 6.5, hd: 1.1, rot: -a, h: 0.4, hedge: true };
-    if (!inBuilding(b.x, b.z, 2)) out.push(b);
+    if (!inBuilding(b.x, b.z, 2) && !onFightWalk(b.x, b.z, 8)) out.push(b);
   }
   return out;
 })();

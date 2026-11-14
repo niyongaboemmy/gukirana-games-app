@@ -28,6 +28,7 @@ export const GAME_COLORS = {
   igisoro: "#27AE60",
   arena: "#9B51E0",
   admin: "#C9A96B",
+  fight: "#C8322A",
   soon: "#8A94A6",
   sky: "#3DA9FC",
   gold: "#FFC83D",
@@ -50,7 +51,7 @@ let shared: { tier: Tier; m: Record<string, THREE.Material> } | null = null;
 /** Worn walking lines across the plaza: entrance → fountain → every door, plus the bench ring. */
 function wearPaths(): { x: number; z: number }[][] {
   const paths: { x: number; z: number }[][] = [[{ x: SPAWN.x, z: SPAWN.z + 6 }, { x: 0, z: FOUNTAIN_RADIUS + 1 }]];
-  for (const p of PORTALS) paths.push([ringPoint(p.angleDeg, FOUNTAIN_RADIUS + 1), ringPoint(p.angleDeg, PLAZA_RADIUS - 1)]);
+  for (const p of PORTALS.filter((q) => !q.ring)) paths.push([ringPoint(p.angleDeg, FOUNTAIN_RADIUS + 1), ringPoint(p.angleDeg, PLAZA_RADIUS - 1)]);
   for (const r of [FOUNTAIN_COURT - 1, FOUNTAIN_COURT + 6]) {
     const ring: { x: number; z: number }[] = [];
     for (let a = 0; a <= 360; a += 8) ring.push(ringPoint(a, r));
@@ -151,6 +152,9 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     "led-igisoro": ledMaterial(GAME_COLORS.igisoro, tier),
     "led-arena": ledMaterial(GAME_COLORS.arena, tier),
     "led-admin": ledMaterial(GAME_COLORS.admin, tier, 0.7),
+    "led-fight": ledMaterial(GAME_COLORS.fight, tier),
+    "led-corner-blue": ledMaterial("#2F5DB0", tier, 0.9),
+    charcoal: std({ map: concreteTexture(), color: "#3a3a3d", roughness: 0.85 }),
     "led-soon": ledMaterial(GAME_COLORS.soon, tier, 0.5),
     "led-sky": ledMaterial(GAME_COLORS.sky, tier),
     "led-gold": ledMaterial(GAME_COLORS.gold, tier, 0.9),

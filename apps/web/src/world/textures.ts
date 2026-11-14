@@ -463,7 +463,7 @@ export function blobTexture(): THREE.CanvasTexture {
   });
 }
 
-export type IconKind = "pool" | "ludo" | "igisoro" | "arena" | "admin" | "soon";
+export type IconKind = "pool" | "ludo" | "igisoro" | "arena" | "admin" | "fight" | "soon";
 
 /** Vector game icons drawn on canvas (no emoji glyphs in 3D, they depend on system fonts). */
 function drawIcon(g: CanvasRenderingContext2D, kind: IconKind, cx: number, cy: number, s: number, color: string) {
@@ -537,6 +537,23 @@ function drawIcon(g: CanvasRenderingContext2D, kind: IconKind, cx: number, cy: n
     g.fill();
     for (const x of [-0.28, 0, 0.28]) g.fillRect(x * s - s * 0.05, -s * 0.12, s * 0.1, s * 0.4);
     g.fillRect(-s * 0.44, s * 0.3, s * 0.88, s * 0.08);
+  } else if (kind === "fight") {
+    // a boxing glove over a ring rope (Fight Games hall, P3-FGT-01)
+    g.fillStyle = color;
+    g.beginPath();
+    g.ellipse(-s * 0.02, -s * 0.06, s * 0.3, s * 0.34, 0, 0, Math.PI * 2);
+    g.fill();
+    g.beginPath();
+    g.ellipse(-s * 0.3, s * 0.02, s * 0.12, s * 0.16, -0.5, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#ffffff";
+    g.fillRect(-s * 0.22, s * 0.24, s * 0.42, s * 0.14);
+    g.strokeStyle = "rgba(255,255,255,0.85)";
+    g.lineWidth = s * 0.04;
+    g.beginPath();
+    g.moveTo(-s * 0.5, s * 0.46);
+    g.lineTo(s * 0.5, s * 0.46);
+    g.stroke();
   } else if (kind === "arena") {
     g.fillStyle = "#FFC83D";
     g.beginPath();
@@ -874,6 +891,7 @@ export function hallGlimpseTexture(kind: IconKind): THREE.CanvasTexture {
       igisoro: { wall: "#a8794a", floor: "#8a5232", ceil: "#6a4a2a", table: "#5a3a22", lamp: "#ffd79a" },
       arena: { wall: "#4a4a58", floor: "#6a6a70", ceil: "#22232a", table: "#3a3a48", lamp: "#e8eeff" },
       admin: { wall: "#cfc9bf", floor: "#a9a397", ceil: "#e2dfd8", table: "#6e5440", lamp: "#fff4e6" },
+      fight: { wall: "#2a2b2f", floor: "#6c6a66", ceil: "#141417", table: "#7a2a24", lamp: "#f4f1ea" },
       soon: { wall: "#555", floor: "#666", ceil: "#333", table: "#444", lamp: "#ddd" },
     };
     const p = pal[kind];

@@ -60,6 +60,7 @@ const BADGE: Record<PortalDef["kind"], [number, number] | null> = {
   igisoro: null, // the lettered timber fascia board on the porch is its sign
   arena: [4.62, -0.93],
   admin: null, // the lettered limestone fascia is its sign
+  fight: [4.7, -0.55],
   soon: null,
 };
 
@@ -79,8 +80,8 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
   useFrame(({ clock }) => {
     if (ring.current) ring.current.opacity = (active ? 0.5 : 0.3) + Math.sin(clock.elapsedTime * 2.2 + def.angleDeg) * 0.04;
   });
-  const signY = def.kind === "pool" ? 8.0 : def.kind === "ludo" ? 6.75 : def.kind === "igisoro" ? 5.35 : def.kind === "arena" ? 6.98 : 4.9;
-  const signZ = def.kind === "pool" ? 1.44 : def.kind === "ludo" ? 0.3 : def.kind === "igisoro" ? 0.82 : def.kind === "arena" ? 2.08 : -0.28;
+  const signY = def.kind === "pool" ? 8.0 : def.kind === "ludo" ? 6.75 : def.kind === "igisoro" ? 5.35 : def.kind === "arena" ? 6.98 : def.kind === "fight" ? 5.65 : 4.9;
+  const signZ = def.kind === "pool" ? 1.44 : def.kind === "ludo" ? 0.3 : def.kind === "igisoro" ? 0.82 : def.kind === "arena" ? 2.08 : def.kind === "fight" ? 0.62 : -0.28;
   const badge = BADGE[def.kind];
   return (
     <group position={[x, 0, z]} rotation={[0, rotY, 0]}>

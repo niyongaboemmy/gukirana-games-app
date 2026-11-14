@@ -27,6 +27,9 @@ const HALL_ASSETS: Record<HallGame, { models: string[]; pbr: [PbrName, boolean][
     models: ["potted_plant_02"],
     pbr: [["oak_veneer_01", true], ["velour_velvet", false]],
   },
+  // Fight Games lobby + Boxing hall: procedural shells (fight/*), the instanced ring kit, no models
+  fight: { models: [], pbr: [] },
+  boxing: { models: [], pbr: [] },
   igisoro: {
     models: ["mid_century_lounge_chair", "potted_plant_02", "sofa_02", "wicker_basket_01"],
     pbr: [["bark_brown_02", true], ["clay_plaster", true], ["rough_wood", true], ["tatami_mat", true], ["oak_veneer_01", true]],

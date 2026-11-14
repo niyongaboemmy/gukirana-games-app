@@ -3,6 +3,7 @@ import type { PortalId } from "@/lib/world-store";
 import type { IconKind } from "./textures";
 import { ADMIN_BLOCK_ON } from "@/admin-block/flags";
 import { ARENA_ON } from "@/arena/flags";
+import { FIGHT_ON } from "@/fight/flags";
 
 /**
  * Gukirana Arena District layout in metres (DESIGN-SPEC §6.1–6.2, docs/WORLD-ARENA-DESIGN.md §5).
@@ -48,8 +49,11 @@ export interface PortalDef {
   href: string | null;
   angleDeg: number;
   kind: IconKind;
-  /** plot size on the ring: "hall" plots fit a ~36 × 28 m hall interior (winged building); "small" a pavilion */
-  plot?: "hall" | "small";
+  /** plot size on the ring: "hall" plots fit a ~36 × 28 m hall interior (winged building); "small" a pavilion;
+   *  "fight" the merged expansion plots 09 + 10 (Fight Games hall, P3-FGT-01) */
+  plot?: "hall" | "small" | "fight";
+  /** door ring radius (default DOOR_RING, the plaza's inner ring); the Fight hall stands on EXPANSION_RING */
+  ring?: number;
 }
 
 export const PORTALS: PortalDef[] = [
@@ -62,7 +66,15 @@ export const PORTALS: PortalDef[] = [
   // the +88° hall plot (reserved for a 36 × 28 m hall): the Administrative Block (P2-ADM-02)
   { id: "admin", label: "Administrative Block", sub: "Offices", color: "#C9A96B", href: ADMIN_BLOCK_ON ? "/room/admin" : null, angleDeg: 88, kind: "admin", plot: "hall" },
   { id: "soon-se", label: "Coming Soon", sub: "Esports", color: "#8A94A6", href: null, angleDeg: 144, kind: "soon" },
+  // Fight Games hall (P3-FGT-01): on the expansion ring (plots 09 + 10 merged, bearing 140°), reached on foot by the
+  // Fight walk (FIGHT_WALK below) from the plaza; door locked until NEXT_PUBLIC_FF_FIGHT=1
+  { id: "fight", label: "Fight Games", sub: "Boxing", color: "#C8322A", href: FIGHT_ON ? "/room/fight" : null, angleDeg: 140, kind: "fight", plot: "fight", ring: EXPANSION_RING },
 ];
+
+/** Door ring of a portal (the plaza's inner ring unless the building stands further out). */
+export const ringOf = (p: Pick<PortalDef, "ring">) => p.ring ?? DOOR_RING;
+/** Portals on the plaza's own door ring (the outer-ring Fight hall has its own walk, not a promenade). */
+export const INNER_PORTALS = PORTALS.filter((p) => ringOf(p) === DOOR_RING);
 
 /** Service pavilion (wallet kiosk + help desk) closes the ring on the east side. */
 export const SERVICE_ANGLE = 122;
@@ -71,14 +83,17 @@ export const SERVICE_ANGLE = 122;
  * Reserved hall plots in the expansion district, on the outside of the outer promenade (bearings; the north sector
  * stays open for the volcano view). Each fits a ~36 × 28 m hall interior plus its entrance wing.
  */
-export const EXPANSION_PLOTS: { id: string; n: number; angleDeg: number }[] = [-155, -125, -95, -65, -35, 35, 65, 95, 125, 155].map((angleDeg, i) => ({
-  id: `plot-${String(i + 1).padStart(2, "0")}`,
-  n: i + 1,
-  angleDeg,
-}));
+export const EXPANSION_PLOTS: { id: string; n: number; angleDeg: number }[] = [-155, -125, -95, -65, -35, 35, 65, 95, 125, 155]
+  .map((angleDeg, i) => ({
+    id: `plot-${String(i + 1).padStart(2, "0")}`,
+    n: i + 1,
+    angleDeg,
+  }))
+  // plots 09 (125°) + 10 (155°) are merged into the Fight Games hall site at 140° (P3-FGT-01, plan D7)
+  .filter((e) => e.n !== 9 && e.n !== 10);
 
 /** Every plot on the door ring (doors + the service pavilion), sorted by bearing. */
-export const RING_ANGLES: number[] = [...PORTALS.map((p) => p.angleDeg), SERVICE_ANGLE].sort((a, b) => a - b);
+export const RING_ANGLES: number[] = [...PORTALS.filter((p) => !p.ring).map((p) => p.angleDeg), SERVICE_ANGLE].sort((a, b) => a - b);
 /** The entry axis (south) is kept clear up to this bearing either side of 180°: the gate approach. */
 export const GATE_CLEAR_DEG = 161;
 /** Bearings halfway between neighbouring plots (and between the last plots and the gate approach): seating
@@ -100,8 +115,9 @@ export function ringPoint(angleDeg: number, r: number) {
 
 /** Door transform. The building's local +z faces the fountain; `entry` is where the "Enter" prompt triggers. */
 export function portalTransform(p: PortalDef) {
-  const d = ringPoint(p.angleDeg, DOOR_RING);
-  const e = ringPoint(p.angleDeg, DOOR_RING - 2.4);
+  const R = ringOf(p);
+  const d = ringPoint(p.angleDeg, R);
+  const e = ringPoint(p.angleDeg, R - 2.4);
   return { x: d.x, z: d.z, rotY: d.rotY, entryX: e.x, entryZ: e.z };
 }
 
@@ -176,7 +192,7 @@ export const COLLIDERS: Collider[] = [
 
 /** Door line of each building in its door frame (local z; negative = set back into the facade). */
 export function doorInset(kind: PortalDef["kind"]): number {
-  return kind === "arena" ? -1.15 : kind === "igisoro" ? -2.15 : kind === "pool" ? -0.55 : kind === "ludo" ? -0.4 : kind === "admin" ? -1.6 : -0.45;
+  return kind === "arena" ? -1.15 : kind === "igisoro" ? -2.15 : kind === "pool" ? -0.55 : kind === "ludo" ? -0.4 : kind === "admin" ? -1.6 : kind === "fight" ? -0.8 : -0.45;
 }
 
 /** Depth of the entrance lobby behind a hall door (world/Vestibule): deep enough that the follow camera passes the
@@ -198,4 +214,99 @@ export function doorWorld(p: PortalDef, lx: number, lz: number) {
   const c = Math.cos(t.rotY);
   const s = Math.sin(t.rotY);
   return { x: t.x + lx * c + lz * s, z: t.z - lx * s + lz * c };
+}
+
+/* ---------------- the Fight walk (P3-FGT-01): plaza → outer promenade → Fight Games hall door ---------------- */
+
+/** bearing of the Fight hall door, and of the walk's radial leg (the gap between the help desk and the Esports plot) */
+export const FIGHT_ANGLE = 140;
+export const FIGHT_WALK_DEG = 133;
+/**
+ * A paved footpath out of the plaza (the only walkable ground beyond the plaza edge): radially out at 133° between the
+ * help desk pavilion and the Esports plot, along the outer promenade to 140°, then up to the Fight hall door.
+ * Legs are straight segments with their half-width (m).
+ */
+export const FIGHT_WALK: { a: { x: number; z: number }; b: { x: number; z: number }; hw: number }[] = (() => {
+  const pr = (OUTER_PROMENADE.r0 + OUTER_PROMENADE.r1) / 2;
+  const pt = (deg: number, r: number) => {
+    const q = ringPoint(deg, r);
+    return { x: q.x, z: q.z };
+  };
+  const p0 = pt(FIGHT_WALK_DEG, PLAZA_RADIUS - 1.5);
+  const p1 = pt(FIGHT_WALK_DEG, pr);
+  const p2 = pt(FIGHT_ANGLE, pr);
+  const p3 = pt(FIGHT_ANGLE, EXPANSION_RING - 0.6);
+  return [
+    { a: p0, b: p1, hw: 1.4 },
+    { a: p1, b: p2, hw: 2.3 },
+    { a: p2, b: p3, hw: 2.3 },
+  ];
+})();
+/** the walk's corner points in walking order (plaza → door), for scripted walks / routes */
+export const FIGHT_WALK_POINTS = [FIGHT_WALK[0]!.a, ...FIGHT_WALK.map((l) => l.b)];
+
+function segPoint(a: { x: number; z: number }, b: { x: number; z: number }, x: number, z: number) {
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz)));
+  return { x: a.x + dx * t, z: a.z + dz * t };
+}
+/** how far (m) a point is inside the Fight walk (> 0 inside, < 0 outside), and the nearest centre-line point */
+export function fightWalkDepth(x: number, z: number) {
+  let best = -Infinity;
+  let at = { x, z, hw: 0 };
+  for (const l of FIGHT_WALK) {
+    const q = segPoint(l.a, l.b, x, z);
+    const d = l.hw - Math.hypot(x - q.x, z - q.z);
+    if (d > best) {
+      best = d;
+      at = { x: q.x, z: q.z, hw: l.hw };
+    }
+  }
+  return { depth: best, at };
+}
+/** the walk exists only with the Fight hall on (its door is the only thing it leads to) */
+export const onFightWalk = (x: number, z: number, margin = 0) => FIGHT_ON && fightWalkDepth(x, z).depth > -margin;
+/**
+ * Keep a body on the walk (outside the plaza disc): a step off its edge slides back onto it. Returns false when the
+ * point is nowhere near the walk (the caller then falls back to the plaza edge).
+ */
+export function clampToFightWalk(p: { x: number; z: number }, body = 0.32): boolean {
+  if (!FIGHT_ON) return false;
+  const { depth, at } = fightWalkDepth(p.x, p.z);
+  if (depth >= body) return true;
+  if (depth < -1.2) return false;
+  const dx = p.x - at.x;
+  const dz = p.z - at.z;
+  const d = Math.hypot(dx, dz) || 1;
+  const r = Math.max(0, at.hw - body);
+  p.x = at.x + (dx / d) * r;
+  p.z = at.z + (dz / d) * r;
+  return true;
+}
+
+/** which leg of the Fight walk a point is on (0 … legs − 1; −1 = in the plaza) */
+export function fightWalkLeg(x: number, z: number): number {
+  if (Math.hypot(x, z) < PLAZA_RADIUS - 1.5) return -1;
+  let best = -Infinity;
+  let leg = 0;
+  FIGHT_WALK.forEach((l, i) => {
+    const q = segPoint(l.a, l.b, x, z);
+    const d = l.hw - Math.hypot(x - q.x, z - q.z);
+    if (d > best) {
+      best = d;
+      leg = i;
+    }
+  });
+  return leg;
+}
+/** waypoints along the Fight walk from one point to another (the corners between their legs, either direction) */
+export function fightWalkRoute(from: { x: number; z: number }, to: { x: number; z: number }): { x: number; z: number }[] {
+  const a = fightWalkLeg(from.x, from.z);
+  const b = fightWalkLeg(to.x, to.z);
+  const out: { x: number; z: number }[] = [];
+  if (b > a) for (let i = Math.max(0, a); i < b; i++) out.push(FIGHT_WALK[i]!.b);
+  else for (let i = a; i > Math.max(0, b); i--) out.push(FIGHT_WALK[i]!.a);
+  if (b < 0 && a >= 0) out.push(FIGHT_WALK[0]!.a);
+  return [...out.map((q) => ({ x: q.x, z: q.z })), { x: to.x, z: to.z }];
 }

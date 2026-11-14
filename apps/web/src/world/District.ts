@@ -4,6 +4,7 @@ import { LAMPS } from "./obstacles";
 import { RING_PLANTERS } from "./beds";
 import { activityProps } from "./activity-props";
 import { NOTICE_BOARD, WATER_POINT } from "./activities";
+import { fightHall } from "@/fight/exterior";
 import { ARENA, FOOTPRINTS, igisoroHall, inBuilding, LUDO_DIE, PLOTS, sitePlan, toLocal, WING_HW, wingedHall } from "./footprints";
 import {
   BENCHES,
@@ -24,6 +25,9 @@ import {
   OUTER_PROMENADE,
   WAYFINDING,
   wayfindingRows,
+  FIGHT_ANGLE,
+  FIGHT_WALK,
+  onFightWalk,
   type PortalDef,
 } from "./layout";
 
@@ -730,7 +734,8 @@ function plaza(b: GeoBatch, tier: string) {
     const near = PLOTS.some((q) => q.ring === DOOR_RING && off(deg, q.angleDeg) < DOOR_GAP);
     const p = ringPoint(deg + STEP / 2, PERIMETER_R);
     const gate = p.z > ENTRY_Z - 6 && Math.abs(p.x) < 17.5; // the entry gate has its own perimeter walls
-    if (near || gate || builder(deg)) continue;
+    // the Fight walk leaves the plaza through a gap in the wall (P3-FGT-01)
+    if (near || gate || builder(deg) || onFightWalk(p.x, p.z, 2.2)) continue;
     b.box("lava", 3.6, 0.8, 0.6, { p: [p.x, 0.4, p.z], r: [0, p.rotY, 0], tile: 1.2 });
   }
   // expansion district: the outer promenade ring (honed granite between basalt kerbs), served by the main avenue
@@ -740,6 +745,24 @@ function plaza(b: GeoBatch, tier: string) {
   for (const e of EXPANSION_PLOTS) {
     const m = ringPoint(e.angleDeg, (OUTER_PROMENADE.r1 + EXPANSION_RING) / 2 + 0.3);
     b.box("granite", 16, 0.02, EXPANSION_RING - OUTER_PROMENADE.r1 + 1.2, { p: [m.x, 0.007, m.z], r: [0, m.rotY, 0], tile: 4.8 });
+  }
+  // the Fight walk (P3-FGT-01): honed granite between basalt kerbs, from the plaza edge to the Fight hall forecourt
+  if (onFightWalk(FIGHT_WALK[0]!.a.x, FIGHT_WALK[0]!.a.z)) {
+    for (const l of FIGHT_WALK) {
+      const len = Math.hypot(l.b.x - l.a.x, l.b.z - l.a.z) + l.hw;
+      const rot = Math.atan2(l.b.x - l.a.x, l.b.z - l.a.z);
+      const c: [number, number, number] = [(l.a.x + l.b.x) / 2, 0.011, (l.a.z + l.b.z) / 2];
+      b.box("granite", l.hw * 2, 0.02, len, { p: c, r: [0, rot, 0], tile: 4.8 });
+      for (const s of [-1, 1]) {
+        const ox = Math.cos(rot) * s * (l.hw + 0.1);
+        const oz = -Math.sin(rot) * s * (l.hw + 0.1);
+        b.box("basalt", 0.2, 0.05, len - l.hw, { p: [c[0] + ox, 0.02, c[2] + oz], r: [0, rot, 0], tile: 1.2 });
+      }
+    }
+  }
+  {
+    const m = ringPoint(FIGHT_ANGLE, (OUTER_PROMENADE.r1 + EXPANSION_RING) / 2 + 0.3);
+    b.box("granite", 34, 0.02, EXPANSION_RING - OUTER_PROMENADE.r1 + 1.2, { p: [m.x, 0.007, m.z], r: [0, m.rotY, 0], tile: 4.8 });
   }
   const mid = (RING_ROAD.r0 + RING_ROAD.r1) / 2;
   b.add("asphalt", flat(new THREE.RingGeometry(RING_ROAD.r0, RING_ROAD.r1, 200, 1)), { p: [0, 0.01, 0], tile: 3 });
@@ -758,6 +781,7 @@ export function buildDistrict(tier: string): Map<string, THREE.BufferGeometry> {
     igisoro: igisoroCourt,
     arena: tournamentArena,
     admin: adminBlock,
+    fight: fightHall,
     soon: comingSoon,
   };
   // every plot from the data (layout.ts PORTALS / EXPANSION_PLOTS → footprints.ts PLOTS)

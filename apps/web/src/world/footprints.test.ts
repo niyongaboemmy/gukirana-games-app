@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { HALLS } from "@/rooms/layouts";
 import { ARENA, igisoroHall, inBuilding, PLOT_HALL_SIZE, PLOTS, wingedHall, wingedPlan, type Plot } from "./footprints";
-import { BENCHES, ENTRY_Z, FOUNTAIN_RADIUS,  PLAZA_RADIUS, PORTALS, portalTransform, RING_ROAD, ringPoint, SPAWN } from "./layout";
+import { BENCHES, ENTRY_Z, FOUNTAIN_RADIUS, INNER_PORTALS, PLAZA_RADIUS, PORTALS, portalTransform, RING_ROAD, ringPoint, SPAWN } from "./layout";
 import { LAWN_BEDS, PLAZA_ARCS, RING_PLANTERS } from "./beds";
 import { GATE_Z } from "./gate/Gate";
 import { LAMPS, planRoute, PLAZA_OBSTACLES, resolve } from "./obstacles";
@@ -92,7 +92,7 @@ describe("campus layout (P1-WLD-03)", () => {
   it("keeps plaza furniture inside the plaza and off the doorsteps and promenades", () => {
     for (const b of BENCHES) expect(Math.hypot(b.x, b.z)).toBeLessThan(PLAZA_RADIUS - 2);
     for (const p of [...RING_PLANTERS, ...LAMPS]) expect(Math.hypot(p.x, p.z) + ("r" in p ? p.r : 0)).toBeLessThan(PLAZA_RADIUS - 0.5);
-    for (const p of PORTALS) {
+    for (const p of INNER_PORTALS) {
       // the 3.6 m promenade from the fountain court to the door is free of benches, planters and lamps
       const a = (p.angleDeg * Math.PI) / 180;
       for (let r = FOUNTAIN_RADIUS + 6; r < PLAZA_RADIUS - 0.5; r += 0.5)

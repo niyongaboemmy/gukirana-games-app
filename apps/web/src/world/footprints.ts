@@ -1,5 +1,6 @@
 import { HALLS, type HallGame } from "@/rooms/layouts";
-import { DOOR_RING, EXPANSION_PLOTS, EXPANSION_RING, PORTALS, ringPoint, SERVICE_ANGLE, type PortalDef } from "./layout";
+import { DOOR_RING, EXPANSION_PLOTS, EXPANSION_RING, PORTALS, ringOf, ringPoint, SERVICE_ANGLE, type PortalDef } from "./layout";
+import { FIGHT_BUILDING } from "@/fight/plan";
 
 /**
  * Building volumes on the rings, DERIVED from the hall interiors (rooms/layouts.ts HALLS): every hall's exterior is
@@ -89,6 +90,23 @@ export const FOOTPRINTS = {
       return { x0: -hw, x1: hw, z0: za, z1: zb };
     }),
   ],
+  // Fight Games hall (P3-FGT-01): the lobby wing behind the door + the 93 × 30 m Boxing hall behind it (a T-plan),
+  // its back corners chamfered (approximated by narrowing bands) to keep inside the ring road
+  fight: (() => {
+    const f = FIGHT_BUILDING;
+    const out: Rect[] = [
+      { x0: -f.lobbyHw - 0.2, x1: f.lobbyHw + 0.2, z0: f.lobbyFront + 1.2, z1: f.front },
+      { x0: -f.hw - 0.2, x1: f.hw + 0.2, z0: f.front, z1: f.back + f.chamfer },
+    ];
+    const n = 4;
+    for (let i = 0; i < n; i++) {
+      const za = f.back + f.chamfer - (f.chamfer * i) / n;
+      const zb = i === n - 1 ? f.back - 0.2 : f.back + f.chamfer - (f.chamfer * (i + 1)) / n;
+      const hw = f.hw - (f.chamfer * i) / n + 0.2;
+      out.push({ x0: -hw, x1: hw, z0: za, z1: zb });
+    }
+    return out;
+  })(),
   soon: [{ x0: -5.2, x1: 5.2, z0: 0.5, z1: -10 }],
   service: [{ x0: -5.2, x1: 5.2, z0: 0.6, z1: -7 }],
 } satisfies Record<string, Rect[]>;
@@ -113,7 +131,7 @@ export const PLOTS: Plot[] = [
   ...PORTALS.map((p): Plot => {
     const site = p.kind === "soon" && p.plot === "hall";
     const away = Math.sign(p.angleDeg) || 1;
-    return { id: p.id, angleDeg: p.angleDeg, ring: DOOR_RING, type: site ? "site" : p.kind, away, rects: site ? hallRects(sitePlan(away), 0.5) : FOOTPRINTS[p.kind] };
+    return { id: p.id, angleDeg: p.angleDeg, ring: ringOf(p), type: site ? "site" : p.kind, away, rects: site ? hallRects(sitePlan(away), 0.5) : FOOTPRINTS[p.kind] };
   }),
   { id: "service", angleDeg: SERVICE_ANGLE, ring: DOOR_RING, type: "service", away: 0, rects: FOOTPRINTS.service },
   ...EXPANSION_PLOTS.map((e): Plot => ({ id: e.id, angleDeg: e.angleDeg, ring: EXPANSION_RING, type: "site", away: 0, rects: hallRects(sitePlan(0), 0.5) })),

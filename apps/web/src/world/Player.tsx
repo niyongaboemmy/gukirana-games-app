@@ -25,6 +25,7 @@ import { useDoorway } from "./doorway";
 import { doorRefusal } from "./door-access";
 import { clearHandoff, peekHandoff } from "./stage";
 import { cameraArm, freePoint, planRoute, plazaObstacles, resolve } from "./obstacles";
+import { clampToFightWalk, FIGHT_WALK_POINTS, fightWalkDepth, fightWalkRoute, onFightWalk, ringOf } from "./layout";
 import type { Tier } from "./materials";
 import { useWorld } from "@/lib/world-store";
 import { lookOf, useProfile } from "@/lib/profile-store";
@@ -184,8 +185,15 @@ export function LocalPlayer({
       (p) => {
         const r = Math.hypot(p.x, p.z);
         // tapping a playable building's doorway walks you through it (the door opens as you arrive)
+        // a tap on the Fight walk (P3-FGT-01): along the walk's corners, then to the spot (and through the door)
+        if (r > PLAZA_RADIUS - 0.5 && onFightWalk(p.x, p.z, 0.6)) {
+          const startIn = Math.hypot(pos.current.x, pos.current.z) < PLAZA_RADIUS - 1.5;
+          const goal = fightWalkDepth(p.x, p.z).at;
+          route.current = startIn ? [...planRoute(pos.current, FIGHT_WALK_POINTS[0]!), ...fightWalkRoute(FIGHT_WALK_POINTS[0]!, goal)] : fightWalkRoute(pos.current, goal);
+          return route.current.shift()!;
+        }
         for (const d of PORTALS) {
-          if (!d.href || r < PLAZA_RADIUS - 1) continue;
+          if (!d.href || r < PLAZA_RADIUS - 1 || ringOf(d) !== DOOR_RING) continue;
           const a = (d.angleDeg * Math.PI) / 180;
           if (
             Math.abs(p.x * Math.cos(a) + p.z * Math.sin(a)) < DOOR.w / 2 &&
@@ -288,6 +296,9 @@ export function LocalPlayer({
     let limit = PLAZA_RADIUS;
     for (const p of PORTALS) {
       if (!p.href || (doorOpen[p.id] ?? 0) < 0.55) continue;
+      const R = ringOf(p);
+      // an outer-ring door (the Fight hall) only counts at its own doorstep, not all along its bearing
+      if (R !== DOOR_RING && r < R - 6) continue;
       // a door held open for someone stepping out is not a way in when it is shut for you (closed / not allowed)
       if (!entering && stepOut.current <= 0 && doorRefusal(p.id)) continue;
       const a = (p.angleDeg * Math.PI) / 180;
@@ -296,18 +307,19 @@ export function LocalPlayer({
         // walking in: on into the vestibule (a cold hall keeps loading while you are still visibly walking)
         // (entering: up to just short of the lobby's far end; the hall takes over once the camera is through the door)
         // (not entering but already in the lobby, e.g. a crossing was called off: never shove the person back out)
-        const lobbyEnd = DOOR_RING - doorInset(p.kind) + VESTIBULE_DEPTH - 0.45;
-        limit = entering ? lobbyEnd : Math.max(DOOR_RING + 0.4, Math.min(r, lobbyEnd));
+        const lobbyEnd = R - doorInset(p.kind) + VESTIBULE_DEPTH - 0.45;
+        limit = entering ? lobbyEnd : Math.max(R + 0.4, Math.min(r, lobbyEnd));
         // crossing the threshold of an open door: fade and go inside (no button needed; E stays as a fallback)
-        if (r > DOOR_RING - 0.9 && !entering && performance.now() > reentryAfter.current) {
+        if (r > R - 0.9 && !entering && performance.now() > reentryAfter.current) {
           // coming back from the room puts you just outside this door, facing the plaza
           // a few steps out from the door (camera stays on the plaza side, no prompt to walk straight back in)
-          saveDoorPose({ x: Math.sin(a) * (DOOR_RING - 1.2), z: -Math.cos(a) * (DOOR_RING - 1.2), yaw: -a });
+          saveDoorPose({ x: Math.sin(a) * (R - 1.2), z: -Math.cos(a) * (R - 1.2), yaw: -a });
           useTransition.getState().enter(p.href);
         }
       }
     }
-    if (r > limit) pos.current.multiplyScalar(limit / r);
+    // beyond the plaza edge only the Fight walk is walkable (P3-FGT-01): slide along its kerbs
+    if (r > limit && !(r > PLAZA_RADIUS - 0.5 && clampToFightWalk(pos.current))) pos.current.multiplyScalar(limit / r);
     // other people are solid: walk around them (soft push, no passing through) — except my partner in a hug
     for (const op of Object.values(w.players)) {
       if (op.id === people.partner) continue;
@@ -410,7 +422,7 @@ export function LocalPlayer({
         doorBest = doorDist;
         nearDoor = p.id;
       }
-      if (doorDist < 12 && (p.id === "pool" || p.id === "ludo" || p.id === "igisoro" || p.id === "admin" || (p.id === "arena" && !!p.href))) preloadHall(p.id); // warm the hall while walking up
+      if (doorDist < 12 && (p.id === "pool" || p.id === "ludo" || p.id === "igisoro" || p.id === "admin" || (p.id === "arena" && !!p.href) || (p.id === "fight" && !!p.href))) preloadHall(p.id); // warm the hall while walking up
       if (doorDist >= INTERACT_RADIUS) continue;
       // no "Enter …" prompt while stepping out of a hall or when walking away from that door
       if (performance.now() < reentryAfter.current) continue;
