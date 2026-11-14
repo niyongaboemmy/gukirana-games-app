@@ -35,6 +35,9 @@ export interface HallHooks {
   pick?: (ray: THREE.Ray) => P | null;
   /** turn to this heading while standing still (e.g. facing the camera at a photo spot); null = free */
   face?: () => number | null;
+  /** seated: an eye-level spectator camera for this seat (eye + the point to face, both in world space); null = the
+   *  usual over-the-shoulder seated camera. `focus` asks for a tight lens on the look point. */
+  seatedView?: (seatId: string) => { eye: { x: number; y: number; z: number }; look: { x: number; y: number; z: number }; focus: boolean } | null;
   /** movement input is suspended (a full-screen window has the keyboard, e.g. the office computer) */
   frozen?: () => boolean;
 }

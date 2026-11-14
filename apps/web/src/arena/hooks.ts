@@ -7,7 +7,8 @@ import { selfPose } from "@/lib/world-store";
 import { hallHooks, walkQueue } from "@/rooms/hall-hooks";
 import { useRoom } from "@/rooms/room-store";
 import { arenaStand, floorAllowed, requestSeat, seatDenial, useArena } from "./arena-client";
-import { bowlSeat, CONCOURSE, groundAt, LOBBY, OUTER_R, PORTAL_HW, RESTROOM, routeBetween, seatFront, snapWalkable, STAGE, VIP, walkable, type WalkOpts } from "./bowl";
+import { useSpectate } from "./spectate";
+import { bowlSeat, CONCOURSE, FLOOR_Y, groundAt, LOBBY, OUTER_R, PORTAL_HW, RESTROOM, routeBetween, seatFront, snapWalkable, STAGE, VIP, walkable, type WalkOpts } from "./bowl";
 import { nearestSpot, PHOTO_SPOT, seatArrival, type Spot } from "./venue";
 
 /**
@@ -96,6 +97,20 @@ hallHooks.arena = {
     return Math.hypot(selfPose.x - f.x, selfPose.z - f.z) < (s.table.startsWith("V") ? 0.9 : 0.62);
   },
   face: () => (useVenue.getState().photo ? PHOTO_SPOT.yaw : null),
+  // spectator eye view: from your own eyes (seated eye height, nudged forward past the seat back), aimed at the podium
+  seatedView: (id) => {
+    const sp = useSpectate.getState();
+    if (!sp.eye) return null;
+    const s = bowlSeat(id);
+    if (!s) return null;
+    const r = Math.hypot(s.x, s.z) || 1;
+    const fwd = 0.22; // towards the floor: in front of your own head, never inside the row in front
+    return {
+      eye: { x: s.x - (s.x / r) * fwd, y: s.y + 1.2, z: s.z - (s.z / r) * fwd },
+      look: { x: 0, y: FLOOR_Y + STAGE.h + 0.85, z: STAGE.z },
+      focus: sp.focus,
+    };
+  },
   camClamp: (c) => {
     const r = Math.hypot(c.x, c.z);
     const inLobby = selfPose.z > 0 && Math.hypot(selfPose.x, selfPose.z) > OUTER_R;
@@ -231,3 +246,13 @@ export function walkOnStage() {
 export function climbGantry() {
   walkTo({ x: 0, z: -(CONCOURSE.r1 + 2.2) });
 }
+
+// QA hook (dev, or a production build with NEXT_PUBLIC_GK_QA=1): seat geometry for scripted seating / view checks
+if ((process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_GK_QA === "1") && typeof window !== "undefined")
+  (window as unknown as { __gkArenaSeat: unknown }).__gkArenaSeat = {
+    front: (id: string) => {
+      const s = bowlSeat(id);
+      return s ? seatFront(s) : null;
+    },
+    seat: bowlSeat,
+  };

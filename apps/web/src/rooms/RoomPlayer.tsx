@@ -15,7 +15,7 @@ import { useWalletSheet } from "@/wallet/WalletSheet";
 import { clearHandoff, peekHandoff } from "@/world/stage";
 import type { HallLayout, Seat } from "./layouts";
 import { freeChair, tableAt } from "./table-status";
-import { hallHooks, walkQueue } from "./hall-hooks";
+import { hallHooks, walkQueue, type HallHooks } from "./hall-hooks";
 
 const SIT_ANIM = 13;
 const SEAT_RANGE = 1.5;
@@ -133,6 +133,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   const leftChair = useRef<{ id: string; x: number; z: number; at: number } | null>(null);
   /** sit / stand camera moves blend in (critically damped) instead of cutting */
   const camBlendUntil = useRef(0);
+  // arena spectator eye view: the follow-camera state when it began (restored on leaving) and the lens it had
+  const eyeView = useRef({ on: false, baseYaw: 0, basePitch: 0.2, baseDist: 5.8, fov0: 50 });
   const lookPt = useMemo(() => new THREE.Vector3(), []);
   const { camera, gl } = useThree();
   const profile = useProfile();
@@ -606,8 +608,9 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       group.current.rotation.y = facing.current;
     }
 
-    // camera: third person; when seated, over the shoulder towards the table
+    // camera: third person; when seated, over the shoulder towards the table (or the arena's spectator eye view)
     const target = new THREE.Vector3(pos.current.x, seat ? 1.0 : 1.55, pos.current.z);
+    let sv: ReturnType<NonNullable<HallHooks["seatedView"]>> = null;
     let cx: number;
     let cy: number;
     let cz: number;
@@ -635,6 +638,39 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       cy = 1.6 + Math.sin(cameraState.pitch) * dd;
       const k = THREE.MathUtils.smoothstep(1 - intro.current / INTRO_S, 0, 1);
       target.set(pos.current.x, THREE.MathUtils.lerp(1.2, 1.55, k), pos.current.z - (1 - k) * 3.4);
+    } else if (seat && (sv = hooks?.seatedView?.(seat.id) ?? null)) {
+      // spectator eye view (arena): the camera at your own eyes, facing the podium; drag looks around within a
+      // natural head turn, pinch / wheel zooms, "focus" narrows the lens onto the stage. Heights are relative to the
+      // seat's surface (the multi-level rig below adds it back).
+      const gy = pos.current.y;
+      const e = eyeView.current;
+      if (!e.on) {
+        e.on = true;
+        e.baseYaw = cameraState.yaw;
+        e.basePitch = cameraState.pitch;
+        e.baseDist = cameraState.distance;
+        e.fov0 = (camera as THREE.PerspectiveCamera).fov;
+        camBlendUntil.current = performance.now() + 900; // glide from behind the seat into your eyes
+      }
+      const dx = sv.look.x - sv.eye.x;
+      const dz = sv.look.z - sv.eye.z;
+      const flat = Math.hypot(dx, dz) || 1;
+      const yaw0 = Math.atan2(dx, dz);
+      const pitch0 = Math.atan2(sv.look.y - sv.eye.y, flat);
+      const yaw = yaw0 + THREE.MathUtils.clamp(wrapA(cameraState.yaw - e.baseYaw), -1.45, 1.45);
+      const pitch = THREE.MathUtils.clamp(pitch0 - (cameraState.pitch - e.basePitch) * 0.9, -1.0, 0.55);
+      cx = sv.eye.x;
+      cz = sv.eye.z;
+      cy = sv.eye.y - gy;
+      target.set(sv.eye.x + Math.sin(yaw) * Math.cos(pitch) * 10, sv.eye.y - gy + Math.sin(pitch) * 10, sv.eye.z + Math.cos(yaw) * Math.cos(pitch) * 10);
+      // lens: wheel / pinch zoom (the follow distance range 2.2–12 maps to 24°–58°); focus = a tight podium lens
+      const zoom = THREE.MathUtils.clamp(cameraState.distance - e.baseDist, -6, 6);
+      const want = sv.focus ? 22 : THREE.MathUtils.clamp(48 + zoom * 4, 24, 58);
+      const pc = camera as THREE.PerspectiveCamera;
+      if (Math.abs(pc.fov - want) > 0.05) {
+        pc.fov += (want - pc.fov) * Math.min(1, dt * 5);
+        pc.updateProjectionMatrix();
+      }
     } else if (seat) {
       const tb = layout.tables.find((t) => t.id === seat.table);
       if (tb && tb.w < 1.5 && tb.d < 1.5) {
@@ -702,7 +738,21 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
         }
       }
     }
-    if (walls.length) {
+    const ev = eyeView.current;
+    if (!sv && ev.on) {
+      // back from the eye view: the normal lens and the follow distance / angle you had before
+      ev.on = false;
+      const pc = camera as THREE.PerspectiveCamera;
+      pc.fov = ev.fov0;
+      pc.updateProjectionMatrix();
+      cameraState.yaw = ev.baseYaw;
+      cameraState.pitch = ev.basePitch;
+      cameraState.distance = ev.baseDist;
+      camBlendUntil.current = performance.now() + 900;
+    }
+    // your own avatar is hidden in the eye view (you look out of its eyes; nothing of you blocks the stage)
+    if (group.current) group.current.visible = !sv;
+    if (walls.length && !sv) {
       // full-height walls and closed doors: the camera stays on your side of them (pulled in along the view line,
       // at any height), so it never looks at a wall from behind or into the office next door
       const tall = [...walls, ...(hooks?.solids?.() ?? [])];

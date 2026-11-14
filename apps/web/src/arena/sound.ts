@@ -44,13 +44,19 @@ function ensureCrowd() {
   return crowd;
 }
 
+/** Spectator focus (seated, eye view): the crowd bed and swell sit further back so the stage is what you hear. */
+let focusDuck = 1;
+export function setFocusDuck(on: boolean) {
+  focusDuck = on ? 0.3 : 1;
+}
+
 /** Set the crowd levels (0 … 1); `on` false fades out (arena off screen). */
 export function setCrowd(bed: number, swell: number, on: boolean) {
   const c = on ? ensureCrowd() : crowd;
   const ctx = uiAudio();
   if (!c || !ctx) return;
-  c.gain.gain.setTargetAtTime(on ? bed * 0.18 : 0, ctx.currentTime, 0.8);
-  c.swell.gain.setTargetAtTime(on ? swell * 0.22 : 0, ctx.currentTime, swell > 0.05 ? 0.25 : 1.2);
+  c.gain.gain.setTargetAtTime(on ? bed * 0.18 * focusDuck : 0, ctx.currentTime, 0.8);
+  c.swell.gain.setTargetAtTime(on ? swell * 0.22 * Math.max(focusDuck, 0.5) : 0, ctx.currentTime, swell > 0.05 ? 0.25 : 1.2);
 }
 
 /** Two-tone PA chime (E5 → C5), soft. */

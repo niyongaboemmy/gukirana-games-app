@@ -22,7 +22,12 @@ export const TAP_MS = 260;
  * private room with them (an office conversation): no distance falloff inside it. Unset = open space (plaza / halls).
  * The realtime server enforces the same rule on the voice signalling.
  */
-export const voiceScope: { allow: ((id: string) => boolean) | null; room: ((id: string) => boolean) | null } = { allow: null, room: null };
+export const voiceScope: {
+  allow: ((id: string) => boolean) | null;
+  room: ((id: string) => boolean) | null;
+  /** extra level 0…1 per remote voice (e.g. a spectator focusing on the stage hears the bowl softer); unset = 1 */
+  duck: ((id: string) => number) | null;
+} = { allow: null, room: null, duck: null };
 
 type Status = "off" | "starting" | "on" | "denied" | "error";
 interface VoiceState {
@@ -282,7 +287,8 @@ function spatialize() {
     // (closed offices) cut entirely, a shared office is heard in full
     const zoned = !voiceScope.allow || voiceScope.allow(id);
     const range = !zoned ? 0 : voiceScope.room?.(id) ? 1 : d >= VOICE_RANGE ? 0 : d > VOICE_RANGE - 1.5 ? (VOICE_RANGE - d) / 1.5 : 1;
-    peer.nodes.gain.gain.setTargetAtTime(vol * range, ctx.currentTime, 0.08);
+    const duck = voiceScope.duck ? Math.max(0, Math.min(1, voiceScope.duck(id))) : 1;
+    peer.nodes.gain.gain.setTargetAtTime(vol * range * duck, ctx.currentTime, 0.2);
   }
 }
 

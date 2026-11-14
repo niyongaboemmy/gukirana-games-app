@@ -18,9 +18,11 @@ import {
   Mic,
   MicOff,
   PartyPopper,
+  ScanSearch,
   Sparkles,
   Ticket,
   Trophy,
+  UserRound,
   Users,
   X,
   type LucideIcon,
@@ -42,7 +44,8 @@ import { announce, bindArenaRealtime, claimPass, fetchArenaStatus, loadArenaRole
 import { climbGantry, endPhoto, goToSeat, startPhoto, takeSeat, useVenue, visitRestroom, walkOnStage } from "./hooks";
 import { BOWL_SEATS, CONCOURSE, FLOOR_R, LOBBY, LOWER_BACK, OUTER_R, polar, SECTIONS, sectionLabel, UPPER_BACK, type BowlSeat } from "./bowl";
 import { boxAt, countdown, crowdLevel, PA, voiceRule, type SpotKind } from "./venue";
-import { paChime, setCrowd } from "./sound";
+import { paChime, setCrowd, setFocusDuck } from "./sound";
+import { useSpectate } from "./spectate";
 import { A, denialText, scopeWords, V, whenWords } from "./strings";
 
 const glass = "glass rounded-card";
@@ -184,6 +187,9 @@ export function ArenaOverlay({ layout }: { layout: HallLayout }) {
       const a = useArena.getState();
       const people = a.status?.occupancy.concourse ?? Object.keys(useWorld.getState().players).length + 1;
       const lvl = crowdLevel(people, a.reactions, Date.now());
+      // spectator focus: seated in the eye view → the crowd bed and the rest of the bowl's voices sit back
+      const focused = !!useRoom.getState().seated && useSpectate.getState().eye;
+      setFocusDuck(focused);
       setCrowd(lvl.bed, lvl.swell, useStage.getState().view === "hall:arena");
       setBox(boxAt(selfPose.x, selfPose.z));
     }, 500);
@@ -193,11 +199,23 @@ export function ArenaOverlay({ layout }: { layout: HallLayout }) {
     };
     voiceScope.allow = (pid) => voiceRule({ box: boxAt(selfPose.x, selfPose.z) }, { id: pid, box: boxOf(pid) }, useArena.getState().onAir).allow;
     voiceScope.room = (pid) => voiceRule({ box: boxAt(selfPose.x, selfPose.z) }, { id: pid, box: boxOf(pid) }, useArena.getState().onAir).room;
+    // spectator focus: the commentator, your VIP box and the people right next to you stay clear; the rest of the
+    // bowl is softer (private calls are not affected: they bypass this)
+    voiceScope.duck = (pid) => {
+      if (!useRoom.getState().seated || !useSpectate.getState().eye) return 1;
+      if (pid === useArena.getState().onAir) return 1;
+      const p = useWorld.getState().players[pid];
+      if (!p) return 1;
+      const d = Math.hypot(p.x / 100 - selfPose.x, p.z / 100 - selfPose.z);
+      return d < 2.2 ? 0.85 : 0.3;
+    };
     return () => {
       clearInterval(id);
       setCrowd(0, 0, false);
+      setFocusDuck(false);
       voiceScope.allow = null;
       voiceScope.room = null;
+      voiceScope.duck = null;
     };
   }, []);
 
@@ -716,9 +734,39 @@ export function ArenaOverlay({ layout }: { layout: HallLayout }) {
               {ev ? ` · ${ev.title}` : ""}
               {cd ? ` · ${V.startsIn(cd.text)}` : ""}
             </p>
+            <SpectatorControls />
           </PaperCard>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Seated: look from your own eyes at the podium (default), or the over-the-shoulder view; zoom onto the stage. */
+function SpectatorControls() {
+  const { eye, focus, set } = useSpectate();
+  return (
+    <div className="mt-2 grid gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <div className="pseg flex-1" role="group" aria-label={A.eyeView}>
+          <button type="button" aria-pressed={eye} onClick={() => set({ eye: true })} className="min-h-9! text-sm! phone:min-h-8! phone:text-xs!">
+            <Eye size={15} /> {A.eyeView}
+          </button>
+          <button type="button" aria-pressed={!eye} onClick={() => set({ eye: false, focus: false })} className="min-h-9! text-sm! phone:min-h-8! phone:text-xs!">
+            <UserRound size={15} /> {A.behindView}
+          </button>
+        </div>
+        <button
+          type="button"
+          aria-pressed={focus}
+          disabled={!eye}
+          onClick={() => set({ focus: !focus })}
+          className={`ptab !min-h-9 !flex-none px-3 text-sm phone:!min-h-8 phone:text-xs ${focus ? "is-on" : ""} disabled:opacity-40`}
+        >
+          <ScanSearch size={15} /> {focus ? A.focusOn : A.focusStage}
+        </button>
+      </div>
+      {eye && <p className="pmuted text-xs phone:hidden">{A.viewHint}</p>}
     </div>
   );
 }
