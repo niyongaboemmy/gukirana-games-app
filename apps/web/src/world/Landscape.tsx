@@ -10,7 +10,7 @@ import { Flowers } from "./Flowers";
 import { sessionMemo } from "./session-cache";
 import { BitmapTextureLoader } from "./bitmap-texture";
 import { COMPOUND_R } from "./layout";
-import { campusOutside, PUBLIC_ROAD, roadY } from "./campus";
+import { campusOutside, campusTrees, PUBLIC_ROAD, roadY } from "./campus";
 import { mistUniform } from "./activities";
 import { buildCountryside, countrysideMask, polyDist, type Countryside } from "./countryside";
 import { terrainMaterial } from "./terrain-shader";
@@ -500,6 +500,8 @@ function Vegetation({ tier }: { tier: Tier }) {
       return !inLake(x, z);
     };
     const country = countryside();
+    // shade trees inside the compound: car-park planters, along the district walks, lawn clusters (P2-WLD-12)
+    for (const t of campusTrees()) acacia.push({ x: t.x, y: -0.05, z: t.z, rotY: t.rotY, s: t.s });
     /** on (or within `m` m of) a road or the river water */
     const near = (x: number, z: number, m: number) =>
       Math.abs(z - PUBLIC_ROAD.mid) < 7 + m ||

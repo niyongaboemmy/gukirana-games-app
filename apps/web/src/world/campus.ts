@@ -625,3 +625,47 @@ export const WALK_TOTEMS: WalkTotem[] = (() => {
   }
   return out;
 })();
+
+/* ---------------------------------------------------------------- campus trees ---------------------------------------------------------------- */
+
+/**
+ * Shade trees inside the compound (plan §3.4): one in every car-park planter island, trees along the district walks
+ * (alternating sides, clear of buildings, walks and roads) and small clusters on the lawns between the district
+ * plots inside the loop. The volcano corridor stays open. Deterministic (hashes), drawn by Landscape's tree species.
+ */
+export function campusTrees(): { x: number; z: number; rotY: number; s: number }[] {
+  const out: { x: number; z: number; rotY: number; s: number }[] = [];
+  let i = 0;
+  const ok = (x: number, z: number) =>
+    !inBuilding(x, z, 3) &&
+    !nearCampusWalk(x, z, 1.8) &&
+    !onCampusRoad(x, z, 1.5) &&
+    Math.hypot(x, z) > PLAZA_RADIUS + 9 &&
+    Math.abs((Math.atan2(x, -z) * 180) / Math.PI) > VIEW_CORRIDOR_DEG &&
+    out.every((t) => Math.hypot(t.x - x, t.z - z) > 6);
+  const add = (x: number, z: number, s = 0.8) => {
+    out.push({ x, z, rotY: hash01(i, 31) * Math.PI * 2, s: s + hash01(i, 32) * 0.3 });
+    i++;
+  };
+  for (const b of PARKING_BAYS) if (b.tree) add(b.x, b.z, 0.7);
+  for (const w of DISTRICT_WALKS)
+    for (let k = 0; k < w.pts.length - 1; k++) {
+      const a = w.pts[k]!;
+      const b = w.pts[k + 1]!;
+      const L = Math.hypot(b.x - a.x, b.z - a.z);
+      for (let t = 8; t < L - 4; t += 11) {
+        const side = (Math.floor(t / 11) + k) % 2 ? 1 : -1;
+        const x = a.x + ((b.x - a.x) * t) / L - ((b.z - a.z) / L) * side * (w.hw + 3.2);
+        const z = a.z + ((b.z - a.z) * t) / L + ((b.x - a.x) / L) * side * (w.hw + 3.2);
+        if (ok(x, z)) add(x, z);
+      }
+    }
+  for (const deg of [-108, -80, -50, 50, 108])
+    for (let k = 0; k < 4; k++) {
+      const r = 128 + (hash01(k + Math.abs(deg), 41) - 0.5) * 14;
+      const d = deg + (hash01(k + Math.abs(deg), 42) - 0.5) * 6;
+      const q = ringPoint(d, r);
+      if (ok(q.x, q.z)) add(q.x, q.z, 0.9);
+    }
+  return out;
+}

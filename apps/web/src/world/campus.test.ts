@@ -7,6 +7,7 @@ import {
   CAMPUS_LOOP,
   CAMPUS_WALKS,
   campusOutside,
+  campusTrees,
   campusWalkLength,
   campusWalkRoute,
   compoundR,
@@ -143,6 +144,16 @@ describe("campus master plan (P2-WLD-12)", () => {
     const built = PLOTS.map(plotOutline);
     for (const b of PARKING_BAYS) for (const o of built) for (const q of o) expect(Math.hypot(q.x - b.x, q.z - b.z)).toBeGreaterThan(4);
     for (const p of built) for (const q of p) expect(onCampusRoad(q.x, q.z, 0.5)).toBe(false);
+  });
+
+  it("campus trees stand on lawn or in planters: never on a walk or a road, never in a building", () => {
+    const trees = campusTrees();
+    expect(trees.length).toBeGreaterThan(20);
+    for (const t of trees) {
+      expect(inBuilding(t.x, t.z, 2)).toBe(false);
+      expect(walkDepth(t.x, t.z).depth).toBeLessThan(-1);
+      expect(inCompound(t.x, t.z, 1)).toBe(true);
+    }
   });
 
   it("the loop is one continuous road", () => {
