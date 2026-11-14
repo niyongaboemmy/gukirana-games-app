@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GeoBatch } from "./geo";
+import { roofKit, roofMembrane } from "./roofs";
 import { LAMPS } from "./obstacles";
 import { RING_PLANTERS } from "./beds";
 import { activityProps } from "./activity-props";
@@ -141,6 +142,17 @@ function poolHall(b: GeoBatch) {
   b.box("steel", 3, 1.2, 2, { p: [cx - 6, H2 + 1.1, cz] });
   b.box("steel", 2, 0.9, 1.4, { p: [cx + 4, H2 + 0.95, cz - 4] });
   b.box("steel", 2.4, 1.0, 1.6, { p: [cx + 9, H2 + 1.0, cz + 5] });
+  // roofs seen from above (P2-WLD-11): membrane on the wing and the hall, skylights beside the existing plant
+  roofMembrane(b, { x0: -W / 2 - 0.6, x1: W / 2 + 0.6, z0: 1.4, z1: -D - 0.2, y: H + 0.9 }, 0.15);
+  roofMembrane(b, { x0, x1, z0, z1, y: H2 + 0.5 }, 0.1);
+  roofKit(b, { x0, x1, z0, z1, y: H2 + 0.5 }, 11, {
+    hvac: 1,
+    keep: [
+      { x0: cx - 8, x1: cx - 4, z0: cz + 1.6, z1: cz - 1.6 },
+      { x0: cx + 2.6, x1: cx + 5.4, z0: cz - 3, z1: cz - 5 },
+      { x0: cx + 7.4, x1: cx + 10.6, z0: cz + 6, z1: cz + 4 },
+    ],
+  });
 }
 
 function ludoLounge(b: GeoBatch) {
@@ -191,6 +203,9 @@ function ludoLounge(b: GeoBatch) {
   for (const s of [-1, 1]) b.box("steel", 0.12, 1.95, 0.14, { p: [die.x + s * 1.26, R2 + 3.6, die.z] });
   doorSurround(b, "led-ludo", -0.35);
   pylons(b, 4.6);
+  // roofs seen from above (P2-WLD-11): membrane and plant behind the roof terrace (umbrellas, die mast stay clear)
+  roofMembrane(b, { x0, x1, z0, z1, y: R2 }, 0.1);
+  roofKit(b, { x0, x1, z0, z1, y: R2 }, 23, { keep: [{ x0, x1, z0, z1: z0 - 9 }] });
 }
 
 /**
@@ -241,6 +256,10 @@ function adminBlock(b: GeoBatch) {
     const xb = s < 0 ? -WING_HW - 1.0 : x1 - 1.0;
     if (xb - xa > 2) b.box("glass", xb - xa, 2.2, 0.06, { p: [(xa + xb) / 2, 2.3, z0 + 0.03], tile: 6 });
   }
+  // roofs seen from above (P2-WLD-11): membrane on the wing and the office floor, skylights and plant
+  roofMembrane(b, { x0: -W / 2 - 0.2, x1: W / 2 + 0.2, z0: 0.6, z1: -D, y: H + 0.4 }, 0.15);
+  roofMembrane(b, { x0, x1, z0, z1, y: H2 + 0.5 }, 0.1);
+  roofKit(b, { x0, x1, z0, z1, y: H2 + 0.5 }, 37);
   // flagpoles (east of the entrance; the cloth flags are animated in Ambience.tsx)
   for (const x of ADMIN_FLAGPOLES) {
     b.cyl("steel", 0.045, 0.06, 9, 8, { p: [x, 4.5, ADMIN_FLAG_Z] });
