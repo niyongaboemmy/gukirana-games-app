@@ -17,6 +17,9 @@ import { useWorld } from "@/lib/world-store";
 import { fightActions, setFightActions, type FightActions, fightLog } from "./actions";
 import { gameFightActions } from "./game/actions";
 import { useFightBridge } from "./bridge";
+import { ringSteps as kitSteps } from "@/rooms/fight/ring-kit-core";
+import { kitSpec } from "./climb";
+import { RING_BY_ID } from "./plan";
 
 /**
  * W's test bed until G's boxing client lands (P3-FGT-01 §9 speed plan): behind `?fightmock=1` it fills the bridge with
@@ -169,6 +172,15 @@ function mockEvents(s: BoxingSnapshot): FightEvent[] {
   return out;
 }
 
+/** QA: where to stand for a ring's red steps, and a camera that sees the climb (screenshots) */
+function qaPlace(id: RingId) {
+  const r = RING_BY_ID[id];
+  if (!r) return null;
+  const s = kitSteps(kitSpec(r), "red");
+  // the camera stands in the aisle in front of the ring, looking along the side with the steps
+  return { fx: s.foot.x, fz: s.foot.z, yaw: s.foot.yaw, cx: s.foot.x + (s.top.x - s.foot.x) * 0.3, cz: r.z + r.half + 2.6, lx: s.top.x, lz: s.top.z };
+}
+
 /* ---------------- running it ---------------- */
 
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -258,7 +270,7 @@ export function startFightMock() {
     }
     if (Object.keys(patch).length) useFightBridge.setState(patch);
   }, 100);
-  if (process.env.NODE_ENV !== "production") Object.assign(window as unknown as Record<string, unknown>, { __gkFight: { bridge: useFightBridge, actions: fightActions, log: fightLog, snapshot: mockSnapshot } });
+  if (process.env.NODE_ENV !== "production") Object.assign(window as unknown as Record<string, unknown>, { __gkFight: { bridge: useFightBridge, actions: fightActions, log: fightLog, snapshot: mockSnapshot, place: qaPlace } });
 }
 
 export function stopFightMock() {

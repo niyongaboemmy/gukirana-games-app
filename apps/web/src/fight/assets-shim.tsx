@@ -117,7 +117,13 @@ const now = () => performance.now() / 1000;
  * Every frame the pose request (clip + time into it, from the snapshot) becomes a `play` when it changes; a hit
  * reaction is played over it. The kit fades in with the KitSwap timing as they step in (≈ 0.5 s, dithered).
  */
-export function FighterAvatar({ look, corner, poseRef, lite = false }: { look: AvatarLook; corner: Corner; poseRef: React.RefObject<FighterPose | null>; lite?: boolean }) {
+/** climbing the ring steps (fight/climb): walking uses the base walk clip (layer off), ducking blends the duck pose in */
+export interface ClimbBlend {
+  walk: boolean;
+  duck: number;
+}
+
+export function FighterAvatar({ look, corner, poseRef, lite = false, climbRef }: { look: AvatarLook; corner: Corner; poseRef: React.RefObject<FighterPose | null>; lite?: boolean; climbRef?: React.RefObject<ClimbBlend | null> }) {
   const motion = useMemo(() => new BoxingMotion(), []);
   const kit = useMemo(() => boxingKitOverride(look, corner, { headgear: true }), [look, corner]);
   const weight = useMemo(() => ({ current: 1 }), []);
@@ -130,6 +136,11 @@ export function FighterAvatar({ look, corner, poseRef, lite = false }: { look: A
   useFrame(() => {
     const t = now();
     fade.current = swap.sample(t).fade;
+    // on the steps: the normal walk clip, the boxing layer eased out; through the ropes: the duck pose eased in
+    const cl = climbRef?.current;
+    const target = cl?.walk ? 0 : 1;
+    weight.current += (target - weight.current) * 0.25;
+    anim.current = cl?.walk ? 1 : 0;
     const p = poseRef.current;
     if (!p) return;
     // a hit reaction plays once, over whatever was showing

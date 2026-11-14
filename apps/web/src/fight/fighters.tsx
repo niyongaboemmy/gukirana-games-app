@@ -8,7 +8,8 @@ import { decodeLook, seededLook, type AvatarLook } from "@/world/outfits";
 import { lookOf, useProfile } from "@/lib/profile-store";
 import { hiddenPeople, SELF_ID } from "@/rooms/hall-hooks";
 import { isOnScreen, useArea } from "@/world/stage";
-import { FighterAvatar, type FighterPose } from "./assets-shim";
+import { FighterAvatar, type ClimbBlend, type FighterPose } from "./assets-shim";
+import { CLIMB_S, climbPose } from "./climb";
 import { IMPOSTOR_POSES, impostorGeometry, impostorMaterial } from "./impostor-geometry";
 import { drainMyEvents, useFightBridge } from "./bridge";
 import { RING_BY_ID, RINGS, type RingPlace } from "./plan";
@@ -29,9 +30,17 @@ const LIVE = new Set(["fighting", "practice", "starting", "result", "waiting"]);
 
 interface Slot {
   ring: RingId;
-  /** the snapshot source: mine / watched (real frames) or none (a local sparring loop) */
-  src: "mine" | "watched" | "loop";
+  /** the snapshot source: mine / watched (real frames), none (a local sparring loop), or my climb out after a fight */
+  src: "mine" | "watched" | "loop" | "exit";
 }
+
+/**
+ * My climb into / out of the ring (P3-FGT-03): starts when my fight starts (in) and when it ends (out). While it runs
+ * my fighter walks the ring kit's corner steps and ducks through the ropes (fight/climb climbPose); after a fight the
+ * exit slot keeps drawing me until I am down the steps.
+ */
+export const myClimb: { run: { ring: RingId; corner: Corner; dir: "in" | "out"; t0: number } | null } = { run: null };
+const climbing = (dir: "in" | "out") => !!myClimb.run && myClimb.run.dir === dir && performance.now() - myClimb.run.t0 < CLIMB_S * 1000;
 
 export function FightersLayer({ lite }: { lite: boolean }) {
   const area = useArea();
@@ -42,6 +51,17 @@ export function FightersLayer({ lite }: { lite: boolean }) {
     () => () => {
       for (const id of hidden.current) hiddenPeople.delete(id);
     },
+    [],
+  );
+  useEffect(
+    () =>
+      useFightBridge.subscribe((s, prev) => {
+        // (the in-climb waits a moment for the fighter avatar to mount; the layer re-plans on the next frame)
+        if (s.mine && (!prev.mine || prev.mine.ring !== s.mine.ring)) myClimb.run = { ring: s.mine.ring, corner: s.mine.corner, dir: "in", t0: performance.now() + 300 };
+        else if (!s.mine && prev.mine) myClimb.run = { ring: prev.mine.ring, corner: prev.mine.corner, dir: "out", t0: performance.now() };
+        else return;
+        acc.current = 1;
+      }),
     [],
   );
   useFrame(({ camera }, dt) => {
@@ -59,12 +79,13 @@ export function FightersLayer({ lite }: { lite: boolean }) {
     }
     // in my own fight (live or practice) this layer draws me too
     const you = useWorld.getState().you ?? SELF_ID;
-    if (b.mine) now.add(you);
+    if (b.mine || climbing("out")) now.add(you);
     for (const id of hidden.current) if (!now.has(id)) hiddenPeople.delete(id);
     for (const id of now) hiddenPeople.add(id);
     hidden.current = now;
     const out: Slot[] = [];
     if (b.mine) out.push({ ring: b.mine.ring, src: "mine" });
+    else if (climbing("out")) out.push({ ring: myClimb.run!.ring, src: "exit" });
     if (b.watched && b.watched.ring !== b.mine?.ring) out.push({ ring: b.watched.ring, src: "watched" });
     const near = RINGS.filter((r) => LIVE.has(b.rings[r.id]?.status ?? "free") && !out.some((s) => s.ring === r.id))
       .map((r) => ({ r, d: Math.hypot(r.x - camera.position.x, r.z - camera.position.z) }))
@@ -102,7 +123,8 @@ const _a = new THREE.Vector3();
 function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
   const place = RING_BY_ID[slot.ring]!;
   const entry = useFightBridge((s) => s.rings[slot.ring]);
-  const myCorner = useFightBridge((s) => (slot.src === "mine" ? (s.mine?.corner ?? null) : null));
+  const liveCorner = useFightBridge((s) => (slot.src === "mine" ? (s.mine?.corner ?? null) : null));
+  const myCorner = liveCorner ?? (slot.src === "exit" ? (myClimb.run?.corner ?? null) : null);
   const you = useWorld((s) => s.you) ?? SELF_ID;
   // my own fight: me in my corner (my look), the opponent from the registry (or the practice AI)
   const fighterOf = (c: Corner): RingFighter | undefined => (myCorner === c ? { sid: you, name: "", corner: c } : entry?.[c]);
@@ -110,6 +132,7 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
   const blue = useFighterLook(fighterOf("blue"), `${slot.ring}-blue`);
   const g = [useRef<THREE.Group>(null), useRef<THREE.Group>(null)] as const;
   const poses = [useRef<FighterPose | null>(null), useRef<FighterPose | null>(null)] as const;
+  const climbs = [useRef<ClimbBlend | null>(null), useRef<ClimbBlend | null>(null)] as const;
   const react = useRef<[{ clip: FighterPose["clip"]; at: number } | null, { clip: FighterPose["clip"]; at: number } | null]>([null, null]);
   const loopT0 = useMemo(() => performance.now() - ((hashOf(slot.ring) % 997) * 1000) / 3, [slot.ring]);
   useFrame(() => {
@@ -154,15 +177,34 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
         react: r && now - r.at < 500 ? { clip: r.clip, t: (now - r.at) / 1000 } : null,
       };
     });
+    // my climb in / out over the corner steps overrides my fighter's place and pose
+    const run = myClimb.run;
+    const ci: 0 | 1 | -1 = run && run.ring === slot.ring && (slot.src === "mine" || slot.src === "exit") ? (run.corner === "red" ? 0 : 1) : -1;
+    for (const k of [0, 1] as const) if (k !== ci) climbs[k].current = null;
+    if (run && ci !== -1) {
+      const t = (now - run.t0) / 1000;
+      const grp = g[ci]!.current;
+      if (t < CLIMB_S || slot.src === "exit") {
+        const cp = climbPose(place, run.corner, run.dir, Math.min(t, CLIMB_S));
+        grp?.position.set(cp.x, cp.y, cp.z);
+        if (grp) grp.rotation.y = cp.yaw;
+        climbs[ci]!.current = { walk: cp.walk && t < CLIMB_S, duck: cp.duck };
+        poses[ci]!.current = { clip: cp.duckT >= 0 ? "duck" : "guard", t: cp.duckT >= 0 ? cp.duckT * 0.7 : 0, react: null };
+      } else climbs[ci]!.current = null;
+    }
   });
+  const showRed = slot.src !== "exit" || myCorner === "red";
+  const showBlue = slot.src === "exit" ? myCorner === "blue" : !!(entry?.blue || entry?.status === "practice" || slot.src === "mine");
   return (
     <group>
-      <group ref={g[0]}>
-        <FighterAvatar look={red} corner="red" poseRef={poses[0]} lite={lite} />
-      </group>
-      {(entry?.blue || entry?.status === "practice" || slot.src === "mine") && (
+      {showRed && (
+        <group ref={g[0]}>
+          <FighterAvatar look={red} corner="red" poseRef={poses[0]} lite={lite} climbRef={climbs[0]} />
+        </group>
+      )}
+      {showBlue && (
         <group ref={g[1]}>
-          <FighterAvatar look={blue} corner="blue" poseRef={poses[1]} lite={lite} />
+          <FighterAvatar look={blue} corner="blue" poseRef={poses[1]} lite={lite} climbRef={climbs[1]} />
         </group>
       )}
     </group>

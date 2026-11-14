@@ -28,6 +28,8 @@ export interface ClimbPose {
   walk: boolean;
   /** 0…1: ducking under the ropes (the boxing duck pose weight) */
   duck: number;
+  /** 0…1 through the ropes (the duck clip's progress), −1 outside that leg */
+  duckT: number;
   done: boolean;
 }
 
@@ -47,6 +49,7 @@ export function climbPose(r: RingPlace, corner: Corner, dir: "in" | "out", t: nu
   let x: number, z: number, y: number, yaw: number;
   let walk = false;
   let duck = 0;
+  let duckT = -1;
   if (k <= CLIMB.walk) {
     // up the steps: the height follows the treads (with a short smooth rise between them)
     const u = Math.max(0, k) / CLIMB.walk;
@@ -65,6 +68,7 @@ export function climbPose(r: RingPlace, corner: Corner, dir: "in" | "out", t: nu
     y = r.canvasY;
     yaw = dir === "in" ? inYaw : yawOut;
     duck = Math.sin(Math.PI * Math.min(1, u * 1.1));
+    duckT = u;
   } else {
     const u = Math.min(1, (k - CLIMB.walk - CLIMB.duck) / CLIMB.turn);
     x = s.in.x;
@@ -73,5 +77,5 @@ export function climbPose(r: RingPlace, corner: Corner, dir: "in" | "out", t: nu
     const from = dir === "in" ? inYaw : yawOut;
     yaw = from + wrap(centreYaw - from) * smooth(u);
   }
-  return { x, y, z, yaw, walk, duck, done: t >= CLIMB_S };
+  return { x, y, z, yaw, walk, duck, duckT, done: t >= CLIMB_S };
 }
