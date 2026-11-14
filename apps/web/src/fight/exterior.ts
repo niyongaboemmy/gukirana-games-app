@@ -1,12 +1,15 @@
+import * as THREE from "three";
 import { DOOR } from "@/world/layout";
 import type { GeoBatch } from "@/world/geo";
 import { FIGHT_BUILDING, FIGHT_DOOR_INSET } from "./plan";
 
 /**
- * Fight Games hall exterior (P3-FGT-01, plan §4.1), built in its plaza door frame (door centre at the origin, facade
- * towards +z): a low charcoal lobby wing with a timber-slat facade, red and blue light lines and the ring-and-glove
- * sign, and the tall Boxing hall behind it (chamfered back corners, timber band, light lines along the parapet).
- * Merged into the district batch (world/District.ts): ~one draw call per material.
+ * Fight Games hall exterior (P3-FGT-01, plan §4.1; modernised in P3-FGT-03), built in the building's own door frame
+ * (door centre at the origin, facade towards +z; the District places the frame from the plot, so moving the building
+ * is a change of its site constants only): the tall Boxing hall (chamfered back corners, timber band, light lines
+ * along the parapet) with the lit "FIGHT GAMES" sign on its front, and the lobby wing — glazing either side of the
+ * door, a cantilevered entrance canopy with a lit fascia and downlights, a step-free forecourt, planters with hedges
+ * and small trees, the live board on the left wing. Merged into the district batch: ~one draw call per material.
  */
 export function fightHall(b: GeoBatch) {
   const f = FIGHT_BUILDING;
@@ -53,45 +56,97 @@ export function fightHall(b: GeoBatch) {
   b.box("steel", 3.2, 1.3, 2.2, { p: [-18, H + 1.15, (f.front + f.back) / 2] });
   b.box("steel", 2.4, 1.0, 1.6, { p: [22, H + 1.0, (f.front + f.back) / 2 - 6] });
 
-  /* ---- lobby wing ---- */
+  /* ---- lobby wing (P3-FGT-03: a modern entrance, same footprint) ---- */
   const LH = f.lobbyH;
   const fz = FIGHT_DOOR_INSET + t / 2; // front wall centre (its inside face is the door line)
+  const face = fz + t / 2; // outside face of the front wall
   const ow = DOOR.w + 0.4;
   const oh = DOOR.h + 0.2;
   const side = f.lobbyHw - ow / 2;
   for (const s of [-1, 1]) b.box("charcoal", side, LH, t, { p: [s * (ow / 2 + side / 2), LH / 2, fz], tile: 2 });
   b.box("charcoal", ow, LH - oh, t, { p: [0, oh + (LH - oh) / 2, fz], tile: 2 });
   for (const s of [-1, 1]) b.box("charcoal", t, LH, fz - f.front, { p: [s * (f.lobbyHw - t / 2), LH / 2, (fz + f.front) / 2], tile: 2 });
-  b.box("concreteDark", f.lobbyHw * 2 + 1.0, 0.55, fz - f.front + 2.2, { p: [0, LH + 0.27, (fz + f.front) / 2 + 0.9], tile: 2 });
-  for (const s of [-1, 1]) b.box("lava", side, 0.9, 0.12, { p: [s * (ow / 2 + side / 2), 0.45, fz + t / 2 + 0.06], tile: 1.2 });
-  // timber slats over the facade (clear of the door), lit from the canopy
-  for (let x = -f.lobbyHw + 0.6; x <= f.lobbyHw - 0.5; x += 0.55) {
-    if (Math.abs(x) < 3.2) continue;
-    b.box("woodDark", 0.09, LH - 0.5, 0.22, { p: [x, (LH - 0.5) / 2, fz + t / 2 + 0.18], tile: 1 });
+  b.box("concreteDark", f.lobbyHw * 2 + 1.0, 0.55, fz - f.front + 1.2, { p: [0, LH + 0.27, (fz + f.front) / 2 + 0.4], tile: 2 });
+  for (const s of [-1, 1]) b.box("lava", side, 0.3, 0.1, { p: [s * (ow / 2 + side / 2), 0.15, face + 0.05], tile: 1.2 });
+
+  // floor-to-canopy glazing either side of the door: dark glass with warm panes, slim steel mullions and a transom
+  const G = { x0: 2.0, x1: 9.6, y0: 0.3, y1: 4.4 };
+  const gw = G.x1 - G.x0;
+  for (const s of [-1, 1]) {
+    const cx = s * (G.x0 + gw / 2);
+    b.box("glass", gw, G.y1 - G.y0, 0.06, { p: [cx, (G.y0 + G.y1) / 2, face + 0.04], tile: 2.2 });
+    for (let k = 0; k <= 6; k++) b.box("steel", 0.07, G.y1 - G.y0 + 0.1, 0.12, { p: [s * (G.x0 + (gw * k) / 6), (G.y0 + G.y1) / 2, face + 0.08] });
+    b.box("steel", gw + 0.07, 0.07, 0.12, { p: [cx, G.y0, face + 0.08] });
+    b.box("steel", gw + 0.07, 0.06, 0.12, { p: [cx, 3.2, face + 0.08] });
+    // a warm uplight line along the sill
+    b.box("led-warm", gw, 0.03, 0.03, { p: [cx, G.y0 + 0.06, face + 0.16] });
   }
-  // red and blue light lines along the canopy edge
-  b.box("led-fight", f.lobbyHw * 2 + 1.0, 0.05, 0.04, { p: [0, LH + 0.02, fz + 2.12] });
-  b.box("led-corner-blue", f.lobbyHw * 2 + 1.0, 0.05, 0.04, { p: [0, LH + 0.5, fz + 2.12] });
+  // timber slats on the outer wings (clear of the glazing and the live board on the left)
+  for (let x = G.x1 + 0.45; x <= f.lobbyHw - 0.4; x += 0.42) {
+    for (const s of [-1, 1]) b.box("woodDark", 0.09, LH - 0.8, 0.2, { p: [s * x, (LH - 0.8) / 2 + 0.3, face + 0.12], tile: 1 });
+  }
+
+  // the entrance canopy: a thin cantilevered slab over the door and the glazing, a lit fascia, downlights
+  const C = { w: 14, d: 4.4, y: 4.62, th: 0.28 };
+  b.box("concreteDark", C.w, C.th, C.d, { p: [0, C.y + C.th / 2, face + C.d / 2], tile: 2 });
+  b.box("charcoal", C.w + 0.06, 0.62, 0.1, { p: [0, C.y + 0.2, face + C.d + 0.03], tile: 2 });
+  b.box("led-fight", C.w + 0.08, 0.05, 0.05, { p: [0, C.y - 0.1, face + C.d + 0.06] });
+  for (const s of [-1, 1]) b.box("charcoal", 0.1, 0.62, C.d, { p: [s * (C.w / 2 + 0.02), C.y + 0.2, face + C.d / 2], tile: 2 });
+  // two slim tie rods from the hall wall to the canopy edge
+  for (const s of [-1, 1]) {
+    const a = new THREE.Vector3(s * 5.5, LH - 0.2, face + 0.1);
+    const e = new THREE.Vector3(s * 5.5, C.y + C.th, face + C.d - 0.3);
+    const len = a.distanceTo(e);
+    const rod = new THREE.CylinderGeometry(0.035, 0.035, len, 8);
+    rod.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), e.clone().sub(a).normalize()));
+    b.add("steel", rod, { p: [(a.x + e.x) / 2, (a.y + e.y) / 2, (a.z + e.z) / 2] });
+  }
+  for (let i = 0; i < 6; i++)
+    for (const z of [1.3, 3.1]) b.cyl("led-warm", 0.12, 0.12, 0.03, 16, { p: [-5.5 + i * 2.2, C.y - 0.01, face + z] });
+
   // door surround
   const hw = DOOR.w / 2;
   for (const s of [-1, 1]) b.box("steel", 0.18, DOOR.h + 0.18, 0.4, { p: [s * (hw + 0.09), (DOOR.h + 0.18) / 2, FIGHT_DOOR_INSET + 0.1] });
   b.box("steel", DOOR.w + 0.36, 0.18, 0.4, { p: [0, DOOR.h + 0.09, FIGHT_DOOR_INSET + 0.1] });
   b.box("led-fight", DOOR.w + 0.44, 0.03, 0.03, { p: [0, DOOR.h + 0.22, FIGHT_DOOR_INSET + 0.32] });
-  b.box("basalt", DOOR.w + 1.4, 0.04, 1.8, { p: [0, 0.02, FIGHT_DOOR_INSET + 0.9], tile: 1.2 });
 
-  /* ---- the ring-and-glove sign on the hall front, above the lobby roof ---- */
-  const sy = LH + 3.2;
-  const sz = f.front + 0.35;
-  b.box("screenFrame", 9.6, 4.2, 0.2, { p: [0, sy, sz - 0.1] });
-  // the ring: apron, three ropes between four posts (red / blue / white corners)
-  b.box("white", 5.6, 0.5, 0.08, { p: [0, sy - 1.45, sz] });
-  for (const [i, x] of [-2.6, 2.6].entries()) b.box(i === 0 ? "led-fight" : "led-corner-blue", 0.16, 2.2, 0.1, { p: [x, sy - 0.25, sz + 0.02] });
-  for (const y of [-0.7, -0.15, 0.4]) b.box("white", 5.2, 0.05, 0.06, { p: [0, sy + y, sz + 0.04] });
-  // the glove (rounded fist from stacked blocks) over the ropes
-  b.box("led-fight", 1.5, 1.3, 0.14, { p: [0.3, sy + 1.05, sz + 0.1] });
-  b.box("led-fight", 1.2, 0.5, 0.14, { p: [0.15, sy + 1.85, sz + 0.1] });
-  b.box("led-fight", 0.5, 0.8, 0.14, { p: [-0.65, sy + 0.95, sz + 0.12] });
-  b.box("white", 1.3, 0.32, 0.15, { p: [0.4, sy + 0.25, sz + 0.11] });
-  // the small LED board for the live count (its text is drawn by world/Plaza FightBoard)
-  b.box("screenFrame", 3.4, 0.9, 0.12, { p: [-9.5, LH - 1.6, fz + t / 2 + 0.45] });
+  // a flush, step-free forecourt under the canopy (accessible: no change of level at the door) with two stone step
+  // noses and side ramps at its edge (≤ 3 cm), then the planters
+  b.box("basalt", C.w + 0.6, 0.03, C.d + 0.4, { p: [0, 0.015, face + C.d / 2 + 0.2], tile: 1.2 });
+  for (const [k, dz] of [0.25, 0.65].entries()) b.box("granite", C.w + 0.6 + k * 0.8, 0.02 + k * 0.01, 0.4, { p: [0, 0.01, face + C.d + 0.4 + dz], tile: 2.4 });
+  b.box("led-warm", C.w + 0.6, 0.012, 0.03, { p: [0, 0.035, face + C.d + 0.42] });
+
+  // landscaping: two long planters with clipped hedges, three small trees, soil, uplights
+  for (const s of [-1, 1]) {
+    const px = s * 11.6;
+    const pz = face + 2.0;
+    b.box("charcoal", 6.0, 0.6, 1.4, { p: [px, 0.3, pz], tile: 1.5 });
+    b.box("soil", 5.8, 0.04, 1.2, { p: [px, 0.6, pz] });
+    b.box("hedge", 5.6, 0.42, 0.62, { p: [px, 0.82, pz + 0.22] });
+    for (const dx of s < 0 ? [2.9] : [-2.0, 0, 2.0]) {
+      b.cyl("woodDark", 0.06, 0.08, 2.0, 7, { p: [px + dx, 1.6, pz - 0.28] });
+      const crown = new THREE.IcosahedronGeometry(0.8, 1);
+      crown.scale(1, 0.85, 1);
+      b.add("hedge", crown, { p: [px + dx, 2.95, pz - 0.28] });
+      b.cyl("led-warm", 0.07, 0.07, 0.02, 10, { p: [px + dx + 0.3, 0.62, pz - 0.1] });
+    }
+  }
+
+  /* ---- the lit "FIGHT GAMES" sign on the hall front above the lobby roof (letters: FightFacadeBoard) ---- */
+  const sy = SIGN.y;
+  const sz = f.front + 0.12;
+  b.box("screenFrame", SIGN.w, SIGN.h, 0.24, { p: [0, sy, sz] });
+  b.box("led-fight", SIGN.w - 1.2, 0.08, 0.04, { p: [0, sy - SIGN.h / 2 + 0.32, sz + 0.14] });
+  b.box("led-fight", 0.14, SIGN.h - 0.5, 0.06, { p: [-SIGN.w / 2 + 0.35, sy, sz + 0.14] });
+  b.box("led-corner-blue", 0.14, SIGN.h - 0.5, 0.06, { p: [SIGN.w / 2 - 0.35, sy, sz + 0.14] });
+  // wall washers on the hall front either side of the sign
+  for (const s of [-1, 1]) b.box("led-warm", 0.05, 0.05, 0.05, { p: [s * (SIGN.w / 2 + 2), LH + 0.6, f.front + 0.1] });
+
+  /* ---- the live board on the left wing (its text: FightFacadeBoard) ---- */
+  b.box("screenFrame", LIVE_BOARD.w + 0.2, LIVE_BOARD.h + 0.2, 0.14, { p: [LIVE_BOARD.x, LIVE_BOARD.y, face + 0.3] });
+  b.box("steel", 0.12, LIVE_BOARD.y - LIVE_BOARD.h / 2, 0.12, { p: [LIVE_BOARD.x, (LIVE_BOARD.y - LIVE_BOARD.h / 2) / 2, face + 0.3] });
 }
+
+/** the facade sign over the lobby roof and the live board (door frame; letters drawn by FightFacadeBoard) */
+export const SIGN = { y: FIGHT_BUILDING.lobbyH + 2.3, w: 17, h: 2.7 };
+export const LIVE_BOARD = { x: -12.4, y: 3.3, w: 4.8, h: 2.4, z: FIGHT_DOOR_INSET + 0.4 + 0.39 };
