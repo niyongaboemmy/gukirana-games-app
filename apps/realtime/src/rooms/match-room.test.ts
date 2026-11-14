@@ -223,3 +223,21 @@ describe("match room", () => {
     await b.room.leave(true);
   }, 30_000);
 });
+
+describe("suspension during a match (GAP-001)", () => {
+  it("voids the match (stakes refunded by the API void) and closes the suspended player's connection", async () => {
+    const { closeAccount } = await import("../social/accounts.js");
+    const { roomId, matchId } = await create("igisoro", 25);
+    const a = await join(roomId, A);
+    const b = await join(roomId, B);
+    await wait(150);
+    expect(closeAccount(A)).toBe(1);
+    await wait(300);
+    expect(voided).toEqual([matchId]);
+    expect(settled).toHaveLength(0);
+    expect(b.last("player-removed")).toEqual({ userId: A, reason: "PLAYER_UNAVAILABLE" });
+    expect(b.last("result")).toMatchObject({ reason: "void" });
+    expect(a.room.connection.isOpen).toBe(false);
+    await b.room.leave(true);
+  });
+});

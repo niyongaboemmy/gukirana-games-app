@@ -1,6 +1,10 @@
 import "reflect-metadata";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDatabase, users, type Database } from "@gukirana/db";
+import type { ExecutionContext } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { createDatabase, eq, refreshTokens, users, type Database } from "@gukirana/db";
+import { AuthGuard, signAccessToken } from "../../common/auth.js";
+import { RoleGuard } from "../admin-block/role.guard.js";
 import { sectionsFor } from "@gukirana/contracts";
 import { AccessService } from "../admin-block/access.service.js";
 import { OccupancyStore } from "../admin-block/occupancy.js";
@@ -83,6 +87,52 @@ describe("users", () => {
     await expect(svc.setStatus(support, boss, "suspended", "test")).rejects.toMatchObject({ response: { code: "SUPER_ADMIN_PROTECTED" } });
     await expect(svc.setStatus(boss, boss, "suspended", "test")).rejects.toMatchObject({ response: { code: "CANNOT_CHANGE_SELF" } });
     await expect(svc.setStatus(accountant, player, "suspended", "test")).rejects.toMatchObject({ response: { code: "ROLE_REQUIRED" } });
+  });
+});
+
+describe("suspension ends the session (GAP-001 / GAP-002)", () => {
+  const ctx = (authorization: string) =>
+    ({
+      switchToHttp: () => ({ getRequest: () => ({ headers: { authorization } }) }),
+      getHandler: () => () => undefined,
+      getClass: () => class {},
+    }) as unknown as ExecutionContext;
+  const bearer = async (sub: string) => `Bearer ${await signAccessToken({ sub, name: "x", color: "#000000", lvl: 1 })}`;
+
+  it("an access token issued before the suspension is refused at once, and works again after reactivation", async () => {
+    const guard = new AuthGuard(db);
+    const t = await bearer(player);
+    expect(await guard.canActivate(ctx(t))).toBe(true); // cached as active
+    await svc.setStatus(support, player, "suspended", "QA: token cut-off");
+    await expect(guard.canActivate(ctx(t))).rejects.toMatchObject({ response: { code: "ACCOUNT_INACTIVE" } });
+    await svc.setStatus(support, player, "active", "QA: restore");
+    expect(await guard.canActivate(ctx(t))).toBe(true);
+  });
+
+  it("revokes the refresh tokens and publishes the suspension for realtime", async () => {
+    const since = new Date(Date.now() - 1000);
+    await db.insert(refreshTokens).values({ id: "cccccccc-0000-4000-8000-000000000001", userId: player, tokenHash: "h-suspend-1", expiresAt: new Date(Date.now() + 86_400_000) });
+    await svc.setStatus(support, player, "suspended", "QA: feed");
+    const [rt] = await db.select().from(refreshTokens).where(eq(refreshTokens.tokenHash, "h-suspend-1"));
+    expect(rt?.revoked).toBe(true);
+    const feed = await svc.suspensionsSince(since);
+    expect(feed.events.map((e) => e.userId)).toContain(player);
+    expect(Date.parse(feed.cursor)).toBeGreaterThan(since.getTime());
+    // no cursor yet: nothing old is replayed, the cursor starts now
+    expect((await svc.suspensionsSince(null)).events).toEqual([]);
+    await svc.setStatus(support, player, "active", "QA: restore");
+  });
+
+  it("a suspended staff member holds no roles: console, admin endpoints and office doors refuse them", async () => {
+    const roleGuard = new RoleGuard(access, new Reflector());
+    const t = await bearer(accountant);
+    expect((await access.access(accountant)).roles).toEqual(["accountant"]);
+    await svc.setStatus(boss, accountant, "suspended", "QA: staff suspended");
+    expect(await access.access(accountant)).toEqual({ roles: [], offices: [] });
+    expect(await svc.rolesOf(accountant)).toEqual([]);
+    await expect(roleGuard.canActivate(ctx(t))).rejects.toThrow();
+    await svc.setStatus(boss, accountant, "active", "QA: restore");
+    expect((await access.access(accountant)).roles).toEqual(["accountant"]);
   });
 });
 

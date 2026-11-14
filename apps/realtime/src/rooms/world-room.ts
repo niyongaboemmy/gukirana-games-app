@@ -36,6 +36,7 @@ import { PairRegistry } from "../social/pairs.js";
 import { OfficeDesk } from "./office-desk.js";
 import { ArenaHall } from "./arena-hall.js";
 import { arenaConfig } from "../social/arena-access.js";
+import { eligibilityOf, trackAccount } from "../social/accounts.js";
 
 export interface WorldPlayer {
   id: string;
@@ -97,12 +98,30 @@ export class WorldRoom extends Room {
   private lastEmote = new Map<string, number>();
   private tick = 0;
   private msgSeq = 0;
+  /** sessionId → unregister from the account registry (social/accounts.ts: suspension closes the session) */
+  private tracked = new Map<string, () => void>();
 
   override async onAuth(_c: Client, options: { token?: unknown }): Promise<UserClaims | true> {
     if (!options?.token) return true; // guest
     const claims = await verifyToken(options.token);
     if (!claims) throw new Error("INVALID_TOKEN");
+    // a suspended account's access token stays valid up to 15 min: the account itself must still be active
+    if ((await eligibilityOf(claims.sub, 0)).reason === "ACCOUNT_INACTIVE") throw new Error("ACCOUNT_INACTIVE");
     return claims;
+  }
+
+  /**
+   * The account was suspended (social/accounts.ts): from now on the session can do nothing (no chat, no challenge,
+   * no queue), it is told why, and the connection is closed. onLeave then tidies up as for any leave.
+   */
+  private closeSuspended(sid: string): void {
+    const u = this.users.get(sid);
+    if (u) quickMatch.leave(u.sub);
+    this.users.delete(sid);
+    this.players.delete(sid);
+    const c = this.client(sid);
+    c?.send("account-suspended", { reason: "ACCOUNT_INACTIVE" });
+    c?.leave(4001);
   }
 
   // ---------------------------------------------------------------- helpers
@@ -536,7 +555,10 @@ export class WorldRoom extends Room {
       const denial = await this.arena.gate(client.sessionId, claims?.sub, this.players.size);
       if (denial) return this.arena.refuse(client.sessionId, denial);
     }
-    if (claims) this.users.set(client.sessionId, claims);
+    if (claims) {
+      this.users.set(client.sessionId, claims);
+      this.tracked.set(client.sessionId, trackAccount(claims.sub, () => this.closeSuspended(client.sessionId)));
+    }
     const look = claims?.look ?? options.look;
     // the joiner's own block list (from the API) applies before anyone becomes visible
     const blocks = BlockListSchema.safeParse({ keys: options.blocks ?? [] });
@@ -584,6 +606,8 @@ export class WorldRoom extends Room {
 
   override onLeave(client: Client): void {
     const sid = client.sessionId;
+    this.tracked.get(sid)?.();
+    this.tracked.delete(sid);
     const me = this.users.get(sid);
     if (me) quickMatch.leave(me.sub);
     for (const [id, p] of this.proposals) if (p.from === sid || p.to === sid) this.proposals.delete(id);

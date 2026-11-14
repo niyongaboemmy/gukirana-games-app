@@ -130,3 +130,16 @@ export class PresenceInternalController {
     this.presence.report(r.room, r.area, r.count, r.signedIn);
   }
 }
+
+/** realtime → api (x-internal-token): accounts suspended since `since` (ISO), so their connections are closed */
+@Controller("internal")
+@UseGuards(InternalGuard)
+export class SuspensionsInternalController {
+  constructor(private readonly console: ConsoleService) {}
+
+  @Get("suspensions")
+  suspensions(@Query("since") since?: string) {
+    const t = since ? Date.parse(since) : NaN;
+    return this.console.suspensionsSince(Number.isFinite(t) ? new Date(t) : null);
+  }
+}

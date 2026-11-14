@@ -77,3 +77,7 @@ export function clearArenaCache(): void {
   lastGood = null;
   access.clear();
 }
+/** one account's cached arena access, every event (suspension) */
+export function forgetArenaAccess(userId: string): void {
+  for (const k of access.keys()) if (k.startsWith(`${userId}:`)) access.delete(k);
+}

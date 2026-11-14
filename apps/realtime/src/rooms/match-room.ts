@@ -9,6 +9,7 @@ import { loadEnv } from "@gukirana/config";
 import { createLogger } from "@gukirana/observability";
 import { verifyToken } from "../auth.js";
 import { api } from "../api-client.js";
+import { eligibilityOf, trackAccount } from "../social/accounts.js";
 
 const log = createLogger("match-room");
 const { privateKey } = keyFromSeed(loadEnv().RESULT_SIGNING_SEED);
@@ -62,6 +63,8 @@ export class MatchRoom extends Room {
   private finished = false;
   private drawOffer: { from: string; at: number } | null = null;
   private lastDrawOffer = new Map<string, number>();
+  /** sessionId → unregister from the account registry (a suspended player's match is voided) */
+  private tracked = new Map<string, () => void>();
 
   override onCreate(options: MatchOptions): void {
     this.opts = options;
@@ -126,11 +129,25 @@ export class MatchRoom extends Room {
   override async onAuth(_client: Client, options: { token?: unknown }): Promise<{ userId: string }> {
     const claims = await verifyToken(options?.token);
     if (!claims || !this.opts.players.some((p) => p.userId === claims.sub)) throw new Error("NOT_A_PLAYER");
+    if ((await eligibilityOf(claims.sub, 0)).reason === "ACCOUNT_INACTIVE") throw new Error("ACCOUNT_INACTIVE");
     return { userId: claims.sub };
+  }
+
+  /**
+   * A player in this match was suspended (social/accounts.ts): the match is voided (every stake goes back through
+   * the API's void, a ledger refund) and the suspended player's connection is closed.
+   */
+  private suspended(userId: string): void {
+    if (!this.finished) {
+      this.broadcast("player-removed", { userId, reason: "PLAYER_UNAVAILABLE" });
+      void this.finish("void", {});
+    }
+    for (const c of this.clients) if (this.sessions.get(c.sessionId) === userId) c.leave(4001);
   }
 
   override onJoin(client: Client, options: { clientSeed?: unknown }, auth: { userId: string }): void {
     this.sessions.set(client.sessionId, auth.userId);
+    this.tracked.set(client.sessionId, trackAccount(auth.userId, () => this.suspended(auth.userId)));
     const cs = typeof options?.clientSeed === "string" && /^[0-9a-f]{8,64}$/i.test(options.clientSeed) ? options.clientSeed : auth.userId;
     if (!this.clientSeeds.has(auth.userId)) this.clientSeeds.set(auth.userId, cs);
     client.send("init", { you: auth.userId, game: this.opts.game, stake: this.opts.stake, players: this.opts.players, commit: this.commit, matchId: this.opts.matchId });
@@ -147,6 +164,8 @@ export class MatchRoom extends Room {
   override async onLeave(client: Client, consented: boolean): Promise<void> {
     const userId = this.sessions.get(client.sessionId);
     this.sessions.delete(client.sessionId);
+    this.tracked.get(client.sessionId)?.();
+    this.tracked.delete(client.sessionId);
     if (!userId || this.finished) return;
     // same player still connected from another session/tab → not a disconnect
     if ([...this.sessions.values()].includes(userId)) return;
@@ -164,6 +183,8 @@ export class MatchRoom extends Room {
   }
 
   override onDispose(): void {
+    for (const off of this.tracked.values()) off();
+    this.tracked.clear();
     this.clearTimers();
     if (!this.finished) void api.voidMatch(this.opts.matchId).catch(() => undefined);
   }

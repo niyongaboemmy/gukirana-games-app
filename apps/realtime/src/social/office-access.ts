@@ -57,3 +57,7 @@ export function setOccupancyReporter(r: Reporter): void {
 export function clearAccessCache(): void {
   cache.clear();
 }
+/** one account's cached roles (a suspension or a role change must not wait for the cache) */
+export function forgetAccess(userId: string): void {
+  cache.delete(userId);
+}

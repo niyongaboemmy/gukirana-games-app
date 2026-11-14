@@ -1,7 +1,9 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { and, count, desc, eq, gte, ilike, inArray, or, userRoles, users } from "@gukirana/db";
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { accessAudit, and, asc, count, desc, eq, gt, gte, ilike, inArray, or, refreshTokens, userRoles, users } from "@gukirana/db";
 import { USER_STATUS_ROLES, sectionsFor, type ConsoleOverview, type ConsoleUser, type UserStatus } from "@gukirana/contracts";
 import { DB, type Db } from "../../common/db.module.js";
+import { forgetUserStatus } from "../../common/user-status.js";
+import { GamesService } from "../games/games.service.js";
 import { AccessService, SUPER_ADMIN as SUPER_ADMIN_ROLE } from "../admin-block/access.service.js";
 import { OccupancyStore } from "../admin-block/occupancy.js";
 import { EconomyService } from "../economy/economy.service.js";
@@ -32,6 +34,8 @@ export class ConsoleService {
     private readonly ledger: LedgerService,
     private readonly buildings: BuildingsService,
     private readonly presence: PresenceStore,
+    /** optional so unit tests can build the console without the games module */
+    @Optional() private readonly games?: GamesService,
   ) {}
 
   /** roles of the caller; the back-office token counts as super admin */
@@ -153,7 +157,35 @@ export class ConsoleService {
     if (target.includes(SUPER_ADMIN_ROLE) && !roles.includes(SUPER_ADMIN_ROLE)) throw new ForbiddenException({ code: "SUPER_ADMIN_PROTECTED" });
     if (u.status === status) return { id, status, changed: false };
     await this.db.update(users).set({ status }).where(eq(users.id, id));
+    forgetUserStatus(id); // AuthGuard reads the new status on the next request
+    // the audit row is also the suspension feed realtime polls to close the account's connections (GAP-001)
     await this.access.record(actor, status === "suspended" ? "user.suspend" : "user.reactivate", `user:${id}`, reason);
+    if (status === "suspended") {
+      // end the session: no refresh, and nothing left staked against a suspended player (void → ledger refund)
+      await this.db.update(refreshTokens).set({ revoked: true }).where(and(eq(refreshTokens.userId, id), eq(refreshTokens.revoked, false)));
+      await this.games?.voidActiveFor(id);
+    }
     return { id, status, changed: true };
+  }
+
+  /**
+   * Suspensions recorded after `since` (realtime → api, polled about once a second): realtime closes those accounts'
+   * world and match connections. Reads the audit trail, so it works across API restarts and instances; a 2 s overlap
+   * covers clock / commit ordering (the caller ignores ids it has already handled).
+   */
+  async suspensionsSince(since: Date | null, now = new Date()) {
+    const from = since ? new Date(Math.min(since.getTime(), now.getTime()) - 2000) : now;
+    const rows = since
+      ? await this.db
+          .select({ id: accessAudit.id, target: accessAudit.target, at: accessAudit.at })
+          .from(accessAudit)
+          .where(and(eq(accessAudit.action, "user.suspend"), gt(accessAudit.at, from)))
+          .orderBy(asc(accessAudit.at))
+          .limit(500)
+      : [];
+    return {
+      cursor: now.toISOString(),
+      events: rows.filter((r) => r.target.startsWith("user:")).map((r) => ({ id: r.id, userId: r.target.slice(5), at: r.at.toISOString() })),
+    };
   }
 }

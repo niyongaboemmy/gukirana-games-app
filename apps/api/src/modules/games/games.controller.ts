@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Param, Post, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { z } from "zod";
 import type { SignedMatchResult } from "@gukirana/signing";
 import { InternalGuard } from "../../common/auth.js";
@@ -44,5 +44,21 @@ export class GamesController {
   @HttpCode(200)
   void(@Param("id") id: string) {
     return this.games.void(id);
+  }
+}
+
+const UUID = z.string().uuid();
+const StakeQuery = z.coerce.number().int().min(0).max(10_000);
+
+/** realtime → api: may this player be put into a match at this stake (pre-check for challenges / quick match)? */
+@Controller("internal/players")
+@UseGuards(InternalGuard)
+export class PlayersInternalController {
+  constructor(private readonly games: GamesService) {}
+
+  @Get(":id/eligibility")
+  eligibility(@Param("id") id: string, @Query("stake") stake?: string) {
+    if (!UUID.safeParse(id).success) throw new BadRequestException({ code: "BAD_ID" });
+    return this.games.eligibility(id, parse(StakeQuery, stake ?? 0));
   }
 }

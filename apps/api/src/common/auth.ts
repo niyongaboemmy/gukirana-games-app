@@ -1,7 +1,9 @@
-import { type CanActivate, type ExecutionContext, Injectable, UnauthorizedException, createParamDecorator } from "@nestjs/common";
+import { type CanActivate, type ExecutionContext, Inject, Injectable, UnauthorizedException, createParamDecorator } from "@nestjs/common";
 import { jwtVerify, SignJWT } from "jose";
 import { timingSafeEqual } from "node:crypto";
 import { env } from "./env.js";
+import { DB, type Db } from "./db.module.js";
+import { isActiveUser } from "./user-status.js";
 
 export interface AccessClaims {
   sub: string;
@@ -34,19 +36,29 @@ interface Req {
   user?: AccessClaims;
 }
 
+/**
+ * Signed-in routes: a valid access token AND an account that is still active (GAP-001). A suspended account's
+ * remaining access tokens are refused at once (status cached ≤ 10 s per user, dropped on every status change; see
+ * user-status.ts); the client's refresh then fails too (IdentityService.issue refuses inactive accounts).
+ */
 @Injectable()
 export class AuthGuard implements CanActivate {
+  constructor(@Inject(DB) private readonly db: Db) {}
+
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const req = ctx.switchToHttp().getRequest<Req>();
     const h = req.headers.authorization;
     const token = typeof h === "string" && h.startsWith("Bearer ") ? h.slice(7) : null;
     if (!token) throw new UnauthorizedException("MISSING_TOKEN");
+    let claims: AccessClaims;
     try {
-      req.user = await verifyAccessToken(token);
-      return true;
+      claims = await verifyAccessToken(token);
     } catch {
       throw new UnauthorizedException("INVALID_TOKEN");
     }
+    if (!(await isActiveUser(this.db, claims.sub))) throw new UnauthorizedException({ code: "ACCOUNT_INACTIVE" });
+    req.user = claims;
+    return true;
   }
 }
 

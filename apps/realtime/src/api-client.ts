@@ -10,10 +10,17 @@ export interface CreatedMatch {
   players: { userId: string; seat: number; rating: number; name: string; color: string }[];
 }
 
+/** An API refusal: `message` is the error code; `userId` names the player it is about, when the API says so. */
+export class ApiError extends Error {
+  constructor(code: string, readonly userId?: string) {
+    super(code);
+  }
+}
+
 async function call<T>(path: string, body: unknown): Promise<T> {
   const r = await fetch(`${env.API_INTERNAL_URL}${path}`, { method: "POST", headers, body: JSON.stringify(body) });
-  const json = (await r.json().catch(() => ({}))) as T & { message?: { code?: string }; code?: string };
-  if (!r.ok) throw new Error(json?.message?.code ?? json?.code ?? `API_${r.status}`);
+  const json = (await r.json().catch(() => ({}))) as T & { message?: { code?: string; userId?: string }; code?: string; userId?: string };
+  if (!r.ok) throw new ApiError(json?.message?.code ?? json?.code ?? `API_${r.status}`, json?.message?.userId ?? json?.userId);
   return json;
 }
 
@@ -31,12 +38,26 @@ export interface UserAccess {
   known: string[];
 }
 
+export interface Eligibility {
+  ok: boolean;
+  /** ACCOUNT_INACTIVE | ON_A_BREAK | DAILY_LIMIT_REACHED | INSUFFICIENT_FUNDS | UNKNOWN_PLAYER */
+  reason?: string;
+}
+export interface SuspensionFeed {
+  cursor: string;
+  events: { id: string; userId: string; at: string }[];
+}
+
 export const api = {
   createMatch: (input: { game: string; variant: string; stake: number; players: { userId: string; seat: number }[] }) =>
     call<CreatedMatch>("/internal/matches", input),
   submitResult: (r: SignedMatchResult) =>
     call<{ status: string; pot?: number; ratings?: Record<string, number>; xp?: Record<string, number> }>(`/internal/matches/${r.matchId}/result`, r),
   voidMatch: (matchId: string) => call<{ status: string }>(`/internal/matches/${matchId}/void`, {}),
+  /** may this player be put into a match at this stake (active account, break, daily limit, Stars) */
+  eligibility: (userId: string, stake: number) => get<Eligibility>(`/internal/players/${encodeURIComponent(userId)}/eligibility?stake=${stake}`),
+  /** accounts suspended since `since` (polled by social/accounts.ts) */
+  suspensions: (since: string | null) => get<SuspensionFeed>(`/internal/suspensions${since ? `?since=${encodeURIComponent(since)}` : ""}`),
   /** Administrative Block: roles + enterable offices (cached briefly by social/office-access.ts) */
   access: (userId: string) => get<UserAccess>(`/internal/access/${encodeURIComponent(userId)}`),
   /** people in one world room, for the staff console's live monitor (P2-CON-01); best effort */

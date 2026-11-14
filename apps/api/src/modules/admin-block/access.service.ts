@@ -95,9 +95,14 @@ export class AccessService implements OnModuleInit {
 
   // ------------------------------------------------------------------ reads
 
-  /** The user's roles and every office those roles open (all offices for an `all_offices` role). */
+  /**
+   * The user's roles and every office those roles open (all offices for an `all_offices` role). A suspended (any
+   * non-active) account holds no roles while it is not active (GAP-002): RoleGuard, the console and the realtime
+   * office doors (via /internal/access) all read this, fresh from the DB.
+   */
   async access(userId: string): Promise<MyRoles> {
     if (!UUID.test(userId)) return { roles: [], offices: [] };
+    if (!(await this.isActive(userId))) return { roles: [], offices: [] };
     const held = await this.db
       .select({ id: roles.id, all: roles.allOffices })
       .from(userRoles)
@@ -130,8 +135,15 @@ export class AccessService implements OnModuleInit {
     return { roles: held.map((h) => h.id), offices: open };
   }
 
-  async hasRole(userId: string, role: string): Promise<boolean> {
+  /** an existing account whose status is `active` (fresh read; staff powers must not lag a suspension) */
+  async isActive(userId: string): Promise<boolean> {
     if (!UUID.test(userId)) return false;
+    const [u] = await this.db.select({ status: users.status }).from(users).where(eq(users.id, userId));
+    return u?.status === "active";
+  }
+
+  async hasRole(userId: string, role: string): Promise<boolean> {
+    if (!UUID.test(userId) || !(await this.isActive(userId))) return false;
     const [row] = await this.db
       .select({ r: userRoles.roleId })
       .from(userRoles)

@@ -18,6 +18,9 @@ import { matchEscrow, userStars } from "../ledger/accounts.js";
 import { LevelsService } from "../levels/levels.service.js";
 import { eloUpdate, xpForMatch } from "../levels/xp.js";
 
+/** Why a player can't be put into a (staked) match right now. Only that player is told the precise reason. */
+export type IneligibleReason = "UNKNOWN_PLAYER" | "ACCOUNT_INACTIVE" | "ON_A_BREAK" | "DAILY_LIMIT_REACHED" | "INSUFFICIENT_FUNDS";
+
 export interface CreateMatchInput {
   game: "ludo" | "igisoro" | "pool";
   variant: string;
@@ -48,9 +51,17 @@ export class GamesService {
     players: { userId: string; seat: number; rating: number; name: string; color: string }[];
   }> {
     const ids = input.players.map((p) => p.userId);
-    // responsible play: a player on a break, or over their own daily stake limit, can't be staked into a match
-    if (input.stake > 0) for (const id of ids) await this.wallet.assertCanStake(id, input.stake);
     if (new Set(ids).size !== ids.length) throw new BadRequestException({ code: "DUPLICATE_PLAYER" });
+    // every player is checked again here (realtime pre-checks when the challenge / quick match is made): an active
+    // account and, for a staked match, responsible play (break, daily limit) and enough Stars. The error names the
+    // player (`userId`) so realtime tells only that player the precise reason (GAP-005).
+    for (const id of ids) {
+      const r = await this.eligibility(id, input.stake);
+      if (!r.ok) {
+        if (r.reason === "UNKNOWN_PLAYER") throw new NotFoundException({ code: r.reason, userId: id });
+        throw new ConflictException({ code: r.reason, userId: id });
+      }
+    }
     const found = await this.db.select().from(users).where(inArray(users.id, ids));
     if (found.length !== ids.length) throw new NotFoundException({ code: "UNKNOWN_PLAYER" });
 
@@ -123,6 +134,41 @@ export class GamesService {
         };
       }),
     };
+  }
+
+  /**
+   * May this player be put into a match at this stake now? Active account; for stake > 0 also not on a break, under
+   * their own daily stake limit and holding enough Stars. Read-only (the ledger still enforces funds at lock time).
+   */
+  async eligibility(userId: string, stake: number): Promise<{ ok: true } | { ok: false; reason: IneligibleReason }> {
+    const [u] = await this.db.select({ status: users.status }).from(users).where(eq(users.id, userId));
+    if (!u) return { ok: false, reason: "UNKNOWN_PLAYER" };
+    if (u.status !== "active") return { ok: false, reason: "ACCOUNT_INACTIVE" };
+    if (stake > 0) {
+      try {
+        await this.wallet.assertCanStake(userId, stake);
+      } catch (e) {
+        const body = e instanceof ConflictException ? (e.getResponse() as { code?: string }) : undefined;
+        if (body?.code === "ON_A_BREAK" || body?.code === "DAILY_LIMIT_REACHED") return { ok: false, reason: body.code };
+        throw e;
+      }
+      if ((await this.ledger.balance(userStars(userId))) < stake) return { ok: false, reason: "INSUFFICIENT_FUNDS" };
+    }
+    return { ok: true };
+  }
+
+  /**
+   * A player was suspended: every active match they are in is voided and every stake refunded through the ledger
+   * (the same `refund` entry as any void; idempotent). The realtime match room also voids when it sees the suspension.
+   */
+  async voidActiveFor(userId: string): Promise<string[]> {
+    const rows = await this.db
+      .select({ id: matches.id })
+      .from(matchPlayers)
+      .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+      .where(and(eq(matchPlayers.userId, userId), eq(matches.status, "active")));
+    for (const r of rows) await this.void(r.id);
+    return rows.map((r) => r.id);
   }
 
   async settle(matchId: string, result: SignedMatchResult) {

@@ -5,6 +5,7 @@ import { loadEnv } from "@gukirana/config";
 import { createLogger } from "@gukirana/observability";
 import { WorldRoom } from "./rooms/world-room.js";
 import { MatchRoom } from "./rooms/match-room.js";
+import { startSuspensionWatch } from "./social/accounts.js";
 
 const env = loadEnv();
 const logger = createLogger("realtime", env.LOG_LEVEL);
@@ -25,4 +26,6 @@ gameServer.define("hall", WorldRoom).filterBy(["game"]);
 gameServer.define("match", MatchRoom);
 
 await gameServer.listen(env.REALTIME_PORT);
+// suspended accounts: their world + match connections are closed within about a second (GAP-001)
+startSuspensionWatch();
 logger.info({ port: env.REALTIME_PORT }, "realtime listening");

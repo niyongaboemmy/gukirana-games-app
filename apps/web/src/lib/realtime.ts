@@ -11,6 +11,7 @@ import { addDm, notify, showBubble, useSocial } from "@/social/social-store";
 import { loadBlocks, persistBlock, persistUnblock } from "@/social/api";
 import { AT_YOU, type PAIR_ACTIONS } from "@/social/actions";
 import { onPairStart } from "@/social/people";
+import { useSession } from "./session";
 
 /** Realtime connection to the plaza / hall room (plan P1-WLD-01/02, P1-COM-01). Works over LAN for phone testing. */
 let room: Room | null = null;
@@ -21,6 +22,9 @@ function realtimeUrl(): string {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   return `${proto}://${location.hostname}:2567`;
 }
+
+/** shown when the server closes the connection of a suspended account (same words as the gate) */
+const ACCOUNT_SUSPENDED = "This account is suspended. Contact support.";
 
 const sysLine = (text: string) => useWorld.getState().pushChat({ id: "sys", name: "", color: "", text, t: Date.now(), system: true });
 
@@ -177,6 +181,11 @@ export async function connectPlaza(
       useMatch.setState({ quick: m, notice: m.status === "error" ? reasonText(m.reason) : null }),
     );
     room.onMessage("match-ready", (m) => useMatch.setState({ ready: m, incoming: [], outgoing: null, quick: { status: "idle" } }));
+    // the account was suspended while connected (GAP-001): the server closes the connection; the session ends here
+    room.onMessage("account-suspended", () => {
+      notify(ACCOUNT_SUSPENDED);
+      useSession.setState({ status: "anonymous", accessToken: null, me: null });
+    });
     // feature modules (e.g. admin-block/office-client) listen through `onRoomMessage`
     for (const type of extra.keys()) bindExtra(room, type);
     room.onLeave(() => {
