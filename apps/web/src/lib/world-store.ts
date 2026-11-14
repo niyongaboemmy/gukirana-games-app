@@ -47,6 +47,8 @@ interface WorldState {
   players: Record<string, RemotePlayer>;
   chat: ChatLine[];
   nearPortal: PortalId | null;
+  /** the hall door you stand at (within a few metres of its doorstep, any facing): door notices (GAP-004) */
+  nearDoor: PortalId | null;
   nearPlayer: string | null;
   /** Local player stands at the exit / sign-out kiosk inside the plaza entry gate. */
   nearGateExit: boolean;
@@ -80,6 +82,7 @@ export const useWorld = create<WorldState>()((set, get) => ({
   players: {},
   chat: [],
   nearPortal: null,
+  nearDoor: null,
   nearPlayer: null,
   nearGateExit: false,
   input: { x: 0, y: 0, run: false },

@@ -22,6 +22,7 @@ import {
 } from "./layout";
 import { doorOpen, useTransition } from "./transition";
 import { useDoorway } from "./doorway";
+import { doorRefusal } from "./door-access";
 import { clearHandoff, peekHandoff } from "./stage";
 import { cameraArm, freePoint, planRoute, plazaObstacles, resolve } from "./obstacles";
 import type { Tier } from "./materials";
@@ -43,6 +44,9 @@ import { HUMAN_MODELS } from "./human/meta";
 export const WALK_SPEEDS = { slow: 1.4, normal: 2.2, fast: 3.2 } as const;
 const keys = new Set<string>();
 onReleaseInput(() => keys.clear()); // lost key-ups (area change, focus, background tab) never keep you walking
+
+/** Within this distance (m) of a hall door's doorstep you are "at the door" (door notices, GAP-004). */
+const DOOR_NOTICE_R = 4.5;
 
 /** Camera orbit state shared between the camera rig and the movement code. */
 export const cameraState = { yaw: 0, pitch: 0.42, distance: 9 }; // start zoomed out
@@ -278,6 +282,8 @@ export function LocalPlayer({
     let limit = PLAZA_RADIUS;
     for (const p of PORTALS) {
       if (!p.href || (doorOpen[p.id] ?? 0) < 0.55) continue;
+      // a door held open for someone stepping out is not a way in when it is shut for you (closed / not allowed)
+      if (!entering && stepOut.current <= 0 && doorRefusal(p.id)) continue;
       const a = (p.angleDeg * Math.PI) / 180;
       const lateral = Math.abs(pos.current.x * Math.cos(a) + pos.current.z * Math.sin(a));
       if (lateral < DOOR.w / 2 - 0.35 && pos.current.x * Math.sin(a) - pos.current.z * Math.cos(a) > 0) {
@@ -381,9 +387,16 @@ export function LocalPlayer({
 
     // proximity: portals and players
     let nearPortal: (typeof PORTALS)[number]["id"] | null = null;
+    // the hall door you stand at, whatever way you face (a shut door explains itself on every approach: GAP-004)
+    let nearDoor: (typeof PORTALS)[number]["id"] | null = null;
+    let doorBest = DOOR_NOTICE_R;
     for (const p of PORTALS) {
       const t = portalTransform(p);
       const doorDist = Math.hypot(t.entryX - pos.current.x, t.entryZ - pos.current.z);
+      if (p.href && doorDist < doorBest) {
+        doorBest = doorDist;
+        nearDoor = p.id;
+      }
       if (doorDist < 12 && (p.id === "pool" || p.id === "ludo" || p.id === "igisoro" || p.id === "admin" || (p.id === "arena" && !!p.href))) preloadHall(p.id); // warm the hall while walking up
       if (doorDist >= INTERACT_RADIUS) continue;
       // no "Enter …" prompt while stepping out of a hall or when walking away from that door
@@ -405,8 +418,8 @@ export function LocalPlayer({
       }
     }
     const nearGateExit = Math.hypot(EXIT_KIOSK.x - pos.current.x, EXIT_KIOSK.z - pos.current.z) < EXIT_RADIUS;
-    if (nearPortal !== w.nearPortal || nearPlayer !== w.nearPlayer || nearGateExit !== w.nearGateExit)
-      w.set({ nearPortal, nearPlayer, nearGateExit });
+    if (nearPortal !== w.nearPortal || nearPlayer !== w.nearPlayer || nearGateExit !== w.nearGateExit || nearDoor !== w.nearDoor)
+      w.set({ nearPortal, nearPlayer, nearGateExit, nearDoor });
 
     // turn the head towards the nearest player who is speaking on voice (within 6 m)
     const talking = useVoice.getState().talking;

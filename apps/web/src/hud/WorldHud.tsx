@@ -1,5 +1,7 @@
 "use client";
-import { closedFor, useBuildings } from "@/world/buildings";
+import { showDoorNotice, useDoorNotice, useDoorRefusal } from "@/world/door-access";
+import { W } from "@/world/strings";
+import { PaperCard } from "@/ui/PaperCard";
 import { useWalletSheet, WalletSheet } from "@/wallet/WalletSheet";
 import { PlayReminder } from "@/wallet/WalletExtras";
 import dynamic from "next/dynamic";
@@ -85,8 +87,15 @@ export function WorldHud() {
   const authed = useSession((s) => s.status === "authenticated");
   const quickWaiting = useMatch((s) => s.quick.status === "waiting");
   const portal = PORTALS.find((p) => p.id === nearPortal);
-  // a building closed by staff: the door stays shut, the prompt shows why
-  const closedMsg = useBuildings((s) => closedFor(portal?.id, s));
+  // a door shut for you (closed by staff, the arena not letting you in): the prompt and a notice say why (GAP-004)
+  const refusal = useDoorRefusal(portal?.href ? portal.id : null);
+  const nearDoor = useWorld((s) => s.nearDoor);
+  const atShutDoor = useDoorRefusal(nearDoor);
+  const [noticeOff, setNoticeOff] = useState(false);
+  const noticeAt = useDoorNotice((s) => s.at);
+  useEffect(() => setNoticeOff(false), [nearDoor, noticeAt]); // every approach (and E at the door) shows it again
+  // the door you face, or else the shut door you stand at (any facing): E / Interact explains, never walks into it
+  const shut = refusal ?? (inHall ? null : atShutDoor);
   useGlassTier();
   const setChatOpen = (v: boolean | ((o: boolean) => boolean)) => useSocial.setState((s) => ({ chatOpen: typeof v === "function" ? v(s.chatOpen) : v }));
 
@@ -96,9 +105,10 @@ export function WorldHud() {
 
   // E / the big button: door → bench place (stand up when seated) → the person in front of you (person menu)
   // the context action the main button will perform (shown above it, like a game's action prompt)
-  const actionLabel = portal?.href && closedMsg === null ? "Enter" : seatedOnBench ? "Stand" : benchSeat ? "Sit" : other ? "Talk" : null;
+  const actionLabel = shut ? W.closedAction : portal?.href ? W.enterAction : seatedOnBench ? "Stand" : benchSeat ? "Sit" : other ? "Talk" : null;
   const interact = () => {
-    if (portal?.href && closedMsg !== null) return;
+    // a shut door: E / Interact explains again instead of walking into the glass
+    if (shut) return showDoorNotice();
     if (portal?.href) {
       // walk on in through the real door: crossing its line hands you to the (pre-warmed) hall mid-stride,
       // exactly like walking in by hand (world/stage.ts enterHall)
@@ -230,17 +240,26 @@ export function WorldHud() {
         <ChatPanel />
       </div>
 
+      {/* at a door that is shut for you: why, in plain words, on every approach (the arena has its own card) */}
+      {atShutDoor && nearDoor !== "arena" && !noticeOff && !inHall && (
+        <div role="status" className="pointer-events-auto fixed left-1/2 top-16 z-30 w-[min(360px,90vw)] -translate-x-1/2 phone:top-[46px] phone:w-[min(320px,46vw)]" data-door-notice={nearDoor}>
+          <PaperCard title={atShutDoor.title} icon={DoorClosed} size="sm" onClose={() => setNoticeOff(true)} closeLabel={W.dismiss}>
+            <p className="pnote text-sm">{atShutDoor.text}</p>
+          </PaperCard>
+        </div>
+      )}
+
       {/* proximity prompt */}
-      {(portal || other || benchSeat || seatedOnBench) && !roomBusy && (
+      {(portal || shut || other || benchSeat || seatedOnBench) && !roomBusy && (
         <div className={promptWrap(chatOpen)}>
           <button type="button" onClick={interact} className={PROMPT_BTN}>
             <KeyHint />
-            {portal ? (
-              portal.href && closedMsg !== null ? (
-                <>
-                  <DoorClosed size={20} /> {portal.label} is closed{closedMsg ? ` · ${closedMsg}` : ""}
-                </>
-              ) : portal.href ? `Enter ${portal.label}` : `${portal.label} · ${portal.sub}`
+            {shut ? (
+              <>
+                <DoorClosed size={20} /> {shut.title}
+              </>
+            ) : portal ? (
+              portal.href ? W.enterPrompt(portal.label) : `${portal.label} · ${portal.sub}`
             ) : seatedOnBench ? (
               "Stand up"
             ) : benchSeat ? (
@@ -288,7 +307,7 @@ export function WorldHud() {
             )}
             <RoundButton compact icon={quickWaiting ? Loader2 : Ellipsis} label="More actions" active={more} onPress={() => setMore((v) => !v)} />
           </div>
-          <RoundButton compact icon={portal ? DoorOpen : benchSeat || seatedOnBench ? Armchair : Hand} label="Interact" big action={actionLabel} active={!!(portal || other || benchSeat || seatedOnBench)} onPress={interact} />
+          <RoundButton compact icon={shut ? DoorClosed : portal ? DoorOpen : benchSeat || seatedOnBench ? Armchair : Hand} label="Interact" big action={actionLabel} active={!!(portal || shut || other || benchSeat || seatedOnBench)} onPress={interact} />
         </div>
       ) : (
       <div className="absolute bottom-[max(14px,env(safe-area-inset-bottom))] right-[max(14px,env(safe-area-inset-right))] flex items-end gap-3">
@@ -304,7 +323,7 @@ export function WorldHud() {
           )}
           <RoundButton icon={Smile} label="Emote" keycap="G" active={emotesOpen} onPress={() => setEmotesOpen((v) => !v)} />
         </div>
-        <RoundButton icon={portal ? DoorOpen : benchSeat || seatedOnBench ? Armchair : Hand} label="Interact" big keycap="E" action={actionLabel} active={!!(portal || other || benchSeat || seatedOnBench)} onPress={interact} />
+        <RoundButton icon={shut ? DoorClosed : portal ? DoorOpen : benchSeat || seatedOnBench ? Armchair : Hand} label="Interact" big keycap="E" action={actionLabel} active={!!(portal || shut || other || benchSeat || seatedOnBench)} onPress={interact} />
       </div>
       )}
 

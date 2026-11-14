@@ -16,7 +16,10 @@ import { GAME_COLORS, LED_BOOST, worldMaterials, type Tier } from "./materials";
 import { arenaScreenTexture, posterTexture } from "./textures";
 import { FountainWater } from "./Fountain";
 import { DoorBadge, Vestibule } from "./Vestibule";
-import { closedFor, useBuildings, watchBuildings } from "./buildings";
+import { watchBuildings } from "./buildings";
+import { useDoorShut } from "./door-access";
+import { atlasPlane, labelAtlas, type LabelAtlas } from "./label-atlas";
+import { W } from "./strings";
 import { arenaGate } from "@/arena/flags";
 import { NearOnly, StaticMerge } from "./static-merge";
 
@@ -70,8 +73,8 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
   const { x, z, rotY } = portalTransform(def);
   const ring = useRef<THREE.MeshBasicMaterial>(null);
   const soon = def.kind === "soon";
-  // closed by staff (admin console): the doors stay shut for players
-  const closed = useBuildings((s) => closedFor(def.id, s) !== null);
+  // closed by staff (admin console) or the arena not letting you in: the doors stay shut, visibly (GAP-004)
+  const closed = useDoorShut(def.id);
   const inset = doorInset(def.kind);
   const ledColor = useMemo(() => new THREE.Color(def.color).multiplyScalar(LED_BOOST[tier]), [def.color, tier]);
   const hoarding = worldMaterials(tier)["hoarding"];
@@ -96,6 +99,7 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
       )}
       {badge && <DoorBadge def={def} y={badge[0]} z={badge[1]} />}
       {!soon && <AutoDoors def={def} inset={inset} tier={tier} locked={!def.href || closed} />}
+      {!soon && def.href && closed && <ClosedSign wooden={def.kind === "igisoro"} inset={inset} />}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, DOOR_RING - (DOOR_RING - 2.4) + 0.2]} userData={{ noMerge: true }}>
         <ringGeometry args={[0.85, 1.1, 48]} />
         <meshBasicMaterial ref={ring} color={ledColor} transparent opacity={0.5} toneMapped={false} depthWrite={false} />
@@ -127,6 +131,39 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
   );
 }
 
+let closedAtlas: LabelAtlas | null = null;
+/**
+ * A door that is shut for you says so (GAP-004): a red "CLOSED" plaque on the doors at eye height and a red door
+ * lamp over them (it blooms, like the LED signs). Not part of the static batch: it comes and goes with the state.
+ */
+function ClosedSign({ inset, wooden }: { inset: number; wooden: boolean }) {
+  const parts = useMemo(() => {
+    closedAtlas ??= labelAtlas([{ text: W.closedSign, px: 96 }], { cols: 1, cellW: 512, cellH: 160, ink: "#ffffff", paper: "#8f2620", letterSpacing: 0.14 });
+    return {
+      plaque: atlasPlane(1.15, 0.36, closedAtlas.uv(0)),
+      plaqueMat: new THREE.MeshBasicMaterial({ map: closedAtlas.texture, toneMapped: false }),
+      lampMat: new THREE.MeshBasicMaterial({ color: new THREE.Color("#ff3b30").multiplyScalar(2.2), toneMapped: false }),
+    };
+  }, []);
+  useEffect(
+    () => () => {
+      parts.plaque.dispose();
+      parts.plaqueMat.dispose();
+      parts.lampMat.dispose();
+    },
+    [parts],
+  );
+  const z = inset + 0.07 + (wooden ? 0.1 : 0.06);
+  return (
+    <group userData={{ noMerge: true }}>
+      <mesh geometry={parts.plaque} material={parts.plaqueMat} position={[0, 1.62, z]} renderOrder={3} />
+      <mesh material={parts.lampMat} position={[0, DOOR.h + 0.32, inset + 0.12]}>
+        <boxGeometry args={[0.7, 0.1, 0.05]} />
+      </mesh>
+    </group>
+  );
+}
+
 /**
  * Automatic doors (playable buildings only): sliding glass doors, or carved timber double doors at Igisoro Court.
  * They start opening when the local player comes within DOOR_OPEN_RADIUS of the entry point and close again when
@@ -149,7 +186,6 @@ function AutoDoors({ def, inset, tier, locked = false }: { def: PortalDef; inset
     };
   }, [tier]);
   useFrame((_, rawDt) => {
-    if (locked) return; // not open yet (Tournament Arena): the doors stay shut
     const dt = Math.min(rawDt, 0.05);
     // a real sensor door opens for whoever walks up to it, not only for you
     // (also held open for someone about to step out of the hall: their position is inside it, out of sensor range)
@@ -173,6 +209,9 @@ function AutoDoors({ def, inset, tier, locked = false }: { def: PortalDef; inset
     // Tournament Arena: the doors open only while the arena status says you may come in (arena/ArenaDoorWatch);
     // someone walking out of it is always let out
     if (near && def.kind === "arena" && !arenaGate.canEnter && (doorHold[def.id] ?? 0) <= performance.now()) near = false;
+    // shut for you (closed by staff, not open yet): the leaves close and stay closed — never frozen half open, and
+    // the doorway is not walkable (world/Player needs doorOpen ≥ 0.55); someone stepping out is still let out
+    if (near && locked && (doorHold[def.id] ?? 0) <= performance.now()) near = false;
     if (near !== wasNear.current) {
       wasNear.current = near;
       plazaDoorSound(entryX, entryZ, near);

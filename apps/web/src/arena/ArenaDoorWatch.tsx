@@ -7,6 +7,7 @@ import { usePhoneHud } from "@/hud/usePhoneHud";
 import { PaperCard } from "@/ui/PaperCard";
 import { fetchArenaStatus, useArena } from "./arena-client";
 import { ARENA_ON } from "./flags";
+import { useDoorNotice } from "@/world/door-access";
 import { A, denialText, scopeWords, whenWords } from "./strings";
 
 /**
@@ -16,7 +17,8 @@ import { A, denialText, scopeWords, whenWords } from "./strings";
  */
 export function ArenaDoorWatch() {
   const phone = usePhoneHud();
-  const near = useWorld((s) => s.nearPortal === "arena");
+  // at the arena door, whatever way you face or however you got there (walking, tap-to-walk, Interact): GAP-004
+  const near = useWorld((s) => s.nearDoor === "arena");
   const status = useArena((s) => s.status);
   const removed = useArena((s) => s.removed);
   const [dismissed, setDismissed] = useState(false);
@@ -41,6 +43,9 @@ export function ArenaDoorWatch() {
     if (near) void fetchArenaStatus();
     else setDismissed(false);
   }, [near]);
+  // E / Interact at the shut door shows the card again
+  const noticeAt = useDoorNotice((s) => s.at);
+  useEffect(() => setDismissed(false), [noticeAt]);
   useEffect(() => {
     if (!removed) return;
     const t = setTimeout(() => useArena.setState({ removed: null }), 7000);
@@ -57,7 +62,7 @@ export function ArenaDoorWatch() {
         </div>
       )}
       {shut && (
-        <div className="pointer-events-auto fixed left-1/2 top-16 z-30 w-[min(360px,90vw)] -translate-x-1/2 phone:top-[46px] phone:w-[min(320px,46vw)]">
+        <div role="status" data-door-notice="arena" className="pointer-events-auto fixed left-1/2 top-16 z-30 w-[min(360px,90vw)] -translate-x-1/2 phone:top-[46px] phone:w-[min(320px,46vw)]">
           <PaperCard title={status.denial === "BARRED" ? A.barredTitle : A.closedTitle} icon={DoorClosed} size="sm" onClose={() => setDismissed(true)} closeLabel={A.close}>
             <p className="pnote text-sm">{denialText(status.denial ?? "ARENA_CLOSED")}</p>
             <div className="plist mt-2">
