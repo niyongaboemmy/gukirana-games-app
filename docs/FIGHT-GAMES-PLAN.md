@@ -283,10 +283,13 @@ benches, posters. Room size small (cheap scene). Its hall room is a plain `hall`
 **As built (W, P3-FGT-01 world):** data in `apps/web/src/fight/plan.ts` (tested in `plan.test.ts`).
 - Hall 93 × 30 × 11 m; ring pitch **6.2 m across × 6.4 m deep** (§4.1 fallback: at 6.4 m across the outer back rings
   pierce the chamfered corners); all 50 rings kept. Rows A–D at z = 9.5 / 3.1 / −3.3 / −9.7; a 3 m front cross aisle.
-- R1 / R2 stand **front / back** (z 4.4 / −6.2) on one raised 1.2 m stage in the feature zone (side by side does not fit
-  14 m with 6.1 m rings + a rail); the four-sided screen hangs between them.
-- Ring transform convention for the ring kit: at `rotY = 0` the **red corner is local (−x, +z)** (towards the door),
-  blue (+x, −z); steps at those two corners.
+- R1 / R2 stand **front / back** (z 4.6 / −5.4) on one raised 1.2 m stage in the feature zone (side by side does not fit
+  14 m with their rails); the four-sided screen hangs between them. They are the assets `RingKit` (pro ring, 9.8 m rail).
+- **Ring size gap (open, P3-FGT-02 follow-up):** the assets ring kit has one size (5.9 m inside the ropes, 6.9 m platform,
+  9.8 m rail square) and no scale option; 48 of them cannot fit the 93 × 30 m hall. The 48 standard rings are W's
+  instanced training rings at the plan size (4.3 m inside, 4.9 m platform, deck 0.8 m, `fight/training-rings.tsx`)
+  until the kit takes a ring size; swapping is one component in `fight/BoxingHallScene.tsx`.
+- Ring corner convention (the kit's): at `rotY = 0` the **red corner is local (−x, −z)**, blue (+x, +z).
 - Building: lobby wing 30 × 10 m behind the door line, hall behind it, back corners chamfered 3.6 m (r ≤ 155.9).
   The lobby's Boxing door (x = −8.3) is the hall's south door: hall → hall crossing `world/stage.ts enterSubhall`.
 - Reaching it: the **Fight walk** (`world/layout.ts FIGHT_WALK`), a paved path out of the plaza at 133° (between the

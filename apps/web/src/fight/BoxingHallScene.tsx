@@ -21,6 +21,7 @@ import { FightCamera } from "./camera";
 import { RingCloseInfo } from "./ring-info";
 import "./hooks"; // registers the Boxing hall's hall hooks
 import { startFightMock } from "./mock";
+import { hiddenPeople } from "@/rooms/hall-hooks";
 import { fightActions } from "./actions";
 
 /**
@@ -39,7 +40,7 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
     startFightMock();
     // dev QA handle (like window.__gkNav); the mock replaces it with its own
     if (process.env.NODE_ENV !== "production" && !(window as unknown as { __gkFight?: unknown }).__gkFight)
-      Object.assign(window as unknown as Record<string, unknown>, { __gkFight: { bridge: useFightBridge, actions: fightActions, log: [] } });
+      Object.assign(window as unknown as Record<string, unknown>, { __gkFight: { bridge: useFightBridge, actions: fightActions, log: [], hidden: hiddenPeople } });
   }, []);
   const rings = useRingKitRings();
   const restKey = useFightBridge((st) => (st.watched?.snap?.phase === "rest" ? st.watched.ring : "") + (st.mine?.snap?.phase === "rest" ? st.mine.ring : ""));

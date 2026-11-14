@@ -640,8 +640,6 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     if (group.current) {
       group.current.position.copy(pos.current);
       group.current.rotation.y = facing.current;
-      // a hall layer draws you instead (in your boxing fight, P3-FGT-01)
-      group.current.visible = !hiddenPeople.has(W.you ?? SELF_ID);
     }
 
     // camera: third person; when seated, over the shoulder towards the table (or the arena's spectator eye view)
@@ -803,7 +801,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       camBlendUntil.current = performance.now() + 900;
     }
     // your own avatar is hidden in the eye view (you look out of its eyes; nothing of you blocks the stage)
-    if (group.current) group.current.visible = !sv;
+    // (and while a hall layer draws you instead: your own boxing fight, P3-FGT-01)
+    if (group.current) group.current.visible = !sv && !hiddenPeople.has(useWorld.getState().you ?? SELF_ID);
     if (walls.length && !sv) {
       // full-height walls and closed doors: the camera stays on your side of them (pulled in along the view line,
       // at any height), so it never looks at a wall from behind or into the office next door
