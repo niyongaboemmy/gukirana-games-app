@@ -67,7 +67,7 @@ describe("console sections", () => {
     expect(forAccountant.finance).not.toBeNull();
     const forBoss = await svc.overview(boss);
     expect(forBoss.users?.total).toBe(4);
-    expect(forBoss.buildings.map((b) => b.id)).toEqual(["pool", "ludo", "igisoro", "arena", "admin"]);
+    expect(forBoss.buildings.map((b) => b.id)).toEqual(["pool", "ludo", "igisoro", "arena", "admin", "fight"]);
   });
 });
 

@@ -358,6 +358,22 @@ importers:
         specifier: workspace:*
         version: link:../tsconfig
 
+  packages/games/boxing:
+    dependencies:
+      '@gukirana/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@gukirana/game-kit':
+        specifier: workspace:*
+        version: link:../../game-kit
+      zod:
+        specifier: ^4.1.12
+        version: 4.6.7
+    devDependencies:
+      '@gukirana/tsconfig':
+        specifier: workspace:*
+        version: link:../../tsconfig
+
   packages/games/igisoro:
     dependencies:
       '@gukirana/game-kit':

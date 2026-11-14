@@ -151,7 +151,7 @@ export interface ConsoleReport {
   openAgainstTarget: number;
 }
 
-export const BuildingIdSchema = z.enum(["pool", "ludo", "igisoro", "arena", "admin"]);
+export const BuildingIdSchema = z.enum(["pool", "ludo", "igisoro", "arena", "admin", "fight"]);
 export type BuildingId = z.infer<typeof BuildingIdSchema>;
 export const SEED_BUILDINGS: { id: BuildingId; name: string }[] = [
   { id: "pool", name: "Pool Hall" },
@@ -159,6 +159,7 @@ export const SEED_BUILDINGS: { id: BuildingId; name: string }[] = [
   { id: "igisoro", name: "Igisoro Court" },
   { id: "arena", name: "Tournament Arena" },
   { id: "admin", name: "Administrative Block" },
+  { id: "fight", name: "Fight Games Hall" }, // P3-FGT-01: the lobby door; the sub-halls follow it (boxing.ts)
 ];
 export const SetBuildingSchema = z.object({ open: z.boolean(), message: z.string().trim().max(120).default("") });
 

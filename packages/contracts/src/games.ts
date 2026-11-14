@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ReasonSchema } from "./console.js";
+import { DEFAULT_FIGHT_RULES, FightRulesSchema, type FightRules } from "./boxing.js";
 
 /**
  * Live-match rules per game (P1-GAME-06, docs/GAME-EXIT-RULES.md). Stored versioned in `game_settings` (append-only,
@@ -7,10 +8,13 @@ import { ReasonSchema } from "./console.js";
  * force when it is created (`matches.rules`), so an edit applies to new matches only — running matches keep theirs.
  * Practice vs AI never reads these: it is unlimited and has no stake.
  */
-export const GAME_IDS = ["igisoro", "ludo", "pool"] as const;
+export const GAME_IDS = ["igisoro", "ludo", "pool", "boxing"] as const;
 export const GameIdSchema = z.enum(GAME_IDS);
 export type GameId = z.infer<typeof GameIdSchema>;
-export const GAME_NAMES: Record<GameId, string> = { igisoro: "Igisoro", ludo: "Ludo", pool: "8-Ball Pool" };
+export const GAME_NAMES: Record<GameId, string> = { igisoro: "Igisoro", ludo: "Ludo", pool: "8-Ball Pool", boxing: "Boxing" };
+/** real-time fight games (rounds on a fixed tick, no turns): their settings carry the `fight` block (boxing.ts) */
+export const FIGHT_GAME_IDS = ["boxing"] as const satisfies readonly GameId[];
+export const isFightGame = (g: GameId): boolean => (FIGHT_GAME_IDS as readonly string[]).includes(g);
 
 /** bounds for every editable value (the editors show them; the API enforces them) */
 export const GAME_SETTING_BOUNDS = {
@@ -45,6 +49,8 @@ export const GameSettingsSchema = z
     maxTimeouts: int(B.maxTimeouts),
     /** longest a match may run; past it the match is voided and stakes refunded */
     maxMatchMinutes: int(B.maxMatchMinutes),
+    /** fight games only (boxing): rounds, round / rest length, idle limit. Turn games leave it out; `turnSeconds` is unused by fight games. */
+    fight: FightRulesSchema.optional(),
   })
   .refine((s) => new Set(s.stakes).size === s.stakes.length, { message: "DUPLICATE_STAKE", path: ["stakes"] })
   .refine((s) => s.reconnectSeconds < s.maxMatchMinutes * 60, { message: "RECONNECT_TOO_LONG", path: ["reconnectSeconds"] });
@@ -60,6 +66,8 @@ export const DEFAULT_GAME_SETTINGS: Record<GameId, GameSettings> = {
   igisoro: { ...base, maxMatchMinutes: 45 },
   ludo: { ...base, maxMatchMinutes: 90 },
   pool: { ...base, maxMatchMinutes: 60 },
+  // P3-FGT-01: seeded switched OFF — staff open it in the console Games section once the Boxing hall ships
+  boxing: { ...base, enabled: false, maxMatchMinutes: 15, fight: DEFAULT_FIGHT_RULES },
 };
 
 /** the settings row as the editors list it */
@@ -81,8 +89,11 @@ export interface MatchRules {
   joinSeconds: number;
   maxTimeouts: number;
   maxMatchMinutes: number;
+  /** fight games only (copied from the settings' fight block) */
+  fight?: FightRules;
 }
 export const rulesOf = (s: GameSettings, version: number): MatchRules => ({
+  ...(s.fight ? { fight: s.fight } : {}),
   settingsVersion: version,
   turnSeconds: s.turnSeconds,
   reconnectSeconds: s.reconnectSeconds,

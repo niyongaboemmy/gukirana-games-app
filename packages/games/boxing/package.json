@@ -1,0 +1,33 @@
+{
+  "name": "@gukirana/boxing",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Boxing fight engine (P3-FGT-01): deterministic fixed-tick simulation, integer-only, no randomness.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@gukirana/contracts": "workspace:*",
+    "@gukirana/game-kit": "workspace:*",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@gukirana/tsconfig": "workspace:*"
+  }
+}
