@@ -133,7 +133,7 @@ function Flaps() {
     led.color.lerp(open ? green : red, Math.min(1, dt * 6));
   });
   return (
-    <group position={[0, 0, GATE_Z]}>
+    <group position={[0, 0, GATE_Z]} userData={{ noMerge: true }}>
       <group ref={l} position={[-0.62, 0.75, 0]}>
         <mesh position={[0.3, 0, 0]}>
           <boxGeometry args={[0.6, 0.85, 0.025]} />
@@ -252,7 +252,7 @@ export function Guard({ x, z, rotY, tier }: { x: number; z: number; rotY: number
   const anim = useRef(0);
   const look = useMemo(() => ({ ...DEFAULT_LOOK, bodyType: "masculine" as const, skinTone: "#4A2C21", hairColor: "#141010" }), []);
   return (
-    <group position={[x, 0, z]} rotation={[0, rotY, 0]}>
+    <group position={[x, 0, z]} rotation={[0, rotY, 0]} userData={{ noMerge: true }}>
       <Avatar look={look} animRef={anim} showTag={false} model="guard" keepClothes shadows={tier !== "lite"} quality={tier} lod />
     </group>
   );

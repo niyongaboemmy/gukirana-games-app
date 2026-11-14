@@ -524,7 +524,8 @@ export function PoolHall({ layout, lite }: { layout: HallLayout; lite: boolean }
       <TableLamps layout={layout} status={status} />
       {/* the soft light pool each light lays on the carpet round its table (baked, additive, very low) */}
       <LightPools items={tables.map((t) => ({ x: t.x, z: t.z, w: 5.0, d: 3.8 }))} color="#ffe9cf" opacity={lite ? 0.12 : 0.08} y={0.012} />
-      <GltfInstances url={model("mid_century_lounge_chair")} items={layout.seats.map((s) => ({ p: [s.x, 0, s.z], r: s.yaw, s: 0.95 }))} castShadow={!lite} matOverride={matte} />
+      {/* chairs: soft blob contact shadows (shadowBlobs), not shadow-map casters (GAP-008: 24 × 3k triangles drawn twice) */}
+      <GltfInstances url={model("mid_century_lounge_chair")} items={layout.seats.map((s) => ({ p: [s.x, 0, s.z], r: s.yaw, s: 0.95 }))} matOverride={matte} />
 
       {/* -------- bar (west wall) -------- */}
       <Instanced geometry={box} items={X.barBody} castShadow={!lite}>

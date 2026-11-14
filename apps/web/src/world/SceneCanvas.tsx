@@ -16,6 +16,7 @@ import { PORTALS, portalTransform } from "./layout";
 import { doorOpen } from "./transition";
 import { AreaContext, areaOf, areaTopUp, getArea, hallOf, isOnScreen, knownAreas, useStage, type Area } from "./stage";
 import { useDoorway } from "./doorway";
+import { StaticMerge } from "./static-merge";
 import { HallActors, HallInterior } from "@/rooms/RoomCanvas";
 import { HALLS, type HallGame } from "@/rooms/layouts";
 import { selfPose, useWorld } from "@/lib/world-store";
@@ -384,9 +385,13 @@ function OutdoorArea({ tier }: { tier: "lite" | "standard" }) {
   const inXR = useXR((s) => s.session != null);
   return (
     <AreaContent area="outdoor" actors={view === "gate" ? <GateActors /> : view === "plaza" ? <PlazaActors tier={tier} /> : null}>
-      <Plaza nearPortal={view === "plaza" ? nearPortal : null} tier={tier} />
-      {/* the arrival gate at the south end of the avenue (sign-in, sign-out) */}
-      <Gate tier={tier} inXR={inXR} />
+      {/* static batching across the plaza, the halls' fronts and both gates (they share the world materials):
+          one draw call per look instead of one per part (GAP-008; animated parts are marked noMerge) */}
+      <StaticMerge name="outdoor-static">
+        <Plaza nearPortal={view === "plaza" ? nearPortal : null} tier={tier} />
+        {/* the arrival gate at the south end of the avenue (sign-in, sign-out) */}
+        <Gate tier={tier} inXR={inXR} />
+      </StaticMerge>
       <ProxyAvatar tier={tier} />
     </AreaContent>
   );
@@ -397,7 +402,10 @@ function HallArea({ game, tier }: { game: HallGame; tier: "lite" | "standard" })
   const active = useStage((s) => s.view === `hall:${game}`);
   return (
     <AreaContent area={`hall:${game}`} actors={active ? <HallActors layout={layout} tier={tier} /> : null}>
-      <HallInterior layout={layout} lite={tier === "lite"} />
+      {/* static batching of the room (GAP-008): one draw call per look; animated parts are marked noMerge */}
+      <StaticMerge name={`hall-static:${game}`}>
+        <HallInterior layout={layout} lite={tier === "lite"} />
+      </StaticMerge>
       {/* where you will appear: inside the hall lights' shadow range for the warm draw */}
       <ProxyAvatar tier={tier} at={[layout.door.x, 0, layout.size.d / 2 - 1.2]} />
     </AreaContent>
@@ -435,6 +443,8 @@ function Compositor() {
     for (const [k, o] of knownAreas()) o.scene.visible = k === area;
     probe.view = st.view;
     probe.cam = rootCam;
+    // dev only: the root scene, for the QA performance breakdown (qa/e2e/perf.mjs)
+    if (process.env.NODE_ENV !== "production") Object.assign(probe, { root, gl });
     probe.dt = dt;
     probe.ready = !!area && !!st.ready[area];
     if (!area) return;

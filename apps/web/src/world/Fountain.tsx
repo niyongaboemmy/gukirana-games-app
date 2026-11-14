@@ -352,22 +352,35 @@ function Splashes({ uTime }: { uTime: { value: number } }) {
       }),
     [],
   );
-  const mats = useMemo(
-    () =>
-      ripples.map(
-        () =>
-          new THREE.MeshBasicMaterial({
-            map: tex,
-            transparent: true,
-            depthWrite: false,
-            opacity: 0.6,
-            color: "#eef6f8",
-            polygonOffset: true,
-            polygonOffsetFactor: -2,
-          }),
-      ),
-    [ripples, tex],
-  );
+  // all ripples in one instanced draw call (GAP-008): per-instance scale in the matrix, per-instance fade in an
+  // instanced attribute (the separate meshes each had their own material only for the opacity)
+  const ripple = useMemo(() => {
+    const g = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    const fade = new THREE.InstancedBufferAttribute(new Float32Array(ripples.length).fill(0.6), 1);
+    fade.setUsage(THREE.DynamicDrawUsage);
+    g.setAttribute("aFade", fade);
+    const m = new THREE.MeshBasicMaterial({
+      map: tex,
+      transparent: true,
+      depthWrite: false,
+      color: "#eef6f8",
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+    });
+    m.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader
+        .replace("#include <common>", "#include <common>\nattribute float aFade;\nvarying float vFade;")
+        .replace("#include <begin_vertex>", "#include <begin_vertex>\nvFade = aFade;");
+      sh.fragmentShader = sh.fragmentShader
+        .replace("#include <common>", "#include <common>\nvarying float vFade;")
+        .replace("#include <color_fragment>", "#include <color_fragment>\ndiffuseColor.a *= vFade;");
+    };
+    m.customProgramCacheKey = () => "gk-ripple";
+    const im = new THREE.InstancedMesh(g, m, ripples.length);
+    im.renderOrder = 2;
+    im.frustumCulled = false;
+    return { im, fade, g, m };
+  }, [ripples, tex]);
   const foam = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
@@ -379,41 +392,32 @@ function Splashes({ uTime }: { uTime: { value: number } }) {
       }),
     [tex],
   );
-  const refs = useMemo(() => ripples.map(() => ({ current: null as THREE.Mesh | null })), [ripples]);
+  const _mx = useMemo(() => new THREE.Matrix4(), []);
   useFrame(() => {
     const t = uTime.value;
-    refs.forEach((r, j) => {
-      if (!r.current) return;
+    ripples.forEach((p, j) => {
       // two overlapping ripple cycles per jet (staggered), 0.45 s each
       const k = (t / 0.45 + j * 0.37) % 1;
-      r.current.scale.setScalar(0.25 + k * 0.55);
-      mats[j]!.opacity = 0.65 * (1 - k);
+      const sc = 0.25 + k * 0.55;
+      ripple.im.setMatrixAt(j, _mx.makeScale(sc, sc, sc).setPosition(p));
+      ripple.fade.setX(j, 0.65 * (1 - k));
     });
+    ripple.im.instanceMatrix.needsUpdate = true;
+    ripple.fade.needsUpdate = true;
   });
   useEffect(
     () => () => {
       tex.dispose();
-      mats.forEach((m) => m.dispose());
+      ripple.g.dispose();
+      ripple.m.dispose();
+      ripple.im.dispose();
       foam.dispose();
     },
-    [tex, mats, foam],
+    [tex, ripple, foam],
   );
   return (
     <group>
-      {ripples.map((p, j) => (
-        <mesh
-          key={j}
-          ref={(m) => {
-            refs[j]!.current = m;
-          }}
-          position={p}
-          rotation={[-Math.PI / 2, 0, 0]}
-          material={mats[j]}
-          renderOrder={2}
-        >
-          <planeGeometry args={[1, 1]} />
-        </mesh>
-      ))}
+      <primitive object={ripple.im} />
       <mesh
         position={[0, WATER_Y + 0.008, 0]}
         rotation={[-Math.PI / 2, 0, 0]}

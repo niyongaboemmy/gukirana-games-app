@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
@@ -179,9 +179,11 @@ function terrainColor(x: number, z: number, h: number, out: THREE.Color) {
 }
 
 function buildTerrain(tier: Tier): THREE.BufferGeometry {
-  const segs = tier === "lite" ? 160 : 448;
+  // (GAP-008: 448 × ~157 rings = 140k triangles in every plaza frame; the field colours are tens of metres across and
+  // the ground near you is the paved plaza, so 256 × ~118 rings (≈ 60k) keeps the look)
+  const segs = tier === "lite" ? 128 : 256;
   const radii: number[] = [];
-  for (let r = 30; r < 1500; r += Math.max(tier === "lite" ? 4 : 2.2, r * (tier === "lite" ? 0.055 : 0.022))) radii.push(r);
+  for (let r = 30; r < 1500; r += Math.max(tier === "lite" ? 4 : 2.2, r * (tier === "lite" ? 0.06 : 0.032))) radii.push(r);
   radii.push(1500);
   const pos: number[] = [];
   const col: number[] = [];
@@ -298,8 +300,12 @@ function ridged(x: number, y: number, oct = 4): number {
  * forest → Hagenia / heath → bare rock and scree at the summits, with steep faces turning to rock at any height.
  */
 function buildVolcanoes(tier: Tier): { geo: THREE.BufferGeometry; craters: THREE.Vector3[] } {
-  const rings = tier === "lite" ? 48 : 120;
-  const segs = tier === "lite" ? 128 : 360;
+  // (GAP-008: 5 × 120 × 360 × 2 = 432k triangles, more than the whole Standard budget, for mountains 1.7–2.3 km away.
+  // Only the flank that faces the compound is ever seen (anywhere in the compound is within ~6° of the plaza as seen
+  // from the volcanoes), so each cone is built over a ±115° arc towards the plaza, with the summit-dense rings kept.)
+  const rings = tier === "lite" ? 32 : 64;
+  const segsFull = tier === "lite" ? 96 : 180; // angular density, per full turn
+  const ARC = (115 * Math.PI) / 180;
   const parts: THREE.BufferGeometry[] = [];
   const craters: THREE.Vector3[] = [];
   const c = new THREE.Color();
@@ -310,11 +316,14 @@ function buildVolcanoes(tier: Tier): { geo: THREE.BufferGeometry; craters: THREE
     const pos: number[] = [];
     const hn: number[] = [];
     const elong = v.elong ?? 1;
+    const a0 = Math.atan2(-centre.z, -centre.x / elong); // towards the plaza
+    const segs = Math.round((segsFull * 2 * ARC) / (Math.PI * 2)); // quads across the arc (segs + 1 vertices)
+    const row = segs + 1;
     for (let j = 0; j <= rings; j++) {
       const t = j / rings;
       const rr = v.r * (t * t * 0.8 + t * 0.2); // dense near the summit
-      for (let i = 0; i < segs; i++) {
-        const a = (i / segs) * Math.PI * 2;
+      for (let i = 0; i <= segs; i++) {
+        const a = a0 - ARC + (i / segs) * 2 * ARC;
         const lx = Math.cos(a) * rr * elong;
         const lz = Math.sin(a) * rr;
         let h = volcanoHeight(v, lx, lz);
@@ -330,10 +339,10 @@ function buildVolcanoes(tier: Tier): { geo: THREE.BufferGeometry; craters: THREE
     const idx: number[] = [];
     for (let j = 0; j < rings; j++)
       for (let i = 0; i < segs; i++) {
-        const a = j * segs + i;
-        const b = j * segs + ((i + 1) % segs);
-        const c2 = (j + 1) * segs + i;
-        const d = (j + 1) * segs + ((i + 1) % segs);
+        const a = j * row + i;
+        const b = a + 1;
+        const c2 = a + row;
+        const d = c2 + 1;
         idx.push(a, b, c2, b, d, c2);
       }
     const g = new THREE.BufferGeometry();
@@ -554,13 +563,14 @@ function Vegetation({ tier }: { tier: Tier }) {
 /** Banana plant (3.2 m): pseudo-stem + 8 arching, torn leaf blades (alpha-cut), merged into one geometry. */
 function bananaGeometry(): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
-  const stemG = new THREE.CylinderGeometry(0.1, 0.16, 2.0, 7, 1).translate(0, 1.0, 0);
+  // (seen from 120 m and more: an open stem and 3-segment blades, 62 triangles instead of 124 × ~800 plants)
+  const stemG = new THREE.CylinderGeometry(0.1, 0.16, 2.0, 7, 1, true).translate(0, 1.0, 0);
   // stem uses the dark bottom strip of the leaf texture
   const suv = stemG.getAttribute("uv") as THREE.BufferAttribute;
   for (let i = 0; i < suv.count; i++) suv.setXY(i, 0.02 + suv.getX(i) * 0.06, 0.02 + suv.getY(i) * 0.05);
   parts.push(stemG.toNonIndexed());
   for (let k = 0; k < 8; k++) {
-    const blade = new THREE.PlaneGeometry(0.62, 2.1, 1, 6);
+    const blade = new THREE.PlaneGeometry(0.62, 2.1, 1, 3);
     const p = blade.getAttribute("position") as THREE.BufferAttribute;
     for (let i = 0; i < p.count; i++) {
       const y = p.getY(i) + 1.05; // 0 … 2.1 along the blade
@@ -660,34 +670,46 @@ function Mist({ tier }: { tier: Tier }) {
     }
     return list;
   }, [tier]);
-  const refs = useRef<(THREE.Mesh | null)[]>([]);
-  useFrame(({ clock }) => {
-    const t = clock.elapsedTime;
-    refs.current.forEach((m, i) => {
-      if (!m) return;
-      const d = defs[i]!;
-      m.position.x = d.x + Math.sin(t * 0.03 + i) * d.w * 0.04;
-      (m.material as THREE.MeshBasicMaterial).opacity = d.o * (0.85 + 0.15 * Math.sin(t * 0.1 + i * 1.7));
+  // every bank in one mesh (one draw call, GAP-008): the slow drift and the breathing opacity of each bank run in
+  // the vertex shader from its own phase / amplitude attributes (same motion as the separate meshes had)
+  const mist = useMemo(() => {
+    const parts: THREE.BufferGeometry[] = [];
+    defs.forEach((d, i) => {
+      const g = new THREE.PlaneGeometry(d.w, d.h).rotateY(Math.atan2(-d.x, -d.z)).translate(d.x, d.y, d.z); // face the plaza
+      const n = g.attributes.position!.count;
+      g.setAttribute("aMist", new THREE.BufferAttribute(new Float32Array(Array.from({ length: n }, () => [i, d.w * 0.04, d.o]).flat()), 3));
+      parts.push(g);
     });
-  });
-  return (
-    <group>
-      {defs.map((d, i) => (
-        <mesh
-          key={i}
-          ref={(m) => {
-            refs.current[i] = m;
-          }}
-          position={[d.x, d.y, d.z]}
-          rotation={[0, Math.atan2(-d.x, -d.z), 0]} // face the plaza (front side)
-          renderOrder={-1}
-        >
-          <planeGeometry args={[d.w, d.h]} />
-          <meshBasicMaterial map={tex} transparent opacity={d.o} depthWrite={false} color="#f4f7fa" fog={false} />
-        </mesh>
-      ))}
-    </group>
+    const geo = mergeGeometries(parts, false)!;
+    parts.forEach((g) => g.dispose());
+    const uTime = { value: 0 };
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, color: "#f4f7fa", fog: false });
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uTime = uTime;
+      sh.vertexShader = sh.vertexShader
+        .replace("#include <common>", "#include <common>\nuniform float uTime;\nattribute vec3 aMist;\nvarying float vMist;")
+        .replace(
+          "#include <begin_vertex>",
+          "#include <begin_vertex>\ntransformed.x += sin(uTime * 0.03 + aMist.x) * aMist.y;\nvMist = aMist.z * (0.85 + 0.15 * sin(uTime * 0.1 + aMist.x * 1.7));",
+        );
+      sh.fragmentShader = sh.fragmentShader
+        .replace("#include <common>", "#include <common>\nvarying float vMist;")
+        .replace("#include <color_fragment>", "#include <color_fragment>\ndiffuseColor.a *= vMist;");
+    };
+    mat.customProgramCacheKey = () => "gk-mist";
+    return { geo, mat, uTime };
+  }, [defs, tex]);
+  useEffect(
+    () => () => {
+      mist.geo.dispose();
+      mist.mat.dispose();
+    },
+    [mist],
   );
+  useFrame(({ clock }) => {
+    mist.uTime.value = clock.elapsedTime;
+  });
+  return <mesh geometry={mist.geo} material={mist.mat} renderOrder={-1} />;
 }
 
 /* ---------------- composition ---------------- */

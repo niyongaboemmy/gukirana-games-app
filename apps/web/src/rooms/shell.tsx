@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
 import * as THREE from "three";
+import { StaticMerge } from "@/world/static-merge";
 import { selfPose, useWorld } from "@/lib/world-store";
 import { useRoom } from "./room-store";
 import type { HallLayout } from "./layouts";
@@ -158,11 +159,12 @@ export function AutoDoor({ x, z, w, color }: { x: number; z: number; w: number; 
   const cy = 0.01 + 0.08 + H / 2;
   return (
     <group position={[x, 0, z]}>
-      <group ref={left} position={[-w / 4, cy, -0.1]}>
-        {leaf}
+      {/* sliding leaves: never part of the room's static batch; each leaf's parts are batched on their own */}
+      <group ref={left} position={[-w / 4, cy, -0.1]} userData={{ noMerge: true }}>
+        <StaticMerge>{leaf}</StaticMerge>
       </group>
-      <group ref={right} position={[w / 4, cy, -0.13]}>
-        {leaf}
+      <group ref={right} position={[w / 4, cy, -0.13]} userData={{ noMerge: true }}>
+        <StaticMerge>{leaf}</StaticMerge>
       </group>
       {/* header track (full travel) + operator housing, standing clear of the wall face */}
       <mesh material={mats.alu} position={[0, cy + H / 2 + 0.13, -0.115]}>

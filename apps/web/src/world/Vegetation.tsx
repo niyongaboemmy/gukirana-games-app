@@ -40,7 +40,7 @@ export interface SpeciesDef {
 const BASE = "/assets/env";
 export const SPECIES = {
   // distant landscape only (outside the compound): trees use full / sparse / impostor LODs
-  acacia: { url: `${BASE}/acacia.glb`, dist: [60, 170], impostor: { url: `${BASE}/acacia-imp.webp`, frames: 8, w: 14.4, h: 11.2, y0: -0.2 }, shadows: false, sway: 0.006 },
+  acacia: { url: `${BASE}/acacia.glb`, dist: [60, 120], impostor: { url: `${BASE}/acacia-imp.webp`, frames: 8, w: 14.4, h: 11.2, y0: -0.2 }, shadows: false, sway: 0.006 },
   eucalyptus: { url: `${BASE}/eucalyptus.glb`, dist: [50, 120], impostor: { url: `${BASE}/eucalyptus-imp.webp`, frames: 8, w: 19.6, h: 16.6, y0: -0.2 }, shadows: false, sway: 0.01 },
   bush: { url: `${BASE}/bush.glb`, dist: [60, 140], sway: 0.012 },
   rock: { url: `${BASE}/rock.glb`, dist: [60, 160], shadows: true },

@@ -74,7 +74,7 @@ function pawnGeometry() {
     [0.006, 0.05],
     [0, 0.052],
   ].map(([x, y]) => new THREE.Vector2(x! * 1.15, y! * 1.15));
-  return new THREE.LatheGeometry(pts, 14);
+  return new THREE.LatheGeometry(pts, 10);
 }
 
 /** Box with each face mapped to a cell of the 3 × 2 dice atlas (opposite faces sum to 7). */
@@ -252,7 +252,8 @@ export function LudoTables({ tables, status, lite }: { tables: Table[]; status: 
         <meshStandardMaterial map={board} roughness={0.8} metalness={0} envMapIntensity={0.1} emissive="#ffffff" emissiveMap={board} emissiveIntensity={0.1} />
       </Instanced>
       {/* satin tokens and dice: a soft broad sheen, never a mirror highlight */}
-      <Instanced geometry={pawn} items={tokens.items} colors={tokens.cols} castShadow={!lite}>
+      {/* (5 cm pieces on lit boards: no shadow-map casters, 256 of them were ~72k shadow triangles per frame) */}
+      <Instanced geometry={pawn} items={tokens.items} colors={tokens.cols}>
         <meshStandardMaterial roughness={0.6} metalness={0} envMapIntensity={0.15} />
       </Instanced>
       <Instanced geometry={die} items={X.dices} castShadow={!lite}>
@@ -397,7 +398,7 @@ function GiantDie({ x, z }: { x: number; z: number }) {
   });
   return (
     <group position={[x, 3.05, z]}>
-      <group ref={ref}>
+      <group ref={ref} userData={{ noMerge: true }}>
         <mesh geometry={uvGeo}>
           <meshStandardMaterial map={dice} roughness={0.85} metalness={0} envMapIntensity={0.1} />
         </mesh>
@@ -645,7 +646,8 @@ export function LudoLounge({ layout, lite }: { layout: HallLayout; lite: boolean
       <LudoTables tables={tables} status={st} lite={lite} />
       <Pendants tables={tables} status={status} ceiling={h} />
       <LightPools items={tables.map((t) => ({ x: t.x, z: t.z, w: 3.4, d: 3.4 }))} color="#ffe9cf" opacity={lite ? 0.1 : 0.07} y={0.011} />
-      <GltfInstances url={model("modern_arm_chair_01")} items={layout.seats.map((s) => ({ p: [s.x, 0, s.z], r: s.yaw, s: 0.9 }))} castShadow={!lite} matOverride={chairMat} />
+      {/* chairs: soft blob contact shadows (shadowBlobs), not shadow-map casters (GAP-008: 32 × 2.7k triangles drawn twice) */}
+      <GltfInstances url={model("modern_arm_chair_01")} items={layout.seats.map((s) => ({ p: [s.x, 0, s.z], r: s.yaw, s: 0.9 }))} matOverride={chairMat} />
       <GltfInstances url={model("Ottoman_01")} items={poufs} matOverride={poufMat} />
 
       {/* -------- coffee bar (west wall) -------- */}

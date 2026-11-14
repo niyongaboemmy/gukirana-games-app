@@ -330,7 +330,7 @@ function OfficeDoors({ lite }: { lite: boolean }) {
     <group>
       {OFFICE_PLANS.map((o, i) => (
         // hinged on the west jamb, swinging into the office (−z)
-        <group key={o.id} ref={(g) => void (leaf.current[i] = g)} position={[o.cx - DOOR_W / 2 + 0.06, 0, FRONT_Z]}>
+        <group key={o.id} ref={(g) => void (leaf.current[i] = g)} position={[o.cx - DOOR_W / 2 + 0.06, 0, FRONT_Z]} userData={{ noMerge: true }}>
           <mesh material={mats.leaf} position={[L / 2, DOOR_H / 2 + 0.005, 0]} castShadow={!lite} receiveShadow>
             <boxGeometry args={[L - 0.01, DOOR_H - 0.01, 0.045]} />
           </mesh>
@@ -374,7 +374,7 @@ function DoorSigns() {
     });
   });
   return (
-    <group>
+    <group userData={{ noMerge: true }}>
       {OFFICE_PLANS.map((o, i) => (
         <group key={o.id}>
           <mesh material={plates[i]} position={[o.cx + 1.66, 1.52, FRONT_Z + WALL_T / 2 + 0.0135]}>
@@ -553,7 +553,7 @@ const RECEPTIONIST_LOOK: AvatarLook = {
 function Receptionist({ lite }: { lite: boolean }) {
   const anim = useRef(13); // seated
   return (
-    <group position={[RECEPTIONIST.x, 0, RECEPTIONIST.z - 0.12]}>
+    <group position={[RECEPTIONIST.x, 0, RECEPTIONIST.z - 0.12]} userData={{ noMerge: true }}>
       <Avatar look={RECEPTIONIST_LOOK} animRef={anim} showTag={false} shadows={!lite} quality={lite ? "lite" : "standard"} keepClothes />
     </group>
   );

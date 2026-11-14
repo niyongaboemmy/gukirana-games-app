@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer, Text } from "@react-three/drei";
 import * as THREE from "three";
+import { atlasPlane, labelAtlas } from "@/world/label-atlas";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { HallLayout, Table } from "./layouts";
 import { GltfInstances, Instanced, LightPools, model, type Xform } from "./interior-kit";
@@ -818,6 +819,20 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
       }),
     [],
   );
+  const signAtlas = useMemo(() => {
+    const atlas = labelAtlas(signs.map((x) => ({ text: x.id, px: Math.round((x.size / 0.66) * 160) })), { ink: "#2e2834" });
+    const geos = signs.map((x, i) => (x.id.length > 1 ? atlasPlane(1.05, 0.66, atlas.uv(i)) : atlasPlane(0.78, 0.66, atlas.uv(i, 0.78 / 1.05))));
+    const material = new THREE.MeshStandardMaterial({ map: atlas.texture, emissiveMap: atlas.texture, color: "#e9dfcd", emissive: "#f3e7d2", emissiveIntensity: 0.42, roughness: 1, metalness: 0 });
+    return { geos, material, texture: atlas.texture };
+  }, [signs]);
+  useEffect(
+    () => () => {
+      signAtlas.geos.forEach((g) => g.dispose());
+      signAtlas.material.dispose();
+      signAtlas.texture.dispose();
+    },
+    [signAtlas],
+  );
   const concoursePools = useMemo(() => Array.from({ length: 24 }, (_, i) => ({ ...polar(CONCOURSE.mid, i * 15 + 7.5), w: 2.6, d: 2.6 })), []);
   const coveRing = (r: number, w: number, y: number) => (
     <mesh position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.cove}>
@@ -893,16 +908,10 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
 
       {/* -------- concourse: soft downlight pools, back-lit section signs, wayfinding totems, photo spot -------- */}
       <LightPools items={concoursePools} color="#ffe2bd" opacity={lite ? 0.1 : 0.07} y={0.012} />
-      {signs.map((s) => (
+      {/* section letters printed on the back-lit panels (one shared atlas: one draw call for every section sign) */}
+      {signs.map((s, i) => (
         <group key={s.id} position={[s.x, s.y, s.z]} rotation={[0, s.ry, 0]}>
-          <mesh position={[0, 0, -0.015]}>
-            <planeGeometry args={[s.id.length > 1 ? 1.05 : 0.78, 0.66]} />
-            <meshStandardMaterial color="#e9dfcd" emissive="#f3e7d2" emissiveIntensity={0.42} roughness={1} metalness={0} />
-          </mesh>
-          <Text font={FONT} fontSize={s.size} anchorX="center" anchorY="middle">
-            {s.id}
-            <meshStandardMaterial color="#2a2430" roughness={0.9} metalness={0} />
-          </Text>
+          <mesh position={[0, 0, -0.015]} geometry={signAtlas.geos[i]} material={signAtlas.material} />
         </group>
       ))}
       {totems.map((t) => (
@@ -970,7 +979,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
         </mesh>
       ))}
       {/* the soft stage wash on the deck (baked; it brightens when live) */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, FLOOR_Y + STAGE.h + 0.004, STAGE.z]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, FLOOR_Y + STAGE.h + 0.004, STAGE.z]} userData={{ noMerge: true }}>
         <planeGeometry args={[STAGE.hw * 2 - 0.4, STAGE.hd * 2 - 0.4]} />
         <meshBasicMaterial ref={washDisc} color="#fff0d8" transparent opacity={0.05} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
       </mesh>
@@ -1018,7 +1027,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
           </mesh>
         ))}
         {/* ON AIR light (lit while a staff commentator is on air) */}
-        <mesh position={[0, 1.62, -0.2]}>
+        <mesh position={[0, 1.62, -0.2]} userData={{ noMerge: true }}>
           <boxGeometry args={[0.5, 0.16, 0.06]} />
           <meshStandardMaterial ref={onAirMat} color="#3a1212" emissive="#e0453a" emissiveIntensity={0.05} roughness={1} />
         </mesh>
@@ -1139,7 +1148,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
               <meshStandardMaterial color="#bfc2c0" roughness={1} />
             </mesh>
             {/* the door (hinged at its south edge) */}
-            <group ref={s < 0 ? doorW : doorE} position={[s * (LOBBY.hw + 0.02), 0, d0]}>
+            <group ref={s < 0 ? doorW : doorE} position={[s * (LOBBY.hw + 0.02), 0, d0]} userData={{ noMerge: true }}>
               <mesh position={[0, 1.1, RESTROOM.doorW / 2]} material={M.wood}>
                 <boxGeometry args={[0.04, 2.18, RESTROOM.doorW - 0.04]} />
               </mesh>
@@ -1255,7 +1264,7 @@ function SeatMarker() {
   });
   if (!seat) return null;
   return (
-    <mesh ref={ref} position={[seat.x, seat.y + 1.05, seat.z]} rotation={[-Math.PI / 2, 0, 0]}>
+    <mesh ref={ref} position={[seat.x, seat.y + 1.05, seat.z]} rotation={[-Math.PI / 2, 0, 0]} userData={{ noMerge: true }}>
       <ringGeometry args={[0.18, 0.24, 32]} />
       <meshBasicMaterial color="#d8b45a" transparent opacity={0.85} depthWrite={false} side={THREE.DoubleSide} />
     </mesh>

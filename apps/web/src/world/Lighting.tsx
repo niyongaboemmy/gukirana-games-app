@@ -95,7 +95,7 @@ export function Lighting({ tier }: { tier: Tier }) {
 export function Effects() {
   return (
     <EffectComposer multisampling={4} enableNormalPass={false}>
-      <Bloom mipmapBlur luminanceThreshold={1} luminanceSmoothing={0.2} intensity={0.55} radius={0.62} />
+      <Bloom mipmapBlur levels={6} luminanceThreshold={1} luminanceSmoothing={0.2} intensity={0.55} radius={0.62} />
       <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
     </EffectComposer>
   );

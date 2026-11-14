@@ -34,7 +34,7 @@ function EntryFlaps() {
   const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#dff3ff", transparent: true, opacity: 0.45, roughness: 0.05, metalness: 0.2 }), []);
   useEffect(() => () => mat.dispose(), [mat]);
   return (
-    <group position={[0, 0.75, ENTRY_Z]}>
+    <group position={[0, 0.75, ENTRY_Z]} userData={{ noMerge: true }}>
       <group ref={l} position={[-0.62, 0, 0]}>
         <mesh material={mat} position={[0.3, 0, 0]}>
           <boxGeometry args={[0.6, 0.85, 0.025]} />
@@ -72,7 +72,7 @@ export function EntryGate({ tier }: { tier: Tier }) {
       {/* exit kiosk screen */}
       <group position={[EXIT_KIOSK.x, 0, EXIT_KIOSK.z]} rotation={[0, EXIT_KIOSK.rotY, 0]}>
         <group position={[0, 1.42, 0.025]} rotation={[-0.22, 0, 0]}>
-          <mesh>
+          <mesh userData={{ noMerge: true }}>
             <planeGeometry args={[0.84, 0.58]} />
             <meshBasicMaterial ref={glow} color="#22266E" toneMapped={false} />
           </mesh>

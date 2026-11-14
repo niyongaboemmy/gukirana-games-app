@@ -3,6 +3,7 @@ import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import type { Tier } from "./materials";
 import { rng } from "./textures";
+import { StaticMerge } from "./static-merge";
 
 /**
  * Daytime clouds (P1-WLD-03): soft cumulus banks billowing over the Virunga volcanoes (they build up over the peaks
@@ -116,8 +117,9 @@ export function Clouds({ tier }: { tier: Tier }) {
       }),
     [mats],
   );
+  // (static billboards sharing three materials: batched into three draw calls)
   return (
-    <group>
+    <StaticMerge>
       {defs.map((d, i) => {
         const a = (d.az * Math.PI) / 180;
         const x = Math.sin(a) * d.dist;
@@ -135,6 +137,6 @@ export function Clouds({ tier }: { tier: Tier }) {
           </mesh>
         );
       })}
-    </group>
+    </StaticMerge>
   );
 }

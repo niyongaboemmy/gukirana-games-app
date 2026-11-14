@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { fabricTexture } from "../textures";
 import { itemById, type AvatarLook } from "../outfits";
 
@@ -156,16 +157,19 @@ export function buildAttachments(look: AvatarLook, a: Anchors, shadows: boolean)
       const braided = look.hairStyle === "braids";
       const mat = hairMat(hc, braided ? "straight" : "curl", 1);
       const n = braided ? 22 : 16;
+      // every strand hangs off the same head bone: one merged mesh (one draw call, one shadow caster) instead of n
+      const strands: THREE.BufferGeometry[] = [];
       for (let i = 0; i < n; i++) {
         const ang = Math.PI * 0.42 + (Math.PI * 1.16 * i) / (n - 1); // around the back and sides
         const x = Math.sin(ang) * SKULL.rx * 0.98;
         const z = Math.cos(ang) * SKULL.rz * 0.98 + sz - 0.005;
         const len = braided ? 0.34 + (i % 3) * 0.02 : 0.27 + (i % 2) * 0.03;
         const g = strand(len, braided ? 0.007 : 0.011, braided ? 0.005 : 0.009, new THREE.Vector3(Math.sin(ang) * 0.04, 0, Math.cos(ang) * 0.06 - 0.02), braided);
-        const m = new THREE.Mesh(g, mat);
-        m.position.set(x, sy + 0.005, z);
-        add(a.head, m);
+        strands.push(g.translate(x, sy + 0.005, z));
       }
+      const merged = mergeGeometries(strands, false);
+      strands.forEach((g) => g.dispose());
+      if (merged) add(a.head, new THREE.Mesh(merged, mat));
       break;
     }
     case "headwrap": {

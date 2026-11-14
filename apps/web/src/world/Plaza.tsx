@@ -18,6 +18,7 @@ import { FountainWater } from "./Fountain";
 import { DoorBadge, Vestibule } from "./Vestibule";
 import { closedFor, useBuildings, watchBuildings } from "./buildings";
 import { arenaGate } from "@/arena/flags";
+import { NearOnly, StaticMerge } from "./static-merge";
 
 const FONT = "/fonts/Baloo2.ttf";
 
@@ -45,7 +46,7 @@ function District({ tier }: { tier: Tier }) {
         const unlit = m instanceof THREE.MeshBasicMaterial;
         const transparent = m.transparent;
         const ground = key === "paving" || key === "asphalt";
-        return <mesh key={key} geometry={g} material={m} castShadow={!unlit && !transparent && !ground && tier !== "lite"} receiveShadow={!unlit && tier !== "lite"} />;
+        return <mesh key={key} geometry={g} material={m} castShadow={!unlit && !transparent && !ground && tier !== "lite"} receiveShadow={!unlit && tier !== "lite"} userData={{ noMerge: key === "led-halo" }} />;
       })}
     </group>
   );
@@ -82,6 +83,7 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
   const badge = BADGE[def.kind];
   return (
     <group position={[x, 0, z]} rotation={[0, rotY, 0]}>
+      <StaticMerge>
       {soon ? (
         // closed site gate: two plywood hoarding leaves between the steel gate posts
         [-1, 1].map((sd) => (
@@ -94,7 +96,7 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
       )}
       {badge && <DoorBadge def={def} y={badge[0]} z={badge[1]} />}
       {!soon && <AutoDoors def={def} inset={inset} tier={tier} locked={!def.href || closed} />}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, DOOR_RING - (DOOR_RING - 2.4) + 0.2]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, DOOR_RING - (DOOR_RING - 2.4) + 0.2]} userData={{ noMerge: true }}>
         <ringGeometry args={[0.85, 1.1, 48]} />
         <meshBasicMaterial ref={ring} color={ledColor} transparent opacity={0.5} toneMapped={false} depthWrite={false} />
       </mesh>
@@ -120,6 +122,7 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
           {`${def.sub} · coming soon`}
         </Text>
       )}
+      </StaticMerge>
     </group>
   );
 }
@@ -195,7 +198,8 @@ function AutoDoors({ def, inset, tier, locked = false }: { def: PortalDef; inset
     return (
       <group position={[0, 0, z]}>
         {[-1, 1].map((s) => (
-          <group key={s} ref={s < 0 ? left : right} position={[s * w, 0, 0]}>
+          <group key={s} ref={s < 0 ? left : right} position={[s * w, 0, 0]} userData={{ noMerge: true }}>
+            <StaticMerge>
             <mesh position={[-s * (w / 2), h / 2, 0]} material={mats.wood} castShadow={tier !== "lite"}>
               <boxGeometry args={[w - 0.02, h, 0.08]} />
             </mesh>
@@ -208,6 +212,7 @@ function AutoDoors({ def, inset, tier, locked = false }: { def: PortalDef; inset
             <mesh position={[-s * (w - 0.14), 1.1, 0.07]} material={mats.handle}>
               <cylinderGeometry args={[0.02, 0.02, 0.3, 10]} />
             </mesh>
+            </StaticMerge>
           </group>
         ))}
       </group>
@@ -218,12 +223,13 @@ function AutoDoors({ def, inset, tier, locked = false }: { def: PortalDef; inset
       <mesh position={[0, h + 0.09, -0.02]} material={mats.frame}>
         <boxGeometry args={[DOOR.w * 2, 0.18, 0.14]} />
       </mesh>
-      <mesh position={[0, h + 0.09, 0.06]}>
+      <mesh position={[0, h + 0.09, 0.06]} userData={{ noMerge: true }}>
         <boxGeometry args={[0.22, 0.06, 0.02]} />
         <meshBasicMaterial color={new THREE.Color(locked ? "#d23c3c" : def.color).multiplyScalar(1.1)} toneMapped={false} />
       </mesh>
       {[-1, 1].map((s) => (
-        <group key={s} ref={s < 0 ? left : right} position={[s * (w / 2), 0, s * 0.03]}>
+        <group key={s} ref={s < 0 ? left : right} position={[s * (w / 2), 0, s * 0.03]} userData={{ noMerge: true }}>
+          <StaticMerge>
           <mesh position={[0, h / 2, 0]} material={mats.glass} renderOrder={2}>
             <boxGeometry args={[w - 0.06, h - 0.1, 0.02]} />
           </mesh>
@@ -242,6 +248,7 @@ function AutoDoors({ def, inset, tier, locked = false }: { def: PortalDef; inset
           <mesh position={[-s * (w / 2 - 0.12), 1.1, 0.04]} material={mats.frame}>
             <boxGeometry args={[0.03, 0.6, 0.03]} />
           </mesh>
+          </StaticMerge>
         </group>
       ))}
     </group>
@@ -311,16 +318,19 @@ function Fountain({ tier }: { tier: Tier }) {
           <cylinderGeometry args={[1.0, 1.0, 0.03, 40]} />
           <meshBasicMaterial color={new THREE.Color(GAME_COLORS.gold).multiplyScalar(1.4)} transparent opacity={0.45} toneMapped={false} />
         </mesh>
-        {[0, Math.PI].map((r) => (
-          <group key={r} rotation={[0, r, 0]}>
-            <Text font={FONT} fontSize={0.3} color="#FFC83D" position={[0, 0.55, 0]} anchorX="center">
-              Player of the Day
-            </Text>
-            <Text font={FONT} fontSize={0.2} color="#ffffff" position={[0, 0.22, 0]} anchorX="center">
-              Announced daily at 10:00
-            </Text>
-          </group>
-        ))}
+        {/* (lettering 0.2–0.3 m high: unreadable beyond ~30 m, not drawn there) */}
+        <NearOnly max={32}>
+          {[0, Math.PI].map((r) => (
+            <group key={r} rotation={[0, r, 0]}>
+              <Text font={FONT} fontSize={0.3} color="#FFC83D" position={[0, 0.55, 0]} anchorX="center">
+                Player of the Day
+              </Text>
+              <Text font={FONT} fontSize={0.2} color="#ffffff" position={[0, 0.22, 0]} anchorX="center">
+                Announced daily at 10:00
+              </Text>
+            </group>
+          ))}
+        </NearOnly>
       </group>
       <Sparkles count={30} scale={[5, 3, 5]} position={[0, 5, 0]} size={2.5} speed={0.3} color="#FFC83D" />
     </group>
@@ -341,7 +351,7 @@ function GiantDie() {
     [-0.5, -0.5, -1],
   ];
   return (
-    <group position={[x, 0, z]} rotation={[0, rotY, 0]}>
+    <group position={[x, 0, z]} rotation={[0, rotY, 0]} userData={{ noMerge: true }}>
       {/* axle through the fork arms (District.ts ludoLounge) */}
       <mesh position={[LUDO_DIE.x, LUDO_DIE.y, LUDO_DIE.z]} rotation={[0, 0, Math.PI / 2]}>
         <cylinderGeometry args={[0.05, 0.05, 2.6, 8]} />
@@ -441,7 +451,7 @@ function Totems() {
     wallet: { title: "Wallet Kiosk", color: "#F5B301", lines: ["Practice with Stars today", "Coins arrive with the", "licensed real-money pilot"] },
   } as const;
   return (
-    <>
+    <StaticMerge>
       {TOTEMS.map((t) => {
         const c = content[t.id];
         return (
@@ -459,15 +469,17 @@ function Totems() {
                 <meshBasicMaterial map={map} toneMapped={false} />
               </mesh>
             )}
-            {c.lines.map((l, i) => (
-              <Text key={i} font={FONT} fontSize={0.16} color="#ffffff" position={[0, 2.55 - i * 0.32, 0.16]} anchorX="center" maxWidth={2}>
-                {l}
-              </Text>
-            ))}
+            <NearOnly max={24}>
+              {c.lines.map((l, i) => (
+                <Text key={i} font={FONT} fontSize={0.16} color="#ffffff" position={[0, 2.55 - i * 0.32, 0.16]} anchorX="center" maxWidth={2}>
+                  {l}
+                </Text>
+              ))}
+            </NearOnly>
           </group>
         );
       })}
-    </>
+    </StaticMerge>
   );
 }
 
@@ -477,13 +489,14 @@ function Wayfinding() {
   return (
     <>
       {signs.map(({ w, text }) => (
-        <group key={w.deg} position={[w.x, 0, w.z]} rotation={[0, w.rotY, 0]}>
+        // (8.5 cm letters: drawn within 16 m, where they can be read)
+        <NearOnly key={w.deg} max={16} position={[w.x, 0, w.z]} rotation={[0, w.rotY, 0]}>
           {[0, Math.PI].map((face) => (
             <Text key={face} rotation={[0, face, 0]} font={FONT} fontSize={0.085} lineHeight={4.94} color="#eef0f3" position={[Math.cos(face) * -0.54, 1.45, Math.cos(face) * 0.095]} anchorX="left" anchorY="middle">
               {text}
             </Text>
           ))}
-        </group>
+        </NearOnly>
       ))}
     </>
   );
@@ -496,11 +509,11 @@ function PlotSigns() {
       {EXPANSION_PLOTS.map((e) => {
         const d = ringPoint(e.angleDeg, EXPANSION_RING);
         return (
-          <group key={e.id} position={[d.x, 0, d.z]} rotation={[0, d.rotY, 0]}>
+          <NearOnly key={e.id} max={45} position={[d.x, 0, d.z]} rotation={[0, d.rotY, 0]}>
             <Text font={FONT} fontSize={0.34} color="#e6e8eb" position={[4.4, 3.4, -0.24]} anchorX="center" anchorY="middle" textAlign="center" lineHeight={1.25}>
               {`HALL PLOT ${e.n}\nCOMING SOON`}
             </Text>
-          </group>
+          </NearOnly>
         );
       })}
     </>
@@ -522,22 +535,39 @@ function ServiceSign() {
 export function Plaza({ nearPortal, tier = "standard" }: { nearPortal: string | null; tier?: Tier }) {
   useEffect(() => watchBuildings(), []);
   return (
-    <group>
-      <Lighting tier={tier} />
-      <Landscape tier={tier} />
-      <District tier={tier} />
-      <Fountain tier={tier} />
-      <PlazaLife tier={tier} />
-      {PORTALS.map((p) => (
-        <Door key={p.id} def={p} active={nearPortal === p.id} tier={tier} />
-      ))}
-      <ArenaScreen tier={tier} />
-      <GiantDie />
-      <Totems />
-      <Wayfinding />
-      <ServiceSign />
-      <PlotSigns />
-      <EntryGate tier={tier} />
+    // (named groups: the QA performance breakdown, qa/e2e/perf.mjs, reports draw calls per part)
+    <group name="plaza">
+      <group name="lighting">
+        <Lighting tier={tier} />
+      </group>
+      <group name="landscape">
+        <Landscape tier={tier} />
+      </group>
+      <group name="district">
+        <District tier={tier} />
+      </group>
+      <group name="fountain" userData={{ noMerge: true }}>
+        <Fountain tier={tier} />
+      </group>
+      <group name="plaza-life" userData={{ noMerge: true }}>
+        <PlazaLife tier={tier} />
+      </group>
+      <group name="doors">
+        {PORTALS.map((p) => (
+          <Door key={p.id} def={p} active={nearPortal === p.id} tier={tier} />
+        ))}
+      </group>
+      <group name="signs">
+        <ArenaScreen tier={tier} />
+        <GiantDie />
+        <Totems />
+        <Wayfinding />
+        <ServiceSign />
+        <PlotSigns />
+      </group>
+      <group name="entry-gate">
+        <EntryGate tier={tier} />
+      </group>
     </group>
   );
 }
