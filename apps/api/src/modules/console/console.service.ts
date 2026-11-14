@@ -157,6 +157,8 @@ export class ConsoleService {
     const target = (await this.access.access(id)).roles;
     if (target.includes(SUPER_ADMIN_ROLE) && !roles.includes(SUPER_ADMIN_ROLE)) throw new ForbiddenException({ code: "SUPER_ADMIN_PROTECTED" });
     if (u.status === status) return { id, status, changed: false };
+    // e.g. the back-office token suspending the only active super admin (GAP-007)
+    if (status === "suspended" && (await this.access.isLastActiveSuperAdmin(id))) throw new BadRequestException({ code: "LAST_SUPER_ADMIN" });
     await this.db.update(users).set({ status }).where(eq(users.id, id));
     forgetUserStatus(id); // AuthGuard reads the new status on the next request
     // the audit row is also the suspension feed realtime polls to close the account's connections (GAP-001)

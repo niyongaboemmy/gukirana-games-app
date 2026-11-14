@@ -69,6 +69,10 @@ export function errText(e: unknown): string {
     CANNOT_CHANGE_SELF: "You can't change your own account status.",
     UNKNOWN_USER: "No account matches.",
     USER_NOT_FOUND: "No account matches.",
+    CANNOT_REVOKE_OWN_SUPER_ADMIN: "You can't remove your own Super Admin role. Ask another Super Admin.",
+    LAST_SUPER_ADMIN: "This is the last active Super Admin. Make someone else Super Admin first.",
+    BAD_ID: "That account id doesn't look right.",
+    ACCOUNT_INACTIVE: "Your account is suspended. Contact support.",
     VALIDATION: "Please check the fields.",
   };
   return map[code] ?? "Something went wrong. Please try again.";

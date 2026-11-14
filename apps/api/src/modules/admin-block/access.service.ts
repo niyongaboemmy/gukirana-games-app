@@ -383,6 +383,11 @@ export class AccessService implements OnModuleInit {
   async revoke(identifier: string, roleId: string, who: string) {
     const u = await this.findUser(identifier);
     if (!u) throw new NotFoundException({ code: "USER_NOT_FOUND" });
+    // the compound always keeps a super admin (GAP-007): nobody removes their own, and the last one stays
+    if (roleId === SUPER_ADMIN && (await this.hasGrant(u.id, SUPER_ADMIN))) {
+      if (who === u.id) throw new BadRequestException({ code: "CANNOT_REVOKE_OWN_SUPER_ADMIN" });
+      if (await this.isLastActiveSuperAdmin(u.id)) throw new BadRequestException({ code: "LAST_SUPER_ADMIN" });
+    }
     const gone = await this.db
       .delete(userRoles)
       .where(and(eq(userRoles.userId, u.id), eq(userRoles.roleId, roleId)))
@@ -425,6 +430,24 @@ export class AccessService implements OnModuleInit {
   }
 
   // ------------------------------------------------------------------ helpers
+
+  private async hasGrant(userId: string, roleId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ r: userRoles.roleId })
+      .from(userRoles)
+      .where(and(eq(userRoles.userId, userId), eq(userRoles.roleId, roleId)));
+    return !!row;
+  }
+
+  /** `userId` is an active super admin and no other active account holds super_admin */
+  async isLastActiveSuperAdmin(userId: string): Promise<boolean> {
+    const active = await this.db
+      .select({ id: users.id })
+      .from(userRoles)
+      .innerJoin(users, eq(users.id, userRoles.userId))
+      .where(and(eq(userRoles.roleId, SUPER_ADMIN), eq(users.status, "active")));
+    return active.some((a) => a.id === userId) && active.every((a) => a.id === userId);
+  }
 
   private async requireRole(id: string) {
     const [r] = await this.db.select({ id: roles.id }).from(roles).where(eq(roles.id, id));

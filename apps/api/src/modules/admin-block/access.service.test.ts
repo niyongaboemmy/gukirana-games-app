@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ExecutionContext } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { accessAudit, createDatabase, users, type Database } from "@gukirana/db";
+import { accessAudit, createDatabase, eq, users, type Database } from "@gukirana/db";
 import { SEED_OFFICES, SEED_ROLES } from "@gukirana/contracts";
 import { signAccessToken } from "../../common/auth.js";
 import { env } from "../../common/env.js";
@@ -224,5 +224,28 @@ describe("RoleGuard", () => {
     expect(await guard().canActivate(ctx(await bearer(player)).c)).toBe(true);
     await access.revoke(player, "super_admin", "test");
     await expect(guard().canActivate(ctx(await bearer(player)).c)).rejects.toThrow();
+  });
+});
+
+describe("super admin protections (GAP-007)", () => {
+  const code = (p: Promise<unknown>) => p.then(() => "ok", (e: { getResponse(): { code: string } }) => e.getResponse().code);
+
+  it("nobody removes their own super_admin; the last active super admin stays", async () => {
+    await access.grant(boss, "super_admin", "test");
+    for (const u of [tech, player]) await access.revoke(u, "super_admin", "test").catch(() => undefined);
+    expect(await code(access.revoke(boss, "super_admin", boss))).toBe("CANNOT_REVOKE_OWN_SUPER_ADMIN");
+    expect(await code(access.revoke(boss, "super_admin", "admin-token:ops"))).toBe("LAST_SUPER_ADMIN");
+    expect((await access.access(boss)).roles).toContain("super_admin");
+  });
+
+  it("a suspended super admin does not count; with a second active one the revoke works", async () => {
+    await access.grant(tech, "super_admin", "test");
+    await db.update(users).set({ status: "suspended" }).where(eq(users.id, tech));
+    expect(await code(access.revoke(boss, "super_admin", "admin-token:ops"))).toBe("LAST_SUPER_ADMIN");
+    await db.update(users).set({ status: "active" }).where(eq(users.id, tech));
+    expect(await code(access.revoke(boss, "super_admin", tech))).toBe("ok");
+    expect(await access.isLastActiveSuperAdmin(tech)).toBe(true);
+    await access.grant(boss, "super_admin", "test");
+    await access.revoke(tech, "super_admin", boss);
   });
 });

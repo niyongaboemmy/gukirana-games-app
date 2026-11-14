@@ -87,6 +87,8 @@ describe("users", () => {
     await expect(svc.setStatus(support, boss, "suspended", "test")).rejects.toMatchObject({ response: { code: "SUPER_ADMIN_PROTECTED" } });
     await expect(svc.setStatus(boss, boss, "suspended", "test")).rejects.toMatchObject({ response: { code: "CANNOT_CHANGE_SELF" } });
     await expect(svc.setStatus(accountant, player, "suspended", "test")).rejects.toMatchObject({ response: { code: "ROLE_REQUIRED" } });
+    // the back office can't suspend the only active super admin either (GAP-007)
+    await expect(svc.setStatus("admin-token:ops", boss, "suspended", "test")).rejects.toMatchObject({ response: { code: "LAST_SUPER_ADMIN" } });
   });
 
   it("search takes _ % and \\ literally (GAP-006): qa_lv30 is found, wildcards match nothing extra", async () => {
