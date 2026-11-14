@@ -38,13 +38,8 @@ export function boxingLayer(opts: BoxingLayerOptions): AvatarRigLayerFactory {
     const clock = opts.clock ?? (() => performance.now() / 1000);
     let last = 0;
     let lastPose: Float32Array | null = null;
-    let dbg: { calls: number } | null = null;
     // expose the rig for the lab (dev builds only)
-    if (process.env.NODE_ENV !== "production") {
-      (rig.root.userData as { gkBoxRig?: BoxingRig }).gkBoxRig = r;
-      const g = globalThis as { __gkBoxFaces?: { face: BoxingFace | null; root: typeof rig.root; calls: number }[] };
-      (g.__gkBoxFaces ??= []).push((dbg = { face, root: rig.root, calls: 0 }));
-    }
+    if (process.env.NODE_ENV !== "production") (rig.root.userData as { gkBoxRig?: BoxingRig }).gkBoxRig = r;
     return {
       attach() {
         if (opts.kit && !dress) dress = dressBody(rig.root, rig.arms, rig.materials, rig.modelId, opts.kit, rig.shadows);
@@ -71,7 +66,6 @@ export function boxingLayer(opts: BoxingLayerOptions): AvatarRigLayerFactory {
         _fw.jaw = p[P.jaw]!;
         _fw.eyes = p[P.eyes]!;
         face.apply(_fw, dt, opts.weight?.current ?? 1);
-        if (dbg) dbg.calls++;
         void last;
       },
       dispose() {
