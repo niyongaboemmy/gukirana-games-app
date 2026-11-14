@@ -10,6 +10,7 @@ import { useGate } from "./gate/gate-store";
 import { doorInset, doorLocal, ENTRY_Z, PORTALS, portalTransform } from "./layout";
 import { doorHold } from "./transition";
 import { HALLS } from "@/rooms/layouts";
+import { LOBBY_TO_HALL_DZ } from "@/fight/plan";
 
 /**
  * One persistent 3D stage for the whole session (P1-WLD-05).
@@ -299,11 +300,61 @@ export function enterHall(href: string, label: string) {
   tick();
 }
 
+/* ---------------- hall → hall: the Fight hall lobby ↔ the Boxing sub-hall (P3-FGT-01) ---------------- */
+
+/**
+ * The lobby's Boxing door and the hall's south door are one doorway through one wall: a pose keeps its x and heading
+ * and shifts by the rooms' offset (fight/plan.ts LOBBY_TO_HALL_DZ). Same "camera past the door line" switch as the
+ * plaza doors (`enterHall`): the lobby calls `enterSubhall` once its camera is through the doorway.
+ */
+export const lobbyToBoxing = (x: number, z: number, yaw: number) => ({ x, z: z + LOBBY_TO_HALL_DZ, yaw });
+export const boxingToLobby = (x: number, z: number, yaw: number) => ({ x, z: z - LOBBY_TO_HALL_DZ, yaw });
+
+function hallCross(from: "fight" | "boxing", to: "fight" | "boxing", map: (x: number, z: number, yaw: number) => { x: number; z: number; yaw: number }, label: string) {
+  if (crossing) return;
+  crossing = true;
+  const area: Area = `hall:${to}`;
+  const href = `/room/${to}`;
+  useStage.getState().warmHall(to);
+  const cam = getArea(`hall:${from}`).camera;
+  const handoff = (): HandoffIn => {
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
+    const c = map(cam.position.x, cam.position.z, 0);
+    const l = map(cam.position.x + fwd.x * 4, cam.position.z + fwd.z * 4, 0);
+    return { ...map(selfPose.x, selfPose.z, selfPose.yaw), speed: 1.35, walk: 1.9, cam: [c.x, cam.position.y, c.z], look: [l.x, cam.position.y + fwd.y * 4, l.z] };
+  };
+  const t0 = performance.now();
+  let topped: "no" | "running" | "done" = "no";
+  const tick = () => {
+    const st = useStage.getState();
+    if (st.view !== `hall:${from}`) return void (crossing = false);
+    if (st.ready[area] && topped === "no") {
+      topped = "running";
+      void (areaTopUp.get(area)?.() ?? Promise.resolve()).finally(() => (topped = "done"));
+    }
+    if (st.ready[area] && (topped === "done" || performance.now() - t0 > TOPUP_GRACE_MS)) return crossTo(area, href, handoff);
+    if (performance.now() - t0 > 1500) {
+      // cold: hold the frame until the other room is ready
+      crossing = false;
+      const h = handoff();
+      useDoorway.getState().pass(label, () => useStage.getState().show(area, h), 0);
+      stageNav.push(href);
+      return;
+    }
+    setTimeout(tick, 16);
+  };
+  tick();
+}
+/** Walked through the lobby's Boxing door (fight/LobbyScene). */
+export const enterSubhall = () => hallCross("fight", "boxing", lobbyToBoxing, HALLS.boxing.title);
+
 /** Walked out through a hall door (RoomPlayer `onExit`): the plaza is kept warm, so the walk continues outside. */
 export function leaveHall() {
   if (crossing) return;
   const game = hallOf(useStage.getState().view);
   if (!game) return;
+  // the Boxing hall's door leads back into the Fight hall lobby, not onto the plaza
+  if (game === "boxing") return void setTimeout(() => hallCross("boxing", "fight", boxingToLobby, HALLS.fight.title), EXIT_WALK_MS);
   crossing = true;
   try {
     sessionStorage.setItem("gk-from-room", "1");

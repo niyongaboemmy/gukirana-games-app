@@ -1,4 +1,5 @@
 "use client";
+import { hiddenPeople } from "@/rooms/hall-hooks";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
@@ -222,7 +223,7 @@ function RemoteAvatar({ id, tier, hall, seatArea }: { id: string; tier: Tier; ha
     anim.current = pose.anim;
     seatProf.current = pose.seated ? seatProfileFor(seatArea, pose.seatId) : null;
     activity.current = pose.seated ? seatActivityOf(pose.seatId) : null;
-    fade.current = fadeOf(id);
+    fade.current = hiddenPeople.has(id) ? 0 : fadeOf(id); // a hall layer draws them (boxing fighters, P3-FGT-01)
     if (bubbleLift.current) bubbleLift.current.position.y += ((pose.seated ? -0.72 : 0) - bubbleLift.current.position.y) * 0.12;
     const t = tracks.get(id);
     const word = pose.seated && t?.emote && t.emote.until > Date.now() ? (SEATED_WORD[t.emote.id] ?? "") : "";

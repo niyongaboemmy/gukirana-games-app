@@ -43,7 +43,7 @@ describe("Fight Games site (P3-FGT-01 §4.1)", () => {
   it("the hall interior (rings) sits inside the chamfered shell", () => {
     const f = FIGHT_BUILDING;
     for (const r of RINGS) {
-      for (const [sx, sz] of [
+      for (const [sx, sz] of <[number, number][]>[
         [-1, -1],
         [1, -1],
       ]) {

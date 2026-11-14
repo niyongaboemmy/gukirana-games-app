@@ -16,7 +16,7 @@ import { clearHandoff, peekHandoff } from "@/world/stage";
 import type { HallLayout, Seat } from "./layouts";
 import { freeChair, tableAt } from "./table-status";
 import { SEAT_BACK, seatProfileFor, type SeatProfile } from "@/world/human/seat-profiles";
-import { hallHooks, walkQueue, type HallHooks } from "./hall-hooks";
+import { hallHooks, hiddenPeople, walkQueue, type HallHooks } from "./hall-hooks";
 import { seatActivities, type SeatActivity } from "@/world/human/activity";
 import { seatActivity } from "./seat-activity";
 import { CAM_RATE, damp, PROMPT, stickyNearest, stickyZone } from "./stability";
@@ -640,6 +640,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     if (group.current) {
       group.current.position.copy(pos.current);
       group.current.rotation.y = facing.current;
+      // a hall layer draws you instead (in your boxing fight, P3-FGT-01)
+      group.current.visible = !hiddenPeople.has(W.you ?? "");
     }
 
     // camera: third person; when seated, over the shoulder towards the table (or the arena's spectator eye view)

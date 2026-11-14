@@ -46,3 +46,9 @@ export const hallHooks: Partial<Record<HallGame, HallHooks>> = {};
 
 /** Scripted multi-leg walk (consumed by RoomPlayer: the next leg starts when the current nav target is reached). */
 export const walkQueue = { legs: [] as P[] };
+
+/**
+ * People drawn by a hall's own layer instead of their usual avatar (Boxing hall fighters in a ring, P3-FGT-01: their
+ * pose comes from the fight). Session ids; RoomPlayer (you) and RemotePlayers hide these avatars while listed.
+ */
+export const hiddenPeople = new Set<string>();

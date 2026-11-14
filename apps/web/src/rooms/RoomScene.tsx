@@ -8,6 +8,8 @@ import { LudoLounge } from "./LudoLounge";
 import { IgisoroCourt } from "./IgisoroCourt";
 import { AdminBlock } from "./AdminBlock";
 import { TournamentArena } from "./TournamentArena";
+import { LobbyScene } from "@/fight/LobbyScene";
+import { BoxingHallScene } from "@/fight/BoxingHallScene";
 
 /**
  * Hall interior = the room (per-game interior: shell, furniture, lights), the glass entrance (auto sliding
@@ -18,6 +20,15 @@ import { TournamentArena } from "./TournamentArena";
 export function RoomScene({ layout, lite }: { layout: HallLayout; lite: boolean }) {
   const { d } = layout.size;
   const g = layout.game;
+  if (g === "fight" || g === "boxing")
+    // Fight Games hall (P3-FGT-01): no windows (no outdoor view); the lobby's plaza door is a plain auto door, the
+    // Boxing hall's door leads back into the lobby
+    return (
+      <group>
+        {g === "fight" ? <LobbyScene layout={layout} lite={lite} /> : <BoxingHallScene layout={layout} lite={lite} />}
+        <AutoDoor x={layout.door.x} z={d / 2} w={layout.door.w} color={layout.color} />
+      </group>
+    );
   return (
     <group>
       <OutdoorView layout={layout} lite={lite} />
