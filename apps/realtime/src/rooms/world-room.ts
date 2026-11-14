@@ -43,6 +43,12 @@ import { ArenaHall } from "./arena-hall.js";
 import { BoxingHall, boxingHallConfig } from "./boxing-hall.js";
 import { boxingRoomOf, startBoxing } from "./boxing-room.js";
 import { arenaConfig } from "../social/arena-access.js";
+
+/**
+ * Farthest position a player may report (centimetres from the fountain, each axis). The campus (P2-WLD-12) reaches
+ * r ≈ 245 m on its north arc and the frontage road at z ≈ 96 m; hall interiors are well inside this.
+ */
+const WORLD_EDGE_CM = 26_000;
 import { eligibilityOf, isRefusal, mutedUntil, signedOutSince, trackAccount } from "../social/accounts.js";
 
 export interface WorldPlayer {
@@ -328,7 +334,7 @@ export class WorldRoom extends Room {
       const p = this.players.get(client.sessionId);
       if (!parsed.success || !p) return;
       const m = parsed.data;
-      const want = { x: Math.max(-6000, Math.min(6000, m.x)), z: Math.max(-6000, Math.min(6000, m.z)) };
+      const want = { x: Math.max(-WORLD_EDGE_CM, Math.min(WORLD_EDGE_CM, m.x)), z: Math.max(-WORLD_EDGE_CM, Math.min(WORLD_EDGE_CM, m.z)) };
       const at = this.moveGuard.apply(p.id, p, want);
       p.x = at.x;
       p.z = at.z;
