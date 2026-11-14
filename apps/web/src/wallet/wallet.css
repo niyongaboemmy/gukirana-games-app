@@ -254,7 +254,7 @@
 .wcard {
   --ink: #1f1b16;
   --ink-2: #3a3228;
-  --muted: #6b6153;
+  --muted: #574e41; /* GAP-017: ≥ 4.5:1 on the cream paper even where the card is translucent over the world (was #6b6153) */
   --line: rgb(70 50 25 / 0.16);
   --paper: #efe8da;
   --paper-2: #f7f2e8;
@@ -1175,7 +1175,7 @@
   font-variant-numeric: tabular-nums;
 }
 .winput input::placeholder {
-  color: rgb(70 50 25 / 0.4);
+  color: rgb(70 50 25 / 0.72); /* placeholder ≥ 4.5:1 */
 }
 
 /* ---------------------------------------------------------------- phone landscape -------------------------------- */

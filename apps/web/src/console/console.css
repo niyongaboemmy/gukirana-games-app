@@ -11,7 +11,7 @@
   --c-panel-2: rgb(255 255 255 / 0.85);
   --c-ink: #1f1b16;
   --c-ink-2: #3a3228;
-  --c-muted: #6b6153;
+  --c-muted: #574e41; /* GAP-017: ≥ 4.5:1 on the cream paper even where the card is translucent over the world (was #6b6153) */
   --c-line: rgb(70 50 25 / 0.12);
   --c-choc-hi: #9b6a48;
   --c-choc: #7a4e33;
