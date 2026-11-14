@@ -30,18 +30,19 @@ function minimax(s: IgisoroState, depth: number, me: 0 | 1, alpha: number, beta:
   return best;
 }
 
-/** Deterministic bot (practice rooms only — plan §4.4 rule 3). Level 1–5 → search depth. */
+/**
+ * Deterministic bot (practice rooms only — plan §4.4 rule 3). Level 1–5 → search depth
+ * (1 Easy, 2 Medium, 3 Hard, 5 Expert). Easy also plays its second-best move every third turn, chosen by the move
+ * number (no Math.random in game code), so beginners can win.
+ */
 export function igisoroBotMove(s: IgisoroState, level = 3): number {
-  const depth = Math.max(1, Math.min(5, level));
+  const depth = Math.max(1, Math.min(5, Math.trunc(level)));
   const me = s.turn;
-  let bestPit = -1;
-  let bestScore = -Infinity;
-  for (const m of legalPits(s)) {
-    const score = minimax(playIgisoro(s, m), depth - 1, me, -Infinity, Infinity);
-    if (score > bestScore) {
-      bestScore = score;
-      bestPit = m;
-    }
-  }
-  return bestPit;
+  const scored: { pit: number; score: number }[] = [];
+  for (const m of legalPits(s)) scored.push({ pit: m, score: minimax(playIgisoro(s, m), depth - 1, me, -Infinity, Infinity) });
+  if (scored.length === 0) return -1;
+  // stable: best score first, lower pit index on ties
+  scored.sort((a, b) => b.score - a.score || a.pit - b.pit);
+  if (depth === 1 && scored.length > 1 && s.moveCount % 3 === 2 && scored[1]!.score > -10_000) return scored[1]!.pit;
+  return scored[0]!.pit;
 }
