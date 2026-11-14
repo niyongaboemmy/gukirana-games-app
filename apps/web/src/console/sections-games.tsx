@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { Dices, History, Plus, Save, Undo2, X } from "lucide-react";
-import { GAME_SETTING_BOUNDS, GameSettingsSchema, type GameSettings, type GameSettingsRow } from "@gukirana/contracts";
+import { DEFAULT_FIGHT_RULES, FIGHT_RULE_BOUNDS, GAME_SETTING_BOUNDS, GameSettingsSchema, isFightGame, type FightRules, type GameSettings, type GameSettingsRow } from "@gukirana/contracts";
 import { consoleApi, errText } from "./console-api";
 import { ReasonField, reasonError } from "./user-drawer";
 import { G } from "./strings";
@@ -9,6 +9,9 @@ import { G } from "./strings";
 const CATALOGUE = [10, 25, 50, 100, 200, 500, 1000, 2000];
 type NumKey = "friendlyPerDay" | "turnSeconds" | "reconnectSeconds" | "joinSeconds" | "maxTimeouts" | "maxMatchMinutes";
 const NUMBERS: NumKey[] = ["friendlyPerDay", "turnSeconds", "reconnectSeconds", "joinSeconds", "maxTimeouts", "maxMatchMinutes"];
+/** fight games (boxing, P3-FGT-01): the round block; `turnSeconds` is unused there */
+type FightKey = keyof FightRules;
+const FIGHT_NUMBERS: FightKey[] = ["rounds", "roundSeconds", "restSeconds", "idleSeconds"];
 
 const whoText = (by: string) => (by.startsWith("admin-token:") ? G.backOffice : by === "system" ? G.system : /^[0-9a-f-]{36}$/i.test(by) ? G.staff : by);
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -19,6 +22,11 @@ export function settingsProblems(s: GameSettings): string[] {
   if (r.success) return [];
   return r.error.issues.map((i) => {
     const field = String(i.path[0] ?? "");
+    if (field === "fight") {
+      const fk = String(i.path[1] ?? "") as FightKey;
+      const fb = FIGHT_RULE_BOUNDS[fk];
+      return fb ? G.between(G.fightFields[fk] ?? fk, fb.min, fb.max) : `${G.fightTitle}: ${i.message}`;
+    }
     const label = G.fields[field] ?? field;
     const b = GAME_SETTING_BOUNDS[(field === "stakes" ? "stake" : field) as keyof typeof GAME_SETTING_BOUNDS];
     if (i.message === "DUPLICATE_STAKE") return G.dupStake;
@@ -39,6 +47,8 @@ function GameCard({ row, canEdit, toast, onSaved }: { row: GameSettingsRow; canE
   const dirty = JSON.stringify(draft) !== JSON.stringify(row.settings);
   const problems = useMemo(() => settingsProblems(draft), [draft]);
   const setNum = (k: NumKey, v: string) => setDraft((d) => ({ ...d, [k]: v === "" ? Number.NaN : Number(v) }));
+  const fightGame = isFightGame(row.game);
+  const setFight = (k: FightKey, v: string) => setDraft((d) => ({ ...d, fight: { ...(d.fight ?? DEFAULT_FIGHT_RULES), [k]: v === "" ? Number.NaN : Number(v) } }));
   const toggleStake = (s: number) => setDraft((d) => ({ ...d, stakes: d.stakes.includes(s) ? d.stakes.filter((x) => x !== s) : [...d.stakes, s].sort((a, b) => a - b) }));
   const addCustom = () => {
     const n = Number(custom);
@@ -84,7 +94,7 @@ function GameCard({ row, canEdit, toast, onSaved }: { row: GameSettingsRow; canE
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
-        {NUMBERS.map((k) => {
+        {NUMBERS.filter((k) => !(fightGame && k === "turnSeconds")).map((k) => {
           const b = GAME_SETTING_BOUNDS[k];
           const id = `${row.game}-${k}`;
           return (
@@ -101,6 +111,31 @@ function GameCard({ row, canEdit, toast, onSaved }: { row: GameSettingsRow; canE
         })}
       </div>
       <p className="gkc-row-sub mt-1">{draft.friendlyPerDay === 0 ? G.friendlyOff : G.friendlyHelp}</p>
+
+      {fightGame && (
+        <div className="mt-3 grid gap-1.5">
+          <span className="gkc-row-sub font-bold">{G.fightTitle}</span>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {FIGHT_NUMBERS.map((k) => {
+              const b = FIGHT_RULE_BOUNDS[k];
+              const id = `${row.game}-fight-${k}`;
+              const v = (draft.fight ?? DEFAULT_FIGHT_RULES)[k];
+              return (
+                <div key={k} className="grid gap-1">
+                  <label htmlFor={id} className="gkc-row-sub">
+                    {G.fightFields[k]} <span className="gkc-muted">({b.min}–{b.max})</span>
+                  </label>
+                  <div className="gkc-input">
+                    <input id={id} type="number" inputMode="numeric" min={b.min} max={b.max} step={1} disabled={!canEdit} value={Number.isNaN(v) ? "" : v} onChange={(e) => setFight(k, e.target.value)} />
+                    <span className="gkc-muted text-xs">{G.fightUnits[k]}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="gkc-row-sub">{G.fightHelp}</p>
+        </div>
+      )}
 
       <div className="mt-3 grid gap-1.5">
         <span className="gkc-row-sub">{G.fields.stakes}</span>

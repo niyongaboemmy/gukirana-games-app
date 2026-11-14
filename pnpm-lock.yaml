@@ -151,6 +151,9 @@ importers:
       '@colyseus/ws-transport':
         specifier: ^0.16.5
         version: 0.16.5(@colyseus/core@0.16.26(@colyseus/schema@3.0.76)(@pm2/io@6.1.0(supports-color@8.1.1))(supports-color@8.1.1))
+      '@gukirana/boxing':
+        specifier: workspace:*
+        version: link:../../packages/games/boxing
       '@gukirana/config':
         specifier: workspace:*
         version: link:../../packages/config

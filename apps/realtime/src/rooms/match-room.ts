@@ -53,7 +53,10 @@ export interface MatchOptions {
 type Reason = "normal" | "forfeit" | "timeout" | "void";
 
 /** every match this process is running (the heartbeat tells the API, so it never sweeps a live match) */
-const live = new Map<string, MatchRoom>();
+const live = new Map<string, { endedElsewhere(): void }>();
+/** other live rooms (boxing fights, P3-FGT-01) take part in the same heartbeat */
+export const trackLiveMatch = (matchId: string, room: { endedElsewhere(): void }): void => void live.set(matchId, room);
+export const untrackLiveMatch = (matchId: string): void => void live.delete(matchId);
 
 /** one heartbeat: report the live matches; end any the API no longer holds as active (swept, voided elsewhere) */
 export async function heartbeatOnce(): Promise<void> {

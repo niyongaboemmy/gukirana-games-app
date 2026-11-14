@@ -1,10 +1,12 @@
 import { BadRequestException, ConflictException, Inject, Injectable, type OnModuleInit } from "@nestjs/common";
 import { accessAudit, desc, eq, gameSettings } from "@gukirana/db";
 import {
+  DEFAULT_FIGHT_RULES,
   DEFAULT_GAME_SETTINGS,
   GAME_IDS,
   GAME_NAMES,
   GameSettingsSchema,
+  isFightGame,
   type GameId,
   type GameSettings,
   type GameSettingsRow,
@@ -24,9 +26,22 @@ export async function writeAudit(db: Db, who: string, action: string, target: st
 export function settingsDiff(a: GameSettings | null, b: GameSettings): string {
   if (!a) return "first version";
   const keys = Object.keys(b) as (keyof GameSettings)[];
-  const fmt = (v: unknown) => (Array.isArray(v) ? `[${v.join(", ")}]` : String(v));
+  const fmt = (v: unknown) =>
+    Array.isArray(v) ? `[${v.join(", ")}]` : v && typeof v === "object" ? Object.entries(v).map(([k, x]) => `${k}=${String(x)}`).join(" ") : String(v);
   const out = keys.filter((k) => fmt(a[k]) !== fmt(b[k])).map((k) => `${k}: ${fmt(a[k])} → ${fmt(b[k])}`);
   return out.length ? out.join("; ") : "no change";
+}
+
+/**
+ * The `fight` block belongs to fight games only (P3-FGT-01): a fight game's row without one runs with
+ * DEFAULT_FIGHT_RULES (older rows, a partial edit); a turn game never carries one.
+ */
+export function withFightRules(game: GameId, s: GameSettings): GameSettings {
+  if (isFightGame(game)) return s.fight ? s : { ...s, fight: DEFAULT_FIGHT_RULES };
+  if (!s.fight) return s;
+  const { fight: _drop, ...rest } = s;
+  void _drop;
+  return rest;
 }
 
 /**
@@ -66,7 +81,7 @@ export class GameSettingsService implements OnModuleInit {
     }
     // a stored row is re-read through the schema; anything unreadable falls back to the defaults (never a crash)
     const parsed = GameSettingsSchema.safeParse(row.settings);
-    const value = { version: row.version, settings: parsed.success ? parsed.data : DEFAULT_GAME_SETTINGS[game] };
+    const value = { version: row.version, settings: withFightRules(game, parsed.success ? parsed.data : DEFAULT_GAME_SETTINGS[game]) };
     this.cache.set(game, { at: Date.now(), value });
     return value;
   }
@@ -87,7 +102,7 @@ export class GameSettingsService implements OnModuleInit {
       game,
       name: GAME_NAMES[game],
       version: r.version,
-      settings: r.settings as GameSettings,
+      settings: withFightRules(game, r.settings as GameSettings),
       reason: r.reason,
       updatedBy: r.createdBy,
       updatedAt: r.createdAt.toISOString(),
@@ -98,7 +113,8 @@ export class GameSettingsService implements OnModuleInit {
   async update(game: GameId, input: unknown, reason: string, by: string): Promise<GameSettingsRow> {
     const parsed = GameSettingsSchema.safeParse(input);
     if (!parsed.success) throw new BadRequestException({ code: "INVALID_SETTINGS", errors: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) });
-    const next: GameSettings = { ...parsed.data, stakes: [...parsed.data.stakes].sort((a, b) => a - b) };
+    // the fight block is bounded by FightRulesSchema (inside GameSettingsSchema); a fight game saved without one keeps the defaults
+    const next: GameSettings = withFightRules(game, { ...parsed.data, stakes: [...parsed.data.stakes].sort((a, b) => a - b) });
     const cur = await this.current(game);
     const [latest] = await this.db
       .select({ version: gameSettings.version, settings: gameSettings.settings })

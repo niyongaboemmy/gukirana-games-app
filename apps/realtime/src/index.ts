@@ -5,6 +5,7 @@ import { loadEnv } from "@gukirana/config";
 import { createLogger } from "@gukirana/observability";
 import { WorldRoom } from "./rooms/world-room.js";
 import { MatchRoom, startMatchHeartbeat } from "./rooms/match-room.js";
+import { BoxingRoom } from "./rooms/boxing-room.js";
 import { startSuspensionWatch } from "./social/accounts.js";
 
 const env = loadEnv();
@@ -24,6 +25,8 @@ gameServer.define("plaza", WorldRoom);
 // one presence room per game hall interior (Pool Hall, Ludo Lounge, Igisoro Court)
 gameServer.define("hall", WorldRoom).filterBy(["game"]);
 gameServer.define("match", MatchRoom);
+// one authoritative Boxing fight per match (P3-FGT-01); started by the Boxing hall room
+gameServer.define("boxing", BoxingRoom);
 
 await gameServer.listen(env.REALTIME_PORT);
 // suspended accounts: their world + match connections are closed within about a second (GAP-001)

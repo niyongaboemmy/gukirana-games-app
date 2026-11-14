@@ -319,7 +319,7 @@ export async function unblockKey(key: string) {
 }
 export const sitAt = (seat: string) => room?.send("sit", { seat });
 export const standUp = () => room?.send("stand");
-export const propose = (to: string, game: "igisoro" | "ludo" | "pool", stake: number) => room?.send("propose", { to, game, stake });
+export const propose = (to: string, game: "igisoro" | "ludo" | "pool" | "boxing", stake: number) => room?.send("propose", { to, game, stake });
 export const respondProposal = (id: string, accept: boolean) => {
   room?.send("proposal-respond", { id, accept });
   useMatch.setState((s) => ({ incoming: s.incoming.filter((x) => x.id !== id) }));
