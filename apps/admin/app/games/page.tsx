@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Dices, History, KeyRound, RefreshCw, Save, Undo2 } from "lucide-react";
-import { GAME_SETTING_BOUNDS, GameSettingsSchema, type GameSettings, type GameSettingsRow } from "@gukirana/contracts";
+import { DEFAULT_FIGHT_RULES, FIGHT_RULE_BOUNDS, GAME_SETTING_BOUNDS, GameSettingsSchema, isFightGame, type FightRules, type GameSettings, type GameSettingsRow } from "@gukirana/contracts";
 import { plainError } from "../errors";
 
 /**
@@ -37,11 +37,23 @@ const FIELDS: { key: "friendlyPerDay" | "turnSeconds" | "reconnectSeconds" | "jo
   { key: "maxMatchMinutes", label: "Longest match", unit: "min" },
 ];
 
+/** fight games (boxing, P3-FGT-01): the round block (bounds FIGHT_RULE_BOUNDS); `turnSeconds` is unused there */
+const FIGHT_FIELDS: { key: keyof FightRules; label: string; unit: string }[] = [
+  { key: "rounds", label: "Rounds", unit: "rounds" },
+  { key: "roundSeconds", label: "Round length", unit: "s" },
+  { key: "restSeconds", label: "Rest between rounds", unit: "s" },
+  { key: "idleSeconds", label: "No input before an idle strike", unit: "s" },
+];
+
 function problems(s: GameSettings): string[] {
   const r = GameSettingsSchema.safeParse(s);
   if (r.success) return [];
   return r.error.issues.map((i) => {
     const f = String(i.path[0] ?? "");
+    if (f === "fight") {
+      const ff = FIGHT_FIELDS.find((x) => x.key === i.path[1]);
+      return ff ? `${ff.label}: a whole number from ${FIGHT_RULE_BOUNDS[ff.key].min} to ${FIGHT_RULE_BOUNDS[ff.key].max}.` : `Fight rules: ${i.message}`;
+    }
     const b = GAME_SETTING_BOUNDS[(f === "stakes" ? "stake" : f) as keyof typeof GAME_SETTING_BOUNDS];
     if (i.message === "DUPLICATE_STAKE") return "Each stake can be listed only once.";
     if (i.message === "RECONNECT_TOO_LONG") return "Time to reconnect must be shorter than the longest match.";
@@ -93,7 +105,7 @@ function Editor({ row, call, onSaved }: { row: GameSettingsRow; call: <T>(path: 
         Live matches open (practice vs AI is always open)
       </label>
       <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
-        {FIELDS.map((f) => {
+        {FIELDS.filter((f) => !(isFightGame(row.game) && f.key === "turnSeconds")).map((f) => {
           const b = GAME_SETTING_BOUNDS[f.key];
           return (
             <label key={f.key} style={{ display: "grid", gap: 4, fontSize: 13, color: C.muted }}>
@@ -105,6 +117,22 @@ function Editor({ row, call, onSaved }: { row: GameSettingsRow; call: <T>(path: 
           );
         })}
       </div>
+      {isFightGame(row.game) && (
+        <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
+          {FIGHT_FIELDS.map((f) => {
+            const b = FIGHT_RULE_BOUNDS[f.key];
+            const v = (d.fight ?? DEFAULT_FIGHT_RULES)[f.key];
+            return (
+              <label key={f.key} style={{ display: "grid", gap: 4, fontSize: 13, color: C.muted }}>
+                <span>
+                  {f.label} ({b.min}–{b.max} {f.unit})
+                </span>
+                <input type="number" min={b.min} max={b.max} step={1} value={Number.isNaN(v) ? "" : v} onChange={(e) => setD({ ...d, fight: { ...(d.fight ?? DEFAULT_FIGHT_RULES), [f.key]: e.target.value === "" ? Number.NaN : Number(e.target.value) } })} style={input} />
+              </label>
+            );
+          })}
+        </div>
+      )}
       <label style={{ display: "grid", gap: 4, fontSize: 13, color: C.muted }}>
         <span>
           Stakes players can choose, Stars each ({GAME_SETTING_BOUNDS.stake.min}–{GAME_SETTING_BOUNDS.stake.max}, up to {GAME_SETTING_BOUNDS.stakesCount.max}; empty = friendly only)

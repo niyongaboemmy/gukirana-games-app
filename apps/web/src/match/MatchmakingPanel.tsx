@@ -15,6 +15,8 @@ import { useRoom } from "@/rooms/room-store";
 import { useSocial } from "@/social/social-store";
 import { promptWrap } from "@/hud/Prompt";
 import { QUICK_MATCH_EVENT } from "@/hud/usePhoneHud";
+import { CORNER_COLORS } from "@gukirana/contracts";
+import { gameFightActions } from "@/fight/game/actions";
 import { M } from "./strings";
 import { defaultStake, StakeChips, stakeNote, useStakeChoices } from "./StakeChips";
 
@@ -22,7 +24,11 @@ const GAMES: { id: GameId; icon: typeof DieIcon; color: string }[] = [
   { id: "igisoro", icon: SeedsIcon, color: "#27AE60" },
   { id: "ludo", icon: DieIcon, color: "#FF8A1F" },
   { id: "pool", icon: PoolBallIcon, color: "#2F80ED" },
+  // P3-FGT-01: offered only inside the Boxing hall (the fight needs a ring there)
+  { id: "boxing", icon: Swords as unknown as typeof DieIcon, color: CORNER_COLORS.red },
 ];
+/** the games the sheets offer here: in the Boxing hall only Boxing, elsewhere the table games */
+const gamesHere = (path: string | null) => (path === "/room/boxing" ? GAMES.filter((g) => g.id === "boxing") : GAMES.filter((g) => g.id !== "boxing"));
 
 function useCountdown(until?: number) {
   const [now, setNow] = useState(() => Date.now());
@@ -36,8 +42,8 @@ function useCountdown(until?: number) {
 
 const glass = "glass rounded-card";
 
-function GameStakePicker({ onConfirm, confirmLabel, onCancel, initialGame = "igisoro" }: { onConfirm: (g: GameId, s: number) => void; confirmLabel: string; onCancel: () => void; initialGame?: GameId }) {
-  const [game, setGame] = useState<GameId>(initialGame);
+function GameStakePicker({ onConfirm, confirmLabel, onCancel, initialGame = "igisoro", games = GAMES }: { onConfirm: (g: GameId, s: number) => void; confirmLabel: string; onCancel: () => void; initialGame?: GameId; games?: typeof GAMES }) {
+  const [game, setGame] = useState<GameId>(games.some((g) => g.id === initialGame) ? initialGame : games[0]!.id);
   // the game's stakes from the server (allowed, affordable with the fee, limits); Friendly when nothing else is open
   const { choices } = useStakeChoices(game);
   const [stake, setStake] = useState(() => defaultStake(choices));
@@ -46,7 +52,7 @@ function GameStakePicker({ onConfirm, confirmLabel, onCancel, initialGame = "igi
   return (
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-3 gap-2">
-        {GAMES.map((g) => (
+        {games.map((g) => (
           <button key={g.id} type="button" onClick={() => setGame(g.id)} aria-pressed={game === g.id} className={`ptab min-h-12! justify-start! ${game === g.id ? "is-on" : ""}`}>
             <span className="grid size-8 place-items-center rounded-lg" style={{ background: `${g.color}33`, color: g.color }}><g.icon size={18} /></span>
             {GAME_LABEL[g.id]}
@@ -130,6 +136,7 @@ export function MatchmakingPanel() {
   const waited = waitStart ? Math.max(0, Math.floor((nowMs - waitStart) / 1000)) : 0;
   const path = usePathname();
   const hallGame = GAMES.find((g) => path === `/room/${g.id}`)?.id;
+  const pickable = gamesHere(path);
   // "Challenge" from the person menu opens this sheet for that person
   const socialChallenge = useSocial((s) => s.challenge);
   useEffect(() => {
@@ -154,6 +161,8 @@ export function MatchmakingPanel() {
 
   useEffect(() => {
     if (!ready) return;
+    // boxing is fought in the ring of the hall you are in: the hall's boxing-fight-ready opens it (fight/game/net)
+    if (ready.game === "boxing") return void useMatch.setState({ ready: null });
     rememberBeforeGame(useRoom.getState().seated);
     router.push(`/match/${ready.roomId}?game=${ready.game}&stake=${ready.stake}`);
     // one-shot: once we are on the way to the match, forget it — otherwise coming back to the plaza / hall after the
@@ -229,10 +238,14 @@ export function MatchmakingPanel() {
             )}
             <GameStakePicker
               initialGame={hallGame}
+              games={pickable}
               confirmLabel={sheet === "quick" ? "Find opponent" : "Send challenge"}
               onCancel={() => setSheet(null)}
               onConfirm={(g, s) => {
-                if (sheet === "quick") quickMatchJoin(g, s);
+                if (sheet === "quick") {
+                  if (g === "boxing") gameFightActions.quick(s); // the hall pairs you and assigns a ring
+                  else quickMatchJoin(g, s);
+                }
                 else if (challengeTarget) propose(challengeTarget.id, g, s);
                 setSheet(null);
               }}
