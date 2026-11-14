@@ -74,7 +74,7 @@ export function SettingsModal({ onClose, onEditAvatar }: { onClose: () => void; 
               </div>
             </div>
             <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-1 font-bold text-[#8a5a12]">
+              <p className="flex items-center gap-1 font-bold pgold">
                 <Sparkles size={15} /> Level {level} · {me.xp - from}/{to - from} XP
               </p>
               <p className="pmuted truncate text-sm">{me.phone ?? me.email}</p>

@@ -72,7 +72,7 @@ function Chip({ active, onClick, children, label }: { active: boolean; onClick: 
       }`}
     >
       {children}
-      {active && <Check size={14} strokeWidth={2.2} className="ml-auto text-accent" />}
+      {active && <Check size={14} strokeWidth={2.2} className="ml-auto text-[#fbf3e6]" />}
     </button>
   );
 }
@@ -88,7 +88,7 @@ function ItemGrid({ slot, look, showAll, onPick }: { slot: Slot; look: AvatarLoo
           <span className="min-w-0">
             <span className="block truncate">{item.label}</span>
             {showAll && suggested && (
-              <span className="flex items-center gap-1 text-[10px] label font-bold text-gold">
+              <span className="flex items-center gap-1 text-[10px] label font-bold pgold">
                 <Sparkles size={10} strokeWidth={2} /> {STR.suggested}
               </span>
             )}

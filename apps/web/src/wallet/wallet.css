@@ -511,25 +511,25 @@
 }
 .wbtn-primary {
   color: #fff;
-  background: linear-gradient(180deg, #3b82f6, #2563eb);
+  background: linear-gradient(180deg, #9b6a48, #6e4429);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.25),
-    0 3px 0 #1e40af;
+    inset 0 1px 0 rgb(255 230 200 / 0.28),
+    0 3px 0 #3f2616;
 }
 @media (hover: hover) {
   .wbtn-primary:hover:not(:disabled) {
-    background: linear-gradient(180deg, #4b8df7, #2f6cf0);
+    background: linear-gradient(180deg, #a87556, #74492e);
   }
 }
 .wbtn-primary:active:not(:disabled) {
   transform: translateY(3px);
-  box-shadow: 0 0 0 #1e40af;
+  box-shadow: 0 0 0 #3f2616;
 }
 .wbtn-primary:disabled {
   cursor: not-allowed;
   color: rgb(255 255 255 / 0.85);
-  background: #9aa6ba;
-  box-shadow: 0 3px 0 #7c879a;
+  background: #a8998c;
+  box-shadow: 0 3px 0 #85776b;
 }
 .wbtn-ghost {
   color: var(--ink-2);
@@ -949,7 +949,7 @@
   margin: 0 auto;
   width: min(560px, 100%);
   border-radius: 999px;
-  background: linear-gradient(180deg, #2f5fd0, #2563eb);
+  background: linear-gradient(180deg, #8f603f, #5e3a25);
   box-shadow:
     inset 0 2px 6px rgb(0 0 0 / 0.3),
     0 1px 0 rgb(255 255 255 / 0.6);
@@ -982,7 +982,7 @@
   width: 56px;
   height: 56px;
   border-radius: 999px;
-  color: #2563eb;
+  color: #6e4429;
   background: #fff;
   box-shadow: 0 3px 8px rgb(0 0 0 / 0.3);
   cursor: grab;
@@ -1389,86 +1389,89 @@
   }
 }
 
-/* ===================== dark theme (html[data-ptheme="dark"]): dark grey glass =====================
- * Same wallet, darker neutral grey frosted glass, so it matches the platform windows (app/paper.css).
+/* ===================== dark theme (html[data-ptheme="dark"]): near-black grey glass, white text =====================
+ * Same wallet, very dark neutral grey frosted glass, chocolate buttons, so it matches the platform windows (app/paper.css).
  * The printed receipt stays white paper.
  */
 :root[data-ptheme="dark"] .wcard {
-  --ink: #eef0f3;
-  --ink-2: #d6d9de;
-  --muted: #9aa0a8;
+  --ink: #ffffff;
+  --ink-2: rgb(255 255 255 / 0.92);
+  --muted: rgb(255 255 255 / 0.64);
   --line: rgb(255 255 255 / 0.08);
-  --paper: rgb(24 25 28 / 0.9);
-  --paper-2: rgb(52 55 60 / 0.7);
+  --paper: rgb(11 11 13 / 0.9);
+  --paper-2: rgb(150 100 68 / 0.22);
   --plus: #4ade80;
   --minus: #f87171;
-  -webkit-backdrop-filter: blur(26px) saturate(150%);
-  backdrop-filter: blur(26px) saturate(150%);
+  -webkit-backdrop-filter: blur(26px) saturate(140%);
+  backdrop-filter: blur(26px) saturate(140%);
   background:
-    radial-gradient(120% 60% at 50% 0%, rgb(255 255 255 / 0.06), transparent 60%),
-    linear-gradient(180deg, rgb(40 42 46 / 0.82), rgb(22 23 26 / 0.88));
+    radial-gradient(120% 55% at 50% 0%, rgb(255 255 255 / 0.045), transparent 60%),
+    linear-gradient(180deg, rgb(22 23 25 / 0.8), rgb(11 11 13 / 0.88));
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.1),
-    0 0 0 1px rgb(255 255 255 / 0.08),
-    0 30px 70px -24px rgb(0 0 0 / 0.85);
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    0 0 0 1px rgb(255 255 255 / 0.07),
+    0 30px 70px -24px rgb(0 0 0 / 0.9);
 }
 :root[data-ptheme="dark"] .wcard::after {
-  border-color: rgb(255 255 255 / 0.07);
+  border-color: rgb(255 255 255 / 0.06);
 }
 :root[data-ptheme="dark"] .wcard-head {
-  color: #f3f4f6;
-  background: linear-gradient(180deg, rgb(58 61 66 / 0.8), rgb(38 40 44 / 0.8));
+  color: #fff;
+  background: linear-gradient(180deg, rgb(40 41 44 / 0.8), rgb(26 27 29 / 0.8));
 }
 :root[data-ptheme="dark"] .wcard-icon {
-  color: #93c5fd;
-  background: rgb(59 130 246 / 0.16);
+  color: #f2c99a;
+  background: rgb(150 100 68 / 0.28);
 }
 :root[data-ptheme="dark"] .wcard-close,
 :root[data-ptheme="dark"] .wkeys button.is-fn,
 :root[data-ptheme="dark"] .wmethod-icon {
-  color: #e5e7eb;
-  background: linear-gradient(180deg, rgb(75 78 84 / 0.95), rgb(55 58 63 / 0.95));
+  color: #fff;
+  background: linear-gradient(180deg, #8f603f, #53331f);
 }
 :root[data-ptheme="dark"] .wnote,
 :root[data-ptheme="dark"] .wamount {
+  color: rgb(255 255 255 / 0.92);
   background: rgb(255 255 255 / 0.05);
 }
 :root[data-ptheme="dark"] .wnote svg,
 :root[data-ptheme="dark"] .wsafe h3 svg,
 :root[data-ptheme="dark"] .wslip-swap svg {
-  color: #93c5fd;
+  color: #f2c99a;
 }
 :root[data-ptheme="dark"] .wseg button,
 :root[data-ptheme="dark"] .wmethods button {
+  color: #fff;
   box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.09),
-    0 2px 0 rgb(0 0 0 / 0.4);
+    inset 0 0 0 1px rgb(196 140 96 / 0.3),
+    0 2px 0 rgb(0 0 0 / 0.45);
 }
 @media (hover: hover) {
   :root[data-ptheme="dark"] .wseg button:hover {
-    background: rgb(70 74 80 / 0.8);
+    background: rgb(150 100 68 / 0.34);
   }
 }
 :root[data-ptheme="dark"] .wseg button[aria-pressed="true"],
 :root[data-ptheme="dark"] .wseg button[aria-checked="true"],
 :root[data-ptheme="dark"] .wsteps li.is-now > span {
   color: #fff;
-  background: linear-gradient(180deg, #3b82f6, #2563eb);
+  background: linear-gradient(180deg, #8f603f, #53331f);
 }
 :root[data-ptheme="dark"] .wsteps li + li::before {
   background: rgb(255 255 255 / 0.14);
 }
 :root[data-ptheme="dark"] .wamount output.is-empty {
-  color: rgb(255 255 255 / 0.28);
+  color: rgb(255 255 255 / 0.3);
 }
 :root[data-ptheme="dark"] .wkeys {
-  background: rgb(0 0 0 / 0.35);
+  background: rgb(0 0 0 / 0.4);
 }
 :root[data-ptheme="dark"] .wkeys button {
-  background: linear-gradient(180deg, rgb(64 67 72 / 0.9), rgb(46 48 52 / 0.9));
+  color: #fff;
+  background: linear-gradient(180deg, rgb(48 49 52 / 0.92), rgb(32 33 35 / 0.92));
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.1),
-    0 3px 0 rgb(0 0 0 / 0.55);
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    0 3px 0 rgb(0 0 0 / 0.6);
 }
 :root[data-ptheme="dark"] .wlist,
 :root[data-ptheme="dark"] .winfo-col,
@@ -1482,19 +1485,23 @@
   background: rgb(248 113 113 / 0.12);
 }
 :root[data-ptheme="dark"] .winput {
-  background: rgb(0 0 0 / 0.28);
+  color: #fff;
+  background: rgb(0 0 0 / 0.3);
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1), inset 0 2px 4px rgb(0 0 0 / 0.3);
 }
+:root[data-ptheme="dark"] .winput input {
+  color: #fff;
+}
 :root[data-ptheme="dark"] .winput input::placeholder {
-  color: rgb(255 255 255 / 0.35);
+  color: rgb(255 255 255 / 0.4);
 }
 :root[data-ptheme="dark"] .wslide.is-locked {
-  background: linear-gradient(180deg, rgb(64 67 72 / 0.9), rgb(46 48 52 / 0.9));
+  background: linear-gradient(180deg, rgb(48 49 52 / 0.92), rgb(32 33 35 / 0.92));
 }
 :root[data-ptheme="dark"] .wslide.is-locked .wslide-label {
-  color: #9aa0a8;
+  color: rgb(255 255 255 / 0.6);
 }
 :root[data-ptheme="dark"] .wslide.is-locked .wslide-thumb {
-  color: #9aa0a8;
-  background: rgb(90 94 100);
+  color: rgb(255 255 255 / 0.7);
+  background: rgb(80 82 86);
 }

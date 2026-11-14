@@ -770,8 +770,8 @@ export function PoolTable({
             </p>
           )}
           {!statusKey && canAct && eight && called !== null && (
-            <p className="chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-gold sm:text-sm">
-              <Target size={14} /> {t("pool.called", { pocket: pocketName })}
+            <p className="chip flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-white sm:text-sm">
+              <Target size={14} className="text-gold" /> {t("pool.called", { pocket: pocketName })}
             </p>
           )}
         </div>

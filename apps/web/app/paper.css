@@ -507,94 +507,141 @@ textarea.pfield {
   }
 }
 
-/* ===================== dark theme: dark grey glass =====================
+/* ===================== chocolate buttons (both themes) =====================
+ * Every button on a card is chocolate (solid for the main action, a soft chocolate tint for the others);
+ * only success (green) and danger (red) keep their colours. Selected tabs are solid chocolate with a warm edge.
+ */
+.pcard {
+  --choc-hi: #9b6a48;
+  --choc: #7a4e33;
+  --choc-lo: #5e3a25;
+  --choc-text: #5b3a24;
+  --choc-tint: rgb(122 78 51 / 0.12);
+  --choc-edge: rgb(122 78 51 / 0.32);
+}
+.pbtn-primary,
+.pcard .btn-primary,
+.wbtn-primary {
+  color: #fff;
+  background: linear-gradient(180deg, var(--choc-hi, #9b6a48), var(--choc-lo, #5e3a25));
+  box-shadow:
+    inset 0 1px 0 rgb(255 230 200 / 0.28),
+    0 0 0 1px rgb(60 35 20 / 0.35),
+    0 8px 20px -10px rgb(70 40 20 / 0.85);
+}
+@media (hover: hover) {
+  .pbtn-primary:hover:not(:disabled),
+  .pcard .btn-primary:hover:not(:disabled),
+  .wbtn-primary:hover:not(:disabled) {
+    background: linear-gradient(180deg, #a87556, #6a4330);
+  }
+}
+.pbtn-primary:active:not(:disabled) {
+  box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.3), 0 0 0 1px rgb(60 35 20 / 0.35);
+}
+.pbtn-secondary,
+.pcard .btn-secondary,
+.pseg button,
+.ptab {
+  color: var(--choc-text);
+  background: var(--choc-tint);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    0 0 0 1px var(--choc-edge),
+    0 3px 10px -6px rgb(60 35 20 / 0.35);
+}
+@media (hover: hover) {
+  .pbtn-secondary:hover:not(:disabled),
+  .pcard .btn-secondary:hover:not(:disabled),
+  .pseg button:hover:not([aria-pressed="true"]):not([aria-checked="true"]):not([aria-selected="true"]),
+  .ptab:hover:not(.is-on) {
+    background: rgb(122 78 51 / 0.2);
+  }
+}
+.pseg button[aria-pressed="true"],
+.pseg button[aria-checked="true"],
+.pseg button[aria-selected="true"],
+.ptab.is-on {
+  color: #fff;
+  background: linear-gradient(180deg, var(--choc-hi), var(--choc-lo));
+  box-shadow:
+    inset 0 1px 0 rgb(255 230 200 / 0.25),
+    0 0 0 2px rgb(214 160 96 / 0.75),
+    0 6px 14px -8px rgb(70 40 20 / 0.8);
+}
+.pbtn-leather,
+.pcard-hbtn {
+  color: #fff;
+  background: linear-gradient(180deg, var(--choc-hi), var(--choc-lo));
+}
+.pcard .bg-primary {
+  background: var(--choc) !important;
+}
+.pcard-hbtn:focus-visible,
+.pcard :focus-visible {
+  outline-color: #d6a060;
+}
+
+/* ===================== dark theme: near-black grey glass, white text =====================
  * Applied when <html data-ptheme="dark"> (the player's choice or the device setting; see src/ui/paper-theme.ts).
- * Same card shape, darker neutral grey frosted glass (the world shows through softly), a deeper grey band,
- * light text and the one blue accent for the selected state.
+ * Very dark neutral grey frosted glass (the world shows through softly), a slightly lighter grey band,
+ * white text, chocolate buttons and selected states.
  */
 :root[data-ptheme="dark"] .pcard {
-  --ink: #eef0f3;
-  --ink-2: #d6d9de;
-  --muted: #9aa0a8;
+  --ink: #ffffff;
+  --ink-2: rgb(255 255 255 / 0.92);
+  --muted: rgb(255 255 255 / 0.64);
   --line: rgb(255 255 255 / 0.08);
   --plus: #4ade80;
   --minus: #f87171;
-  -webkit-backdrop-filter: blur(26px) saturate(150%);
-  backdrop-filter: blur(26px) saturate(150%);
+  --choc-hi: #8f603f;
+  --choc: #704630;
+  --choc-lo: #53331f;
+  --choc-text: #ffffff;
+  --choc-tint: rgb(150 100 68 / 0.26);
+  --choc-edge: rgb(196 140 96 / 0.34);
+  -webkit-backdrop-filter: blur(26px) saturate(140%);
+  backdrop-filter: blur(26px) saturate(140%);
   background:
-    radial-gradient(120% 60% at 50% 0%, rgb(255 255 255 / 0.06), transparent 60%),
-    linear-gradient(180deg, rgb(40 42 46 / 0.78), rgb(24 25 28 / 0.84));
+    radial-gradient(120% 55% at 50% 0%, rgb(255 255 255 / 0.045), transparent 60%),
+    linear-gradient(180deg, rgb(22 23 25 / 0.74), rgb(11 11 13 / 0.82));
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.1),
-    0 0 0 1px rgb(255 255 255 / 0.08),
-    0 22px 56px -18px rgb(0 0 0 / 0.7),
-    0 6px 16px -6px rgb(0 0 0 / 0.35);
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    0 0 0 1px rgb(255 255 255 / 0.07),
+    0 22px 56px -18px rgb(0 0 0 / 0.8),
+    0 6px 16px -6px rgb(0 0 0 / 0.4);
 }
 :root[data-ptheme="dark"] .pcard::after {
-  border-color: rgb(255 255 255 / 0.07);
+  border-color: rgb(255 255 255 / 0.06);
 }
 :root[data-ptheme="dark"] .pcard-head {
-  color: #f3f4f6;
-  background: linear-gradient(180deg, rgb(58 61 66 / 0.72), rgb(38 40 44 / 0.72));
+  color: #fff;
+  background: linear-gradient(180deg, rgb(40 41 44 / 0.72), rgb(26 27 29 / 0.72));
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.1),
-    0 1px 0 rgb(255 255 255 / 0.05),
-    0 4px 12px -4px rgb(0 0 0 / 0.4);
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    0 1px 0 rgb(255 255 255 / 0.04),
+    0 4px 12px -4px rgb(0 0 0 / 0.5);
 }
 :root[data-ptheme="dark"] .pcard-head::after {
-  border-bottom-color: rgb(255 255 255 / 0.1);
+  border-bottom-color: rgb(255 255 255 / 0.09);
 }
 :root[data-ptheme="dark"] .pcard-icon {
-  color: #93c5fd;
-  background: rgb(59 130 246 / 0.16);
-  box-shadow: inset 0 0 0 1px rgb(96 165 250 / 0.25);
+  color: #f2c99a;
+  background: rgb(150 100 68 / 0.28);
+  box-shadow: inset 0 0 0 1px rgb(196 140 96 / 0.3);
 }
-:root[data-ptheme="dark"] .pcard-hbtn {
-  color: #e5e7eb;
-  background: rgb(255 255 255 / 0.08);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1), 0 0 0 1px rgb(255 255 255 / 0.08);
-}
-@media (hover: hover) {
-  :root[data-ptheme="dark"] .pcard-hbtn:hover {
-    background: rgb(255 255 255 / 0.14);
-  }
+:root[data-ptheme="dark"] .pcard .plabel,
+:root[data-ptheme="dark"] .pcard .prow-sub {
+  color: var(--muted);
 }
 :root[data-ptheme="dark"] .pnote {
-  background: rgb(255 255 255 / 0.05);
-}
-:root[data-ptheme="dark"] .pseg button,
-:root[data-ptheme="dark"] .ptab,
-:root[data-ptheme="dark"] .pbtn-secondary,
-:root[data-ptheme="dark"] .pcard .btn-secondary {
   color: var(--ink-2);
-  background: rgb(255 255 255 / 0.06);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.07),
-    0 0 0 1px rgb(255 255 255 / 0.09),
-    0 4px 12px -6px rgb(0 0 0 / 0.5);
-}
-@media (hover: hover) {
-  :root[data-ptheme="dark"] .pseg button:hover:not([aria-pressed="true"]):not([aria-checked="true"]):not([aria-selected="true"]),
-  :root[data-ptheme="dark"] .ptab:hover:not(.is-on),
-  :root[data-ptheme="dark"] .pbtn-secondary:hover:not(:disabled) {
-    background: rgb(255 255 255 / 0.11);
-  }
-}
-:root[data-ptheme="dark"] .pseg button[aria-pressed="true"],
-:root[data-ptheme="dark"] .pseg button[aria-checked="true"],
-:root[data-ptheme="dark"] .pseg button[aria-selected="true"],
-:root[data-ptheme="dark"] .ptab.is-on {
-  color: #fff;
-  background: linear-gradient(180deg, rgb(59 130 246 / 0.9), rgb(37 99 235 / 0.9));
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.22),
-    0 0 0 1px rgb(147 197 253 / 0.45),
-    0 6px 16px -8px rgb(37 99 235 / 0.8);
+  background: rgb(255 255 255 / 0.05);
 }
 :root[data-ptheme="dark"] .plist,
 :root[data-ptheme="dark"] .ptile {
   background: rgb(255 255 255 / 0.04);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 0 0 1px var(--line), 0 8px 20px -12px rgb(0 0 0 / 0.5);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 0 0 1px var(--line), 0 8px 20px -12px rgb(0 0 0 / 0.5);
 }
 @media (hover: hover) {
   :root[data-ptheme="dark"] button.prow:hover,
@@ -603,34 +650,31 @@ textarea.pfield {
   }
 }
 :root[data-ptheme="dark"] .prow-icon {
-  color: #cbd5e1;
-  background: rgb(255 255 255 / 0.07);
+  color: #f2c99a;
+  background: rgb(150 100 68 / 0.2);
 }
 :root[data-ptheme="dark"] .prow-icon.is-plus {
+  color: var(--plus);
   background: rgb(74 222 128 / 0.12);
 }
 :root[data-ptheme="dark"] .prow-icon.is-minus {
+  color: var(--minus);
   background: rgb(248 113 113 / 0.12);
 }
-:root[data-ptheme="dark"] .pbtn-leather {
-  color: #f3f4f6;
-  background: linear-gradient(180deg, rgb(75 78 84 / 0.95), rgb(55 58 63 / 0.95));
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), 0 6px 16px -8px rgb(0 0 0 / 0.6);
-}
 :root[data-ptheme="dark"] .pfield {
-  color: var(--ink);
-  background: rgb(0 0 0 / 0.25);
+  color: #fff;
+  background: rgb(0 0 0 / 0.3);
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1), inset 0 2px 4px rgb(0 0 0 / 0.3);
 }
 :root[data-ptheme="dark"] .pcard input::placeholder,
 :root[data-ptheme="dark"] .pcard textarea::placeholder {
-  color: #737a84;
+  color: rgb(255 255 255 / 0.4);
 }
 :root[data-ptheme="dark"] .pswitch {
-  background: rgb(255 255 255 / 0.14);
+  background: rgb(255 255 255 / 0.16);
 }
 :root[data-ptheme="dark"] .pswitch::after {
-  background: #f3f4f6;
+  background: #fff;
 }
 :root[data-ptheme="dark"] .pswitch[aria-checked="true"] {
   background: #16a34a;
@@ -639,8 +683,24 @@ textarea.pfield {
   color: #fbbf24 !important;
 }
 :root[data-ptheme="dark"] .pcard code {
-  background: rgb(0 0 0 / 0.3) !important;
+  color: #fff;
+  background: rgb(0 0 0 / 0.35) !important;
 }
 :root[data-ptheme="dark"] .pscrim {
-  background: rgb(0 0 0 / 0.4);
+  background: rgb(0 0 0 / 0.45);
+}
+.pcard .pgold {
+  color: #8a5a12;
+}
+:root[data-ptheme="dark"] .pcard .pgold {
+  color: #fff;
+}
+:root[data-ptheme="dark"] .pcard .pgold svg {
+  color: #fbbf24;
+}
+/* warm focus ring on cards (keyboard / TV remote), in harmony with the chocolate buttons */
+.pcard,
+.wcard {
+  --color-ring: #d6a060;
+  --shadow-glow: 0 0 0 3px rgb(214 160 96 / 0.35);
 }

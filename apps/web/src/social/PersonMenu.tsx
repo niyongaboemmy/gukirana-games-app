@@ -37,7 +37,7 @@ function Action({ icon: Icon, label, onClick, disabled, active, danger, hint }: 
       disabled={disabled}
       aria-label={label}
       title={hint ?? label}
-      className={`ptab min-h-[66px]! flex-col gap-1! px-1! py-2 text-[12px]! disabled:opacity-35 ${active ? "is-on" : danger ? "text-[#b42318]!" : ""}`}
+      className={`ptab min-h-[66px]! flex-col gap-1! px-1! py-2 text-[12px]! disabled:opacity-35 ${active ? "is-on" : danger ? "text-[var(--minus)]!" : ""}`}
     >
       <Icon size={20} strokeWidth={1.85} />
       {label}
@@ -125,7 +125,7 @@ export function PersonMenu() {
           </span>
           <div className="min-w-0 flex-1 leading-tight">
             <p className="truncate font-display text-xl font-extrabold">{p.name}</p>
-            <p className="flex items-center gap-1 text-sm text-[#f1dfc4]">
+            <p className="flex items-center gap-1 text-sm text-white/85">
               <Star size={12} className="fill-gold text-gold" /> Level {p.level}
               {dist != null && <> · {dist < 1.5 ? "right here" : `${Math.round(dist)} m away`}</>}
               {seated && <> · seated</>}
@@ -224,7 +224,7 @@ export function PersonMenu() {
                   <div className="grid gap-1.5">
                     {Object.entries(profile.ratings).map(([g, r]) => (
                       <p key={g} className="flex items-center gap-2">
-                        <Trophy size={14} className="text-[#b07d1a]" />
+                        <Trophy size={14} className="pgold" />
                         <span className="flex-1 font-semibold">{GAME_LABEL[g as keyof typeof GAME_LABEL] ?? g}</span>
                         <span className="tabular-nums">{r.rating}</span>
                         <span className="text-xs pmuted">

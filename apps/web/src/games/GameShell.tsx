@@ -217,7 +217,7 @@ function PrefToggle({ k, label }: { k: "sound" | "haptics" | "autoMove" | "fullG
   return (
     <button type="button" role="switch" aria-checked={on} onClick={() => set({ [k]: !on })} className="btn-secondary flex min-h-12 items-center justify-between gap-3 rounded-control px-4 font-semibold">
       <span>{t(label)}</span>
-      <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${on ? "bg-primary" : "bg-[color-mix(in_srgb,var(--ink,#000)_18%,transparent)]"}`}>
+      <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${on ? "bg-[#16a34a]" : "bg-[color-mix(in_srgb,var(--ink,#000)_18%,transparent)]"}`}>
         <span className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${on ? "left-[1.375rem]" : "left-0.5"}`} />
       </span>
     </button>
@@ -269,8 +269,8 @@ function PlayerPanel({ p, label }: { p: PanelPlayer; label: string }) {
         </div>
         <div className="min-w-0 leading-tight">
           <p className="truncate text-sm font-bold phone:text-xs">{p.name}</p>
-          <p className="flex items-center gap-1 truncate text-xs text-gold">
-            <Star size={11} className="shrink-0 fill-current" /> {p.subtitle ?? `Lvl ${p.level}`} · {label}
+          <p className="flex items-center gap-1 truncate text-xs text-white/80">
+            <Star size={11} className="shrink-0 fill-current text-gold" /> {p.subtitle ?? `Lvl ${p.level}`} · {label}
           </p>
         </div>
       </div>

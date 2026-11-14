@@ -149,8 +149,8 @@ export function WorldHud() {
         </button>
         <div className="leading-tight phone:hidden">
           <p className="max-w-[9rem] truncate font-display text-base font-bold">{name}</p>
-          <p className="num flex items-center gap-1 text-sm font-semibold text-gold">
-            <Star size={13} strokeWidth={2} fill="currentColor" /> Level {level}
+          <p className="num flex items-center gap-1 text-sm font-semibold text-white/90">
+            <Star size={13} strokeWidth={2} fill="currentColor" className="text-gold" /> Level {level}
           </p>
         </div>
         <button
