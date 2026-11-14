@@ -239,6 +239,110 @@ export function drawCue(g: CanvasRenderingContext2D, x: number, y: number, angle
   g.restore();
 }
 
+const SKIN_BASE = "#a86b45";
+const SKIN_SHADE = "#7d4a2c";
+const SKIN_LIGHT = "#c98a60";
+const SLEEVE = "#2b2f36";
+
+function capsule(g: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, r: number) {
+  const a = Math.atan2(y1 - y0, x1 - x0);
+  g.beginPath();
+  g.arc(x0, y0, r, a + Math.PI / 2, a - Math.PI / 2);
+  g.arc(x1, y1, r, a - Math.PI / 2, a + Math.PI / 2);
+  g.closePath();
+}
+
+/**
+ * The player's hands on the cue, seen from above (table units, same frame as drawCue):
+ * - "back" layer (under the cue): the open bridge hand flat on the cloth `bridge` units behind the cue ball, fingers
+ *   spread towards the ball, and the forearm of the grip arm;
+ * - "front" layer (over the cue): the bridge thumb the cue slides along, and the grip hand closed round the butt,
+ *   which travels back with the pull (`tip` = cue tip distance behind the ball centre).
+ */
+export function drawCueHands(g: CanvasRenderingContext2D, x: number, y: number, angle: number, tip: number, bridge: number, k: number, layer: "back" | "front") {
+  g.save();
+  g.translate(x, y);
+  g.rotate(angle + Math.PI); // +x runs from the cue ball back along the cue
+  const s = k / 25; // 1 at the default cue scale
+  const bx = bridge;
+  const grip = tip + 6300 * s;
+  if (layer === "back") {
+    // shadow of the bridge hand and the arm
+    g.fillStyle = "rgba(0,0,0,.25)";
+    g.beginPath();
+    g.ellipse(bx + 700 * s + 60, 380 * s + 80, 760 * s, 560 * s, 0.25, 0, Math.PI * 2);
+    g.fill();
+    // grip forearm (sleeve) running back from the grip hand
+    g.fillStyle = SLEEVE;
+    capsule(g, grip + 500 * s, 160 * s, grip + 4200 * s, 900 * s, 330 * s);
+    g.fill();
+    // bridge forearm going off to the side of the cue
+    g.fillStyle = SLEEVE;
+    capsule(g, bx + 1250 * s, 650 * s, bx + 3600 * s, 2400 * s, 360 * s);
+    g.fill();
+    // bridge palm, flat on the cloth beside the cue
+    const pg = g.createRadialGradient(bx + 650 * s, 420 * s, 80 * s, bx + 700 * s, 420 * s, 700 * s);
+    pg.addColorStop(0, SKIN_LIGHT);
+    pg.addColorStop(1, SKIN_BASE);
+    g.fillStyle = pg;
+    g.strokeStyle = SKIN_SHADE;
+    g.lineWidth = 22 * s;
+    g.beginPath();
+    g.ellipse(bx + 750 * s, 430 * s, 620 * s, 470 * s, 0.2, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+    // four fingers spread on the cloth towards the ball
+    const fingers: [number, number, number, number][] = [
+      [bx + 300 * s, 180 * s, bx - 380 * s, 120 * s],
+      [bx + 280 * s, 360 * s, bx - 520 * s, 420 * s],
+      [bx + 320 * s, 540 * s, bx - 420 * s, 700 * s],
+      [bx + 420 * s, 720 * s, bx - 160 * s, 960 * s],
+    ];
+    for (const [x0, y0, x1, y1] of fingers) {
+      g.fillStyle = SKIN_BASE;
+      capsule(g, x0, y0, x1, y1, 95 * s);
+      g.fill();
+      g.stroke();
+      g.fillStyle = "rgba(240,200,170,.6)"; // nail
+      g.beginPath();
+      g.ellipse(x1 + 20 * s, y1, 55 * s, 42 * s, Math.atan2(y1 - y0, x1 - x0), 0, Math.PI * 2);
+      g.fill();
+    }
+  } else {
+    // bridge: the thumb lies along the cue, the index knuckle raised beside it (the cue slides in the V)
+    g.fillStyle = SKIN_LIGHT;
+    g.strokeStyle = SKIN_SHADE;
+    g.lineWidth = 22 * s;
+    capsule(g, bx + 820 * s, 120 * s, bx + 120 * s, -40 * s, 105 * s);
+    g.fill();
+    g.stroke();
+    g.fillStyle = SKIN_BASE;
+    g.beginPath();
+    g.arc(bx + 260 * s, 140 * s, 120 * s, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+    // grip hand: a loose fist round the butt
+    const hg = g.createLinearGradient(0, -420 * s, 0, 420 * s);
+    hg.addColorStop(0, SKIN_LIGHT);
+    hg.addColorStop(1, SKIN_SHADE);
+    g.fillStyle = hg;
+    g.beginPath();
+    g.ellipse(grip + 180 * s, 60 * s, 420 * s, 330 * s, 0.1, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+    // finger creases across the knuckles
+    g.strokeStyle = "rgba(90,50,25,.55)";
+    g.lineWidth = 18 * s;
+    for (let i = 0; i < 3; i++) {
+      g.beginPath();
+      g.moveTo(grip - 120 * s + i * 170 * s, -230 * s);
+      g.quadraticCurveTo(grip - 60 * s + i * 170 * s, 0, grip - 120 * s + i * 170 * s, 230 * s);
+      g.stroke();
+    }
+  }
+  g.restore();
+}
+
 /** Standard ball colours (solids 1–7, the 8, stripes 9–15 share the solid colours). */
 export const BALL_COLORS: Record<number, string> = {
   0: "#ffffff", 1: "#f7c600", 2: "#1e5bd8", 3: "#d7262b", 4: "#5b2a86", 5: "#f07f1a", 6: "#178a43", 7: "#7a1f22", 8: "#111111",

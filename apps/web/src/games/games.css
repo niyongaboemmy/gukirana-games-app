@@ -33,7 +33,7 @@ html[data-input="key"] [aria-modal="true"] :focus,
 .gk-game :focus-visible {
   outline: 3px solid var(--color-ring);
   outline-offset: 3px;
-  box-shadow: 0 0 0 6px rgb(59 130 246 / 0.28);
+  box-shadow: 0 0 0 6px rgb(214 160 108 / 0.3);
 }
 .gk-game canvas:focus,
 .gk-game canvas:focus-visible { outline-offset: -3px; }
@@ -81,7 +81,115 @@ html[data-input="pointer"] .gk-game :focus:not(:focus-visible) { outline: none; 
 }
 .gk-pulse { animation: gk-pulse-ring 1.4s ease-in-out infinite; }
 
+/* Ludo token hop: one arc per square (re-keyed per step; duration set inline from the speed setting) */
+@keyframes gk-hop {
+  0% { transform: translateY(0) scale(1); }
+  45% { transform: translateY(-34%) scale(1.12); }
+  80% { transform: translateY(0) scale(0.94, 1.06); }
+  100% { transform: translateY(0) scale(1); }
+}
+.gk-hop { animation: gk-hop var(--gk-step, 120ms) ease-out both; }
+
+/* captured token: knocked off the square, spinning on its way back to base */
+@keyframes gk-knock {
+  0% { transform: rotate(0) scale(1.15); }
+  30% { transform: rotate(160deg) scale(1.3); }
+  100% { transform: rotate(540deg) scale(0.9); }
+}
+.gk-knock { animation: gk-knock var(--gk-knock, 560ms) cubic-bezier(.2,.7,.3,1) both; }
+
+/* home celebration rays / win rays: a soft rotating starburst */
+@keyframes gk-rays {
+  0% { opacity: 0; transform: scale(0.4) rotate(0deg); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.5) rotate(60deg); }
+}
+.gk-rays {
+  background: repeating-conic-gradient(from 0deg, var(--gk-ray, rgb(255 200 61 / 0.55)) 0 8deg, transparent 8deg 30deg);
+  -webkit-mask: radial-gradient(circle, transparent 18%, #000 30%, transparent 70%);
+  mask: radial-gradient(circle, transparent 18%, #000 30%, transparent 70%);
+  animation: gk-rays 1.1s ease-out both;
+}
+.gk-rays.gk-loop { animation: gk-rays 2.2s ease-out infinite; }
+@keyframes gk-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.gk-pop { animation: gk-pop 0.45s cubic-bezier(.3,1.4,.5,1) both; }
+
+/* the dice hand: a fist rattling the die, then opening as it throws */
+@keyframes gk-shake {
+  0%, 100% { transform: translate(0, 0) rotate(-6deg); }
+  25% { transform: translate(-7%, -9%) rotate(8deg); }
+  50% { transform: translate(5%, 4%) rotate(-10deg); }
+  75% { transform: translate(-3%, -6%) rotate(6deg); }
+}
+.gk-shake { animation: gk-shake 0.18s ease-in-out infinite; }
+@keyframes gk-throw {
+  0% { transform: translate(0, 0) rotate(-6deg); opacity: 1; }
+  100% { transform: translate(-60%, -40%) rotate(-40deg); opacity: 0; }
+}
+.gk-throw { animation: gk-throw var(--gk-throw, 320ms) ease-in both; }
+
+/* 3D die cube */
+.gk-die3d { perspective: 340px; }
+.gk-cube {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform var(--gk-tumble, 700ms) cubic-bezier(.15,.75,.25,1);
+}
+.gk-face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  gap: 6%;
+  padding: 14%;
+  border-radius: 18%;
+  background: radial-gradient(circle at 30% 25%, #ffffff, #ece8e1 70%, #d9d3c9);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12), inset 0 -3px 6px rgb(0 0 0 / 0.12);
+  backface-visibility: hidden;
+}
+.gk-face > i { border-radius: 999px; }
+.gk-face > i.on { background: radial-gradient(circle at 35% 35%, #444, #111); }
+@keyframes gk-land {
+  0% { transform: translateY(-40%) scale(0.85); }
+  55% { transform: translateY(4%) scale(1.04, 0.96); }
+  75% { transform: translateY(-6%) scale(1); }
+  100% { transform: translateY(0) scale(1); }
+}
+.gk-land { animation: gk-land var(--gk-tumble, 700ms) ease-out both; }
+
+/* igisoro: a seed dropped from the hand into the pit, then settling */
+@keyframes gk-seed-drop {
+  0% { transform: translateY(-260%) scale(1.25); opacity: 0.2; }
+  55% { transform: translateY(12%) scale(0.95, 1.05); opacity: 1; }
+  75% { transform: translateY(-18%); }
+  100% { transform: translateY(0) scale(1); }
+}
+.gk-seed-new { animation: gk-seed-drop var(--gk-seed, 260ms) ease-out both; }
+/* hand: dips to pick up / scoop, rises to sow */
+@keyframes gk-grab {
+  0% { transform: translate(-50%, -62%) scale(1); }
+  50% { transform: translate(-50%, -40%) scale(0.9, 0.84); }
+  100% { transform: translate(-50%, -62%) scale(1); }
+}
+.gk-hand { transform: translate(-50%, -62%); }
+.gk-hand.gk-grab { animation: gk-grab var(--gk-grab, 260ms) ease-in-out both; }
+.gk-hand.gk-opp { transform: translate(-50%, -38%) rotate(180deg); }
+@keyframes gk-grab-opp {
+  0% { transform: translate(-50%, -38%) rotate(180deg) scale(1); }
+  50% { transform: translate(-50%, -60%) rotate(180deg) scale(0.9, 0.84); }
+  100% { transform: translate(-50%, -38%) rotate(180deg) scale(1); }
+}
+.gk-hand.gk-opp.gk-grab { animation-name: gk-grab-opp; }
+
 @media (prefers-reduced-motion: reduce) {
+  .gk-hop, .gk-knock, .gk-rays, .gk-pop, .gk-shake, .gk-throw, .gk-land, .gk-seed-new, .gk-hand.gk-grab { animation: none; }
+  .gk-cube { transition: none; }
   .gk-banner { animation-duration: 1.6s; animation-name: none; opacity: 1; transform: translate(-50%, -50%); }
   .gk-burst, .gk-die-roll, .gk-pulse { animation: none; }
   .gk-legal { animation: none; box-shadow: 0 0 0 4px rgb(255 255 255 / 0.95); }

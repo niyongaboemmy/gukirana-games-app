@@ -8,11 +8,11 @@ import { legalPits, type IgisoroState } from "@gukirana/igisoro";
 import { HOME, movableTokens, type LudoState } from "@gukirana/ludo";
 import { newSeed } from "@gukirana/fairness";
 import type { PoolIntent, PoolState } from "@gukirana/pool";
-import { GameShell, Modal, PrefToggle, ResultModal, TurnBanner, type PanelPlayer } from "@/games/GameShell";
-import { IgisoroBoard, previewMove, useSowAnimation } from "@/games/IgisoroBoard";
+import { GameShell, Modal, ResultModal, TurnBanner, type PanelPlayer } from "@/games/GameShell";
+import { IgisoroBoard, previewMove, useConfirmTap, useSowAnimation } from "@/games/IgisoroBoard";
 import { LudoBoard, LudoControls, SeatLabel } from "@/games/LudoBoard";
 import { eventMs, ludoNotice } from "@/games/LudoGame";
-import { SEAT_COLORS } from "@/games/ludo-board";
+import { seatColors } from "@/games/ludo-board";
 import { PoolTable } from "@/games/PoolTable";
 import { GroupBalls } from "@/games/PoolGame";
 import { useGamePrefs } from "@/games/feedback";
@@ -142,7 +142,9 @@ export function LiveMatch({ roomId }: { roomId: string }) {
   const say = useCallback((text: string, tone: "info" | "good" | "bad" = "info") => setBanner({ id: ++bannerId.current, text, tone }), []);
   const [selected, setSelected] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const { view, hl, hand, captured, lastCapture, animating, animate } = useSowAnimation(120);
+  const { view, hl, hand, step, captured, lastCapture, animating, animate } = useSowAnimation();
+  const confirmTap = useConfirmTap();
+  const seatCols = seatColors(useGamePrefs((s) => s.colorBlind));
   const alive = useRef(true);
   const lastPool = useRef<PoolState | null>(null);
   const [poolBefore, setPoolBefore] = useState<PoolState | null>(null);
@@ -320,7 +322,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
     const canPlay = myTurn && !animating;
     const legal = canPlay ? legalPits(s, mySide) : [];
     const preview = canPlay && selected !== null && legal.includes(selected) ? previewMove(s, selected) : null;
-    const coarse = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+    const coarse = confirmTap;
     board = (
       <IgisoroBoard
         pits={pits}
@@ -328,6 +330,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
         legal={legal}
         hl={hl}
         hand={hand}
+        step={step}
         captured={captured}
         preview={preview}
         selected={selected}
@@ -358,7 +361,8 @@ export function LiveMatch({ roomId }: { roomId: string }) {
       <LudoControls
         die={s.dice ?? (s.lastEvent?.kind === "roll" ? s.lastEvent.dice : null)}
         rolling={rolling}
-        color={SEAT_COLORS[cur?.seat ?? 0]!}
+        color={seatCols[cur?.seat ?? 0]!}
+        rollId={s.rolls}
         canRoll={myTurn && s.phase === "roll"}
         onRoll={() => {
           setRolling(true);
@@ -372,7 +376,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
     const s = state as PoolState;
     const d = poolBefore ?? s;
     const mySide = (s.players.indexOf(myId) === 1 ? 1 : 0) as 0 | 1;
-    board = <PoolTable state={s} mySide={mySide} myTurn={myTurn} fullGuide={false} names={[nameOf(s.players[0]), nameOf(s.players[1])]} onShoot={(i: PoolIntent) => send(i)} onReplayDone={() => setPoolBefore(null)} />;
+    board = <PoolTable state={s} mySide={mySide} myTurn={myTurn} guide="short" names={[nameOf(s.players[0]), nameOf(s.players[1])]} onShoot={(i: PoolIntent) => send(i)} onReplayDone={() => setPoolBefore(null)} />;
     detailMe = <GroupBalls s={d} side={mySide} />;
     for (const o of opp) detailOpp[o.userId] = <GroupBalls s={d} side={(1 - mySide) as 0 | 1} />;
     footer = d.lastShot ? <p className="text-center text-xs text-on-glass-muted sm:text-sm">{d.lastShot.message}</p> : null;
@@ -393,7 +397,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
 
   const panel = (p: PlayerInfo | undefined, mine: boolean): PanelPlayer => ({
     name: mine ? (p?.name ?? me?.username ?? "You") : (p?.name ?? "Opponent"),
-    color: game === "ludo" && p ? SEAT_COLORS[p.seat]! : (p?.color ?? "#3DA9FC"),
+    color: game === "ludo" && p ? seatCols[p.seat]! : (p?.color ?? "#3DA9FC"),
     level: mine ? levelForXp(me?.xp ?? 0) : 1,
     subtitle: mine ? undefined : `Rating ${p?.rating ?? 1500}`,
     // while a pool shot replays, the shooter still holds the turn on screen
@@ -420,7 +424,6 @@ export function LiveMatch({ roomId }: { roomId: string }) {
       }}
       menuExtras={(close) => (
         <>
-          {game === "ludo" && <PrefToggle k="autoMove" label="game.autoMove" />}
           {players.length === 2 && !result && (
             <button
               type="button"

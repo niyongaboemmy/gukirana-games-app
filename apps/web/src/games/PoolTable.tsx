@@ -2,9 +2,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Hand, RotateCcw, Target } from "lucide-react";
 import { canPlaceCue, legalTargets, onTheEight, POCKETS, R, TABLE_H, TABLE_W, U, type PoolIntent, type PoolState } from "@gukirana/pool";
-import { BALL_COLORS, drawCue, paintTable } from "./pool-art";
+import { BALL_COLORS, drawCue, drawCueHands, paintTable } from "./pool-art";
 import { pad, padOptions, shouldAutoFocus } from "./input";
-import { haptic, reducedMotion, sfx } from "./feedback";
+import { animScale, haptic, sfx, useGamePrefs, type AimGuide } from "./feedback";
 import { TurnBanner } from "./GameShell";
 import { t, type GameKey } from "./i18n";
 
@@ -66,51 +66,161 @@ function rayWall(cx: number, cy: number, a: number) {
 function ballsOf(s: PoolState): Pt[] {
   return s.balls.filter((b) => !b.in).map((b) => ({ n: b.n, x: b.x / U, y: b.y / U }));
 }
-function frameBalls(f: number[]): Pt[] {
-  const out: Pt[] = [];
-  for (let k = 1; k + 2 < f.length; k += 3) out.push({ n: f[k]!, x: f[k + 1]!, y: f[k + 2]! });
-  return out;
+
+/** Per-ball roll state, indexed by ball number (preallocated: the draw loop allocates nothing per ball). */
+interface RollState {
+  px: Float64Array;
+  py: Float64Array;
+  ph: Float64Array; // rolled angle (distance / radius)
+  dx: Float64Array; // roll direction
+  dy: Float64Array;
+  seen: Uint8Array;
+}
+const newRoll = (portrait: boolean): RollState => {
+  const r = { px: new Float64Array(16), py: new Float64Array(16), ph: new Float64Array(16), dx: new Float64Array(16), dy: new Float64Array(16), seen: new Uint8Array(16) };
+  for (let i = 0; i < 16; i++) {
+    r.dx[i] = portrait ? 0 : 1;
+    r.dy[i] = portrait ? 1 : 0;
+  }
+  return r;
+};
+/** Advance a ball's roll from its last drawn position: the number spot travels over the ball as it rolls and settles face-up at rest. */
+function rollStep(r: RollState, b: Pt) {
+  const n = b.n;
+  if (!r.seen[n]) {
+    r.seen[n] = 1;
+    r.px[n] = b.x;
+    r.py[n] = b.y;
+    return;
+  }
+  const mx = b.x - r.px[n]!;
+  const my = b.y - r.py[n]!;
+  const d = Math.hypot(mx, my);
+  if (d > 0.5) {
+    r.ph[n] = r.ph[n]! + d / BR;
+    r.dx[n] = mx / d;
+    r.dy[n] = my / d;
+  } else {
+    const rest = Math.round(r.ph[n]! / Math.PI) * Math.PI; // settle with the number up (readable at rest)
+    r.ph[n] = r.ph[n]! + (rest - r.ph[n]!) * 0.18;
+  }
+  r.px[n] = b.x;
+  r.py[n] = b.y;
 }
 
-function drawBall(g: CanvasRenderingContext2D, b: Pt, portrait: boolean, alpha = 1) {
+function drawBall(g: CanvasRenderingContext2D, b: Pt, portrait: boolean, alpha = 1, r?: RollState, cb = false, scale = 1) {
+  const R0 = BR * scale;
   g.globalAlpha = alpha;
   g.fillStyle = "rgba(0,0,0,.35)";
   g.beginPath();
-  g.arc(b.x + 70, b.y + 90, BR, 0, Math.PI * 2);
+  g.arc(b.x + 70 * scale, b.y + 90 * scale, R0, 0, Math.PI * 2);
   g.fill();
+  // roll: the number spot (two, on opposite sides of a real ball) sits at sin(θ) along the roll direction
+  const ph = r ? r.ph[b.n]! : 0;
+  const dx = r ? r.dx[b.n]! : portrait ? 0 : 1;
+  const dy = r ? r.dy[b.n]! : portrait ? 1 : 0;
+  const th = ((((ph + Math.PI / 2) % Math.PI) + Math.PI) % Math.PI) - Math.PI / 2;
+  const off = Math.sin(th) * R0 * 0.62;
+  const squash = Math.max(0.12, Math.cos(th));
+  const ang = Math.atan2(dy, dx);
   g.save();
   g.beginPath();
-  g.arc(b.x, b.y, BR, 0, Math.PI * 2);
+  g.arc(b.x, b.y, R0, 0, Math.PI * 2);
   g.clip();
   g.fillStyle = isStripe(b.n) ? "#fdfdfd" : (BALL_COLORS[b.n] ?? "#fff");
-  g.fillRect(b.x - BR, b.y - BR, BR * 2, BR * 2);
+  g.fillRect(b.x - R0, b.y - R0, R0 * 2, R0 * 2);
   if (isStripe(b.n)) {
+    // the coloured band runs through the number spots, so it turns with the roll direction
+    g.save();
+    g.translate(b.x, b.y);
+    g.rotate(ang);
     g.fillStyle = BALL_COLORS[b.n]!;
-    if (portrait) g.fillRect(b.x - BR * 0.55, b.y - BR, BR * 1.1, BR * 2);
-    else g.fillRect(b.x - BR, b.y - BR * 0.55, BR * 2, BR * 1.1);
+    g.fillRect(-R0, -R0 * 0.55, R0 * 2, R0 * 1.1);
+    if (cb) {
+      // colour-blind mode: dark edges on the band make stripes readable without colour
+      g.strokeStyle = "rgba(0,0,0,.75)";
+      g.lineWidth = R0 * 0.09;
+      g.strokeRect(-R0 * 1.2, -R0 * 0.55, R0 * 2.4, R0 * 1.1);
+    }
+    g.restore();
   }
-  const sh = g.createRadialGradient(b.x - 90, b.y - 90, 10, b.x, b.y, BR);
+  const sh = g.createRadialGradient(b.x - 90 * scale, b.y - 90 * scale, 10, b.x, b.y, R0);
   sh.addColorStop(0, "rgba(255,255,255,.7)");
   sh.addColorStop(0.4, "rgba(255,255,255,0)");
   sh.addColorStop(1, "rgba(0,0,0,.25)");
   g.fillStyle = sh;
-  g.fillRect(b.x - BR, b.y - BR, BR * 2, BR * 2);
-  g.restore();
+  g.fillRect(b.x - R0, b.y - R0, R0 * 2, R0 * 2);
   if (b.n > 0) {
+    const disc = R0 * (cb ? 0.52 : 0.44);
+    g.save();
+    g.translate(b.x + dx * off, b.y + dy * off);
+    g.rotate(ang);
+    g.scale(squash, 1);
     g.fillStyle = "#fff";
     g.beginPath();
-    g.arc(b.x, b.y, BR * 0.44, 0, Math.PI * 2);
+    g.arc(0, 0, disc, 0, Math.PI * 2);
     g.fill();
-    g.save();
-    g.translate(b.x, b.y);
-    if (portrait) g.rotate(Math.PI / 2); // keep the numbers upright on a standing table
+    g.rotate(-ang + (portrait ? Math.PI / 2 : 0)); // keep the numbers upright (a standing table turns them too)
     g.fillStyle = "#111";
-    g.font = `bold ${BR * 0.6}px system-ui, sans-serif`;
+    g.font = `bold ${R0 * (cb ? 0.72 : 0.6)}px system-ui, sans-serif`;
     g.textAlign = "center";
     g.textBaseline = "middle";
-    g.fillText(String(b.n), 0, 10);
+    g.fillText(String(b.n), 0, 10 * scale);
     g.restore();
+  } else if (r) {
+    // cue ball: a small red dot shows the roll
+    g.fillStyle = "rgba(200,30,30,.65)";
+    g.beginPath();
+    g.ellipse(b.x + dx * off, b.y + dy * off, R0 * 0.12 * squash, R0 * 0.12, ang, 0, Math.PI * 2);
+    g.fill();
   }
+  g.restore();
+  g.globalAlpha = 1;
+}
+
+const dropPt: Pt = { n: 0, x: 0, y: 0 };
+
+/** Wooden rack triangle around the opening rack, fading and lifting as `t` → 1. */
+function drawRackFrame(g: CanvasRenderingContext2D, balls: Pt[], t: number) {
+  let apex: Pt | null = null;
+  let top: Pt | null = null;
+  let bot: Pt | null = null;
+  for (const b of balls) {
+    if (b.n === 0) continue;
+    if (!apex || b.x < apex.x) apex = b;
+    if (!top || b.x > top.x + 1 || (Math.abs(b.x - top.x) <= 1 && b.y < top.y)) top = b;
+    if (!bot || b.x > bot.x + 1 || (Math.abs(b.x - bot.x) <= 1 && b.y > bot.y)) bot = b;
+  }
+  if (!apex || !top || !bot) return;
+  const cx = (apex.x + top.x + bot.x) / 3;
+  const cy = (apex.y + top.y + bot.y) / 3;
+  const lift = t < 0.75 ? 1 : 1 + (t - 0.75) * 0.25;
+  const alpha = t < 0.75 ? 1 : Math.max(0, 1 - (t - 0.75) / 0.25);
+  const grow = (p: Pt) => [cx + (p.x - cx) * 1.55 * lift, cy + (p.y - cy) * 1.55 * lift] as const;
+  const [ax, ay] = grow(apex);
+  const [tx, ty] = grow(top);
+  const [bx2, by2] = grow(bot);
+  g.globalAlpha = alpha;
+  g.lineJoin = "round";
+  g.strokeStyle = "rgba(0,0,0,.35)";
+  g.lineWidth = 150;
+  g.beginPath();
+  g.moveTo(ax + 60, ay + 80);
+  g.lineTo(tx + 60, ty + 80);
+  g.lineTo(bx2 + 60, by2 + 80);
+  g.closePath();
+  g.stroke();
+  g.strokeStyle = "#7a4a22";
+  g.lineWidth = 130;
+  g.beginPath();
+  g.moveTo(ax, ay);
+  g.lineTo(tx, ty);
+  g.lineTo(bx2, by2);
+  g.closePath();
+  g.stroke();
+  g.strokeStyle = "rgba(255,220,170,.35)";
+  g.lineWidth = 30;
+  g.stroke();
   g.globalAlpha = 1;
 }
 
@@ -123,7 +233,7 @@ export function PoolTable({
   state,
   mySide,
   myTurn,
-  fullGuide,
+  guide,
   onShoot,
   onReplayDone,
   names,
@@ -131,7 +241,8 @@ export function PoolTable({
   state: PoolState;
   mySide: 0 | 1;
   myTurn: boolean;
-  fullGuide: boolean;
+  /** aim guide length: practice follows the setting, live matches always pass "short" (same for both players) */
+  guide: AimGuide;
   onShoot: (i: PoolIntent) => void;
   onReplayDone?: () => void;
   names: [string, string];
@@ -175,8 +286,15 @@ export function PoolTable({
   const eight = onTheEight(state, mySide);
   const targets = new Set(legalTargets(state, mySide));
   // what the draw loop reads every frame (kept in a ref so the loop never restarts)
-  const live = useRef({ eight, targets, called, badSpot, fullGuide });
-  live.current = { eight, targets, called, badSpot, fullGuide };
+  const colorBlind = useGamePrefs((s) => s.colorBlind);
+  const hints = useGamePrefs((s) => s.hints);
+  const leftHanded = useGamePrefs((s) => s.leftHanded);
+  const live = useRef({ eight, targets, called, badSpot, guide, colorBlind, hints });
+  live.current = { eight, targets, called, badSpot, guide, colorBlind, hints };
+  // presentation-only animation state (rolling numbers, pocket drops, the opening rack)
+  const roll = useRef<RollState>(newRoll(false));
+  const drops = useRef<{ n: number; x: number; y: number; px: number; py: number; t0: number }[]>([]);
+  const rackAt = useRef<number | null>(state.shots === 0 ? -1 : null);
   const show = useCallback((text: string, tone: Banner["tone"] = "info") => setBanner({ id: ++bannerId.current, text, tone }), []);
 
   // fit the canvas to its box (keeps the aspect, landscape or standing table)
@@ -223,11 +341,13 @@ export function PoolTable({
     if (shouldAutoFocus()) canvas.current?.focus({ preventScroll: true });
   }, [turnKey]);
 
-  // replay new shots from the recorded frames (40 fps, interpolated to the display rate)
+  // replay new shots from the recorded frames (40 fps, interpolated to the display rate). The playback rate follows
+  // the speed setting (Relaxed slower, Fast quicker, Skip = straight to the result) — the outcome is already decided.
   const playFrames = useCallback(
     (frames: number[][], final: Pt[], after?: () => void) => {
-      if (frames.length < 2 || reducedMotion()) {
-        // nothing to play (a timeout, reduced motion): also ends any replay a newer state interrupted
+      const scale = animScale();
+      if (frames.length < 2 || scale === 0) {
+        // nothing to play (a timeout, skipped animations): also ends any replay a newer state interrupted
         replayingRef.current = false;
         setReplaying(false);
         shown.current = final;
@@ -238,51 +358,86 @@ export function PoolTable({
       replayingRef.current = true;
       setReplaying(true);
       sfx.cue(0.6);
+      const rate = 1 / scale;
       const start = performance.now();
       const total = frames[frames.length - 1]![0]!;
       let raf = 0;
-      let lastCount = frameBalls(frames[0]!).length;
+      // preallocated buffers: the step allocates nothing per frame (positions by ball number)
+      const out: Pt[] = Array.from({ length: 16 }, (_, n) => ({ n, x: 0, y: 0 }));
+      const view: Pt[] = [];
+      const bx = new Float64Array(16);
+      const by = new Float64Array(16);
+      const has = new Uint8Array(16);
+      const pvx = new Float64Array(16);
+      const pvy = new Float64Array(16);
+      const onTable = new Uint8Array(16);
+      const lastX = new Float64Array(16);
+      const lastY = new Float64Array(16);
+      for (let k = 1; k + 2 < frames[0]!.length; k += 3) onTable[frames[0]![k]!] = 1;
       let lastClack = 0;
-      let prevV = new Map<number, [number, number]>();
       const step = () => {
         if (!replayingRef.current) return; // skipped
-        const tick = ((performance.now() - start) / 1000) * 240;
+        const now = performance.now();
+        const tick = ((now - start) / 1000) * 240 * rate;
         let i = 0;
         while (i < frames.length - 1 && frames[i + 1]![0]! <= tick) i++;
         const fa = frames[i]!;
         const fb = frames[Math.min(i + 1, frames.length - 1)]!;
         const span = fb[0]! - fa[0]! || 1;
-        const k = Math.max(0, Math.min(1, (tick - fa[0]!) / span));
-        const a = frameBalls(fa);
-        const b = new Map(frameBalls(fb).map((p) => [p.n, p]));
-        shown.current = a.map((p) => {
-          const q = b.get(p.n);
-          return q ? { n: p.n, x: p.x + (q.x - p.x) * k, y: p.y + (q.y - p.y) * k } : p;
-        });
-        // sounds: a ball dropped → pocket; a sharp change of direction → clack
-        if (a.length < lastCount) {
+        const kk = Math.max(0, Math.min(1, (tick - fa[0]!) / span));
+        has.fill(0);
+        for (let k = 1; k + 2 < fb.length; k += 3) {
+          const n = fb[k]!;
+          has[n] = 1;
+          bx[n] = fb[k + 1]!;
+          by[n] = fb[k + 2]!;
+        }
+        view.length = 0;
+        let clack = 0;
+        for (let k = 1; k + 2 < fa.length; k += 3) {
+          const n = fa[k]!;
+          const ax = fa[k + 1]!;
+          const ay = fa[k + 2]!;
+          const p = out[n]!;
+          const vx = has[n] ? bx[n]! - ax : 0;
+          const vy = has[n] ? by[n]! - ay : 0;
+          p.x = ax + vx * kk;
+          p.y = ay + vy * kk;
+          view.push(p);
+          // a sharp change of direction → clack
+          const sp = Math.hypot(vx, vy);
+          const ps = Math.hypot(pvx[n]!, pvy[n]!);
+          if (sp > 20 && (ps < 5 || (vx * pvx[n]! + vy * pvy[n]!) / (sp * ps) < 0.8)) clack = Math.max(clack, Math.min(1, sp / 400));
+          pvx[n] = vx;
+          pvy[n] = vy;
+          lastX[n] = p.x;
+          lastY[n] = p.y;
+        }
+        if (clack > 0 && now - lastClack > 60) {
+          sfx.clack(clack);
+          lastClack = now;
+        }
+        // a ball left the table this frame → it drops into the nearest pocket (drawn shrinking into it)
+        for (let n = 0; n < 16; n++) {
+          if (!onTable[n]) continue;
+          let still = false;
+          for (let k = 1; k + 2 < fa.length; k += 3) if (fa[k] === n) still = true;
+          if (still) continue;
+          onTable[n] = 0;
+          let best = 0;
+          let bd = Infinity;
+          PK.forEach(([px, py], j) => {
+            const d = Math.hypot(px - lastX[n]!, py - lastY[n]!);
+            if (d < bd) {
+              bd = d;
+              best = j;
+            }
+          });
+          drops.current.push({ n, x: lastX[n]!, y: lastY[n]!, px: PK[best]![0], py: PK[best]![1], t0: now });
           sfx.pocket();
           haptic(20);
         }
-        lastCount = a.length;
-        const v = new Map<number, [number, number]>();
-        for (const p of a) {
-          const q = b.get(p.n);
-          if (q) v.set(p.n, [q.x - p.x, q.y - p.y]);
-        }
-        const now = performance.now();
-        for (const [n, [vx, vy]] of v) {
-          const pv = prevV.get(n);
-          const sp = Math.hypot(vx, vy);
-          if (pv && sp > 20 && now - lastClack > 60) {
-            const ps = Math.hypot(pv[0], pv[1]);
-            if (ps < 5 || (vx * pv[0] + vy * pv[1]) / (sp * ps) < 0.8) {
-              sfx.clack(Math.min(1, sp / 400));
-              lastClack = now;
-            }
-          }
-        }
-        prevV = v;
+        shown.current = view;
         if (tick < total) raf = requestAnimationFrame(step);
         else finish();
       };
@@ -297,6 +452,10 @@ export function PoolTable({
     },
     [],
   );
+
+  useEffect(() => {
+    if (state.shots === 0) rackAt.current = -1; // a new rack: the balls gather into the triangle (draw loop)
+  }, [state.shots === 0, state.players[0]]);
 
   useEffect(() => {
     const final = ballsOf(state);
@@ -603,7 +762,10 @@ export function PoolTable({
 
       const balls = shown.current;
       const act = canActRef.current;
-      const { eight, targets, called, badSpot, fullGuide } = live.current;
+      const { eight, targets, called, badSpot, guide, colorBlind: cb, hints } = live.current;
+      const now = performance.now();
+      const k = animScale();
+      if (roll.current.dx[0] === 0 !== v.portrait && !roll.current.seen[0]) roll.current = newRoll(v.portrait);
       const cue = act && cuePosRef.current ? { n: 0, ...cuePosRef.current } : balls.find((b) => b.n === 0);
       const others = act && cuePosRef.current ? balls.filter((b) => b.n !== 0) : balls;
       // one css pixel in units, thickened with the 10-foot root size so guides stay readable on TVs
@@ -629,7 +791,7 @@ export function PoolTable({
         }
       }
 
-      if (act && cue) {
+      if (act && cue && hints) {
         const a = aim.current;
         const ax = Math.cos(a);
         const ay = Math.sin(a);
@@ -665,14 +827,14 @@ export function PoolTable({
           const oy = hit.ball.y - gy;
           const ol = Math.hypot(ox, oy) || 1;
           const cut = (ox * ax + oy * ay) / ol; // cos of the cut angle
-          const objLen = (fullGuide ? 5200 : 1700) * Math.max(0.25, cut);
+          const objLen = (guide === "long" ? 5200 : guide === "medium" ? 3200 : 1700) * Math.max(0.25, cut);
           g.strokeStyle = legal ? "rgba(251,191,36,.95)" : "rgba(239,68,68,.6)";
           g.lineWidth = 2.5 * lw;
           g.beginPath();
           g.moveTo(hit.ball.x, hit.ball.y);
           g.lineTo(hit.ball.x + (ox / ol) * objLen, hit.ball.y + (oy / ol) * objLen);
           g.stroke();
-          if (fullGuide && cut < 0.995) {
+          if (guide !== "short" && cut < 0.995) {
             let tx = -oy / ol;
             let ty = ox / ol;
             if (tx * ax + ty * ay < 0) {
@@ -686,7 +848,7 @@ export function PoolTable({
             g.lineTo(gx + tx * 2200 * Math.sqrt(1 - cut * cut), gy + ty * 2200 * Math.sqrt(1 - cut * cut));
             g.stroke();
           }
-        } else if (fullGuide) {
+        } else if (guide === "long") {
           // first cushion bounce
           const ex = cue.x + ax * len;
           const ey = cue.y + ay * len;
@@ -700,16 +862,54 @@ export function PoolTable({
           g.stroke();
           g.setLineDash([]);
         }
-        // the cue, drawn back by the power
-        const back = 300 + (drag.current?.mode === "power" ? pull.current : powerRef.current) * 2600;
-        drawCue(g, cue.x, cue.y, a, BR + back, 8000, 25);
       }
 
-      for (const b of others) drawBall(g, b, v.portrait);
+      // pocket drops: the ball slides into the pocket, shrinking into the dark
+      for (let i = drops.current.length - 1; i >= 0; i--) {
+        const d = drops.current[i]!;
+        const tt = k === 0 ? 1 : Math.min(1, (now - d.t0) / (280 * k));
+        if (tt >= 1) {
+          drops.current.splice(i, 1);
+          continue;
+        }
+        const e = tt * tt;
+        dropPt.n = d.n;
+        dropPt.x = d.x + (d.px - d.x) * e;
+        dropPt.y = d.y + (d.py - d.y) * e;
+        drawBall(g, dropPt, v.portrait, 1 - tt * 0.8, undefined, cb, 1 - tt * 0.45);
+      }
+
+      // the opening rack: balls gather into the triangle, then the wooden frame lifts away
+      let rk = 1;
+      if (rackAt.current !== null) {
+        if (rackAt.current < 0) rackAt.current = now;
+        rk = k === 0 ? 1 : Math.min(1, (now - rackAt.current) / (1100 * k));
+        if (rk >= 1) rackAt.current = null;
+      }
+      for (const b of others) {
+        rollStep(roll.current, b);
+        if (rk < 1 && b.n !== 0) {
+          const e = 1 - Math.pow(1 - Math.min(1, rk / 0.7), 3);
+          dropPt.n = b.n;
+          dropPt.x = b.x + Math.sin(b.n * 1.7) * 1900 * (1 - e);
+          dropPt.y = b.y + Math.cos(b.n * 2.3) * 1900 * (1 - e);
+          drawBall(g, dropPt, v.portrait, Math.min(1, rk * 3), roll.current, cb);
+        } else drawBall(g, b, v.portrait, 1, roll.current, cb);
+      }
+      if (rk < 1) drawRackFrame(g, others, rk);
+
+      if (act && cue) {
+        // the cue, drawn back by the power, held by your bridge hand on the cloth and your grip hand on the butt
+        const a = aim.current;
+        const back = 300 + (drag.current?.mode === "power" ? pull.current : powerRef.current) * 2600;
+        drawCueHands(g, cue.x, cue.y, a, BR + back, BR + 3600, 25, "back");
+        drawCue(g, cue.x, cue.y, a, BR + back, 8000, 25);
+        drawCueHands(g, cue.x, cue.y, a, BR + back, BR + 3600, 25, "front");
+      }
       if (cue && act && cuePosRef.current) {
-        drawBall(g, cue, v.portrait, 0.95);
+        drawBall(g, cue, v.portrait, 0.95, undefined, cb);
         // ball in hand: a hand ring, red where it can't go
-        g.strokeStyle = badSpot ? "rgba(239,68,68,.95)" : "rgba(96,165,250,.95)";
+        g.strokeStyle = badSpot ? "rgba(239,68,68,.95)" : "rgba(255,255,255,.9)";
         g.lineWidth = 3 * lw;
         g.setLineDash([6 * lw, 5 * lw]);
         g.beginPath();
@@ -749,7 +949,7 @@ export function PoolTable({
   );
 
   return (
-    <div ref={root} className={`absolute inset-0 flex gap-2 ${portrait ? "flex-col" : "flex-row"}`}>
+    <div ref={root} className={`absolute inset-0 flex gap-2 ${portrait ? "flex-col" : leftHanded ? "flex-row-reverse" : "flex-row"}`}>
       <div ref={wrap} className="relative min-h-0 min-w-0 flex-1">
         <canvas
           ref={canvas}
@@ -781,7 +981,7 @@ export function PoolTable({
       {portrait ? (
         <div className="flex shrink-0 flex-col gap-2 px-1">
           <PowerBar value={power} vertical={false} disabled={!canAct} onChange={setPower} onRelease={(p) => shoot(p)} />
-          <div className="flex items-center justify-between gap-2">
+          <div className={`flex items-center justify-between gap-2 ${leftHanded ? "flex-row-reverse" : ""}`}>
             <SpinPicker value={spin} onChange={setSpin} disabled={!canAct} />
             {fineAim}
             <div className="w-28">{actionBtn}</div>
