@@ -29,6 +29,7 @@ type SitStage = { id: string; t: number; phase: "walk" | "turn" | "lower" | "sea
 /** staged stand: stay put while rising, then step out to a free spot before steering takes over (from rest) */
 type StandStage = { t: number; fx: number; fz: number; tx: number; tz: number; chair: string };
 const INTRO_S = 1.9;
+const _lookTo = new THREE.Vector3();
 const keys = new Set<string>();
 const qa: {
   teleport: ((x: number, z: number, yaw: number) => void) | null;
@@ -155,7 +156,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   /** sit / stand camera moves blend in (critically damped) instead of cutting */
   const camBlendUntil = useRef(0);
   // arena spectator eye view: the follow-camera state when it began (restored on leaving) and the lens it had
-  const eyeView = useRef({ on: false, baseYaw: 0, basePitch: 0.2, baseDist: 5.8, fov0: 50 });
+  const eyeView = useRef({ on: false, baseYaw: 0, basePitch: 0.2, baseDist: 5.8, fov0: 50, nonce: -1, look: new THREE.Vector3(), lookOk: false });
   const lookPt = useMemo(() => new THREE.Vector3(), []);
   const { camera, gl } = useThree();
   const profile = useProfile();
@@ -671,7 +672,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       cy = 1.6 + Math.sin(cameraState.pitch) * dd;
       const k = THREE.MathUtils.smoothstep(1 - intro.current / INTRO_S, 0, 1);
       target.set(pos.current.x, THREE.MathUtils.lerp(1.2, 1.55, k), pos.current.z - (1 - k) * 3.4);
-    } else if (seat && (sv = hooks?.seatedView?.(seat.id) ?? null)) {
+    } else if (seat && (sv = hooks?.seatedView?.(seat.id, (camera as THREE.PerspectiveCamera).aspect || 16 / 9) ?? null)) {
       // spectator eye view (arena): the camera at your own eyes, facing the podium; drag looks around within a
       // natural head turn, pinch / wheel zooms, "focus" narrows the lens onto the stage. Heights are relative to the
       // seat's surface (the multi-level rig below adds it back).
@@ -683,25 +684,41 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
         e.basePitch = cameraState.pitch;
         e.baseDist = cameraState.distance;
         e.fov0 = (camera as THREE.PerspectiveCamera).fov;
+        e.lookOk = false;
         camBlendUntil.current = performance.now() + 900; // glide from behind the seat into your eyes
       }
-      const dx = sv.look.x - sv.eye.x;
-      const dz = sv.look.z - sv.eye.z;
+      if (sv.nonce !== e.nonce) {
+        // a stage-zoom target / step was tapped: re-centre on it (the drag offsets start again from zero)
+        e.nonce = sv.nonce;
+        e.baseYaw = cameraState.yaw;
+        e.basePitch = cameraState.pitch;
+        e.baseDist = cameraState.distance;
+      }
+      // the look point glides onto a new target (frame-rate independent, like every camera move)
+      if (!e.lookOk) e.look.set(sv.look.x, sv.look.y, sv.look.z);
+      else e.look.lerp(_lookTo.set(sv.look.x, sv.look.y, sv.look.z), damp(CAM_RATE.glide, dt));
+      e.lookOk = true;
+      const dx = e.look.x - sv.eye.x;
+      const dz = e.look.z - sv.eye.z;
       const flat = Math.hypot(dx, dz) || 1;
       const yaw0 = Math.atan2(dx, dz);
-      const pitch0 = Math.atan2(sv.look.y - sv.eye.y, flat);
+      const pitch0 = Math.atan2(e.look.y - sv.eye.y, flat);
       const yaw = yaw0 + THREE.MathUtils.clamp(wrapA(cameraState.yaw - e.baseYaw), -1.45, 1.45);
-      const pitch = THREE.MathUtils.clamp(pitch0 - (cameraState.pitch - e.basePitch) * 0.9, -1.0, 0.55);
+      // (aimed a little low so the look point sits in the middle of the view ABOVE the seat card, not under it)
+      const lift = Math.atan(sv.inset * Math.tan(((camera as THREE.PerspectiveCamera).fov * Math.PI) / 360));
+      const pitch = THREE.MathUtils.clamp(pitch0 - lift - (cameraState.pitch - e.basePitch) * 0.9, -1.0, 0.55);
       cx = sv.eye.x;
       cz = sv.eye.z;
       cy = sv.eye.y - gy;
       target.set(sv.eye.x + Math.sin(yaw) * Math.cos(pitch) * 10, sv.eye.y - gy + Math.sin(pitch) * 10, sv.eye.z + Math.cos(yaw) * Math.cos(pitch) * 10);
-      // lens: wheel / pinch zoom (the follow distance range 2.2–12 maps to 24°–58°); focus = a tight podium lens
+      // lens: a framed target sets it (fitted to the target from this seat, zoom steps on top); wheel / pinch zoom
+      // scales it further (the follow distance change maps to ×0.35 … ×2.8 of the lens, within 8°–58°)
       const zoom = THREE.MathUtils.clamp(cameraState.distance - e.baseDist, -6, 6);
-      const want = sv.focus ? 22 : THREE.MathUtils.clamp(48 + zoom * 4, 24, 58);
+      const base = sv.fov ?? 48;
+      const want = THREE.MathUtils.clamp((2 * Math.atan(Math.tan((base * Math.PI) / 360) * Math.pow(2, zoom / 4)) * 180) / Math.PI, 8, 58);
       const pc = camera as THREE.PerspectiveCamera;
-      if (Math.abs(pc.fov - want) > 0.05) {
-        pc.fov += (want - pc.fov) * Math.min(1, dt * 5);
+      if (Math.abs(pc.fov - want) > 0.02) {
+        pc.fov += (want - pc.fov) * damp(CAM_RATE.glide, dt);
         pc.updateProjectionMatrix();
       }
     } else if (seat) {

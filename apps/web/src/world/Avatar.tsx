@@ -118,11 +118,16 @@ function prepareBase(scene: THREE.Object3D) {
   });
 }
 
-/** Top-level part a mesh belongs to: "body" | "lod1" | "haircards". */
-function partOf(o: THREE.Object3D, root: THREE.Object3D): string {
-  let p: THREE.Object3D = o;
-  while (p.parent && p.parent !== root) p = p.parent;
-  return p.name;
+const PARTS = new Set(["body", "lod1", "haircards"]);
+/**
+ * Part a mesh belongs to: "body" | "lod1" | "haircards" (the nearest ancestor with one of those names; "" = none).
+ * The models nest the parts under a "RootNode" (scene → RootNode → body / lod1 → primitives): the old "top-level
+ * child of the scene" test always answered "RootNode", so the near / far switch found no meshes and BOTH the detailed
+ * body and its low-poly copy were drawn on top of each other (P2-HAL-11: limbs of the copy poking through clothes).
+ */
+export function partOf(o: THREE.Object3D, root: THREE.Object3D): string {
+  for (let p: THREE.Object3D | null = o; p && p !== root; p = p.parent) if (PARTS.has(p.name)) return p.name;
+  return "";
 }
 
 const SHOW_CARDS = new Set(["short", "bun"]);

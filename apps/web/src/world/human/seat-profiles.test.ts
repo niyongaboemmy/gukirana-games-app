@@ -51,9 +51,21 @@ describe("seat profiles fit the seats as built", () => {
     expect(p.seatH).toBeLessThanOrEqual(top + 0.045);
   });
 
-  it.each(KINDS)("%s: the buttocks stay in front of the back rest", (k) => {
+  it.each(KINDS)("%s: the buttocks stay in front of the back rest (≥ 1 cm clear: never through it)", (k) => {
     const p = SEAT_PROFILES[k];
-    expect(p.hipFwd - CLIP_BODY.buttBack).toBeGreaterThanOrEqual(-SEAT_FURNITURE[k].back - 0.03);
+    expect(p.hipFwd - CLIP_BODY.buttBack).toBeGreaterThanOrEqual(-SEAT_FURNITURE[k].back + 0.01);
+  });
+
+  it("the arena seat's back pad is where SEAT_FURNITURE says (P2-HAL-11: measured from the seat geometry)", () => {
+    // back pad: box 0.46 high × 0.04 deep at (y 0.76, z −0.235), rotated −0.15 rad about x; its front face (local
+    // z = +0.02) at world height y lies at z(y) in the seat frame; the seated origin is SEAT_BACK behind the seat point
+    const th = -0.15;
+    const frontZ = (y: number) => {
+      const ly = (y - 0.76 - 0.02 * Math.sin(-th)) / Math.cos(th);
+      return -0.235 + ly * Math.sin(th) + 0.02 * Math.cos(th);
+    };
+    for (const y of [0.54, 0.58, 0.62]) expect(-(frontZ(y) + SEAT_BACK)).toBeGreaterThanOrEqual(SEAT_FURNITURE.stadium.back - 0.012);
+    expect(-(frontZ(0.56) + SEAT_BACK)).toBeCloseTo(SEAT_FURNITURE.stadium.back, 2);
   });
 
   it.each(KINDS)("%s: the knees reach past the seat's front edge (the shins never pass through it)", (k) => {

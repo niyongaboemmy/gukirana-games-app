@@ -427,11 +427,14 @@ textarea.pfield {
   transform: translateX(22px);
 }
 
-/* dim layer behind modal cards */
+/* dim layer behind modal cards: dims AND softens the scene (P2-HAL-11: big 3D sign letters behind a window no
+   longer compete with its text; the card's own frosting then only has to smooth what is left) */
 .pscrim {
   position: fixed;
   inset: 0;
-  background: rgb(0 0 0 / 0.28);
+  background: rgb(0 0 0 / 0.36);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
 }
 
 /* legacy controls placed inside a paper card (game modals, older panels) take the paper look */

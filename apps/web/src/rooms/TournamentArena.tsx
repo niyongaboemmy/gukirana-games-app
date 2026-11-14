@@ -16,6 +16,7 @@ import { selfPose } from "@/lib/world-store";
 import { pickables, updateVenue, useVenue } from "@/arena/hooks"; // also registers the arena's hall hooks
 import { bindArenaRealtime, fetchArenaStatus, useArena } from "@/arena/arena-client";
 import {
+  BARRIER,
   BOWL_SEATS,
   bowlSeat,
   COMMENTATORS,
@@ -30,12 +31,18 @@ import {
   LOWER,
   LOWER_AISLES,
   LOWER_BACK,
+  LOWER_EXIT_STEPS,
   OUTER_R,
   PLAYERS_TUNNEL_HW,
   PORTAL_HW,
   RESTROOM,
   SECTIONS,
   STAGE,
+  STAIR,
+  STAIR_RAIL_END,
+  STAIR_RAIL_H,
+  STAIRS,
+  type StairFlight,
   TUNNEL_STEPS,
   UPPER,
   UPPER_AISLES,
@@ -109,6 +116,26 @@ class Geo {
       [c, [u1, v1]],
       [d, [u0, v1]],
     ] as const) {
+      this.pos.push(...p);
+      this.nor.push(...n);
+      this.uv.push(...t);
+    }
+  }
+  /** a quad wound to face its normal (front face towards n), whatever order the corners come in */
+  face(a: THREE.Vector3Tuple, b: THREE.Vector3Tuple, c: THREE.Vector3Tuple, d: THREE.Vector3Tuple, n: THREE.Vector3Tuple, uv: [number, number, number, number] = [0, 0, 1, 1]) {
+    const [u0, v0, u1, v1] = uv;
+    const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    const e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    const dot = (e1[1]! * e2[2]! - e1[2]! * e2[1]!) * n[0] + (e1[2]! * e2[0]! - e1[0]! * e2[2]!) * n[1] + (e1[0]! * e2[1]! - e1[1]! * e2[0]!) * n[2];
+    const ta: [number, number] = [u0, v0];
+    const tb: [number, number] = [u1, v0];
+    const tc: [number, number] = [u1, v1];
+    const td: [number, number] = [u0, v1];
+    const order: [THREE.Vector3Tuple, [number, number]][] =
+      dot >= 0
+        ? [[a, ta], [b, tb], [c, tc], [a, ta], [c, tc], [d, td]]
+        : [[a, ta], [c, tc], [b, tb], [a, ta], [d, td], [c, tc]];
+    for (const [p, t] of order) {
       this.pos.push(...p);
       this.nor.push(...n);
       this.uv.push(...t);
@@ -196,8 +223,8 @@ function cut(a0: number, a1: number, holes: [number, number][]) {
   if (s < a1) out.push([s, a1]);
   return out;
 }
-const UPPER_HOLES = UPPER_AISLES.map((a) => [a, halfDeg(0.62, CONCOURSE.r1)] as [number, number]);
-const LOWER_RAIL_HOLES: [number, number][] = [...LOWER_AISLES.map((a) => [a, halfDeg(0.62, CONCOURSE.r0)] as [number, number]), [180, 6.0]];
+const UPPER_HOLES = UPPER_AISLES.map((a) => [a, halfDeg(STAIR.hw, CONCOURSE.r1)] as [number, number]);
+const LOWER_RAIL_HOLES: [number, number][] = [...LOWER_AISLES.map((a) => [a, halfDeg(0.62, CONCOURSE.r0)] as [number, number]), [180, 10.0]];
 const GANTRY_NOTCH = 2.6; // half width (deg) of the gantry stair notch at 180°
 
 /** cap rails: tube segments along an arc */
@@ -210,16 +237,126 @@ function arcRail(r: number, a0: number, a1: number, y: number, rad: number, out:
   }
 }
 
+/** a point on the straight line of a flight / wall: `along` the bearing a (deg) from the centre, `lat` to its +angle side */
+const onLine = (a: number, along: number, lat: number, y: number): THREE.Vector3Tuple => {
+  const ar = a * D2R;
+  return [along * Math.sin(ar) + lat * Math.cos(ar), y, along * Math.cos(ar) - lat * Math.sin(ar)];
+};
+
+/**
+ * A stair up from the concourse (P2-HAL-11): straight radial treads + risers between two cheek walls whose tops follow
+ * the pitch line, a stone cap, and a handrail STAIR_RAIL_H over the pitch line on posts at both ends. The cheeks start
+ * flush with the first riser and end against the tier front / the VIP box front: no open sides, no coplanar faces.
+ */
+function buildStair(f: StairFlight, concrete: Geo, finish: Geo, rails: THREE.Matrix4[], nosings: Xform[]) {
+  const run = (f.r1 - STAIR.r0) / f.steps;
+  const rise = f.top / f.steps;
+  const w = STAIR.hw;
+  const c = STAIR.cheek;
+  for (let k = 0; k < f.steps; k++) {
+    const s0 = STAIR.r0 + run * k;
+    const s1 = s0 + run;
+    const y0 = rise * k;
+    const y1 = y0 + rise;
+    // riser (faces the concourse: −along) and tread
+    concrete.face(onLine(f.a, s0, -w, y0), onLine(f.a, s0, w, y0), onLine(f.a, s0, w, y1), onLine(f.a, s0, -w, y1), onLine(f.a, -1, 0, 0), [0, y0, 2 * w, y1]);
+    concrete.face(onLine(f.a, s0, -w, y1), onLine(f.a, s1, -w, y1), onLine(f.a, s1, w, y1), onLine(f.a, s0, w, y1), [0, 1, 0], [0, s0, 2 * w, s1]);
+    const p = onLine(f.a, s0 + 0.03, 0, y1 + 0.006);
+    nosings.push({ p, r: f.a * D2R, s: [2 * w - 0.1, 0.012, 0.05] });
+  }
+  // cheek walls: inner + outer faces up to 0.1 m over the nosing line (every step corner stays inside them), the
+  // sloped stone cap, closed front and top ends
+  const capH = 0.1;
+  const nosingAt = (s: number) => rise + (f.top * (s - STAIR.r0)) / (f.r1 - STAIR.r0);
+  const topAt = (s: number) => nosingAt(s) + capH;
+  for (const side of [-1, 1]) {
+    const li = side * w;
+    const lo = side * (w + c);
+    const s0 = STAIR.r0;
+    const s1 = f.r1;
+    for (const [l, nn] of [
+      [li, -side],
+      [lo, side],
+    ] as [number, number][]) {
+      const n = onLine(f.a, 0, nn, 0);
+      concrete.face(onLine(f.a, s0, l, 0), onLine(f.a, s1, l, 0), onLine(f.a, s1, l, topAt(s1)), onLine(f.a, s0, l, topAt(s0)), [n[0], 0, n[2]], [s0, 0, s1, 1]);
+    }
+    // cap (sloped): normal ≈ up, tilted back along the flight
+    const slope = f.top / (s1 - s0);
+    const ar = f.a * D2R;
+    const nl = Math.hypot(1, slope);
+    finish.face(onLine(f.a, s0, li, topAt(s0)), onLine(f.a, s1, li, topAt(s1)), onLine(f.a, s1, lo, topAt(s1)), onLine(f.a, s0, lo, topAt(s0)), [(-slope * Math.sin(ar)) / nl, 1 / nl, (-slope * Math.cos(ar)) / nl], [0, s0, c, s1]);
+    // front end of the cheek (faces the concourse) and its top end over the landing (faces up the flight)
+    concrete.face(onLine(f.a, s0, li, 0), onLine(f.a, s0, lo, 0), onLine(f.a, s0, lo, topAt(s0)), onLine(f.a, s0, li, topAt(s0)), onLine(f.a, -1, 0, 0), [0, 0, c, topAt(s0)]);
+    concrete.face(onLine(f.a, s1, li, f.top), onLine(f.a, s1, lo, f.top), onLine(f.a, s1, lo, topAt(s1)), onLine(f.a, s1, li, topAt(s1)), onLine(f.a, 1, 0, 0), [0, f.top, c, topAt(s1)]);
+    // handrail on the cheek: posts at both ends + the sloped rail; it stops STAIR_RAIL_END short of the top (the
+    // tier's / box's own glass rail takes over there) so it never rises into a front-row seat's view of the stage
+    const lm = side * (w + c / 2);
+    const e1 = s1 - STAIR_RAIL_END;
+    const a0 = new THREE.Vector3(...onLine(f.a, s0 + 0.08, lm, topAt(s0 + 0.08)));
+    const a1 = new THREE.Vector3(...onLine(f.a, e1, lm, topAt(e1)));
+    const t0 = new THREE.Vector3(...onLine(f.a, s0 + 0.08, lm, nosingAt(s0 + 0.08) + STAIR_RAIL_H));
+    const t1 = new THREE.Vector3(...onLine(f.a, e1, lm, nosingAt(e1) + STAIR_RAIL_H));
+    member(a0, t0, 0.022, rails);
+    member(a1, t1, 0.022, rails);
+    member(t0, t1, 0.028, rails);
+  }
+}
+
+/** the players' tunnel cheek walls (P2-HAL-11): one solid wedge each side between the tunnel and the row ends */
+function buildTunnelCheeks(concrete: Geo, finish: Geo) {
+  const hw = PLAYERS_TUNNEL_HW;
+  const yFront = lowerTreadY(1) + BARRIER.front; // meets the front barrier's top
+  const yBack = BARRIER.concourse; // meets the concourse balustrade's top
+  // along the tunnel axis (−z): s from the front barrier to the concourse ring
+  const s0 = FLOOR_R * Math.cos(10 * D2R);
+  const s1 = Math.sqrt(CONCOURSE.r0 * CONCOURSE.r0 - hw * hw) + 0.05;
+  const top = (s: number) => yFront + ((yBack - yFront) * (s - s0)) / (s1 - s0);
+  const tan10 = Math.tan(10 * D2R);
+  for (const side of [-1, 1]) {
+    // tunnel face at x = side·hw; row-end face along the 190° / 170° ray (x = side·s·tan10)
+    const P = (x: number, s: number, y: number): THREE.Vector3Tuple => [x, y, -s];
+    const xo = (s: number) => side * Math.max(hw + 0.3, s * tan10);
+    const n = 6;
+    for (let i = 0; i < n; i++) {
+      const a = s0 + ((s1 - s0) * i) / n;
+      const b = s0 + ((s1 - s0) * (i + 1)) / n;
+      // tunnel face (faces the tunnel: −side x)
+      concrete.face(P(side * hw, a, FLOOR_Y), P(side * hw, b, FLOOR_Y), P(side * hw, b, top(b)), P(side * hw, a, top(a)), [-side, 0, 0], [a, FLOOR_Y, b, top(a)]);
+      // row-end face (faces the rows: +side, along the ray)
+      concrete.face(P(xo(a), a, FLOOR_Y), P(xo(b), b, FLOOR_Y), P(xo(b), b, top(b)), P(xo(a), a, top(a)), [side * Math.cos(10 * D2R), 0, -Math.sin(10 * D2R)], [a, FLOOR_Y, b, top(a)]);
+      // top: a slim stone cap along the tunnel edge (like the barrier / stair caps), charcoal concrete beyond it
+      const sl = (yBack - yFront) / (s1 - s0);
+      const nl = Math.hypot(1, sl);
+      const xc = side * (hw + 0.16);
+      finish.face(P(side * hw, a, top(a)), P(side * hw, b, top(b)), P(xc, b, top(b)), P(xc, a, top(a)), [0, 1 / nl, sl / nl], [0, a, 1, b]);
+      concrete.face(P(xc, a, top(a)), P(xc, b, top(b)), P(xo(b), b, top(b)), P(xo(a), a, top(a)), [0, 1 / nl, sl / nl], [0, a, 1, b]);
+    }
+    // front end (faces the floor, +z) and back end (faces the concourse, −z)
+    concrete.face(P(side * hw, s0, FLOOR_Y), P(xo(s0), s0, FLOOR_Y), P(xo(s0), s0, top(s0)), P(side * hw, s0, top(s0)), [0, 0, 1], [0, FLOOR_Y, 1, top(s0)]);
+    concrete.face(P(side * hw, s1, 0), P(xo(s1), s1, 0), P(xo(s1), s1, top(s1)), P(side * hw, s1, top(s1)), [0, 0, -1], [0, 0, 1, top(s1)]);
+  }
+}
+
+/** glass end posts (stanchions) at both ends of a balustrade run: a glass edge never just stops in mid-air */
+function glassPosts(r: number, b0: number, b1: number, y0: number, y1: number, rails: THREE.Matrix4[]) {
+  for (const b of [b0, b1]) {
+    const p = polar(r, b);
+    member(new THREE.Vector3(p.x, y0, p.z), new THREE.Vector3(p.x, y1, p.z), 0.025, rails);
+  }
+}
+
 function buildBowl() {
   const concrete = new Geo(); // treads, risers, cheek walls (charcoal)
   const floorC = new Geo(); // concourse, portal, VIP fore-courts (polished concrete)
   const finish = new Geo(); // barrier, kerbs, caps, lintels, box exteriors (warm stone)
-  const timber = new Geo(); // the shell, portal blocks, the drum's lobby face, VIP side walls (timber slats)
+  const timber = new Geo(); // the shell, portal blocks, the drum's lobby face, tier side walls (timber slats)
   const dark = new Geo(); // soffits, box roofs, gantry deck
   const glass = new Geo(); // frosted glass balustrades
   const warm = new Geo(); // VIP interiors
   const accent = new Geo(); // Imigongo accent band
   const rails: THREE.Matrix4[] = [];
+  const nosings: Xform[] = [];
 
   // ---- lower bowl: treads + risers + stepped aisles, front barrier
   const y1 = lowerTreadY(1);
@@ -228,31 +365,34 @@ function buildBowl() {
     const r1 = r0 + LOWER.depth;
     const y = lowerTreadY(i);
     concrete.top(r0, r1, LOWER_SPAN[0], LOWER_SPAN[1], y, false, 4);
-    concrete.wall(r0, LOWER_SPAN[0], LOWER_SPAN[1], i === 1 ? FLOOR_Y : lowerTreadY(i - 1), y, true, 4);
-    if (i < LOWER.rows)
-      for (const a of LOWER_AISLES) {
-        const h = halfDeg(0.55, r0);
-        const yy = y + (LOWER.depth * LOWER.slope) / 2;
-        concrete.top(r0 + LOWER.depth / 2, r1, a - h, a + h, yy);
-        concrete.wall(r0 + LOWER.depth / 2, a - h, a + h, y, yy);
-      }
+    // (row 1's riser is the front barrier's back face: not drawn twice)
+    if (i > 1) concrete.wall(r0, LOWER_SPAN[0], LOWER_SPAN[1], lowerTreadY(i - 1), y, true, 4);
+    for (const a of LOWER_AISLES) {
+      const h = halfDeg(0.55, r0);
+      // a half step in every row's aisle; the last row's aisle climbs to the concourse in three equal steps
+      const steps = i < LOWER.rows ? [{ dr: LOWER.depth / 2, dy: (LOWER.depth * LOWER.slope) / 2 }] : LOWER_EXIT_STEPS;
+      let prev = y;
+      steps.forEach((st, k) => {
+        const yy = y + st.dy;
+        const rr1 = k + 1 < steps.length ? r0 + steps[k + 1]!.dr : r1;
+        concrete.top(r0 + st.dr, rr1, a - h, a + h, yy);
+        concrete.wall(r0 + st.dr, a - h, a + h, prev, yy);
+        prev = yy;
+      });
+    }
   }
   concrete.wall(LOWER_BACK, LOWER_SPAN[0], LOWER_SPAN[1], lowerTreadY(LOWER.rows), 0);
-  finish.wall(FLOOR_R, LOWER_SPAN[0], LOWER_SPAN[1], FLOOR_Y, y1 + 0.95, true, 4);
-  finish.top(FLOOR_R, LOWER.front, LOWER_SPAN[0], LOWER_SPAN[1], y1 + 0.95);
-  finish.wall(LOWER.front, LOWER_SPAN[0], LOWER_SPAN[1], y1, y1 + 0.95, false, 4);
-  // players' tunnel: cheek walls closing the gap to the row ends
-  for (const s of [-1, 1]) {
-    const aEdge = s < 0 ? 190 : 170;
-    concrete.top(FLOOR_R, CONCOURSE.r0, Math.min(aEdge, aEdge + s * 4), Math.max(aEdge, aEdge + s * 4), 0.9);
-    concrete.radial(aEdge, FLOOR_R, CONCOURSE.r0, FLOOR_Y, 0.9, s > 0);
-  }
+  finish.wall(FLOOR_R, LOWER_SPAN[0], LOWER_SPAN[1], FLOOR_Y, y1 + BARRIER.front, true, 4);
+  finish.top(FLOOR_R, LOWER.front, LOWER_SPAN[0], LOWER_SPAN[1], y1 + BARRIER.front);
+  finish.wall(LOWER.front, LOWER_SPAN[0], LOWER_SPAN[1], y1, y1 + BARRIER.front, false, 4);
+  buildTunnelCheeks(concrete, finish);
 
   // ---- concourse ring + glass balustrade at the top of the lower bowl (open at the aisles and the tunnel)
   floorC.top(CONCOURSE.r0 - 0.03, CONCOURSE.r1, 0, 360, 0, false, 4);
   for (const [b0, b1] of cut(0, 360, LOWER_RAIL_HOLES)) {
-    glass.wall(CONCOURSE.r0 + 0.05, b0, b1, 0.06, 1.05, true);
-    arcRail(CONCOURSE.r0 + 0.05, b0, b1, 1.07, 0.03, rails);
+    glass.wall(CONCOURSE.r0 + 0.05, b0, b1, 0.06, BARRIER.concourse, true);
+    arcRail(CONCOURSE.r0 + 0.05, b0, b1, BARRIER.concourse + 0.02, 0.03, rails);
+    glassPosts(CONCOURSE.r0 + 0.05, b0, b1, 0, BARRIER.concourse + 0.02, rails);
   }
   for (const v of VIP_SECTIONS) floorC.top(CONCOURSE.r1, VIP.front, v.a0, v.a1, 0, false, 4);
 
@@ -278,6 +418,7 @@ function buildBowl() {
     finish.wall(CONCOURSE.r1, a0, a1, 0, GANTRY.y, true, 2);
     glass.wall(CONCOURSE.r1 + 0.06, a0, a1, GANTRY.y + 0.05, GANTRY.y + 1.05, true);
     arcRail(CONCOURSE.r1 + 0.06, a0, a1, GANTRY.y + 1.07, 0.03, rails);
+    glassPosts(CONCOURSE.r1 + 0.06, a0, a1, GANTRY.y, GANTRY.y + 1.07, rails);
   }
   dark.top(GANTRY.r0, OUTER_R, 180 - GANTRY_NOTCH, 180 + GANTRY_NOTCH, GANTRY.y);
   for (let k = 1; k <= GANTRY.steps; k++) {
@@ -289,14 +430,18 @@ function buildBowl() {
   finish.radial(180 - GANTRY_NOTCH, CONCOURSE.r1, GANTRY.r0, 0, GANTRY.y, true);
   finish.radial(180 + GANTRY_NOTCH, CONCOURSE.r1, GANTRY.r0, 0, GANTRY.y, false);
 
-  // ---- upper tier: treads + stepped aisles, a low stone kerb carrying the LED fascia, frosted glass above it
+  // ---- upper tier (raised 1.1 m): treads + stepped aisles; the tier front is a stone fascia wall (the LED ribbon
+  // runs on it) with a kerb and frosted glass above row 1; a stair up from the concourse at every aisle
+  const yU = upperTreadY(1);
+  const kerb = 0.12;
   for (const [a0, a1] of UPPER_SPANS) {
     for (let j = 1; j <= UPPER.rows; j++) {
       const r0 = UPPER.r0 + UPPER.depth * (j - 1);
       const r1 = j === UPPER.rows ? OUTER_R : r0 + UPPER.depth;
       const y = upperTreadY(j);
       concrete.top(r0, r1, a0, a1, y, false, 4);
-      concrete.wall(r0, a0, a1, j === 1 ? 0 : upperTreadY(j - 1), y, true, 4);
+      // (row 1's riser is the fascia wall: not drawn twice)
+      if (j > 1) concrete.wall(r0, a0, a1, upperTreadY(j - 1), y, true, 4);
       for (const a of UPPER_AISLES) {
         if (a < a0 - 0.1 || a > a1 + 0.1 || j === UPPER.rows) continue;
         const h = halfDeg(0.6, r0);
@@ -306,39 +451,54 @@ function buildBowl() {
       }
     }
     for (const [b0, b1] of cut(a0, a1, UPPER_HOLES)) {
-      finish.wall(CONCOURSE.r1, b0, b1, 0, 0.45, true, 2);
-      finish.top(CONCOURSE.r1, CONCOURSE.r1 + 0.16, b0, b1, 0.45);
-      finish.wall(CONCOURSE.r1 + 0.16, b0, b1, upperTreadY(1), 0.45, false, 2);
-      glass.wall(CONCOURSE.r1 + 0.08, b0, b1, 0.45, 1.12, true);
-      arcRail(CONCOURSE.r1 + 0.08, b0, b1, 1.14, 0.03, rails);
+      finish.wall(CONCOURSE.r1, b0, b1, 0, yU + kerb, true, 2);
+      finish.top(CONCOURSE.r1, CONCOURSE.r1 + 0.16, b0, b1, yU + kerb);
+      finish.wall(CONCOURSE.r1 + 0.16, b0, b1, yU, yU + kerb, false, 2);
+      glass.wall(CONCOURSE.r1 + 0.08, b0, b1, yU + kerb, yU + BARRIER.upper, true);
+      arcRail(CONCOURSE.r1 + 0.08, b0, b1, yU + BARRIER.upper + 0.02, 0.03, rails);
+      glassPosts(CONCOURSE.r1 + 0.08, b0, b1, yU + kerb, yU + BARRIER.upper + 0.02, rails);
+      // kerb ends at a stair opening (not at the arc's own end: the side wall closes that)
+      if (b0 > a0 + 0.01) finish.radial(b0, CONCOURSE.r1, CONCOURSE.r1 + 0.16, yU, yU + kerb, false);
+      if (b1 < a1 - 0.01) finish.radial(b1, CONCOURSE.r1, CONCOURSE.r1 + 0.16, yU, yU + kerb, true);
     }
-    // side walls where an arc meets a gap or a box (timber)
-    timber.radial(a0, CONCOURSE.r1, OUTER_R, 0, upperTreadY(UPPER.rows) + 1.2, false, 1.6);
-    timber.radial(a1, CONCOURSE.r1, OUTER_R, 0, upperTreadY(UPPER.rows) + 1.2, true, 1.6);
+    // side walls where an arc ends (timber, facing the seats; facing the gap too unless a VIP box is there —
+    // the box's own warm interior wall is that face, so the two never overlap)
+    const topU = upperTreadY(UPPER.rows) + 1.2;
+    for (const [a, intoSeats] of [
+      [a0, true],
+      [a1, false],
+    ] as [number, boolean][]) {
+      const vipSide = VIP_SECTIONS.some((v) => Math.abs(v.a0 - a) < 0.01 || Math.abs(v.a1 - a) < 0.01);
+      const top = vipSide ? VIP.floorY + 3.0 : topU;
+      timber.radial(a, CONCOURSE.r1, OUTER_R, 0, top, intoSeats, 1.6);
+      if (!vipSide) timber.radial(a, CONCOURSE.r1, OUTER_R, 0, top, !intoSeats, 1.6);
+      else {
+        // towards the box: the fore-court side (in front of the box) and the side under the box floor
+        timber.radial(a, CONCOURSE.r1, VIP.front, 0, top, !intoSeats, 1.6);
+      }
+    }
   }
+  for (const f of STAIRS) buildStair(f, concrete, finish, rails, nosings);
 
-  // ---- VIP boxes: raised floor, glass front with its stair opening, timber sides, roof slab, warm interior
+  // ---- VIP boxes (raised 1.7 m): stone front wall, LOW glass front with the stair opening, warm interior (its side
+  // walls face into the box only), roof slab with closed ends
   for (const v of VIP_SECTIONS) {
     const sa = v.a0 + VIP.stairOff;
-    const hole = halfDeg(0.5, VIP.front);
+    const hole = halfDeg(STAIR.hw, VIP.front);
     finish.top(VIP.front, OUTER_R, v.a0, v.a1, VIP.floorY, false, 2);
-    finish.wall(VIP.front, v.a0, v.a1, 0, VIP.floorY, true, 2);
     for (const [b0, b1] of cut(v.a0, v.a1, [[sa, hole]])) {
-      glass.wall(VIP.front + 0.03, b0, b1, VIP.floorY, VIP.floorY + 1.05, true);
-      arcRail(VIP.front + 0.03, b0, b1, VIP.floorY + 1.07, 0.03, rails);
-    }
-    for (let k = 1; k <= 4; k++) {
-      const r = CONCOURSE.r1 + ((VIP.front - CONCOURSE.r1) * (k - 1)) / 4;
-      const y = (VIP.floorY * k) / 4;
-      concrete.top(r, VIP.front, sa - hole, sa + hole, y);
-      concrete.wall(r, sa - hole, sa + hole, y - VIP.floorY / 4, y);
+      finish.wall(VIP.front, b0, b1, 0, VIP.floorY, true, 2);
+      glass.wall(VIP.front + 0.03, b0, b1, VIP.floorY, VIP.floorY + BARRIER.vip, true);
+      arcRail(VIP.front + 0.03, b0, b1, VIP.floorY + BARRIER.vip + 0.02, 0.03, rails);
+      glassPosts(VIP.front + 0.03, b0, b1, VIP.floorY, VIP.floorY + BARRIER.vip + 0.02, rails);
     }
     for (const [a, ccw] of [
       [v.a0, true],
       [v.a1, false],
     ] as [number, boolean][]) {
       warm.radial(a, VIP.front, OUTER_R, VIP.floorY, VIP.floorY + 3.0, ccw);
-      timber.radial(a, VIP.front, OUTER_R, VIP.floorY, VIP.floorY + 3.0, !ccw, 1.6);
+      // roof slab end
+      finish.radial(a, VIP.front - 0.4, OUTER_R, VIP.floorY + 3.0, VIP.floorY + 3.15, !ccw);
     }
     dark.top(VIP.front - 0.4, OUTER_R, v.a0, v.a1, VIP.floorY + 3.0, true);
     finish.top(VIP.front - 0.4, OUTER_R, v.a0, v.a1, VIP.floorY + 3.15);
@@ -358,7 +518,7 @@ function buildBowl() {
   ] as [number, number][])
     timber.wall(OUTER_R + 0.02, a0, a1, 0, LOBBY_H, false, 1.6);
   timber.wall(OUTER_R + 0.02, -7, 7, PORTAL_H + 1.0, LOBBY_H, false, 1.6);
-  // players' tunnel handrails
+  // players' tunnel handrails (on the cheek walls' tunnel faces)
   for (const s of [-1, 1]) member(new THREE.Vector3(s * (PLAYERS_TUNNEL_HW - 0.05), 0.95, -CONCOURSE.r0), new THREE.Vector3(s * (PLAYERS_TUNNEL_HW - 0.05), FLOOR_Y + 0.95, -FLOOR_R), 0.03, rails);
 
   return {
@@ -373,6 +533,7 @@ function buildBowl() {
       accent: accent.build(),
     },
     rails,
+    nosings,
   };
 }
 
@@ -511,8 +672,10 @@ function useMats() {
       timber: m("#ffffff", { map: slat, roughness: 0.9 }),
       dark: m("#232127", { side: THREE.DoubleSide, roughness: 1 }),
       // frosted, low-reflection glass (rough, no environment reflections, low opacity, sorted after opaques)
-      glass: new THREE.MeshStandardMaterial({ color: "#d6dde2", roughness: 1, metalness: 0, envMapIntensity: 0, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }),
-      warm: m("#7a5a40", { side: THREE.DoubleSide }),
+      // (light frosting: a person behind it reads as a whole, softened figure; the glass ends at posts)
+      glass: new THREE.MeshStandardMaterial({ color: "#d6dde2", roughness: 1, metalness: 0, envMapIntensity: 0, transparent: true, opacity: 0.15, depthWrite: false, side: THREE.DoubleSide }),
+      // VIP interiors: front faces only (a box's side wall faces into it; the neighbour's faces the other way)
+      warm: m("#7a5a40"),
       accent: m("#ffffff", { map: acc, roughness: 0.95 }),
       rail: m("#2b2a30", { roughness: 0.85 }),
       // LED-lit stair nosings: soft warm strips (emissive below the bloom threshold)
@@ -593,6 +756,11 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
           const p = polar(rr, a);
           nosings.push({ p: [p.x, y + 0.006, p.z], r: a * D2R, s: [1.0, 0.012, 0.05] });
         }
+        if (i === LOWER.rows)
+          for (const st of LOWER_EXIT_STEPS) {
+            const p = polar(r0 + st.dr + 0.03, a);
+            nosings.push({ p: [p.x, lowerTreadY(i) + st.dy + 0.006, p.z], r: a * D2R, s: [1.0, 0.012, 0.05] });
+          }
       }
     for (const a of UPPER_AISLES)
       for (let j = 1; j < UPPER.rows; j++) {
@@ -615,10 +783,10 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
       const y = (FLOOR_Y * (k + 1)) / TUNNEL_STEPS;
       if (y - FLOOR_Y > 1e-3) steps.push({ p: [0, (y + FLOOR_Y) / 2, z0], s: [PLAYERS_TUNNEL_HW * 2, y - FLOOR_Y, (CONCOURSE.r0 - FLOOR_R) / TUNNEL_STEPS + 0.01] });
     }
-    const cheeks: Xform[] = [-1, 1].map((s) => ({ p: [s * (PLAYERS_TUNNEL_HW + 0.5), (FLOOR_Y + 0.9) / 2, -(FLOOR_R + CONCOURSE.r0) / 2], s: [1.0, 0.9 - FLOOR_Y, CONCOURSE.r0 - FLOOR_R] }));
     const portal: Xform[] = [-1, 1].map((s) => ({ p: [s * (PORTAL_HW + 0.5), PORTAL_H / 2, (CONCOURSE.r1 + OUTER_R) / 2 + 0.2], s: [1.0, PORTAL_H, OUTER_R - CONCOURSE.r1 + 0.6] }));
-    return { nosings, steps, cheeks, portal };
-  }, []);
+    nosings.push(...bowl.nosings);
+    return { nosings, steps, portal };
+  }, [bowl]);
 
   /* --- lantern space frame (the open middle of the ceiling), truss --- */
   const roof = useMemo(() => {
@@ -709,7 +877,8 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
         [LOWER_SPAN[0], 360],
         [0, LOWER_SPAN[1] - 360],
       ]),
-      upper: g(CONCOURSE.r1 - 0.02, 0.07, 0.4, UPPER_SPANS.flatMap(([a0, a1]) => cut(a0, a1, UPPER_HOLES))),
+      // on the raised tier's stone fascia wall, just under its kerb (clear of people walking the concourse)
+      upper: g(CONCOURSE.r1 - 0.02, upperTreadY(1) - 0.3, upperTreadY(1) + 0.04, UPPER_SPANS.flatMap(([a0, a1]) => cut(a0, a1, UPPER_HOLES))),
       high: g(OUTER_R - 0.05, CEIL_Y - 1.2, CEIL_Y - 0.95, [[0, 360]]),
     };
   }, []);
@@ -807,12 +976,14 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
       SECTIONS.map((s) => {
         const mid = (s.a0 + s.a1) / 2;
         if (s.tier === "lower") {
+          // on the balustrade's concourse face, under its cap rail (never in a seat's eye line)
           const p = polar(CONCOURSE.r0 + 0.14, mid);
-          return { id: s.id, x: p.x, y: 1.5, z: p.z, ry: mid * D2R, size: 0.5 };
+          return { id: s.id, x: p.x, y: 0.5, z: p.z, ry: mid * D2R, size: 0.5 };
         }
         if (s.tier === "upper") {
+          // on the tier's fascia wall under the ribbon, at the section's middle
           const p = polar(CONCOURSE.r1 - 0.06, mid);
-          return { id: s.id, x: p.x, y: 1.62, z: p.z, ry: mid * D2R + Math.PI, size: 0.46 };
+          return { id: s.id, x: p.x, y: 0.42, z: p.z, ry: mid * D2R + Math.PI, size: 0.46 };
         }
         const p = polar(VIP.front - 0.44, mid);
         return { id: s.id, x: p.x, y: VIP.floorY + 2.62, z: p.z, ry: mid * D2R + Math.PI, size: 0.32 };
@@ -891,7 +1062,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
       <MatrixInstances geometry={cyl} matrices={bowl.rails}>
         <primitive object={M.rail} attach="material" />
       </MatrixInstances>
-      <Instanced geometry={box} items={[...X.steps, ...X.cheeks, ...X.portal]}>
+      <Instanced geometry={box} items={[...X.steps, ...X.portal]}>
         <primitive object={M.concrete} attach="material" />
       </Instanced>
 
@@ -1005,9 +1176,11 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
           <meshBasicMaterial color="#fff2da" transparent opacity={0.16} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
         </mesh>
       </group>
-      <Text font={FONT} fontSize={0.3} position={[0, 1.3, -CONCOURSE.r0 + 0.1]} rotation={[0, Math.PI, 0]} anchorX="center" anchorY="middle" letterSpacing={0.1}>
+      {/* "players only" marked on the concourse floor at the tunnel mouth (it used to float in mid-air over the tunnel,
+          with no backing, in front of everything — P2-HAL-11) */}
+      <Text font={FONT} fontSize={0.22} position={[0, 0.012, -(CONCOURSE.r0 + 0.32)]} rotation={[-Math.PI / 2, 0, Math.PI]} anchorX="center" anchorY="middle" letterSpacing={0.12}>
         PLAYERS ONLY
-        <meshStandardMaterial color="#e9e3d6" roughness={0.9} metalness={0} />
+        <meshBasicMaterial color="#cdbf9f" polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} />
       </Text>
       <Text font={FONT} fontSize={0.26} position={[0, GANTRY.y + 1.4, -(CONCOURSE.r1 + 0.1)]} anchorX="center" anchorY="middle" letterSpacing={0.12}>
         MEDIA GANTRY

@@ -90,3 +90,83 @@ All in `apps/web/src/rooms/stability.ts`, unit tested in `stability.test.ts`:
 - Arena: crowd reactions synced to the stage events (the reactions bar exists; a clap wave over the seated crowd
   would need an event channel).
 - Stair step animation on the arena rake (the gait is foot-locked on the slope but has no dedicated step clip).
+
+---
+
+# P2-HAL-11 anomalies (interiors review 2)
+
+Method: a fixed pose set per hall (wide from the door corner, wide from the far corner, high overview, low eye level,
+close-up of table 1, seated side / behind on seat 1, looking back at the door) with the camera pinned through
+`__gkRoomQA.cam`, plus the arena's own poses (the five reported shots, VIP eye views, every zoom target, a lower-bowl
+and an upper back-row seat, desktop 1280×720 and phone landscape 844×390). Screenshots (before `b*`, after `a*`, sweep
+`s-*`, phone `p-*`) are in the session scratchpad `halls11/`. The arena sightlines are now audited in code
+(`arena/sightlines.ts`, tested over all 1,224 seats).
+
+## The five reported issues
+
+| id | hall | what | cause | fix | shots |
+| --- | --- | --- | --- | --- | --- |
+| H11-01 | Arena | timber slat wall shows broken black / brown blocks and missing slats | coplanar walls: every VIP box side was drawn twice in the same plane (the box's warm interior wall, double-sided, and a timber wall; between V1/V2 and V3/V4 both boxes added theirs), and the upper-tier end walls faced away from their own seats (back-face culled → see-through "missing slats") | one wall per face: tier end walls face their seats (and the gap, except where a VIP box is), the box interior is front-facing only, shared box walls are warm on both sides; slat texture joints warm brown instead of black, anisotropy 8 (calm at a distance) | b1-* → a1-* |
+| H11-02 | Arena (all halls) | person behind the front wall / glass shows one trouser leg | (a) the glass balustrades just stopped at the aisle openings — no post — so a person at an opening showed one leg crisp and the other frosted; the frosting (0.22) also hid dark trousers almost completely; (b) the avatar near / far body switch never found the body meshes (they sit under a `RootNode`), so the detailed body AND its low-poly copy were drawn on top of each other everywhere | glass end posts on every balustrade run (concourse, upper fascia, VIP fronts, gantry), lighter frosting (0.15) so the whole figure reads softly; `partOf` finds the nearest named ancestor: one body level drawn at a time, hair cards hide under hats as intended | b2-* → a2-* |
+| H11-03 | Arena | seated from behind: shirt shows under the seat back | the stadium profile left the buttocks 2 cm inside the back pad (the "back" distance in SEAT_FURNITURE was 0.12 m; measured from the seat geometry it is 0.108 m) and the clearance test allowed 3 cm of penetration | stadium `hipFwd` 0.05, VIP 0.03, measured backs (0.108 / 0.13 m), the test now demands ≥ 1 cm clear for every seat kind plus a test that re-measures the arena back pad from the geometry | b3-seated-behind → a3-seated-behind |
+| H11-04 | Arena | angular dark block near the stair / tier with dark streaks on top, a slanted wedge meeting a box | the players' tunnel cheeks were a 4° wedge (`top` at 0.9 m) overlapping an instanced box with the same top height (coplanar → z-fighting streaks); the VIP stair had open stepped sides; the upper fascia kerb was coplanar with the row-1 riser (0–0.24 m) | one clean solid cheek wall each side (tunnel face, row-end face along the 190° / 170° ray, a slim stone cap sloping from the front barrier's top to the concourse balustrade's top, closed ends); every stair is a real flight between cheek walls with stone caps, handrails on end posts, LED nosings; no riser drawn where a barrier / fascia already is | b4-*, b5-tunnel → a4-* |
+| H11-05 | Arena | "Players' tunnel" card and the "E · Players' tunnel" prompt at once; big 3D letters read through the card | the arena prompt ignored open venue windows; the 3D "PLAYERS ONLY" floated in mid-air over the tunnel mouth; the modal scrim only dimmed 28 % | no prompt while a venue window or the event card is open; "PLAYERS ONLY" is a floor marking at the tunnel mouth; `.pscrim` (every modal, both themes) dims 36 % and blurs the scene 6 px | b5-tunnel → a5-tunnel(-v2) |
+
+## VIP sightlines, stage zoom, every seat audited (coordinator addition)
+
+- **Sightline audit** (`arena/sightlines.ts` + test): from each seat's seated eye (1.2 m over the seat floor) to the
+  stage centre and its four corners, the line must clear the front barrier, the concourse balustrade, the upper
+  fascia, the VIP fronts, the stair handrails and the tunnel cheeks, and pass ≥ 0.06 m (C-value) over the eyes of
+  every row in front. **Before: 878 of 1,224 seats failed** (front barrier 308, concourse balustrade 342, heads in
+  front 228; all 480 upper seats and all 24 VIP seats). **After: 0 failures.**
+- Geometry changes that got there: a compact stage (16.4 × 7.2 → 12 × 4.8 m, tables re-spaced with ≥ 1 m of play room)
+  so its corners are ≥ 4 m inside the front barrier; the lower rake is 0.38 m per row from row 1 at −2.4 m (the back
+  row 0.5 m under the concourse, behind a 0.9 m balustrade; its aisles climb to the concourse in three 0.167 m steps);
+  the upper tier is raised 1.1 m (row 1) with a stone fascia wall carrying the LED ribbon and a 6-step stair up from
+  the concourse at every aisle; the VIP boxes are raised to 1.7 m with a LOW glass front (0.8 m), a 10-step stair
+  each; section signs moved out of the eye lines (lower ones onto the balustrade face, upper ones onto the fascia);
+  totems moved beside the stair mouths (50°, 130°, 230°, 310°); the concourse walking line moved to r 18.1.
+- **VIP = best view**: VIP eyes are higher than every upper front row, the box front is ≥ 0.3 m under the seated eye,
+  nothing stands between the box and the floor.
+- **Stage zoom** (`arena/spectate.ts`, `SpectatorControls`): targets Stage / Pool / Ludo / Igisoro / Desk; a tap glides
+  the look point onto the target and fits the lens to it from that seat (a real FOV change, always sharp; Ludo
+  from the back row U3-5-6 ≤ 12°), − / + zoom steps (1×, 1.5×, 2×, 3×) on top, wheel / pinch still work, drag looks around within
+  the old limits, glides use `damp(CAM_RATE.glide)`. VIP seats start framed on the stage with a "VIP view" label. The
+  target is centred in the space above the seat card (the card's share of the screen is measured), so on phone
+  landscape the card never covers what you zoomed onto. One row each, no wrapping.
+- Seats also audited: evenly spaced (≤ 2 cm spread per row, ≥ 0.5 m apart, VIP ≥ 0.62 m), every seat faces the
+  centre and stands on its own tread / box floor, no seat on a walking line, every walking line climbs in steps
+  ≤ 0.2 m (upper aisle half-steps 0.24 m, unchanged), routes to every seat still walkable (existing tests).
+
+## Sweep (Pool, Ludo, Igisoro, Administrative Block, Arena)
+
+| id | hall | what | cause | fix |
+| --- | --- | --- | --- | --- |
+| H11-06 | all | every person drew both body levels | `partOf` (see H11-02) | fixed (affects everyone everywhere: fewer triangles per person, no low-poly limbs poking through clothes) |
+| H11-07 | all | scene text competed with modal windows | weak scrim | `.pscrim` blur + dim (H11-05) |
+| H11-08 | Arena | lower section letters (1.5 m high) and the upper ones stood in front-row eye lines | placement | moved (see above) |
+| H11-09 | Arena | wayfinding totem stood in the U1–U8 aisle mouths | placement | moved beside the stairs |
+| H11-10 | Arena | VIP box roof slab open at its ends; kerb ends open at the aisle openings | missing faces | end caps added |
+| H11-11 | Arena | lower aisle → concourse: one 0.5 m step after the rake change | geometry | three equal steps (geometry + `groundAt`) |
+| — | Pool, Ludo, Igisoro, Admin | checked at the seven poses: no z-fighting, no see-through walls, no props floating / sinking, seated people clear of chair backs (lounge, armchair, stool, sofa) | — | nothing to fix beyond H11-06 / H11-07 |
+
+## Measurements (qa/e2e/perf.mjs, desktop, standard + fx)
+
+| hall | arrival calls / tris | wide calls / tris |
+| --- | --- | --- |
+| Pool | 138 / 341k | 115 / 339k |
+| Ludo | 117 / 343k | 114 / 341k |
+| Igisoro | 131 / 318k | 105 / 308k |
+| Arena | 148 / 335k | 107 / 299k |
+| Admin | 136 / 95k | 137 / 94k |
+
+Draw calls stay ≤ 150 at the standard poses (the new arena geometry is merged into the existing per-material bowl
+meshes; posts, handrails and nosings join the existing instanced meshes). The far-corner overview pose of the sweep
+reaches 154–158 calls in Pool / Igisoro / Admin (unchanged by this task). Triangles over 300k in Pool / Ludo / Igisoro
+/ Arena are as before (P2-HAL-10 measured the same).
+
+## Left for later
+
+- Triangle budget (> 300k) in four halls: needs LOD on the hall models, out of scope here.
+- A second signed-in person for the occlusion check: done with your own avatar behind the glass (the same renderer
+  path; remote avatars additionally use the distance LOD that H11-06 repaired).

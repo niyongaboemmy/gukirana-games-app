@@ -7,8 +7,8 @@ import { selfPose } from "@/lib/world-store";
 import { hallHooks, walkQueue } from "@/rooms/hall-hooks";
 import { useRoom } from "@/rooms/room-store";
 import { arenaStand, floorAllowed, requestSeat, seatDenial, useArena } from "./arena-client";
-import { useSpectate } from "./spectate";
-import { bowlSeat, CONCOURSE, FLOOR_Y, groundAt, LOBBY, OUTER_R, PORTAL_HW, RESTROOM, routeBetween, seatFront, snapWalkable, STAGE, VIP, walkable, type WalkOpts } from "./bowl";
+import { framing, useSpectate } from "./spectate";
+import { bowlSeat, CONCOURSE, groundAt, LOBBY, OUTER_R, PORTAL_HW, RESTROOM, routeBetween, seatFront, snapWalkable, STAGE, VIP, walkable, type WalkOpts } from "./bowl";
 import { nearestSpot, PHOTO_SPOT, seatArrival, type Spot } from "./venue";
 
 /**
@@ -98,18 +98,20 @@ hallHooks.arena = {
   },
   face: () => (useVenue.getState().photo ? PHOTO_SPOT.yaw : null),
   // spectator eye view: from your own eyes (seated eye height, nudged forward past the seat back), aimed at the podium
-  seatedView: (id) => {
+  seatedView: (id, aspect) => {
     const sp = useSpectate.getState();
     if (!sp.eye) return null;
     const s = bowlSeat(id);
     if (!s) return null;
     const r = Math.hypot(s.x, s.z) || 1;
     const fwd = 0.22; // towards the floor: in front of your own head, never inside the row in front
-    return {
-      eye: { x: s.x - (s.x / r) * fwd, y: s.y + 1.2, z: s.z - (s.z / r) * fwd },
-      look: { x: 0, y: FLOOR_Y + STAGE.h + 0.85, z: STAGE.z },
-      focus: sp.focus,
-    };
+    const eye = { x: s.x - (s.x / r) * fwd, y: s.y + 1.2, z: s.z - (s.z / r) * fwd };
+    // framed on a target (stage / a feature table / the desk) or the natural lens on the stage (P2-HAL-11)
+    const f = framing(eye, sp.target, sp.zoom, aspect);
+    // a framed target fits the view ABOVE the seat card (the lens opens by the share the card covers)
+    const free = Math.max(0.4, 1 - sp.inset);
+    const fov = f.framed ? Math.min(58, (2 * Math.atan(Math.tan((f.fov * Math.PI) / 360) / free) * 180) / Math.PI) : null;
+    return { eye, look: f.look, fov, nonce: sp.nonce, inset: sp.inset };
   },
   camClamp: (c) => {
     const r = Math.hypot(c.x, c.z);

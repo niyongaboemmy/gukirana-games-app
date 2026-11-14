@@ -24,12 +24,21 @@ export const ARENA_COLOR = "#9B51E0";
 export const FLOOR_Y = -3.2;
 /** competition floor (inside the front barrier) */
 export const FLOOR_R = 12.1;
-/** lower bowl: row treads [front + (i-1)·depth, + depth], the rake rises 0.5 m per metre towards the concourse */
-export const LOWER = { front: 12.175, depth: 0.85, rows: ARENA_BOWL.lower.rows, slope: 0.5 } as const;
+/**
+ * lower bowl: row treads [front + (i-1)·depth, + depth]; row 1 stands 0.8 m above the floor and every row rises 0.38 m
+ * (P2-HAL-11: sized by the sightline audit in arena/sightlines.ts — every seat sees the whole stage over the heads in
+ * front with a C-value ≥ 0.06 m; the last row sits 0.5 m under the concourse, behind its balustrade)
+ */
+export const LOWER = { front: 12.175, depth: 0.85, rows: ARENA_BOWL.lower.rows, slope: 0.38 / 0.85, y1: -2.4 } as const;
 export const LOWER_BACK = LOWER.front + LOWER.depth * LOWER.rows; // 17.275
-export const CONCOURSE = { r0: 17.3, r1: 20.3, mid: 18.8 } as const;
-/** upper tier: treads [r0 + (j-1)·depth, + depth], rising 0.533 m per metre outward */
-export const UPPER = { r0: 20.3, depth: 0.9, rows: ARENA_BOWL.upper.rows, slope: 0.48 / 0.9 } as const;
+/** concourse ring; `mid` = the walking line round it (clear of the stairs' mouths, STAIR.r0) */
+export const CONCOURSE = { r0: 17.3, r1: 20.3, mid: 18.1 } as const;
+/**
+ * upper tier: treads [r0 + (j-1)·depth, + depth], rising 0.48 m per row outward; row 1 is raised 1.1 m above the
+ * concourse (P2-HAL-11: the upper rows see the near stage edge over the concourse and the lower bowl's back row),
+ * reached by a short stair up from the concourse at every aisle (STAIR)
+ */
+export const UPPER = { r0: 20.3, depth: 0.9, rows: ARENA_BOWL.upper.rows, slope: 0.48 / 0.9, y1: 1.1 } as const;
 export const UPPER_BACK = UPPER.r0 + UPPER.depth * UPPER.rows; // 24.8
 export const OUTER_R = 26.2;
 /** media gantry (north, behind the players' tunnel): a raised viewpoint reached by a short stair at 180° */
@@ -38,8 +47,29 @@ export const GANTRY = { a0: 162, a1: 198, r0: 21.6, y: 1.6, steps: 6 } as const;
 export const RESTROOM = { z0: 31.6, z1: 34.0, depth: 2.4, doorZ: 33.0, doorW: 1.2 } as const;
 /** steps of the players' tunnel stair */
 export const TUNNEL_STEPS = 12;
-/** VIP boxes: raised floor between the box front and the back wall */
-export const VIP = { floorY: 0.9, front: 21.3, back: 25.8, seatR: 22.1, stairOff: 2.6 } as const;
+/**
+ * VIP boxes: raised floor between the box front and the back wall. P2-HAL-11: the box floor stands 1.7 m above the
+ * concourse (higher than upper row 1's eyes) behind a LOW glass front, so the seated eye line clears the box front,
+ * the concourse balustrade and the lower bowl with room to spare: the best view in the venue.
+ */
+export const VIP = { floorY: 1.7, front: 21.3, back: 25.8, seatR: 22.1, stairOff: 2.6 } as const;
+/**
+ * Stairs up from the concourse (P2-HAL-11): one at every upper aisle (to row 1, ends at the tier front) and one per VIP
+ * box (to the box floor, across the fore-court). Straight radial flights between cheek walls, starting at r0 on the
+ * concourse; `hw` = the clear half width between the cheeks, `cheek` = cheek wall thickness.
+ */
+export const STAIR = { r0: 18.7, hw: 0.62, cheek: 0.12 } as const;
+/** stair handrails: this high over the stair's nosing line (on the cheek walls) */
+export const STAIR_RAIL_H = 0.9;
+/** the handrails stop this far short of a flight's top (the tier / box glass rail takes over) */
+export const STAIR_RAIL_END = 0.5;
+/**
+ * Barrier / balustrade heights (top of the glass, m; the cap rail adds 0.03): the front barrier above row 1's tread,
+ * the concourse balustrade above the concourse (y = 0, a 0.5 m drop to the lower bowl's back row), the upper fascia
+ * above upper row 1's tread, the VIP box front above the box floor (low: under the seated eye line). Shared by the
+ * interior and the sightline audit (arena/sightlines.ts).
+ */
+export const BARRIER = { front: 0.95, concourse: 0.9, upper: 0.85, vip: 0.8 } as const;
 /** lobby between the bowl wall and the entrance wall */
 export const LOBBY = { hw: 14.6, z1: ARENA_DOOR_Z } as const;
 /** entry portal from the lobby through the upper-tier gap onto the concourse */
@@ -105,8 +135,38 @@ const VIP_SPAN = 12; // the 6 VIP seats share the middle 12° of the box
 /** walking half-width of a stair aisle (lateral, m) */
 const AISLE_HW = { lower: 0.32, upper: 0.36 } as const;
 
-export const lowerTreadY = (row: number) => (LOWER.front + LOWER.depth * (row - 0.5) - LOWER_BACK) * LOWER.slope;
-export const upperTreadY = (row: number) => (UPPER.depth * (row - 0.5)) * UPPER.slope;
+export const lowerTreadY = (row: number) => LOWER.y1 + (row - 1) * LOWER.depth * LOWER.slope;
+export const upperTreadY = (row: number) => UPPER.y1 + (row - 1) * UPPER.depth * UPPER.slope;
+/** digital wayfinding totems on the concourse (bearing, deg): beside the upper stairs, never in their mouths */
+export const TOTEM_ANGLES = [50, 130, 230, 310] as const;
+
+/** a stair from the concourse: its centre line angle, the top height and where its top step ends (radius) */
+export interface StairFlight {
+  a: number;
+  top: number;
+  r1: number;
+  steps: number;
+}
+/** every stair up from the concourse (upper aisles + VIP boxes) */
+export const STAIRS: StairFlight[] = [
+  ...[44, 136, 224, 316].map((a) => ({ a, top: UPPER.y1, r1: CONCOURSE.r1, steps: 6 })),
+  ...[70, 90, 250, 270].map((a0) => ({ a: a0 + VIP.stairOff, top: VIP.floorY, r1: VIP.front, steps: 10 })),
+];
+/** step height of a flight at radius r (0 before it, `top` at its end) */
+export function stairY(f: StairFlight, r: number): number {
+  if (r < STAIR.r0) return 0;
+  const k = Math.min(f.steps, Math.floor(((r - STAIR.r0) / (f.r1 - STAIR.r0)) * f.steps) + 1);
+  return (f.top * k) / f.steps;
+}
+/** the flight whose footprint (clear width + cheeks) contains (r, a), if any */
+export function stairAt(r: number, a: number, pad = 0): StairFlight | null {
+  for (const f of STAIRS) {
+    if (r < STAIR.r0 - pad || r > f.r1) continue;
+    const lat = Math.abs(((a - f.a + 540) % 360) - 180) * D2R * r;
+    if (lat < STAIR.hw + STAIR.cheek + pad) return f;
+  }
+  return null;
+}
 
 export interface BowlSeat {
   id: string;
@@ -174,8 +234,11 @@ const UPPER_ARCS: [number, number][] = [
 const inUpperArc = (a: number) => UPPER_ARCS.some(([a0, a1]) => a >= a0 && a <= a1);
 const inGantry = (a: number) => a >= GANTRY.a0 && a <= GANTRY.a1;
 
-/** Feature stage on the floor (deck 0.3 m above the floor), x/z half sizes. */
-export const STAGE = { hw: 8.2, hd: 3.6, z: 1.2, h: 0.3 } as const;
+/**
+ * Feature stage on the floor (deck 0.3 m above the floor), x/z half sizes. P2-HAL-11: a compact deck (the three tables
+ * with ≥ 1 m of play room round each) so its corners stay ≥ 4 m from the front barrier: every seat sees all of it.
+ */
+export const STAGE = { hw: 6.0, hd: 2.4, z: 1.2, h: 0.3 } as const;
 const onStage = (x: number, z: number) => Math.abs(x) <= STAGE.hw && Math.abs(z - STAGE.z) <= STAGE.hd;
 
 /** row number (1-based, clamped) of a radius inside a tier */
@@ -184,11 +247,15 @@ const rowAt = (r: number, r0: number, depth: number, rows: number) => Math.min(r
  * Stair aisles have two steps per row: the front half of a tread at the row height, the back half one half-step up
  * (the geometry draws exactly these steps; the controller eases the body height across them).
  */
-function aisleStep(r: number, r0: number, depth: number, rows: number, treadY: (row: number) => number, rise: number) {
+function aisleStep(r: number, r0: number, depth: number, rows: number, treadY: (row: number) => number, rise: number, exitY?: number) {
   const row = rowAt(r, r0, depth, rows);
   const inTread = r - (r0 + depth * (row - 1));
+  // the last row's tread up to the level beyond it (the lower bowl's 0.5 m up to the concourse): three equal steps
+  if (row === rows && exitY !== undefined) return treadY(rows) + ((exitY - treadY(rows)) * Math.min(2, Math.floor(inTread / (depth / 3)))) / 3;
   return treadY(row) + (row < rows && inTread >= depth / 2 ? rise / 2 : 0);
 }
+/** the lower aisles' steps over the last row's tread up to the concourse (radius from the tread front, height) */
+export const LOWER_EXIT_STEPS = [1, 2].map((k) => ({ dr: (LOWER.depth * k) / 3, dy: (-lowerTreadY(LOWER.rows) * k) / 3 }));
 
 /** Height of the walking surface at (x, z): treads and legroom, stepped stair aisles, the floor / stage, boxes, gantry. */
 export function groundAt(x: number, z: number): number {
@@ -202,10 +269,14 @@ export function groundAt(x: number, z: number): number {
       return FLOOR_Y * (1 - k / TUNNEL_STEPS);
     }
     if (r < LOWER.front) return lowerTreadY(1);
-    if (lateral(r, a, nearestAisle(LOWER_AISLES, a)) < 0.6) return aisleStep(r, LOWER.front, LOWER.depth, LOWER.rows, lowerTreadY, LOWER.depth * LOWER.slope);
+    if (lateral(r, a, nearestAisle(LOWER_AISLES, a)) < 0.6) return aisleStep(r, LOWER.front, LOWER.depth, LOWER.rows, lowerTreadY, LOWER.depth * LOWER.slope, 0);
     return lowerTreadY(rowAt(r, LOWER.front, LOWER.depth, LOWER.rows));
   }
-  if (r < CONCOURSE.r1 || inPortal(x, z, r) || r >= OUTER_R) return 0;
+  if (inPortal(x, z, r) || r >= OUTER_R) return 0;
+  // the stairs up from the concourse (to the upper tier / into a VIP box)
+  const fl = r >= STAIR.r0 ? stairAt(r, a) : null;
+  if (fl && Math.abs(((a - fl.a + 540) % 360) - 180) * D2R * r < STAIR.hw && r < fl.r1) return stairY(fl, r);
+  if (r < CONCOURSE.r1) return 0;
   if (inGantry(a)) {
     if (r >= GANTRY.r0) return GANTRY.y;
     if (lateral(r, a, 180) < 0.7) return Math.min(GANTRY.steps, Math.floor(((r - CONCOURSE.r1) / (GANTRY.r0 - CONCOURSE.r1)) * GANTRY.steps) + 1) * (GANTRY.y / GANTRY.steps);
@@ -214,7 +285,6 @@ export function groundAt(x: number, z: number): number {
   const vip = vipAt(a);
   if (vip) {
     if (r >= VIP.front) return VIP.floorY;
-    if (lateral(r, a, vip.a0 + VIP.stairOff) < 0.6) return Math.min(4, Math.floor(((r - CONCOURSE.r1) / (VIP.front - CONCOURSE.r1)) * 4) + 1) * (VIP.floorY / 4);
     return 0;
   }
   if (!inUpperArc(a)) return 0;
@@ -257,7 +327,11 @@ export function walkable(x: number, z: number, opts: boolean | WalkOpts = false)
     return Math.abs(x) <= LOBBY.hw - 0.35 || (Math.abs(x) < 1.3 && z > LOBBY.z1 - 0.5);
   }
   if (inPortal(x, z, r)) return Math.abs(x) <= PORTAL_HW - 0.3;
-  if (r >= CONCOURSE.r0 + 0.25 && r <= CONCOURSE.r1 - 0.2) return true;
+  if (r >= CONCOURSE.r0 + 0.25 && r <= CONCOURSE.r1 - 0.2) {
+    // a stair on the concourse: up its treads only (its cheek walls and their sides block)
+    const fl = stairAt(r, a, 0.15);
+    return !fl || lateral(r, a, fl.a) < STAIR.hw - 0.25;
+  }
   if (r < FLOOR_R - 0.3) return !!o.floor && r < FLOOR_R - 0.5;
   if (r < CONCOURSE.r0 + 0.25) {
     if (inPlayersTunnel(x, z, r)) return !!o.floor && Math.abs(x) < PLAYERS_TUNNEL_HW - 0.3;
@@ -280,12 +354,12 @@ export function walkable(x: number, z: number, opts: boolean | WalkOpts = false)
       const inRow = r > VIP.seatR - 0.45 && r < VIP.seatR + 0.4 && Math.abs(dAng(a, mid)) < VIP_SPAN / 2 + 0.6;
       return !inRow && dAng(a, vip.a0) * D2R * r > 0.45 && dAng(vip.a1, a) * D2R * r > 0.45 && r <= VIP.back - 0.3;
     }
-    return lateral(r, a, vip.a0 + VIP.stairOff) < 0.4;
+    return lateral(r, a, vip.a0 + VIP.stairOff) < STAIR.hw - 0.25;
   }
   if (!inUpperArc(a)) return false;
   // keep clear of the side walls where an arc ends
   if (UPPER_ARCS.some(([a0, a1]) => lateral(r, a, a0) < 0.3 || lateral(r, a, a1) < 0.3)) return false;
-  if (r < CONCOURSE.r1 + 0.05) return lateral(r, a, nearestAisle(UPPER_AISLES, a)) < AISLE_HW.upper; // the wall opening
+  if (r < CONCOURSE.r1 + 0.05) return lateral(r, a, nearestAisle(UPPER_AISLES, a)) < STAIR.hw - 0.25; // the stair top / wall opening
   if (lateral(r, a, nearestAisle(UPPER_AISLES, a)) < AISLE_HW.upper) return true;
   if (r >= UPPER_BACK + 0.08) return true; // top walkway
   return inLegroom(r, UPPER.r0, UPPER.depth, UPPER.rows, UPPER_LEGROOM);
@@ -453,9 +527,9 @@ export const sectionLabel = (id: string) => {
 
 /** Feature tables on the stage: one Pool, one Ludo, one Igisoro (the hall table models). */
 export const FEATURE_TABLES = {
-  pool: { x: -5.0, z: STAGE.z, w: 2.9, d: 1.65, h: 0.8 },
-  ludo: { x: 0.9, z: STAGE.z, w: 1.1, d: 1.1, h: 0.74 },
-  igisoro: { x: 5.4, z: STAGE.z, w: 1.7, d: 0.84, h: 0.55 },
+  pool: { x: -3.55, z: STAGE.z, w: 2.9, d: 1.65, h: 0.8 },
+  ludo: { x: 0.55, z: STAGE.z, w: 1.1, d: 1.1, h: 0.74 },
+  igisoro: { x: 3.95, z: STAGE.z, w: 1.7, d: 0.84, h: 0.55 },
 } as const;
 /** lobby: ticket & info kiosk (west), concession counters on both side walls; floor: commentator desk */
 export const KIOSK = { x: -6.8, z: 29.8, w: 3.4, d: 1.3 } as const;
@@ -468,5 +542,5 @@ export const ARENA_COLLIDERS = [
   { x: COMMENTATORS.x, z: COMMENTATORS.z, w: COMMENTATORS.w, d: COMMENTATORS.d },
   // lobby event board, the four wayfinding totems on the concourse
   { x: 6.8, z: 27.9, w: 3.4, d: 0.4 },
-  ...[45, 135, 225, 315].map((deg) => ({ ...polar(CONCOURSE.r1 - 0.45, deg), w: 0.62, d: 0.62 })),
+  ...TOTEM_ANGLES.map((deg) => ({ ...polar(CONCOURSE.r1 - 0.45, deg), w: 0.62, d: 0.62 })),
 ];
