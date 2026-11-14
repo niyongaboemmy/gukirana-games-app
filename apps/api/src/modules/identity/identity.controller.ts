@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, Patch, Post, Req, Res, UseGuards } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { UsernameSchema } from "@gukirana/contracts";
 import { AuthGuard, CurrentUser, type AccessClaims } from "../../common/auth.js";
 import { env } from "../../common/env.js";
 import { parse } from "../../common/zod.js";
@@ -15,7 +16,7 @@ const IdSchema = z
   .transform((o, ctx) => parseLoginId(o.identifier ?? o.phone ?? "") ?? (ctx.addIssue({ code: "custom", message: "INVALID_IDENTIFIER" }), z.NEVER));
 const VerifySchema = z.object({ code: z.string().regex(/^\d{6}$/) }).passthrough();
 const ProfileSchema = z.object({
-  username: z.string().regex(/^[\p{L}\p{N}_.-]{2,16}$/u).optional(),
+  username: UsernameSchema.optional(), // same rule as the gate (@gukirana/contracts)
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   bodyType: z.enum(["feminine", "masculine", "neutral"]).optional(),
   look: z.string().max(300).regex(/^[\w.:;,|#=-]*$/).optional(),

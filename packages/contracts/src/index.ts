@@ -39,3 +39,4 @@ export * from "./social.js";
 export * from "./offices.js";
 export * from "./arena.js";
 export * from "./console.js";
+export * from "./identity.js";

@@ -1,5 +1,6 @@
 "use client";
 import { create } from "zustand";
+import { USERNAME_RE } from "@gukirana/contracts";
 import { ApiError, requestOtp, updateMe, verifyOtp, useSession } from "@/lib/session";
 import { useProfile } from "@/lib/profile-store";
 import { encodeLook, type AvatarLook } from "@/world/outfits";
@@ -54,7 +55,8 @@ export const isValidId = (s: string) => {
   const t = normaliseId(s);
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(t) || /^\+?\d{9,13}$/.test(t);
 };
-export const USERNAME_RE = /^[\p{L}\p{N}_.-]{3,16}$/u;
+/** the shared rule from @gukirana/contracts (the API validates the same one) */
+export { USERNAME_RE };
 
 /** API error → the kiosk message (unknown codes read as a validation problem) */
 export const errMsg = (e: unknown) => (e instanceof ApiError ? (GATE_MSG[e.code] ?? GATE_MSG.VALIDATION_ERROR!) : GATE_MSG.NETWORK!);
