@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { DEFAULT_LOOK, DEFAULT_OUTFIT, faceKeyOf, seededLook, type AvatarLook, type BodyType, type HairStyle, type Outfit } from "@/world/outfits";
 import { seededFace, type FaceLook } from "@/world/face";
+import type { AgeGroup } from "@/world/age";
 
 /**
  * Local player profile (dev stub until identity + ledger APIs exist: P0-AUTH, P1-STR, P1-LVL).
@@ -33,6 +34,8 @@ interface ProfileState {
   topColor?: string;
   /** Face choices (P2-AVA-07); unset on profiles saved before then = the person's seeded face. */
   face?: FaceLook;
+  /** Age range (P2-AVA-11, adults only); unset = young adult. */
+  age?: AgeGroup;
   setBodyType: (b: BodyType) => void;
   setSkinTone: (hex: string) => void;
   setHairStyle: (h: HairStyle) => void;
@@ -43,7 +46,7 @@ interface ProfileState {
 }
 
 /** Current look of the local player, assembled from the profile. */
-export const lookOf = (s: Pick<ProfileState, "bodyType" | "skinTone" | "hairStyle" | "hairColor" | "outfit" | "color"> & { topColor?: string; face?: FaceLook }): AvatarLook => {
+export const lookOf = (s: Pick<ProfileState, "bodyType" | "skinTone" | "hairStyle" | "hairColor" | "outfit" | "color"> & { topColor?: string; face?: FaceLook; age?: AgeGroup }): AvatarLook => {
   const base = {
     bodyType: s.bodyType ?? DEFAULT_LOOK.bodyType,
     skinTone: s.skinTone ?? DEFAULT_LOOK.skinTone,
@@ -56,7 +59,8 @@ export const lookOf = (s: Pick<ProfileState, "bodyType" | "skinTone" | "hairStyl
     accent: s.color,
     ...(s.topColor ? { topColor: s.topColor } : {}),
     // same fallback as decodeLook() for a code without a face token, so every screen shows the same face
-    face: s.face ? { ...seededFace(faceKeyOf(base), base.bodyType), ...s.face } : seededFace(faceKeyOf(base), base.bodyType),
+    face: s.face ? { ...seededFace(faceKeyOf(base), base.bodyType, s.age), ...s.face } : seededFace(faceKeyOf(base), base.bodyType, s.age),
+    age: s.age ?? "young",
   };
 };
 
@@ -97,6 +101,7 @@ export const useProfile = create<ProfileState>()(
           hairColor: l.hairColor,
           outfit: { ...l.outfit },
           face: { ...l.face },
+          age: l.age ?? "young",
           color: l.accent,
           // a newly picked accent recolours the top again (the seeded muted colour only lasts until then)
           topColor: l.topColor && (l.accent === get().color || !get().topColor) ? l.topColor : undefined,

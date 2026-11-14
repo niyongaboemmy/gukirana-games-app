@@ -264,3 +264,54 @@ export function tessellateHead(src: THREE.BufferGeometry, alpha = 0.6): THREE.Bu
   out.name = `${src.name || "head"}-tess`;
   return out;
 }
+
+/**
+ * Relaxed mouth for the masculine base head (P2-AVA-11): its photo-scanned lips are pushed forward in a pout that the
+ * few-vertex lip bones cannot take back. Once per base geometry (bind pose, before normals / tessellation), the
+ * depth of the lower lip in front of a base plane shrinks by `lower` and the upper lip by `upper` (shares), with soft
+ * falloffs, so the mouth rests closed and relaxed. A pure function of each vertex position (welded seams stay
+ * welded); idempotent per geometry. Returns the number of moved vertices.
+ */
+export function relaxMouth(
+  geo: THREE.BufferGeometry,
+  frame: { o: THREE.Vector3; R: THREE.Matrix3; Rt: THREE.Matrix3 },
+  midY: number,
+  lower = 0.55,
+  upper = 0.4,
+): number {
+  if (geo.userData.gkMouthRelaxed) return 0;
+  geo.userData.gkMouthRelaxed = true;
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  const f = new THREE.Vector3();
+  const ss = THREE.MathUtils.smoothstep;
+  // the front-most lip surface (face z) near the mouth
+  let zFront = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    f.fromBufferAttribute(pos, i).sub(frame.o).applyMatrix3(frame.R);
+    if (Math.abs(f.x) < 0.02 && Math.abs(f.y - midY) < 0.02) zFront = Math.max(zFront, f.z);
+  }
+  if (!Number.isFinite(zFront)) return 0;
+  let moved = 0;
+  // the lips' depth in front of a base plane ~12 mm behind the front-most point is compressed (the scan's lips stand
+  // ~6–8 mm proud of the philtrum / chin line); points at or behind the plane (philtrum root, mouth corners, the
+  // inside of the mouth, teeth) do not move
+  const zB = zFront - 0.012;
+  for (let i = 0; i < pos.count; i++) {
+    f.fromBufferAttribute(pos, i).sub(frame.o).applyMatrix3(frame.R);
+    if (f.z <= zB) continue;
+    const wx = 1 - ss(Math.abs(f.x), 0.022, 0.034);
+    const dy = f.y - midY;
+    // lower lip (down to the chin crease) and upper lip (up to under the nose)
+    const wl = ss(dy, -0.015, -0.009) * (1 - ss(dy, -0.001, 0.003));
+    const wu = ss(dy, -0.003, 0.001) * (1 - ss(dy, 0.015, 0.022));
+    const k = Math.max(wl * lower, wu * upper) * wx;
+    if (k <= 1e-4) continue;
+    f.z = zB + (f.z - zB) * (1 - k);
+    f.applyMatrix3(frame.Rt).add(frame.o);
+    pos.setXYZ(i, f.x, f.y, f.z);
+    moved++;
+  }
+  pos.needsUpdate = true;
+  geo.computeBoundingSphere();
+  return moved;
+}

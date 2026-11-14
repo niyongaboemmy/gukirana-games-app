@@ -9,7 +9,7 @@ import { encodeLook, itemById, LEGACY_SKIN, type AvatarLook } from "./outfits";
 import { ANIM_SETS, HUMAN_MODELS, type HumanModelId, type HumanModelMeta } from "./human/meta";
 import { makeHairCardMaterial, makeLookMaterial, type LookUniforms } from "./human/materials";
 import { faceFrameOf, FaceRig } from "./human/face-rig";
-import { smoothHeadNormals, tessellateHead } from "./human/head-geometry";
+import { relaxMouth, smoothHeadNormals, tessellateHead } from "./human/head-geometry";
 import { buildAttachments, neutralFrame } from "./human/attachments";
 import { deflateHair, dropBrim, hairGeometry, hairHatClass, hairMesh, headFrameOf, makeHairMaterial, maskPixels, type HeadFrame, type MaskPixels } from "./human/hair";
 import { headwearGeometry, makeHeadwearMaterial } from "./human/headwear";
@@ -26,6 +26,7 @@ import type { SeatActivity } from "./human/activity";
 import { SeatedLayer } from "./human/seated-layer";
 import { useVoice } from "@/voice/voice";
 import { useDeferredReady } from "./deferred";
+import { ageParams } from "./age";
 
 /**
  * Realistic human avatar (DESIGN-SPEC §7): photographic, rigged Rocketbox bodies (MIT) — feminine, masculine and
@@ -153,6 +154,11 @@ function prepareBase(scene: THREE.Object3D, modelId: HumanModelId) {
       if (modelId === "neutral") {
         dropBrim(g);
         deflateHair(g, frame, "neutral", mask, { keep: 0.0025 });
+      }
+      // the masculine base head pouts (scanned lips pushed forward): bring the lips back to a relaxed, closed mouth
+      if (modelId === "masculine") {
+        const ff = faceFrameOf(mesh);
+        if (ff) relaxMouth(g, frame, ff.l.x / Math.hypot(ff.m.elements[0]!, ff.m.elements[3]!, ff.m.elements[6]!));
       }
     }
     smoothHeadNormals(g);
@@ -293,7 +299,9 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
     const hg = hairGeometry(hm.lo, hm.hi, info.frame, info.mask, info.body, look.hairStyle, hairHatClass(hatKind, look.hairStyle));
     if (hg) {
       const skin = LEGACY_SKIN[look.skinTone.toUpperCase()] ?? look.skinTone;
-      const mat = makeHairMaterial(look.hairColor, skin, info.maskTex, info.frame, hg);
+      // age (P2-AVA-11): silver strands at the temples / all over, receding temples on close styles (adult / senior men)
+      const ag = ageParams(look.age, look.bodyType);
+      const mat = makeHairMaterial(look.hairColor, skin, info.maskTex, info.frame, hg, ag.recede, { temple: ag.templeGrey, scalp: ag.scalpGrey });
       const m = hairMesh(hg.near, mat, headSk);
       m.castShadow = shadows;
       parent.add(m);
@@ -530,7 +538,22 @@ function HumanBody({
   // seated activities at the table (P2-HAL-10): same deterministic schedule on every screen
   const seatedL = useMemo(() => new SeatedLayer(inst.root, inst.arms, inst.spine, inst.head, seed), [inst, seed]);
   // face proportions (bind pose) + blinking / eye life (P2-AVA-07); `inst` is rebuilt whenever the look changes
-  const face = useMemo(() => new FaceRig(inst.root, look.face, modelId, seed), [inst, modelId, seed]);
+  const face = useMemo(() => new FaceRig(inst.root, look.face, modelId, seed, look.age), [inst, modelId, seed]);
+  // a senior carries the neck and upper back a touch forward, the head tipped back to keep the gaze level (P2-AVA-11)
+  const stoop = useMemo(() => {
+    const k = ageParams(look.age, look.bodyType).stoop;
+    const b = (n: string) => (inst.root.getObjectByName(n) as THREE.Bone | undefined) ?? null;
+    const chain: [THREE.Bone, number][] = [];
+    for (const [n, w] of [
+      ["Bip01_Spine2", 0.5],
+      ["Bip01_Neck", 0.8],
+      ["Bip01_Head", -0.75],
+    ] as const) {
+      const x = b(n);
+      if (x?.parent) chain.push([x, w * k]);
+    }
+    return k > 0 ? chain : [];
+  }, [inst]);
   /** the seat being sat on / stood up from (kept through the stand-up after the seat itself is released) */
   const seatLatch = useRef<SeatProfile | null>(null);
   useEffect(() => {
@@ -656,6 +679,18 @@ function HumanBody({
       company: social?.company,
       rootMotion,
     });
+    // senior posture: a small lean about the body's side axis on top of the clip (the clips key these bones, so the
+    // mixer resets them every update: nothing accumulates)
+    if (stoop.length && dist < 40) {
+      root.getWorldQuaternion(_q2);
+      const axis = _v2.set(1, 0, 0).applyQuaternion(_q2);
+      for (const [b, a] of stoop) {
+        b.getWorldQuaternion(_q);
+        _q.premultiply(_q3.setFromAxisAngle(axis, a));
+        b.parent!.getWorldQuaternion(_q2);
+        b.quaternion.copy(_q2.invert().multiply(_q));
+      }
+    }
     // fit the seated pose to the actual seat (P2-AVA-06): on the cushion, feet planted, clear of seat fronts / rows
     const seatNow = seatRef?.current ?? null;
     if (seatNow) seatLatch.current = seatNow;

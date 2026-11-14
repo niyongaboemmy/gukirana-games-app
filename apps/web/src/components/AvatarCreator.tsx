@@ -18,7 +18,8 @@ import {
   encodeLook,
 } from "@/world/outfits";
 import { fabricTexture } from "@/world/textures";
-import { BROW_STYLES, EYE_COLORS, FACE_EDITOR_ON, EYE_SHAPES, FACE_SHAPES, FACIAL_HAIR, LIP_SHAPES, MAKEUP, NOSE_SHAPES, SKIN_MARKS, type FaceLook } from "@/world/face";
+import { BROW_STYLES, EXPRESSIONS, EYE_COLORS, FACE_EDITOR_ON, EYE_SHAPES, FACE_SHAPES, FACIAL_HAIR, LIP_SHAPES, MAKEUP, NOSE_SHAPES, SKIN_MARKS, type FaceLook } from "@/world/face";
+import { AGE_GROUPS } from "@/world/age";
 import { AVATAR, EYE_COLOUR_LABELS, FACE_LABELS } from "./avatar-strings";
 
 const AvatarPreview = dynamic(() => import("./AvatarPreview"), {
@@ -42,6 +43,7 @@ const TABS: { id: Tab; icon: LucideIcon }[] = [
 
 /** Face tab sections: one chip row per choice (labels in avatar-strings.ts). */
 const FACE_SECTIONS = [
+  { key: "expression", title: STR.face.expression, options: EXPRESSIONS },
   { key: "shape", title: STR.face.shape, options: FACE_SHAPES },
   { key: "eyes", title: STR.face.eyes, options: EYE_SHAPES },
   { key: "brows", title: STR.face.brows, options: BROW_STYLES },
@@ -243,6 +245,17 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
                         <span className="block">{b.label}</span>
                         <span className="block text-xs font-normal pmuted">{BODY_TYPE_HINT[b.id]}</span>
                       </span>
+                    </Chip>
+                  ))}
+                </div>
+                <p className="pt-2 text-sm font-semibold text-[var(--ink-2)]">
+                  {STR.age.title}
+                  <span className="ml-2 text-xs font-normal pmuted">{STR.age.note}</span>
+                </p>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {AGE_GROUPS.map((a) => (
+                    <Chip key={a} active={(draft.age ?? "young") === a} onClick={() => set({ age: a })}>
+                      <span className="truncate">{STR.age.options[a]}</span>
                     </Chip>
                   ))}
                 </div>

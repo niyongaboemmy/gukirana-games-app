@@ -199,6 +199,67 @@ const HAT: W<string> = [
   ["bucket", 7],
 ];
 const BODY_CODE: Record<Body, string> = { feminine: "f", masculine: "m", neutral: "n" };
+/** Age range (P2-AVA-11, adults only: 18–30 · 31–50 · 50+); most people are young adults. */
+type Age = "young" | "adult" | "senior";
+const AGE: W<Age> = [
+  ["young", 62],
+  ["adult", 26],
+  ["senior", 12],
+];
+const AGE_DIGIT: Record<Age, string> = { young: "0", adult: "1", senior: "2" };
+/** Hair styles by age (the adult columns of the art-direction board): close crops and updos at 31–50, a short grey crop or a headwrap at 50+. */
+const AGED_HAIR: Record<Exclude<Age, "young">, Record<Body, W<string>>> = {
+  adult: {
+    feminine: [
+      ["bun", 30],
+      ["cornrowbun", 26],
+      ["twists", 14],
+      ["braids", 12],
+      ["braidtail", 10],
+      ["headwrap", 8],
+    ],
+    masculine: [
+      ["short", 34],
+      ["lowfade", 22],
+      ["buzz", 22],
+      ["bald", 12],
+      ["fade", 10],
+    ],
+    neutral: [
+      ["short", 30],
+      ["buzz", 20],
+      ["bun", 15],
+      ["cornrowbun", 15],
+      ["bald", 10],
+      ["twists", 10],
+    ],
+  },
+  senior: {
+    feminine: [
+      ["headwrap", 56],
+      ["short", 16],
+      ["bun", 16],
+      ["cornrowbun", 12],
+    ],
+    masculine: [
+      ["short", 44],
+      ["buzz", 30],
+      ["bald", 26],
+    ],
+    neutral: [
+      ["short", 40],
+      ["buzz", 25],
+      ["headwrap", 20],
+      ["bald", 15],
+    ],
+  },
+};
+/** Grey / white hair at 50+ (drawn as silver strands). */
+const SENIOR_HAIR_COLOR: W<string> = [
+  ["b4b0aa", 46],
+  ["e6e4e0", 30],
+  ["8a8a8a", 24],
+];
 
 function fnv1a(s: string): number {
   let h = 0x811c9dc5;
@@ -236,17 +297,30 @@ export function defaultLookCode(seed: string, accent: string, body?: Body | null
   const rolledBody = pick(BODY, r());
   const b: Body = body ?? rolledBody;
   const skin = pick(SEED_SKIN, r());
-  const hair = pick(HAIR[b], r());
-  const hairColor = pick(HAIR_COLOR, r());
+  let hair = pick(HAIR[b], r());
+  let hairColor = pick(HAIR_COLOR, r());
   const top = pick(TOP[b], r());
   const topColor = SEED_TOP_COLORS[Math.floor(r() * SEED_TOP_COLORS.length)]!;
   const bottom = pick(BOTTOM[b], r());
   const shoes = pick(SHOES, r());
-  const acc = pick(ACC[b], r());
+  let acc = pick(ACC[b], r());
   let hat = pick(HAT, r());
   if (hair === "headwrap") hat = "no-hat";
+  // age (P2-AVA-11): rolled after everything else, so young people keep exactly the look they had before
+  const age = pick(AGE, r());
+  const ageR = [r(), r(), r()] as const;
+  if (age !== "young") {
+    hair = pick(AGED_HAIR[age][b], ageR[0]);
+    if (age === "senior") {
+      hairColor = pick(SENIOR_HAIR_COLOR, ageR[1]);
+      if (b !== "masculine" && ageR[2] < 0.55) acc = "glasses";
+    }
+    if (hair === "headwrap") hat = "no-hat";
+  }
   const a = /^#[0-9a-fA-F]{6}$/.test(accent) ? accent.slice(1) : "2F80ED";
-  return ["1", BODY_CODE[b], skin, hair, hairColor, top, bottom, shoes, acc, hat, a, topColor].join("|");
+  const f = ["1", BODY_CODE[b], skin, hair, hairColor, top, bottom, shoes, acc, hat, a, topColor];
+  if (age !== "young") f.push(`A=1${AGE_DIGIT[age]}`);
+  return f.join("|");
 }
 
 /** Saved look, or (accounts created before looks were assigned) the deterministic default for this id. */

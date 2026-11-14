@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { FaceLook } from "../face";
+import { ageParams, type AgeGroup } from "../age";
 
 /**
  * Face layer of a realistic avatar (P2-AVA-07), built on the Rocketbox face bones (eyes, lids, brows, cheeks, nose,
@@ -45,15 +46,71 @@ function one(name: string, sh: Shape, out: ShapeMap) {
   };
 }
 
-/** Bone offsets for a face (exported for tests). `model` = the base head ("masculine" starts with a furrowed brow). */
-export function faceShape(face: FaceLook, model: string): ShapeMap {
+/**
+ * Resting expressions (P2-AVA-11), as offsets of the mouth / cheek / lid / brow bones (mm, face frame, left side):
+ * relaxed = closed lips, the corners of the mouth a touch up and out (a friendly neutral, not a pout); smile = corners
+ * up and back, cheeks lifted (which pushes the lower lids up a little: smiling eyes), lips parted just enough to show
+ * the teeth; serious = level corners, brows a touch lower. Only bone positions: the clips key lip rotations, never
+ * positions, so the two never fight.
+ */
+const EXPRESSION_SHAPES: Record<FaceLook["expression"], [string, Shape, "both" | "one"][]> = {
+  relaxed: [
+    ["Bip01_*MouthCorner", { p: [0.4, 0.7, -0.2] }, "both"],
+    ["Bip01_*Cheek", { p: [0, 0.3, 0.1] }, "both"],
+  ],
+  smile: [
+    ["Bip01_*MouthCorner", { p: [1.3, 1.9, -0.9] }, "both"],
+    ["Bip01_*Cheek", { p: [0.3, 1.1, 0.5] }, "both"],
+    ["Bip01_*EyeBlinkBottom", { p: [0, 0.6, 0] }, "both"],
+    ["Bip01_MUpperLip", { p: [0, 0.6, 0] }, "one"],
+    ["Bip01_*Upperlip", { p: [0.3, 0.8, -0.2] }, "both"],
+    ["Bip01_MBottomLip", { p: [0, -0.6, -0.3] }, "one"],
+    ["Bip01_*MouthBottom", { p: [0.4, -0.3, -0.2] }, "both"],
+    ["Bip01_*OuterEyebrow", { p: [0, 0.3, 0] }, "both"],
+  ],
+  serious: [
+    ["Bip01_*MouthCorner", { p: [0, -0.2, 0] }, "both"],
+    ["Bip01_*InnerEyebrow", { p: [0, -0.3, 0] }, "both"],
+  ],
+};
+
+const scaled = (sh: Shape, k: number): Shape => ({ p: sh.p ? [sh.p[0] * k * mm, sh.p[1] * k * mm, sh.p[2] * k * mm] : undefined, s: sh.s });
+
+/**
+ * Bone offsets for a face (exported for tests). `model` = the base head ("masculine" starts with a furrowed brow and
+ * a pout), `age` = the age range (fuller cheeks at 31–50; at 50+ softer, lower corners and heavier lids).
+ */
+export function faceShape(face: FaceLook, model: string, age: AgeGroup = "young"): ShapeMap {
   const o: ShapeMap = {};
   // relaxed resting face for everyone: lids a touch lower (no wide-eyed stare)
   both("Bip01_*EyeBlinkTop", { p: [0, -0.7 * mm, 0] }, o);
   if (model === "masculine") {
-    // the masculine base head frowns: lift and part the inner brows
-    both("Bip01_*InnerEyebrow", { p: [0.4 * mm, 1.3 * mm, 0] }, o);
-    one("Bip01_MMiddleEyebrow", { p: [0, 1.0 * mm, 0] }, o);
+    // the masculine base head frowns and pouts: lift and part the inner brows, bring the lower lip back and up
+    both("Bip01_*InnerEyebrow", { p: [0.7 * mm, 1.9 * mm, 0] }, o);
+    one("Bip01_MMiddleEyebrow", { p: [0, 1.5 * mm, 0] }, o);
+    one("Bip01_MBottomLip", { p: [0, 0.8 * mm, -2.45 * mm], s: [0.96, 0.9, 0.78] }, o);
+    both("Bip01_*MouthBottom", { p: [0, 0.6 * mm, -2.2 * mm] }, o);
+    one("Bip01_MUpperLip", { p: [0, -0.2 * mm, -1.6 * mm], s: [0.96, 0.92, 0.85] }, o);
+    both("Bip01_*Upperlip", { p: [0, 0, -1.2 * mm] }, o);
+  }
+  // the masculine mouth corners carry few vertices: the same expression needs a larger move to read
+  const exprK = model === "masculine" ? 1.45 : 1;
+  if (model === "neutral") {
+    // the neutral base head has thin lips for the reference faces: a little fuller by default
+    one("Bip01_MUpperLip", { p: [0, 0.4 * mm, 0.4 * mm] }, o);
+    one("Bip01_MBottomLip", { p: [0, -0.4 * mm, 0.5 * mm] }, o);
+  }
+  for (const [name, sh, kind] of EXPRESSION_SHAPES[face.expression] ?? EXPRESSION_SHAPES.relaxed) (kind === "both" ? both : one)(name, scaled(sh, exprK), o);
+  const ag = ageParams(age, "neutral");
+  if (ag.fuller > 0) {
+    both("Bip01_*Cheek", { p: [0.9 * ag.fuller * mm, -0.2 * ag.fuller * mm, 0.5 * ag.fuller * mm] }, o);
+    one("Bip01_MJaw", { s: [1 + 0.03 * ag.fuller, 1, 1] }, o);
+  }
+  if (age === "senior") {
+    both("Bip01_*MouthCorner", { p: [0, -0.5 * mm, 0] }, o);
+    both("Bip01_*EyeBlinkBottom", { p: [0, -0.4 * mm, 0] }, o);
+    both("Bip01_*EyeBlinkTop", { p: [0, -0.4 * mm, 0] }, o);
+    both("Bip01_*OuterEyebrow", { p: [0, -0.4 * mm, 0] }, o);
   }
   switch (face.shape) {
     case "round":
@@ -267,10 +324,14 @@ export class FaceRig {
   private sacc = { y: 0, p: 0 };
   private eye = { y: 0, p: 0 };
   private brow = 0;
+  /** mouth corners / cheeks for idle micro-expressions (P2-AVA-11) */
+  private corners: LiveBone[] = [];
+  private micro = 0;
+  private microPhase = 0;
   /** forced lid closure for previews / screenshots (0..1), null = automatic */
   force: number | null = null;
 
-  constructor(root: THREE.Object3D, face: FaceLook, model: string, seed: number) {
+  constructor(root: THREE.Object3D, face: FaceLook, model: string, seed: number, age: AgeGroup = "young") {
     this.rnd = mulberry(seed ^ 0x5eed);
     this.nextBlink = 0.6 + this.rnd() * 3;
     root.updateMatrixWorld(true);
@@ -278,7 +339,7 @@ export class FaceRig {
     root.getWorldQuaternion(rootInv).invert();
     /** rotation of `o` relative to the avatar root (bind pose) */
     const relQ = (o: THREE.Object3D, out: THREE.Quaternion) => o.getWorldQuaternion(out).premultiply(rootInv);
-    const shape = faceShape(face, model);
+    const shape = faceShape(face, model, age);
     const get = (n: string) => (root.getObjectByName(n) as THREE.Bone | undefined) ?? null;
     const pq = new THREE.Quaternion();
     const bq = new THREE.Quaternion();
@@ -332,6 +393,11 @@ export class FaceRig {
     }
     const mid = live("Bip01_MMiddleEyebrow");
     if (mid) this.brows.push(mid);
+    for (const n of ["Bip01_LMouthCorner", "Bip01_RMouthCorner", "Bip01_LCheek", "Bip01_RCheek"]) {
+      const x = live(n);
+      if (x) this.corners.push(x);
+    }
+    this.microPhase = this.rnd() * 100;
   }
 
   /** Lid closure 0 (open) … 1 (closed) from the blink clock. */
@@ -393,5 +459,12 @@ export class FaceRig {
     const want = inp.talking ? Math.max(0, Math.sin(this.t * 2.3) * Math.sin(this.t * 0.9)) * 1.1 * mm : 0;
     this.brow += (want - this.brow) * (1 - Math.exp(-dt * 6));
     for (const b of this.brows) b.bone.position.copy(b.base).addScaledVector(this.down.get(b.bone)!, -this.brow);
+    // ---- idle micro-expressions: the corners of the mouth (and the cheeks with them) drift up a fraction of a mm now
+    // and then, a little more while face to face or talking (a living, friendly face rather than a frozen one)
+    const tm = this.t + this.microPhase;
+    const drift = Math.max(0, Math.sin(tm * 0.31) * 0.6 + Math.sin(tm * 0.83 + 1.3) * 0.4);
+    const wantM = (0.18 + (inp.engaged || inp.talking ? 0.32 : 0)) * drift * mm;
+    this.micro += (wantM - this.micro) * (1 - Math.exp(-dt * 3));
+    for (const c of this.corners) c.bone.position.copy(c.base).addScaledVector(this.down.get(c.bone)!, -this.micro);
   }
 }

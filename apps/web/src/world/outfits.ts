@@ -1,5 +1,6 @@
 import type { PrintId } from "./textures";
 import { decodeFace, DEFAULT_FACE, encodeFace, findFaceToken, seededFace, type FaceLook } from "./face";
+import { decodeAge, encodeAge, type AgeGroup } from "./age";
 
 /**
  * Avatar look + outfit catalogue (DESIGN-SPEC §7.1–7.2).
@@ -159,6 +160,8 @@ export interface AvatarLook {
   topColor?: string;
   /** Face choices (world/face.ts); looks saved before P2-AVA-07 get the person's seeded face. */
   face: FaceLook;
+  /** Age range (world/age.ts, adults only); unset / codes before P2-AVA-11 = young adult. */
+  age?: AgeGroup;
 }
 
 export const DEFAULT_OUTFIT: Outfit = { top: "hoodie", bottom: "joggers", shoes: "sneakers", accessory: "none", headwear: "no-hat" };
@@ -170,6 +173,7 @@ export const DEFAULT_LOOK: AvatarLook = {
   outfit: DEFAULT_OUTFIT,
   accent: "#2F80ED",
   face: DEFAULT_FACE,
+  age: "young",
 };
 
 /** Items for a slot, suggested ones first; with `showAll` false only suggested items (+ the current one) are listed. */
@@ -183,8 +187,9 @@ export function itemsFor(slot: Slot, body: BodyType, showAll: boolean, current?:
 /*
  * ---------- compact wire encoding for the realtime `look` field ----------
  * "|"-separated (the API and realtime allow [\w.:;,|#=-]{0,300}; this client accepts ≤ 160): `1|body|skin|hair|
- * hairColour|top|bottom|shoes|accessory|headwear|accent[|topColour][|F=<face>]` — ≤ 110 chars. The face token
- * (world/face.ts) is self-versioned, so the leading "1" stays and older clients keep decoding new codes.
+ * hairColour|top|bottom|shoes|accessory|headwear|accent[|topColour][|A=<age>][|F=<face>]` — ≤ 110 chars. The age
+ * (world/age.ts, only for 31+) and face (world/face.ts) tokens are self-versioned, so the leading "1" stays and older
+ * clients keep decoding new codes.
  */
 const BODY_CODE: Record<BodyType, string> = { feminine: "f", masculine: "m", neutral: "n" };
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -193,6 +198,8 @@ export function encodeLook(l: AvatarLook): string {
   const o = l.outfit;
   const f = ["1", BODY_CODE[l.bodyType], l.skinTone.slice(1), l.hairStyle, l.hairColor.slice(1), o.top, o.bottom, o.shoes, o.accessory, o.headwear, l.accent.slice(1)];
   if (l.topColor && HEX.test(l.topColor)) f.push(l.topColor.slice(1));
+  const age = encodeAge(l.age);
+  if (age) f.push(age);
   f.push(encodeFace(l.face ?? DEFAULT_FACE));
   return f.join("|");
 }
@@ -216,6 +223,7 @@ export function decodeLook(s: string | undefined | null, accentFallback: string,
   const skinTone = hex(p[2], base.skinTone);
   const hairStyle = HAIR_STYLES.some((h) => h.id === p[3]) ? (p[3] as HairStyle) : base.hairStyle;
   const hairColor = hex(p[4], base.hairColor);
+  const age = decodeAge(p);
   return {
     bodyType,
     skinTone,
@@ -230,7 +238,8 @@ export function decodeLook(s: string | undefined | null, accentFallback: string,
     },
     accent: hex(p[10], base.accent),
     ...(p[11] && HEX.test(`#${p[11]}`) ? { topColor: `#${p[11]}` } : {}),
-    face: decodeFace(findFaceToken(p), seededFace(seed ?? faceKeyOf({ bodyType, skinTone, hairStyle, hairColor }), bodyType)),
+    face: decodeFace(findFaceToken(p), seededFace(seed ?? faceKeyOf({ bodyType, skinTone, hairStyle, hairColor }), bodyType, age)),
+    age,
   };
 }
 
@@ -248,7 +257,7 @@ export function faceKeyOf(l: Pick<AvatarLook, "bodyType" | "skinTone" | "hairSty
  */
 export function seededLook(seed: string, accent: string, body?: BodyType | null): AvatarLook {
   const l = decodeLook(defaultLookCode(seed, accent, body), accent);
-  return { ...l, face: seededFace(seed, l.bodyType) };
+  return { ...l, face: seededFace(seed, l.bodyType, l.age) };
 }
 
 type W<T> = readonly (readonly [T, number])[];
@@ -429,6 +438,66 @@ const SEED_HAT: W<string> = [
   ["bucket", 7],
 ];
 
+/** Age range (P2-AVA-11, adults only: 18–30 · 31–50 · 50+); most people are young adults. */
+const SEED_AGE: W<AgeGroup> = [
+  ["young", 62],
+  ["adult", 26],
+  ["senior", 12],
+];
+/** Hair styles by age (the adult columns of the art-direction board): close crops and updos at 31–50, a short grey crop or a headwrap at 50+. */
+const AGED_HAIR: Record<Exclude<AgeGroup, "young">, Record<BodyType, W<HairStyle>>> = {
+  adult: {
+    feminine: [
+      ["bun", 30],
+      ["cornrowbun", 26],
+      ["twists", 14],
+      ["braids", 12],
+      ["braidtail", 10],
+      ["headwrap", 8],
+    ],
+    masculine: [
+      ["short", 34],
+      ["lowfade", 22],
+      ["buzz", 22],
+      ["bald", 12],
+      ["fade", 10],
+    ],
+    neutral: [
+      ["short", 30],
+      ["buzz", 20],
+      ["bun", 15],
+      ["cornrowbun", 15],
+      ["bald", 10],
+      ["twists", 10],
+    ],
+  },
+  senior: {
+    feminine: [
+      ["headwrap", 56],
+      ["short", 16],
+      ["bun", 16],
+      ["cornrowbun", 12],
+    ],
+    masculine: [
+      ["short", 44],
+      ["buzz", 30],
+      ["bald", 26],
+    ],
+    neutral: [
+      ["short", 40],
+      ["buzz", 25],
+      ["headwrap", 20],
+      ["bald", 15],
+    ],
+  },
+};
+/** Grey / white hair at 50+ (drawn as silver strands). */
+const SENIOR_HAIR_COLOR: W<string> = [
+  ["b4b0aa", 46],
+  ["e6e4e0", 30],
+  ["8a8a8a", 24],
+];
+
 function fnv1a(s: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {
@@ -465,15 +534,29 @@ export function defaultLookCode(seed: string, accent: string, body?: BodyType | 
   const rolledBody = pick(SEED_BODY, r());
   const b: BodyType = body ?? rolledBody;
   const skin = pick(SEED_SKIN, r());
-  const hair = pick(SEED_HAIR[b], r());
-  const hairColor = pick(SEED_HAIR_COLOR, r());
+  let hair = pick(SEED_HAIR[b], r());
+  let hairColor = pick(SEED_HAIR_COLOR, r());
   const top = pick(SEED_TOP[b], r());
   const topColor = SEED_TOP_COLORS[Math.floor(r() * SEED_TOP_COLORS.length)]!;
   const bottom = pick(SEED_BOTTOM[b], r());
   const shoes = pick(SEED_SHOES, r());
-  const acc = pick(SEED_ACC[b], r());
+  let acc = pick(SEED_ACC[b], r());
   let hat = pick(SEED_HAT, r());
   if (hair === "headwrap") hat = "no-hat";
+  // age (P2-AVA-11): rolled after everything else, so young people keep exactly the look they had before
+  const age = pick(SEED_AGE, r());
+  const ageR = [r(), r(), r()];
+  if (age !== "young") {
+    hair = pick(AGED_HAIR[age][b], ageR[0]!);
+    if (age === "senior") {
+      hairColor = pick(SENIOR_HAIR_COLOR, ageR[1]!);
+      if (b !== "masculine" && ageR[2]! < 0.55) acc = "glasses";
+    }
+    if (hair === "headwrap") hat = "no-hat";
+  }
   const a = HEX.test(accent) ? accent.slice(1) : "2F80ED";
-  return ["1", BODY_CODE[b], skin, hair, hairColor, top, bottom, shoes, acc, hat, a, topColor].join("|");
+  const f = ["1", BODY_CODE[b], skin, hair, hairColor, top, bottom, shoes, acc, hat, a, topColor];
+  const at = encodeAge(age);
+  if (at) f.push(at);
+  return f.join("|");
 }

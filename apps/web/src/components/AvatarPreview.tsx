@@ -105,19 +105,23 @@ export default function AvatarPreview({ look, emote = 0, focus = "body" }: { loo
       shadows="percentage"
       dpr={[1, 1.75]}
       camera={{ fov: 28, position: [0, 1.1, 4.8], near: 0.1, far: 50 }}
-      gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}
+      // neutral (Khronos PBR) tone mapping: skin keeps its warm, true-to-albedo hue (ACES greyed and darkened brown
+      // skin in this small studio, P2-AVA-11)
+      gl={{ antialias: true, toneMapping: THREE.NeutralToneMapping, toneMappingExposure: 1.0 }}
       onCreated={({ camera }) => camera.lookAt(0, 0.92, 0)}
       style={{ touchAction: "none" }}
     >
       <color attach="background" args={["#1a1b1e"]} />
       {/* neutral / warm studio light (a blue fill turned dark hair blue, P2-AVA-10) */}
       <hemisphereLight args={["#f4efe8", "#2b2620", 0.7]} />
-      <directionalLight position={[2.5, 4, 3]} intensity={2.2} castShadow shadow-mapSize={[1024, 1024]} shadow-bias={-0.0005} />
+      <directionalLight position={[2.5, 4, 3]} intensity={1.9} castShadow shadow-mapSize={[1024, 1024]} shadow-bias={-0.0005} />
+      {/* soft frontal fill (portrait light): opens the eye sockets, no top-lit frown */}
+      <directionalLight position={[-0.6, 1.9, 4]} intensity={0.75} color="#fbf7f2" />
       <directionalLight position={[-3, 2, -2]} intensity={0.85} color="#ffe9d6" />
       <Environment frames={1} resolution={64}>
         <Lightformer form="rect" intensity={3} position={[2, 3, 3]} scale={[4, 4, 1]} target={[0, 1, 0]} />
         <Lightformer form="rect" intensity={1.4} color="#f3e6d8" position={[-3, 2, -1]} scale={[3, 3, 1]} target={[0, 1, 0]} />
-        <Lightformer form="ring" intensity={2} color="#FFC83D" position={[0, 4, -3]} scale={2} target={[0, 1, 0]} />
+        <Lightformer form="ring" intensity={1.5} color="#f2dcb8" position={[0, 4, -3]} scale={2} target={[0, 1, 0]} />
       </Environment>
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <circleGeometry args={[1.1, 48]} />

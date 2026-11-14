@@ -1,4 +1,5 @@
-import type { BrowStyle, EyeShape, FaceShape, FacialHair, LipShape, Makeup, NoseShape, SkinMark } from "@/world/face";
+import type { BrowStyle, Expression, EyeShape, FaceShape, FacialHair, LipShape, Makeup, NoseShape, SkinMark } from "@/world/face";
+import type { AgeGroup } from "@/world/age";
 
 /**
  * Avatar editor strings, English catalogue (i18n-ready like admin-block/strings.ts; to move to @gukirana/i18n keys
@@ -21,10 +22,16 @@ export const AVATAR = {
   colour: "Colour",
   zoomFace: "Close-up",
   zoomBody: "Full body",
+  age: {
+    title: "Age",
+    note: "Adults only: everyone here is 18 or older.",
+    options: { young: "Young adult (18–30)", adult: "Adult (31–50)", senior: "Senior (50+)" } satisfies Record<AgeGroup, string>,
+  },
   tabs: { body: "Body", face: "Face", skin: "Skin", hair: "Hair", top: "Top", bottom: "Bottom", shoes: "Shoes", extras: "Extras" },
   face: {
     note: "Shape your face. Everyone else sees the same face.",
     shape: "Face shape",
+    expression: "Expression",
     eyes: "Eyes",
     eyeColour: "Eye colour",
     brows: "Eyebrows",
@@ -48,6 +55,7 @@ export const FACE_LABELS: {
   facialHair: Record<FacialHair, string>;
   marks: Record<SkinMark, string>;
   makeup: Record<Makeup, string>;
+  expression: Record<Expression, string>;
 } = {
   shape: { oval: "Oval", round: "Round", square: "Square", heart: "Heart", long: "Long" },
   eyes: { almond: "Almond", round: "Round", hooded: "Hooded", narrow: "Narrow", deep: "Deep-set" },
@@ -65,6 +73,7 @@ export const FACE_LABELS: {
     shadow: "Moustache and stubble",
   },
   marks: { none: "None", lightFreckles: "Light freckles", freckles: "Freckles", markCheek: "Beauty mark (cheek)", markLip: "Beauty mark (lip)", markChin: "Beauty mark (chin)" },
+  expression: { relaxed: "Relaxed", smile: "Smile", serious: "Serious" },
   makeup: { none: "None", gloss: "Lip gloss", berry: "Berry lips", red: "Warm red lips", liner: "Eyeliner", linerBerry: "Eyeliner and berry lips" },
 };
 

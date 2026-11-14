@@ -1,4 +1,5 @@
 import type { BodyType } from "./outfits";
+import type { AgeGroup } from "./age";
 
 /**
  * Face choices (P2-AVA-07): shape, eyes, brows, nose, lips, facial hair, skin marks and subtle make-up.
@@ -25,6 +26,8 @@ export const LIP_SHAPES = ["full", "medium", "thin", "wide", "bow"] as const;
 export const FACIAL_HAIR = ["none", "stubble", "moustache", "goatee", "chinstrap", "short", "full", "shadow"] as const;
 export const SKIN_MARKS = ["none", "lightFreckles", "freckles", "markCheek", "markLip", "markChin"] as const;
 export const MAKEUP = ["none", "gloss", "berry", "red", "liner", "linerBerry"] as const;
+/** Resting expression (P2-AVA-11): relaxed (neutral, the corners of the mouth a touch up), a smile, or serious. */
+export const EXPRESSIONS = ["relaxed", "smile", "serious"] as const;
 
 export type FaceShape = (typeof FACE_SHAPES)[number];
 export type EyeShape = (typeof EYE_SHAPES)[number];
@@ -34,6 +37,7 @@ export type LipShape = (typeof LIP_SHAPES)[number];
 export type FacialHair = (typeof FACIAL_HAIR)[number];
 export type SkinMark = (typeof SKIN_MARKS)[number];
 export type Makeup = (typeof MAKEUP)[number];
+export type Expression = (typeof EXPRESSIONS)[number];
 
 export interface FaceLook {
   shape: FaceShape;
@@ -47,6 +51,8 @@ export interface FaceLook {
   facialHair: FacialHair;
   marks: SkinMark;
   makeup: Makeup;
+  /** resting expression (appended in P2-AVA-11) */
+  expression: Expression;
 }
 
 /** Field order of the wire token (append new fields at the end only). */
@@ -60,6 +66,7 @@ export const FACE_FIELDS = [
   ["facialHair", FACIAL_HAIR],
   ["marks", SKIN_MARKS],
   ["makeup", MAKEUP],
+  ["expression", EXPRESSIONS],
 ] as const satisfies readonly (readonly [keyof FaceLook, readonly string[]])[];
 
 export const DEFAULT_FACE: FaceLook = {
@@ -72,7 +79,16 @@ export const DEFAULT_FACE: FaceLook = {
   facialHair: "none",
   marks: "none",
   makeup: "none",
+  expression: "relaxed",
 };
+
+/**
+ * Fields appended after the first release of the token (P2-AVA-11 on). A token written before a field existed has no
+ * digit for it: that field decodes as its default here (not as the person's seeded value), so a face someone saved
+ * keeps looking the way it did: relaxed.
+ */
+const APPENDED: Partial<Record<keyof FaceLook, string>> = { expression: DEFAULT_FACE.expression };
+const FIRST_FIELDS = 9;
 
 export const FACE_VERSION = "1";
 const TOKEN = /^F=(\d)([0-9a-z]*)$/;
@@ -100,7 +116,10 @@ export function decodeFace(token: string | null | undefined, base: FaceLook): Fa
   const digits = m[2]!;
   FACE_FIELDS.forEach(([k, list], i) => {
     const d = digits[i];
-    if (d === undefined) return;
+    if (d === undefined) {
+      if (i >= FIRST_FIELDS && APPENDED[k] !== undefined) (out as unknown as Record<string, string>)[k] = APPENDED[k]!;
+      return;
+    }
     const v = (list as readonly string[])[parseInt(d, 36)];
     if (v !== undefined) (out as unknown as Record<string, string>)[k] = v;
   });
@@ -215,6 +234,32 @@ const SEED_MAKEUP: Record<BodyType, W<Makeup>> = {
   neutral: [["none", 1]],
 };
 
+/** Most people rest with a relaxed, friendly face; some smile, a few look serious. */
+const SEED_EXPRESSION: W<Expression> = [
+  ["relaxed", 56],
+  ["smile", 34],
+  ["serious", 10],
+];
+/** Facial hair by age (masculine): the board's adult columns, trimmed fuller beards at 31–50, a grey moustache at 50+. */
+const SEED_HAIR_AGED: Record<"adult" | "senior", W<FacialHair>> = {
+  adult: [
+    ["short", 34],
+    ["goatee", 20],
+    ["shadow", 16],
+    ["stubble", 12],
+    ["full", 10],
+    ["moustache", 4],
+    ["none", 4],
+  ],
+  senior: [
+    ["moustache", 44],
+    ["short", 18],
+    ["none", 22],
+    ["shadow", 10],
+    ["full", 6],
+  ],
+};
+
 function fnv1a(s: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {
@@ -249,9 +294,10 @@ function pick<T>(list: W<T>, r: number): T {
  * A pleasant, varied default face from a hash of `seed` (the account id, else a stable key of the look), so people
  * who never opened the Face tab still differ. Cosmetic only: a hash, never Math.random.
  */
-export function seededFace(seed: string, body: BodyType): FaceLook {
+export function seededFace(seed: string, body: BodyType, age: AgeGroup = "young"): FaceLook {
   const r = mulberry32(fnv1a(`face:${seed}`));
-  return {
+  // (new rolls are only ever appended: the fields above them stay what they were for everyone)
+  const f: FaceLook = {
     shape: pick(SEED_SHAPE, r()),
     eyes: pick(SEED_EYES, r()),
     eyeColor: pick(SEED_EYE_COLOR, r()),
@@ -261,5 +307,12 @@ export function seededFace(seed: string, body: BodyType): FaceLook {
     facialHair: pick(SEED_HAIR[body], r()),
     marks: pick(SEED_MARKS, r()),
     makeup: pick(SEED_MAKEUP[body], r()),
+    expression: pick(SEED_EXPRESSION, r()),
   };
+  const aged = r();
+  if (age !== "young" && body !== "feminine") {
+    const fh = pick(SEED_HAIR_AGED[age], aged);
+    f.facialHair = body === "neutral" && (fh === "full" || fh === "short") ? "shadow" : fh;
+  }
+  return f;
 }

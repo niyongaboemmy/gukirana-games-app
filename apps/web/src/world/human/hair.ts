@@ -999,11 +999,15 @@ const HAIR_FRAG = /* glsl */ `
   float alpha = 1.0;
   float ao = 1.0;
   vec3 col = max(uHair, vec3(0.013, 0.0105, 0.0088));
-  vec3 scalp = uHSkin * 0.62 + col * 0.12;
+  // scalp in partings: the skin in the shade of the hair (darker, less saturated: never orange lines)
+  vec3 scalp = mix(uHSkin, vec3(dot(uHSkin, vec3(0.2126, 0.7152, 0.0722))), 0.35) * 0.46 + col * 0.12;
   // grey / salt-and-pepper: individual strands turn silver (never a flat grey tint)
-  if (uHStyle.y > 0.001) {
-    float sel = step(hHash(floor(F * 700.0) + 3.7), uHStyle.y);
-    col = mix(col, vec3(0.42, 0.41, 0.4) * (0.75 + 0.5 * hHash(floor(F * 700.0) + 1.1)), sel * mix(0.5, 1.0, nearK));
+  // (ageing: more silver at the temples and sides above the ears and at the nape, the crown greys last)
+  float gTemple = smoothstep(0.042, 0.068, abs(F.x)) * (1.0 - smoothstep(0.02, 0.075, F.y)) + smoothstep(0.07, 0.11, -F.z) * (1.0 - smoothstep(-0.02, 0.03, F.y)) * 0.6;
+  float gAmt = max(uHStyle.y, min(1.0, uHStyle.y + uHStyle.w * clamp(gTemple, 0.0, 1.0)));
+  if (gAmt > 0.001) {
+    float sel = step(hHash(floor(F * 700.0) + 3.7), gAmt);
+    col = mix(col, vec3(0.28, 0.275, 0.27) * (0.75 + 0.5 * hHash(floor(F * 700.0) + 1.1)), sel * mix(0.5, 1.0, nearK));
   }
   float pat = uHStyle.x;
   if (kind < 0.5) {
@@ -1018,7 +1022,7 @@ const HAIR_FRAG = /* glsl */ `
       float a = atan(F.x, F.y + 0.02) * 4.2;
       float f = fract(a);
       float rowP = 1.0 - pow(abs(f - 0.5) * 2.0, 2.2);
-      float part = 1.0 - smoothstep(0.05, 0.13, min(f, 1.0 - f));
+      float part = 1.0 - smoothstep(0.035, 0.09, min(f, 1.0 - f));
       float chev = hRidge(F.z * 150.0 + abs(f - 0.5) * 3.0);
       dens *= smoothstep(lf - 0.15, lf + 0.05, rowP);
       scalpShow = part;
@@ -1163,8 +1167,11 @@ export function makeHairMaterial(
   frame: HeadFrame,
   g: HairGeometry,
   recede = 0,
+  age: { temple: number; scalp: number } = { temple: 0, scalp: 0 },
 ): THREE.MeshStandardMaterial {
-  const grey = greyAmount(hairColor);
+  const colourGrey = greyAmount(hairColor);
+  // ageing (P2-AVA-11) adds silver strands over any colour: all over (scalp) and more at the temples / sides (.w)
+  const grey = Math.max(colourGrey, age.scalp);
   // low environment reflection: bright skies otherwise wash dark textured hair out to grey / blond at grazing angles
   const m = new THREE.MeshStandardMaterial({
     color: "#ffffff",
@@ -1175,9 +1182,9 @@ export function makeHairMaterial(
   m.name = "gk-hair";
   const u: HairUniforms = {
     uHMask: { value: mask },
-    uHair: { value: new THREE.Color(grey > 0 ? PEPPER : hairColor) },
+    uHair: { value: new THREE.Color(colourGrey > 0 ? PEPPER : hairColor) },
     uHSkin: { value: new THREE.Color(skinTone) },
-    uHStyle: { value: new THREE.Vector4(g.pattern, grey, recede, 0) },
+    uHStyle: { value: new THREE.Vector4(g.pattern, grey, recede, age.temple) },
     uHO: { value: frame.o.clone() },
     uHR: { value: frame.R.clone() },
   };
