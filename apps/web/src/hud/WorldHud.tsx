@@ -339,8 +339,8 @@ export function WorldHud() {
       </div>
       )}
 
-      {/* desktop hint */}
-      <p className="scene-text absolute bottom-3 left-1/2 hidden -translate-x-1/2 text-xs font-medium text-white/85 [@media(pointer:fine)]:block">
+      {/* desktop hint (not under a hall prompt / seat panel: no text showing through the card) */}
+      <p className={`${roomBusy ? "invisible" : ""} scene-text absolute bottom-3 left-1/2 hidden -translate-x-1/2 text-xs font-medium text-white/85 [@media(pointer:fine)]:block`}>
         {hintShort ? W.hintShort : W.hintFull}
       </p>
       <SocialOverlay />

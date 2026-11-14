@@ -17,9 +17,11 @@ import type { HallLayout, Seat } from "./layouts";
 import { freeChair, tableAt } from "./table-status";
 import { SEAT_BACK, seatProfileFor, type SeatProfile } from "@/world/human/seat-profiles";
 import { hallHooks, walkQueue, type HallHooks } from "./hall-hooks";
+import { seatActivities, type SeatActivity } from "@/world/human/activity";
+import { seatActivity } from "./seat-activity";
+import { CAM_RATE, damp, PROMPT, stickyNearest, stickyZone } from "./stability";
 
 const SIT_ANIM = 13;
-const SEAT_RANGE = 1.5;
 const wrapA = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 const ease = (t: number) => t * t * (3 - 2 * t);
 /** staged sit: walk to the stand point in front of the chair, turn, then lower onto it while the clip plays */
@@ -141,6 +143,12 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   const sitStage = useRef<SitStage | null>(null);
   /** the chair you sit on: fits your seated pose to it (same profile everyone else sees you with) */
   const seatProf = useRef<SeatProfile | null>(null);
+  /** what you do at the table while seated (P2-HAL-10): everyone else computes the same from your seat id */
+  const activity = useRef<SeatActivity | null>(null);
+  /** reused every frame (no per-frame allocations) */
+  const camTarget = useMemo(() => new THREE.Vector3(), []);
+  const camWant = useMemo(() => new THREE.Vector3(), []);
+  const blockers = useMemo(() => [] as { x: number; z: number; w: number; d: number }[], []);
   const standStage = useRef<StandStage | null>(null);
   /** after standing up, the chair you left is not offered again until you have moved away or 1.5 s passed */
   const leftChair = useRef<{ id: string; x: number; z: number; at: number } | null>(null);
@@ -165,6 +173,12 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   const groundY = useRef<number | null>(null);
   /** where you stood before this frame's step (the walkable check slides back from here) */
   const walkFrom = useRef({ x: 0, z: 0 }).current;
+
+  // seated activities: your avatar and everyone else's read the same seat → activity table (rooms/seat-activity.ts)
+  useEffect(() => {
+    seatActivities.fn = (id: string) => seatActivity(layout, id);
+    return () => void (seatActivities.fn = null);
+  }, [layout]);
 
   // re-take the same chair once the hall connection is up (server confirms the seat)
   useEffect(() => {
@@ -420,6 +434,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     else if (pick.table) followPick();
     const seat = R.seated ? layout.seats.find((s) => s.id === R.seated) : undefined;
     seatProf.current = seat ? seatProfileFor(layout.game, seat.id) : null;
+    activity.current = seat ? seatActivity(layout, seat.id) : null;
     const frozen = !!hooks?.frozen?.();
     if (frozen) {
       // a full-screen window has the keyboard (the office computer): no walking, no standing up, until it closes
@@ -555,7 +570,11 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     if (!seat && !stand) {
       // tables + furniture colliders + walls + dynamic solids (closed doors) (rect + body radius)
       const dyn = hooks?.solids?.() ?? [];
-      for (const t of walls.length || dyn.length ? [...solids, ...walls, ...dyn] : solids) {
+      blockers.length = 0;
+      for (const t of solids) blockers.push(t);
+      for (const t of walls) blockers.push(t);
+      for (const t of dyn) blockers.push(t);
+      for (const t of blockers) {
         const hx = t.w / 2 + 0.32;
         const hz = t.d / 2 + 0.32;
         const dx = pos.current.x - t.x;
@@ -623,7 +642,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     }
 
     // camera: third person; when seated, over the shoulder towards the table (or the arena's spectator eye view)
-    const target = new THREE.Vector3(pos.current.x, seat ? 1.0 : 1.55, pos.current.z);
+    const target = camTarget.set(pos.current.x, seat ? 1.0 : 1.55, pos.current.z);
     let sv: ReturnType<NonNullable<HallHooks["seatedView"]>> = null;
     let cx: number;
     let cy: number;
@@ -769,8 +788,9 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     if (walls.length && !sv) {
       // full-height walls and closed doors: the camera stays on your side of them (pulled in along the view line,
       // at any height), so it never looks at a wall from behind or into the office next door
-      const tall = [...walls, ...(hooks?.solids?.() ?? [])];
-      const inWall = (x: number, z: number, m: number) => tall.some((t) => Math.abs(x - t.x) < t.w / 2 + m && Math.abs(z - t.z) < t.d / 2 + m);
+      const dynWalls = hooks?.solids?.() ?? [];
+      const hit = (t: { x: number; z: number; w: number; d: number }, x: number, z: number, m: number) => Math.abs(x - t.x) < t.w / 2 + m && Math.abs(z - t.z) < t.d / 2 + m;
+      const inWall = (x: number, z: number, m: number) => walls.some((t) => hit(t, x, z, m)) || dynWalls.some((t) => hit(t, x, z, m));
       const N = 24;
       for (let k = 1; k <= N; k++) {
         const f = k / N;
@@ -802,12 +822,12 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     const phNow = useDoorway.getState().phase;
     const doorsShut = phNow === "closed"; // hidden behind the frozen frame: snap, so the first visible frame is final
     if (!snapped.current || doorsShut) camera.position.set(cx, cy, cz);
-    else if (performance.now() < camBlendUntil.current) camera.position.lerp(new THREE.Vector3(cx, cy, cz), 1 - Math.exp(-dt * 4)); // sit / stand: ~0.8 s glide
-    else camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * 6));
+    else if (performance.now() < camBlendUntil.current) camera.position.lerp(camWant.set(cx, cy, cz), damp(CAM_RATE.glide, dt)); // sit / stand: ~0.8 s glide
+    else camera.position.lerp(camWant.set(cx, cy, cz), damp(CAM_RATE.follow, dt)); // frame-rate independent follow (stability.ts)
     snapped.current = !doorsShut;
     // the look point glides too during a sit / stand (no cut from head height to the table)
     if (!snapped.current || doorsShut || performance.now() >= camBlendUntil.current) lookPt.copy(target);
-    else lookPt.lerp(target, 1 - Math.exp(-dt * 4));
+    else lookPt.lerp(target, damp(CAM_RATE.glide, dt));
     camera.lookAt(lookPt);
     if (qa.cam) {
       // dev QA: a fixed camera pose for screenshots
@@ -816,33 +836,45 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     }
 
     // nearest free chair / nearest signed-in player
-    let nearSeat: string | null = null;
-    let best = SEAT_RANGE;
+    // prompts with hysteresis (rooms/stability.ts): a prompt shown at a range edge does not flash on and off while you
+    // stand there, and two chairs at almost the same distance do not swap the prompt back and forth
     const lc = leftChair.current;
     if (lc && (performance.now() - lc.at > 1500 || Math.hypot(pos.current.x - lc.x, pos.current.z - lc.z) > 1)) leftChair.current = null;
-    if (!seat && !stand)
-      for (const s of layout.seats) {
-        const holder = W.seats[s.id];
-        if (holder && holder !== W.you) continue;
-        if (leftChair.current) continue; // just stood up: no "Sit down" straight back
-        if (hooks?.seatOk && !hooks.seatOk(s.id)) continue; // e.g. an office chair you may not take
-        const dist = Math.hypot(s.x - pos.current.x, s.z - pos.current.z);
-        if (dist < best) {
-          best = dist;
-          nearSeat = s.id;
-        }
-      }
-    let nearPlayer: string | null = null;
-    let bp = 2.6;
-    for (const op of Object.values(W.players)) {
-      const dist = Math.hypot(op.x / 100 - pos.current.x, op.z / 100 - pos.current.z);
-      if (op.verified && dist < bp) {
-        bp = dist;
-        nearPlayer = op.id;
-      }
-    }
+    const px = pos.current.x;
+    const pz = pos.current.z;
+    const nearSeat =
+      seat || stand || leftChair.current // just stood up: no "Sit down" straight back
+        ? null
+        : stickyNearest(
+            R.nearSeat,
+            seatIds(layout),
+            (id) => {
+              const s = seatById(layout, id)!;
+              // cheap reject first (1,224 arena seats)
+              if (Math.abs(s.x - px) > 2 || Math.abs(s.z - pz) > 2) return null;
+              const holder = W.seats[id];
+              if (holder && holder !== W.you) return null;
+              if (hooks?.seatOk && !hooks.seatOk(id)) return null; // e.g. an office chair you may not take
+              return Math.hypot(s.x - px, s.z - pz);
+            },
+            PROMPT.seat,
+            PROMPT.seatMargin,
+            PROMPT.switchGain,
+          );
+    const nearPlayer = stickyNearest(
+      W.nearPlayer,
+      Object.keys(W.players),
+      (id) => {
+        const op = W.players[id]!;
+        return op.verified ? Math.hypot(op.x / 100 - px, op.z / 100 - pz) : null;
+      },
+      2.6,
+      0.4,
+      0.3,
+    );
     if (nearSeat !== R.nearSeat) R.set({ nearSeat });
-    const nearExit = !seat && intro.current <= 0 && pos.current.z > d / 2 - 3 && Math.abs(pos.current.x - layout.door.x) < 2.2 && insideOnce.current;
+    const exitZone = (m: number) => !seat && intro.current <= 0 && pz > d / 2 - 3 - m && Math.abs(px - layout.door.x) < 2.2 + m && insideOnce.current;
+    const nearExit = stickyZone(R.nearExit, exitZone(0), exitZone(PROMPT.exitMargin));
     if (nearExit !== R.nearExit) R.set({ nearExit });
     if (nearPlayer !== W.nearPlayer) W.set({ nearPlayer });
 
@@ -856,11 +888,21 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     <>
     <TargetMarker />
     <group ref={group}>
-      <Avatar look={look} name={profile.name} level={1} animRef={anim} shadows={tier !== "lite"} showTag={false} self holdWallet={walletOpen} seatRef={seatProf} />
+      <Avatar look={look} name={profile.name} level={1} animRef={anim} shadows={tier !== "lite"} showTag={false} self holdWallet={walletOpen} seatRef={seatProf} activityRef={activity} />
     </group>
     </>
   );
 }
+
+/** seat ids / seat by id per layout (built once: no per-frame arrays for the prompt search) */
+const seatIndex = new WeakMap<HallLayout, { ids: string[]; by: Map<string, Seat> }>();
+const indexOf = (l: HallLayout) => {
+  let i = seatIndex.get(l);
+  if (!i) seatIndex.set(l, (i = { ids: l.seats.map((s) => s.id), by: new Map(l.seats.map((s) => [s.id, s])) }));
+  return i;
+};
+const seatIds = (l: HallLayout) => indexOf(l).ids;
+const seatById = (l: HallLayout, id: string) => indexOf(l).by.get(id);
 
 const routeLen = (from: { x: number; z: number }, route: { x: number; z: number }[]) => {
   let len = 0;

@@ -15,6 +15,7 @@ import { ghosts, renderPose, setHallSeats, stepGhosts, stepMotion, tracks } from
 import { SEATED_WORD } from "./actions";
 import { seatProfileFor, type SeatProfile } from "@/world/human/seat-profiles";
 import { hallLife } from "./people";
+import { seatActivityOf, type SeatActivity } from "@/world/human/activity";
 import { useSocial } from "./social-store";
 
 /** Name tags + speaking bars are drawn up to this distance (DESIGN-SPEC §7.5: ≤ 12 m on screen; a bit more here). */
@@ -195,6 +196,8 @@ function RemoteAvatar({ id, tier, hall, seatArea }: { id: string; tier: Tier; ha
   const bubbleLift = useRef<THREE.Group>(null);
   /** the seat they sit on: same seat fit as their own view of themselves (world/human/seat-profiles) */
   const seatProf = useRef<SeatProfile | null>(null);
+  /** what they do at their table (P2-HAL-10): derived from their seat, the same schedule they see themselves */
+  const activity = useRef<SeatActivity | null>(null);
   // seated people can't play the standing emote clips: show a short label instead ("waves")
   const [seatedEmote, setSeatedEmote] = useState("");
 
@@ -218,6 +221,7 @@ function RemoteAvatar({ id, tier, hall, seatArea }: { id: string; tier: Tier; ha
     group.current.rotation.y = pose.yaw;
     anim.current = pose.anim;
     seatProf.current = pose.seated ? seatProfileFor(seatArea, pose.seatId) : null;
+    activity.current = pose.seated ? seatActivityOf(pose.seatId) : null;
     fade.current = fadeOf(id);
     if (bubbleLift.current) bubbleLift.current.position.y += ((pose.seated ? -0.72 : 0) - bubbleLift.current.position.y) * 0.12;
     const t = tracks.get(id);
@@ -245,6 +249,11 @@ function RemoteAvatar({ id, tier, hall, seatArea }: { id: string; tier: Tier; ha
           best = d;
           target = { x: o.x / 100, z: o.z / 100 };
         }
+      }
+      if (!target && pose.anim === WATCH && hall) {
+        // standing by a busy table to watch (social/people.ts hallLife): eyes on the game
+        const tb = nearestTable(pose.x, pose.z);
+        if (tb) target = tb;
       }
       if (!target) {
         const now = performance.now();
@@ -300,6 +309,7 @@ function RemoteAvatar({ id, tier, hall, seatArea }: { id: string; tier: Tier; ha
         fadeRef={fade}
         footsteps
         seatRef={seatProf}
+        activityRef={activity}
       />
       <TalkRing id={id} />
       <group ref={bubbleLift}>
@@ -307,6 +317,23 @@ function RemoteAvatar({ id, tier, hall, seatArea }: { id: string; tier: Tier; ha
       </group>
     </group>
   );
+}
+
+/** the "watch" action (contracts ACT.watch): a spectator standing by a table */
+const WATCH = 31;
+/** table centres of the current hall (from the seats), refreshed by RemotePlayers */
+const tableCentres: { x: number; z: number }[] = [];
+function nearestTable(x: number, z: number): { x: number; z: number } | null {
+  let best: { x: number; z: number } | null = null;
+  let bd = 3.2;
+  for (const t of tableCentres) {
+    const d = Math.hypot(t.x - x, t.z - z);
+    if (d < bd) {
+      bd = d;
+      best = t;
+    }
+  }
+  return best;
 }
 
 const fadeOf = (id: string) => tracks.get(id)?.fade ?? 1;
@@ -373,13 +400,28 @@ export function RemotePlayers({
     return () => setHallSeats([]);
   }, [hallSeats]);
   const budget = useRef(0);
+  const lifeT = useRef(0);
+  const lifeCache = useRef<ReturnType<typeof hallTables> | null>(null);
+  useEffect(() => {
+    lifeCache.current = null;
+    tableCentres.length = 0;
+  }, [hallSeats]);
   // runs before the avatars' own frame callbacks (priority −1): one motion step for everyone
   useFrame((_, dt) => {
     stepMotion(Math.min(dt, 0.1));
     stepGhosts(Math.min(dt, 0.1));
     const gk = [...ghosts.keys()].join(",");
     if (gk !== ghostKey) setGhostKey(gk); // only when someone starts / finishes leaving
-    if (hallSeats && lifeTables) hallLife(hallTables(hallSeats));
+    if (hallSeats && lifeTables) {
+      lifeT.current += dt;
+      if (lifeT.current > 0.25 || !lifeCache.current) {
+        lifeT.current = 0;
+        lifeCache.current = hallTables(hallSeats);
+        tableCentres.length = 0;
+        for (const t of lifeCache.current) tableCentres.push(t);
+      }
+      hallLife(lifeCache.current);
+    }
     budget.current += dt;
     if (budget.current < 0.5) return;
     budget.current = 0;

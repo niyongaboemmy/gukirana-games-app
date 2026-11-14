@@ -9,6 +9,7 @@ import { seedOf } from "@/world/human/life";
 import { actionById } from "./actions";
 import { useSocial } from "./social-store";
 import { selfContact } from "./motion";
+import { stickyNearest } from "@/rooms/stability";
 import { ACTIVITY_HOLD_MS, ACTIVITY_SPOTS, CAFE_FRONT_R, PLAZA_ACTIVITIES_ON } from "@/world/activities";
 
 /**
@@ -148,19 +149,26 @@ export const SPOTS: Spot[] = (() => {
   return out;
 })();
 
-/** Nearest context place within reach (for the HUD prompt), or null. */
-export function nearSpot(x: number, z: number): Spot | null {
-  let best = 1.8;
-  let hit: Spot | null = null;
-  for (const s of SPOTS) {
-    const d = Math.hypot(s.x - x, s.z - z);
-    if (d < best) {
-      best = d;
-      hit = s;
-    }
-  }
-  return hit;
+/**
+ * Nearest context place within reach (for the HUD prompt), or null. Pass the place currently offered: it stays
+ * offered until you are clearly out of reach (hysteresis, rooms/stability.ts), so the prompt never flashes on and off
+ * while you stand at the edge of its range.
+ */
+export function nearSpot(x: number, z: number, current: Spot | null = null): Spot | null {
+  const idx = stickyNearest(
+    current ? String(SPOTS.indexOf(current)) : null,
+    SPOTS.map((_, i) => String(i)),
+    (i) => {
+      const s = SPOTS[Number(i)]!;
+      return Math.hypot(s.x - x, s.z - z);
+    },
+    SPOT_RANGE,
+    0.35,
+    0.25,
+  );
+  return idx == null ? null : SPOTS[Number(idx)]!;
 }
+const SPOT_RANGE = 1.8;
 
 /** The action played on arrival at each kind of place, and for how long (0 = until you walk away). */
 const SPOT_ACT: Record<Spot["kind"], { act: number; hold: number }> = {

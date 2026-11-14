@@ -749,10 +749,10 @@ function SpectatorControls() {
     <div className="mt-2 grid gap-1.5">
       <div className="flex items-center gap-1.5">
         <div className="pseg flex-1" role="group" aria-label={A.eyeView}>
-          <button type="button" aria-pressed={eye} onClick={() => set({ eye: true })} className="min-h-9! text-sm! phone:min-h-8! phone:text-xs!">
+          <button type="button" aria-pressed={eye} onClick={() => set({ eye: true })} className="min-h-9! whitespace-nowrap text-sm! phone:min-h-8! phone:text-xs!">
             <Eye size={15} /> {A.eyeView}
           </button>
-          <button type="button" aria-pressed={!eye} onClick={() => set({ eye: false, focus: false })} className="min-h-9! text-sm! phone:min-h-8! phone:text-xs!">
+          <button type="button" aria-pressed={!eye} onClick={() => set({ eye: false, focus: false })} className="min-h-9! whitespace-nowrap text-sm! phone:min-h-8! phone:text-xs!">
             <UserRound size={15} /> {A.behindView}
           </button>
         </div>
@@ -761,7 +761,7 @@ function SpectatorControls() {
           aria-pressed={focus}
           disabled={!eye}
           onClick={() => set({ focus: !focus })}
-          className={`ptab !min-h-9 !flex-none px-3 text-sm phone:!min-h-8 phone:text-xs ${focus ? "is-on" : ""} disabled:opacity-40`}
+          className={`ptab !min-h-9 !flex-none whitespace-nowrap px-3 text-sm phone:!min-h-8 phone:text-xs ${focus ? "is-on" : ""} disabled:opacity-40`}
         >
           <ScanSearch size={15} /> {focus ? A.focusOn : A.focusStage}
         </button>

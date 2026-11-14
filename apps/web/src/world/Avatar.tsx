@@ -16,6 +16,8 @@ import { footstep } from "./human/footsteps";
 import { seedOf } from "./human/life";
 import { SeatFit } from "./human/seat-fit";
 import type { SeatProfile } from "./human/seat-profiles";
+import type { SeatActivity } from "./human/activity";
+import { SeatedLayer } from "./human/seated-layer";
 import { useVoice } from "@/voice/voice";
 import { useDeferredReady } from "./deferred";
 
@@ -71,6 +73,15 @@ export interface AvatarProps {
    * feet planted, legs clear of the seat front / the row in front. null / absent = the mocap's 0.46 m bench.
    */
   seatRef?: React.RefObject<SeatProfile | null>;
+  /**
+   * What the person does at the table while seated (world/human/activity.ts, P2-HAL-10): lean in, hands on the
+   * table, typing, moving a counter, sowing seeds, nodding; its `focus` is where the eyes rest by default.
+   */
+  activityRef?: React.RefObject<SeatActivity | null>;
+  /** 0…1 someone needs this person's attention (staff at a counter): the task pauses, they sit up */
+  attendRef?: React.RefObject<number>;
+  /** Talking without voice chat (staff replying in the reception chat): the jaw moves. */
+  talkRef?: React.RefObject<boolean>;
 }
 
 const FONT = "/fonts/Baloo2.ttf";
@@ -288,6 +299,7 @@ const _v3 = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _q2 = new THREE.Quaternion();
 const _e = new THREE.Euler();
+const _q3 = new THREE.Quaternion();
 const UP = new THREE.Vector3(0, 1, 0);
 const _m = new THREE.Matrix4();
 const _bx = new THREE.Vector3();
@@ -325,8 +337,12 @@ function HumanBody({
   fadeRef,
   footsteps,
   seatRef,
+  activityRef,
+  attendRef,
 }: {
   seatRef?: React.RefObject<SeatProfile | null>;
+  activityRef?: React.RefObject<SeatActivity | null>;
+  attendRef?: React.RefObject<number>;
   holdPhone?: boolean;
   /** Hold your open wallet (the wallet sheet is open): same arm pose as the phone, a leather bifold in the hand. */
   holdWallet?: boolean;
@@ -356,6 +372,8 @@ function HumanBody({
   const proc = useMemo(() => new ProceduralLayer({ root: inst.root, arms: inst.arms, spine: inst.spine, head: inst.head }), [inst]);
   // (built before the first mixer update: it measures the standing foot heights in the bind pose)
   const fit = useMemo(() => new SeatFit(inst.root, (n) => (inst.root.getObjectByName(n) as THREE.Bone | undefined) ?? null, inst.spine, inst.head), [inst]);
+  // seated activities at the table (P2-HAL-10): same deterministic schedule on every screen
+  const seatedL = useMemo(() => new SeatedLayer(inst.root, inst.arms, inst.spine, inst.head, seed), [inst, seed]);
   // face proportions (bind pose) + blinking / eye life (P2-AVA-07); `inst` is rebuilt whenever the look changes
   const face = useMemo(() => new FaceRig(inst.root, look.face, modelId, seed), [inst, modelId, seed]);
   /** the seat being sat on / stood up from (kept through the stand-up after the seat itself is released) */
@@ -476,6 +494,10 @@ function HumanBody({
     if (seatNow) seatLatch.current = seatNow;
     else if (animator.out.sit === "none") seatLatch.current = null;
     fit.apply(animator.out.seated ? seatLatch.current : null, animator.out.sitW, dist < 30);
+    // what they do at the table (lean in, hands on it, typing, moving a counter …): people up close only
+    // (only with a seat fit: it re-places the body every frame, the activity's slide along the seat adds to that)
+    const act = animator.out.seated && seatLatch.current ? (activityRef?.current ?? null) : null;
+    if (dist < 22) seatedL.apply(act, animator.out.sitW, step, Date.now(), animator.out.fidget === "sitlook", attendRef?.current ?? 0);
     // procedural hands (handshake, fist bump, hug, thumbs-up, pointing, chalk): close people only
     if (dist < 25) proc.update(step, anim);
 
@@ -532,7 +554,9 @@ function HumanBody({
     // head turn towards a point of interest (limited to ±55°, smoothed); not during contact actions
     const head = inst.head;
     let want = 0;
-    const p = lookAtRef?.current;
+    // seated with nothing else to look at: the eyes rest on the board / the screen / the stage
+    const focus = act?.focus;
+    const p = lookAtRef?.current ?? (focus ? _v3.set(focus.x, focus.y, focus.z) : null);
     if (head && head.parent && dist < 20) {
       if (p && proc.active < 0.2) {
         root.worldToLocal(_v2.copy(p));
@@ -544,7 +568,7 @@ function HumanBody({
         head.getWorldQuaternion(_q);
         root.getWorldQuaternion(_q2);
         const axis = _v2.copy(UP).applyQuaternion(_q2);
-        _q.premultiply(new THREE.Quaternion().setFromAxisAngle(axis, s.look));
+        _q.premultiply(_q3.setFromAxisAngle(axis, s.look));
         head.parent.getWorldQuaternion(_q2);
         head.quaternion.copy(_q2.invert().multiply(_q));
       }
@@ -661,6 +685,9 @@ export function Avatar({
   fadeRef,
   footsteps = false,
   seatRef,
+  activityRef,
+  attendRef,
+  talkRef,
 }: AvatarProps) {
   const blob = useMemo(() => blobTexture(), []);
   const talkingRef = useRef(false);
@@ -680,6 +707,7 @@ export function Avatar({
         tagPlate.current.scale.setScalar(tagScale(d));
       }
     }
+    if (talkRef) talkingRef.current = !!talkRef.current;
     if (!voiceId && !self) return;
     const v = useVoice.getState();
     // you: shown whenever your mic is live (held push-to-talk / locked open), not only above a loudness threshold;
@@ -716,6 +744,8 @@ export function Avatar({
           fadeRef={fadeRef}
           footsteps={footsteps}
           seatRef={seatRef}
+          activityRef={activityRef}
+          attendRef={attendRef}
         />
       </Suspense>
       <group ref={tags}>

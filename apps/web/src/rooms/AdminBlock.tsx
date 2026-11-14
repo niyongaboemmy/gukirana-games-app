@@ -7,6 +7,11 @@ import { GeoBatch } from "@/world/geo";
 import { Avatar } from "@/world/Avatar";
 import { DEFAULT_LOOK, SKIN_TONES, type AvatarLook } from "@/world/outfits";
 import { isOnScreen, useArea } from "@/world/stage";
+import { selfPose } from "@/lib/world-store";
+import { SEAT_BACK, SEAT_PROFILES, type SeatProfile } from "@/world/human/seat-profiles";
+import type { SeatActivity } from "@/world/human/activity";
+import { useReception } from "@/admin-block/reception-client";
+import { damp } from "./stability";
 import type { HallLayout } from "./layouts";
 import { GltfInstances, Instanced, model, usePbr, type Xform } from "./interior-kit";
 import { imigongoPanel } from "./room-textures";
@@ -160,8 +165,9 @@ function buildStatic(h: number) {
   // counter return (west end) with a low cabinet
   b.box("oak", 0.6, 0.75, 0.9, { p: [R.x - R.w / 2 + 0.3, 0.375, R.z - 0.85] });
   b.box("stoneTop", 0.64, 0.04, 0.94, { p: [R.x - R.w / 2 + 0.3, 0.77, R.z - 0.85] });
-  taskChair(RECEPTIONIST.x, RECEPTIONIST.z - 0.12, 0);
-  monitor(R.x + 0.8, R.z - 0.05, 0.76, Math.PI, "reception");
+  taskChair(RECEPTIONIST.x, RECEPTION_CHAIR_Z, 0);
+  monitor(R.x + 0.34, R.z - 0.02, 0.76, Math.PI + 0.36, "reception");
+  b.box("screenFrame", 0.42, 0.015, 0.14, { p: [R.x - 0.02, 0.768, RECEPTION_DESK_EDGE + 0.11] });
   // waiting benches along the screen wall
   for (const be of BENCHES) {
     b.box("fabric", be.w, 0.12, be.d - 0.1, { p: [be.x, 0.42, be.z + 0.05] });
@@ -212,7 +218,7 @@ function buildStatic(h: number) {
         for (const s of [-1, 1]) b.cyl("fabric", 0.035, 0.035, 0.03, 12, { p: [d.x + 0.55 + s * 0.085, d.h + 0.24, d.z - 0.05], r: [0, 0, Math.PI / 2] });
       }
     // keyboards
-    for (const d of f.desks) b.box("screenFrame", 0.42, 0.015, 0.14, { p: [d.x, d.h + 0.008, d.z - 0.22] });
+    for (const d of f.desks) b.box("screenFrame", 0.42, 0.015, 0.14, { p: [d.x, d.h + 0.008, d.z - d.d / 2 + 0.11] });
     // units on the side walls
     for (const u of f.units) {
       if (u.kind === "shelf") {
@@ -550,11 +556,66 @@ const RECEPTIONIST_LOOK: AvatarLook = {
   accent: "#C9A96B",
 };
 
+/** the receptionist's chair (pulled in to the work top) and the work top's front edge under the counter */
+const RECEPTION_CHAIR_Z = RECEPTIONIST.z + 0.05;
+const RECEPTION_DESK_EDGE = RECEPTION.z - 0.4;
+const RECEPTION_TASK: SeatActivity = {
+  kind: "type",
+  deskH: 0.76,
+  reach: RECEPTION_DESK_EDGE - (RECEPTION_CHAIR_Z - SEAT_BACK),
+  focus: { x: RECEPTION.x + 0.34, y: 1.0, z: RECEPTION.z - 0.02 },
+};
+/** a visitor this close in front of the counter gets her attention (m) */
+const ATTEND_R = 3.4;
+
+/**
+ * The receptionist (staff, clearly not a player): types at her computer; when you come up to the counter she
+ * finishes the keystroke, sits up and looks at you, follows you with her eyes while you are there, and talks (jaw)
+ * while her reply arrives in the reception chat; she looks something up (typing) while a question is pending.
+ */
 function Receptionist({ lite }: { lite: boolean }) {
   const anim = useRef(13); // seated
+  const seat = useRef<SeatProfile | null>(SEAT_PROFILES.task);
+  const task = useRef<SeatActivity | null>(RECEPTION_TASK);
+  const attend = useRef(0);
+  const talk = useRef(false);
+  const look = useRef<THREE.Vector3 | null>(null);
+  const lookAt = useMemo(() => new THREE.Vector3(), []);
+  const replies = useRef({ n: -1, until: 0 });
+  useFrame((_, raw) => {
+    const dt = Math.min(raw, 0.1);
+    const dx = selfPose.x - RECEPTION.x;
+    const dz = selfPose.z - RECEPTION.z;
+    const r = useReception.getState();
+    // in front of the counter (lobby side), within reach of a conversation, or the chat with her is open
+    const near = (dz > 0 && Math.hypot(dx, dz) < ATTEND_R) || r.open;
+    // a question being looked up: back to the keyboard (typing) until the answer is there
+    const want = near && !r.pending ? 1 : 0;
+    attend.current += (want - attend.current) * damp(near ? 3 : 1.5, dt);
+    look.current = near ? lookAt.set(selfPose.x, 1.55, selfPose.z) : null;
+    // her answer arrives: she says it (jaw) for a moment
+    const n = r.lines.filter((l) => l.role === "reception").length;
+    const now = performance.now();
+    if (replies.current.n >= 0 && n > replies.current.n) replies.current.until = now + 2600;
+    replies.current.n = n;
+    talk.current = now < replies.current.until;
+  });
   return (
-    <group position={[RECEPTIONIST.x, 0, RECEPTIONIST.z - 0.12]} userData={{ noMerge: true }}>
-      <Avatar look={RECEPTIONIST_LOOK} animRef={anim} showTag={false} shadows={!lite} quality={lite ? "lite" : "standard"} keepClothes />
+    <group position={[RECEPTIONIST.x, 0, RECEPTION_CHAIR_Z - SEAT_BACK]} userData={{ noMerge: true }}>
+      <Avatar
+        look={RECEPTIONIST_LOOK}
+        animRef={anim}
+        showTag={false}
+        shadows={!lite}
+        quality={lite ? "lite" : "standard"}
+        keepClothes
+        seedId="reception-staff"
+        seatRef={seat}
+        activityRef={task}
+        attendRef={attend}
+        talkRef={talk}
+        lookAtRef={look}
+      />
     </group>
   );
 }

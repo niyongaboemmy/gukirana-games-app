@@ -450,7 +450,8 @@ export function LocalPlayer({
     // context places (lamp posts, café) for the action prompt
     if (performance.now() - spotScan.current > 200) {
       spotScan.current = performance.now();
-      const sp = onBench ? null : nearSpot(pos.current.x, pos.current.z);
+      const cur = useSocial.getState().nearSpot;
+      const sp = onBench ? null : nearSpot(pos.current.x, pos.current.z, cur != null ? (SPOTS[cur] ?? null) : null);
       const idx = sp ? SPOTS.indexOf(sp) : null;
       if (useSocial.getState().nearSpot !== idx) useSocial.setState({ nearSpot: idx });
     }
