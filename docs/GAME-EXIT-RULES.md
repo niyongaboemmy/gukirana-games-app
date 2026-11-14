@@ -148,3 +148,59 @@ counted.
 | 17 | api `void + refund > a suspended player's live matches are voided…`; realtime `match-room.test.ts > suspension during a match`, `suspension.test.ts` |
 | validations | api `validations first …` (all), `friendly games per day …` (all), `the offer the sheets show …`; realtime `stakes.test.ts` (all) |
 | settings | api `game settings (versioned, bounded, audited) …`; `console.service.test.ts > grants sections by role` |
+
+## Boxing (real-time fight, P3-FGT-01)
+
+Boxing is the first **real-time** game: no turns, a fixed 30 Hz server tick (`apps/realtime/src/rooms/boxing-room.ts`,
+engine `packages/games/boxing`), rounds instead of moves. Every money rule above is unchanged — the match is created
+through the same games API (`createMatch`: validations, friendly counter, escrow before the bell), the result is
+Ed25519-signed and settled / voided exactly like the turn games, the heartbeat and the sweep cover it. No bots in
+live fights; practice vs AI runs in the browser and is never counted (row 18). Live fights need an account.
+
+**First move** = the opening bell rang **and** either fighter sent an input after it (engine `hasBegun`).
+**Disconnect** = a **referee time-out**: the fight clock stops for both, the fighters go to neutral; back → a 3 s
+countdown and the round resumes where it stopped. Each fighter has a **pause budget** of `reconnectSeconds` for the
+whole match (all their time-outs together). A connection that sends nothing (no input, no ping) for 3 s during the
+fight counts as gone too.
+
+| Row | Boxing meaning | Outcome |
+|---|---|---|
+| 1 | final bell: more points wins (stoppage — 3 knockdowns in a round or 4 in the match — ends it early) | settled; winner gets the pot |
+| 2 | equal points → more knockdowns → more power punches → still equal: **draw** (no draw offers in boxing) | settled as a draw, stakes back |
+| 3 | Leave during gloving up / the countdown / before anyone acted | void (`LEFT_BEFORE_START`) |
+| 4 | Leave after the first move (the Leave dialog shows the pot) | forfeit (`RESIGN`) |
+| 5 | disconnect: referee time-out, the clock stops, the budget runs | — |
+| 6 | budget used up, after the first move, opponent connected | forfeit (`DISCONNECT`) |
+| 7 | budget used up before the first move | void (`LEFT_BEFORE_START`) |
+| 8 | both fighters gone | void (`BOTH_DISCONNECTED`) |
+| 9 | IDLE: no input at all for `idleSeconds` (*20 s*) in a round = a strike; `maxTimeouts` (*3*) in a row → forfeit; any input resets | forfeit (`TIMEOUTS`) |
+| 10 | nobody acts within `idleSeconds` after the opening bell | void (`NO_FIRST_MOVE`) |
+| 11 | a fighter never opens the fight within `joinSeconds` | void (`NO_SHOW`) |
+| 12 | past `maxMatchMinutes` (*15*), or past the engine's tick bound (`maxFightTicks`, watchdog) | void (`MATCH_TOO_LONG`) |
+| 13–17 | settle retries, API down, room closed, stale-escrow sweep, suspension | unchanged (void, refund) |
+| 18 | practice vs AI in a free ring | nothing to settle, never counted |
+
+**Inputs** (server checks, plan §3.2): schema (`BAD_INPUT`), `seq` strictly increasing per connection (`STALE_SEQ`),
+at most 20 messages a second (dropped, `RATE_LIMITED` once a second), at most **one press per tick** per fighter, presses
+outside a round dropped (`NOT_FIGHTING`), only the two fighters' sessions may send.
+
+**Ring checks** (Boxing hall room, `apps/realtime/src/rooms/boxing-hall.ts`): known ring, free / waiting, near its
+steps, one ring per person, not already in a live fight, signed in for live fights, game enabled + stake allowed +
+funds / friendly limit / break / daily limit (games API, personal reasons only to that player), median ping ≤ 300 ms.
+
+**Settings** (`game_settings` boxing, seeded **disabled**): the usual fields plus `fight { rounds 3, roundSeconds 60,
+restSeconds 15, idleSeconds 20 }` (bounds `FIGHT_RULE_BOUNDS`: 1–5 rounds, 30–180 s, 10–60 s, 10–60 s). A boxing row
+saved without the block runs with the defaults. `turnSeconds` is unused. Edits apply to new fights only.
+
+| Row | Boxing test (`apps/realtime/src/rooms/boxing-room.test.ts`, api `games.service.test.ts > boxing`) |
+|---|---|
+| 1–2 | `rows 1-2 > escrowed match → bell → round → signed normal result` |
+| 3–4 | `rows 3-4 > before the first move…`, `> after the first move…` |
+| 5 | `rows 5-8 > back within the budget…`, `> a connection that goes silent…` |
+| 6–8 | `rows 5-8 > budget used after the first move: forfeit; before it: void; both gone: void` |
+| 9–10 | `rows 9-10 > maxTimeouts strikes…`, `> nobody acts after the bell…` |
+| 11 | `row 11 > void after joinSeconds` |
+| 12–17 | `rows 12-17 > past maxMatchMinutes`, `> settlement keeps failing…`, `> heartbeat … suspension voids` |
+| inputs | `inputs (plan §3.2) > bad input, stale seq, presses outside a round, the rate limit; one press per tick` |
+| ring checks | `boxing-hall.test.ts` (all) |
+| settings | api `boxing (P3-FGT-01) > seeded disabled; the fight block is bounded…` |
