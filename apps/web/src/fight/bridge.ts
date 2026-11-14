@@ -26,6 +26,17 @@ export interface MyFight {
    * `at` = performance.now() of the press.
    */
   predicted: { act: BoxingSnapshot["fighters"][number]["act"]; at: number } | null;
+  /** display names by fighter index (0 = red, 1 = blue); the HUD falls back to the corner names */
+  names?: [string, string];
+  /** practice: the AI level (1..5) */
+  level?: number;
+  /**
+   * live: the fight has "really begun" (exit rules first move: bell + an input), so leaving now is a forfeit.
+   * Practice leaves are never counted.
+   */
+  begun?: boolean;
+  /** live: what the API settled for me (shown on the result card) */
+  settled?: { stars: number; xp: number } | null;
 }
 
 export interface FightBridge {
