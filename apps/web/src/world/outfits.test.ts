@@ -118,3 +118,39 @@ describe("face choices in the look code (P2-AVA-07)", () => {
     expect(masc.filter((l) => l.face.facialHair === "none").length / masc.length).toBeGreaterThan(0.2);
   });
 });
+
+describe("hair and headwear catalogue additions (P2-AVA-10)", () => {
+  const NEW_HAIR = ["hightop", "twists", "waves", "shortlocs", "buzz", "lowfade", "cornrowbun", "braidtail"];
+  const NEW_HATS = ["kufi", "headwrap-kitenge", "headwrap-leaf", "headwrap-indigo"];
+
+  it("keeps every older id in place (new ids are appended)", () => {
+    const old = ["short", "fade", "afro", "puffs", "braids", "locs", "bun", "cornrows", "headwrap", "bald"];
+    expect(HAIR_STYLES.slice(0, old.length).map((h) => h.id)).toEqual(old);
+    expect(HAIR_STYLES.slice(old.length).map((h) => h.id)).toEqual(expect.arrayContaining(NEW_HAIR));
+    for (const id of ["no-hat", "cap", "beanie", "bucket"]) expect(itemById(id)?.slot).toBe("headwear");
+  });
+
+  it("round-trips looks with the new hair styles, headwear and grey hair", () => {
+    for (const hair of NEW_HAIR)
+      for (const hat of NEW_HATS) {
+        const l = decodeLook(`1|m|5C3A26|${hair}|e6e4e0|tee|jeans|sneakers|none|${hat}|2F80ED|2E3A46`, "#2F80ED", "u1");
+        expect(l.hairStyle).toBe(hair);
+        expect(l.outfit.headwear).toBe(hat);
+        expect(l.hairColor).toBe("#e6e4e0");
+        expect(decodeLook(encodeLook(l), "#2F80ED")).toEqual(l);
+      }
+  });
+
+  it("still decodes codes saved before P2-AVA-10 exactly as before", () => {
+    const l = decodeLook("1|n|6E4530|fade|141010|hoodie|joggers|sneakers|none|cap|2F80ED", "#2F80ED", "user-1");
+    expect(l.hairStyle).toBe("fade");
+    expect(l.outfit.headwear).toBe("cap");
+    expect(l.face).toEqual(seededFace("user-1", "neutral"));
+  });
+
+  it("falls back to a known hair style / no hat for ids it does not know (older clients do the same with new ids)", () => {
+    const l = decodeLook("1|m|5C3A26|mohawk3000|141010|tee|jeans|sneakers|none|crown|2F80ED", "#2F80ED", "u2");
+    expect(HAIR_STYLES.some((h) => h.id === l.hairStyle)).toBe(true);
+    expect(l.outfit.headwear).toBe("no-hat");
+  });
+});

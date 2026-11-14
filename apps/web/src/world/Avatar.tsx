@@ -5,12 +5,16 @@ import { Billboard, Text, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { blobTexture } from "./textures";
-import { encodeLook, itemById, type AvatarLook } from "./outfits";
+import { encodeLook, itemById, LEGACY_SKIN, type AvatarLook } from "./outfits";
 import { ANIM_SETS, HUMAN_MODELS, type HumanModelId, type HumanModelMeta } from "./human/meta";
 import { makeHairCardMaterial, makeLookMaterial, type LookUniforms } from "./human/materials";
 import { faceFrameOf, FaceRig } from "./human/face-rig";
 import { smoothHeadNormals, tessellateHead } from "./human/head-geometry";
 import { buildAttachments, neutralFrame } from "./human/attachments";
+import { deflateHair, dropBrim, hairGeometry, hairHatClass, hairMesh, headFrameOf, makeHairMaterial, maskPixels, type HeadFrame, type MaskPixels } from "./human/hair";
+import { headwearGeometry, makeHeadwearMaterial } from "./human/headwear";
+import { EAR_LANDMARKS } from "./human/skull";
+import type { BodyType, HeadwearKind } from "./outfits";
 import { clipsFor, HumanAnimator } from "./human/animator";
 import { aimBone, ProceduralLayer, type ArmBones } from "./human/procedural";
 import { footstep } from "./human/footsteps";
@@ -104,20 +108,27 @@ export const tagScale = (d: number) => THREE.MathUtils.clamp(d / 10, 0.6, 1);
  * People within HEAD_HI_RANGE get it; further away the original ~1.4k-triangle head (with smoothed normals) is enough.
  */
 const headHi = new WeakMap<THREE.BufferGeometry, THREE.BufferGeometry>();
+const preparedBases = new WeakSet<THREE.Object3D>();
 const HEAD_HI_RANGE = 9;
 
 /**
  * Prepare a loaded base model once: pull the recolour masks out of the emissive slot, set shadow/culling flags,
  * smooth the head normals (no facets on cheeks / jaw / nose) and build its tessellated near version.
  */
-function prepareBase(scene: THREE.Object3D) {
-  if (scene.userData.gkPrepared) return;
-  scene.userData.gkPrepared = true;
+function prepareBase(scene: THREE.Object3D, modelId: HumanModelId) {
+  // (a module-level set: after a hot reload the module's caches are empty and the base is prepared again; every step is
+  // idempotent)
+  if (preparedBases.has(scene)) return;
+  preparedBases.add(scene);
   const heads = new Set<THREE.BufferGeometry>();
+  const headMeshes = new Map<THREE.BufferGeometry, THREE.SkinnedMesh>();
   scene.traverse((o) => {
     const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
     if (!m || !(o as THREE.Mesh).isMesh) return;
-    if (m.name === "head" && (o as THREE.SkinnedMesh).isSkinnedMesh) heads.add((o as THREE.Mesh).geometry);
+    if (m.name === "head" && (o as THREE.SkinnedMesh).isSkinnedMesh) {
+      heads.add((o as THREE.Mesh).geometry);
+      headMeshes.set((o as THREE.Mesh).geometry, o as THREE.SkinnedMesh);
+    }
     if (m.emissiveMap) {
       m.emissiveMap.colorSpace = THREE.NoColorSpace;
       m.userData.gkMask = m.emissiveMap;
@@ -131,9 +142,51 @@ function prepareBase(scene: THREE.Object3D) {
     if (m.map) m.map.anisotropy = 4;
   });
   for (const g of heads) {
+    const mesh = headMeshes.get(g)!;
+    const frame = modelId === "guard" ? null : headFrameOf(mesh);
+    const maskTex = (mesh.material as THREE.MeshStandardMaterial).userData.gkMask as THREE.Texture | undefined;
+    const mask = frame ? maskPixels(maskTex) : null;
+    if (frame && mask && maskTex) {
+      headInfo.set(g, { frame, mask, maskTex, body: modelId as BodyType });
+      // the neutral body's baseball cap was part of its head mesh (P2-AVA-10): the brim goes, the crown comes down
+      // onto the skull as scalp (its texels are hair in the cleaned mask), so the chosen hair / headwear shows
+      if (modelId === "neutral") {
+        dropBrim(g);
+        deflateHair(g, frame, "neutral", mask, { keep: 0.0025 });
+      }
+    }
     smoothHeadNormals(g);
     if (!headHi.has(g)) headHi.set(g, tessellateHead(g, 0.6));
   }
+}
+
+/** Per base head geometry: face frame, hair mask (CPU copy + texture), body (P2-AVA-10). */
+// kept on the geometry itself (not a module-level map): survives hot reloads of this module in development
+type HeadInfo = { frame: HeadFrame; mask: MaskPixels; maskTex: THREE.Texture; body: BodyType };
+const headInfo = {
+  get: (g: THREE.BufferGeometry) => g.userData.gkHeadInfo as HeadInfo | undefined,
+  set: (g: THREE.BufferGeometry, v: HeadInfo) => void (g.userData.gkHeadInfo = v),
+};
+/** Feminine head with its baked bob pulled down onto the skull (every style but the bob itself), lo + hi. */
+const headSlim = {
+  get: (g: THREE.BufferGeometry) => g.userData.gkSlim as { lo: THREE.BufferGeometry; hi: THREE.BufferGeometry } | undefined,
+  set: (g: THREE.BufferGeometry, v: { lo: THREE.BufferGeometry; hi: THREE.BufferGeometry }) => void (g.userData.gkSlim = v),
+};
+function slimHead(g: THREE.BufferGeometry): { lo: THREE.BufferGeometry; hi: THREE.BufferGeometry } | null {
+  const info = headInfo.get(g);
+  if (!info) return null;
+  let v = headSlim.get(g);
+  if (!v) {
+    const lo = g.clone();
+    // the bob's under-side (UV islands in the lower half of the texture) tucks deeper than its outside
+    // (its hair clip, a small island of its own, goes under too)
+    deflateHair(lo, info.frame, info.body, info.mask, { keep: 0.0015, tuck: true, inner: (_u, w) => w > 0.62, force: (u, w) => u > 0.1 && u < 0.24 && w > 0.63 && w < 0.84 });
+    smoothHeadNormals(lo);
+    v = { lo, hi: tessellateHead(lo, 0.6) };
+    headSlim.set(g, v);
+    headInfo.set(lo, info);
+  }
+  return v;
 }
 
 const PARTS = new Set(["body", "lod1", "haircards"]);
@@ -148,7 +201,9 @@ export function partOf(o: THREE.Object3D, root: THREE.Object3D): string {
   return "";
 }
 
-const SHOW_CARDS = new Set(["short", "bun"]);
+/** The feminine base's hair cards belonged to its bob, which is replaced by fitted hair (P2-AVA-10): never shown. */
+const SHOW_CARDS = new Set<string>();
+const bareHead = (look: AvatarLook) => (itemById(look.outfit.headwear)?.kind ?? "none") === "none" && look.hairStyle !== "headwrap";
 
 interface Instance {
   root: THREE.Object3D;
@@ -166,10 +221,12 @@ interface Instance {
   faceU: LookUniforms | null;
   /** the near head mesh with its original and tessellated geometry (swapped by distance) */
   headMesh: { mesh: THREE.Mesh; lo: THREE.BufferGeometry; hi: THREE.BufferGeometry } | null;
+  /** fitted hair / headwear meshes with their near and far geometry (swapped by distance) */
+  lodMeshes: { mesh: THREE.Mesh; near: THREE.BufferGeometry; far: THREE.BufferGeometry }[];
 }
 
-function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMeta, shadows: boolean, keepClothes: boolean): Instance {
-  prepareBase(src);
+function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMeta, shadows: boolean, keepClothes: boolean, modelId: HumanModelId): Instance {
+  prepareBase(src, modelId);
   const root = cloneSkinned(src);
   const full: THREE.Object3D[] = [];
   const lite: THREE.Object3D[] = [];
@@ -183,12 +240,14 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
   });
   let faceU: LookUniforms | null = null;
   let headMesh: Instance["headMesh"] = null;
+  const headMeshes: THREE.SkinnedMesh[] = [];
   root.traverse((o) => {
     const mesh = o as THREE.SkinnedMesh;
     if (!mesh.isMesh) return;
     const part = partOf(mesh, root);
     const hi = part === "body" ? headHi.get(mesh.geometry) : undefined;
     if (hi && !headMesh) headMesh = { mesh, lo: mesh.geometry, hi };
+    if (headHi.has(mesh.geometry)) headMeshes.push(mesh);
     const base = mesh.material as THREE.MeshStandardMaterial;
     let m = matCache.get(base);
     if (!m) {
@@ -211,8 +270,54 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
     if (part === "body") full.push(mesh);
     else if (part === "lod1") lite.push(mesh);
     // hair cards stick out through headwear (the dark "notch" at the back of every cap): hide them under a hat
-    if (part === "haircards") mesh.visible = SHOW_CARDS.has(look.hairStyle) && (look.outfit.headwear === "no-hat" || look.outfit.headwear === "none");
+    if (part === "haircards") mesh.visible = SHOW_CARDS.has(look.hairStyle) && bareHead(look);
   });
+  // ---- fitted hair + headwear on the head (P2-AVA-10)
+  const lodMeshes: Instance["lodMeshes"] = [];
+  const own: THREE.Object3D[] = [];
+  const hm = headMesh as Instance["headMesh"];
+  const info = hm ? headInfo.get(hm.lo) : undefined;
+  if (hm && info && (hm.mesh as THREE.SkinnedMesh).isSkinnedMesh && hm.mesh.parent) {
+    const headSk = hm.mesh as THREE.SkinnedMesh;
+    const parent = hm.mesh.parent;
+    const hatItem = itemById(look.outfit.headwear);
+    const wrapHair = look.hairStyle === "headwrap";
+    const hatKind: HeadwearKind = wrapHair ? "wrap" : ((hatItem?.kind as HeadwearKind | undefined) ?? "none");
+    // feminine: the baked bob (a plastic-looking helmet next to the fitted hair) is always pulled down onto the skull
+    const slim = info.body === "feminine" ? slimHead(hm.lo) : null;
+    if (slim) {
+      hm.lo = slim.lo;
+      hm.hi = slim.hi;
+      for (const m of headMeshes) m.geometry = slim.lo;
+    }
+    const hg = hairGeometry(hm.lo, hm.hi, info.frame, info.mask, info.body, look.hairStyle, hairHatClass(hatKind, look.hairStyle));
+    if (hg) {
+      const skin = LEGACY_SKIN[look.skinTone.toUpperCase()] ?? look.skinTone;
+      const mat = makeHairMaterial(look.hairColor, skin, info.maskTex, info.frame, hg);
+      const m = hairMesh(hg.near, mat, headSk);
+      m.castShadow = shadows;
+      parent.add(m);
+      own.push(m);
+      materials.push(mat);
+      lodMeshes.push({ mesh: m, near: hg.near, far: hg.far });
+    }
+    if (hatKind !== "none") {
+      const kind = hatKind as Exclude<HeadwearKind, "none">;
+      const top = itemById(look.outfit.top);
+      const color = wrapHair ? "#ffffff" : hatItem?.color === "accent" ? (look.topColor ?? look.accent) : (hatItem?.color ?? "#333333");
+      const print = wrapHair ? (top?.print ?? "kitenge-sun") : hatItem?.print;
+      const near = headwearGeometry(info.frame, info.body, kind, look.hairStyle, 0);
+      const far = headwearGeometry(info.frame, info.body, kind, look.hairStyle, 1);
+      const mat = makeHeadwearMaterial(kind, color, hatItem?.color2 === "accent" ? look.accent : hatItem?.color2, print);
+      const m = hairMesh(near, mat, headSk);
+      m.name = "gk-headwear";
+      m.castShadow = shadows;
+      parent.add(m);
+      own.push(m);
+      materials.push(mat);
+      lodMeshes.push({ mesh: m, near, far });
+    }
+  }
   const bone = (n: string) => (root.getObjectByName(n) as THREE.Bone | undefined) ?? null;
   const head = bone("Bip01_Head");
   const pelvis = bone("Bip01_Pelvis");
@@ -224,7 +329,20 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
     const m = o as THREE.SkinnedMesh;
     if (!body && m.isSkinnedMesh && o.parent?.name !== "lod1" && m.skeleton.bones.some((b) => b.name === "Bip01_L_Calf")) body = m;
   });
-  if (head && pelvis && handL) extras = buildAttachments(look, { head: neutralFrame(head, root), pelvis: neutralFrame(pelvis, root), wristL: handL, body }, shadows);
+  if (head && pelvis && handL) {
+    const headAnchor = neutralFrame(head, root);
+    // face frame → head anchor (glasses on the nose and ears, earrings on the lobes of this head; P2-AVA-10)
+    let face: ((x: number, y: number, z: number) => THREE.Vector3) | undefined;
+    const fi = hm ? headInfo.get(hm.lo) : undefined;
+    const hsk = hm?.mesh as THREE.SkinnedMesh | undefined;
+    if (fi && hsk?.isSkinnedMesh) {
+      const boneInv = hsk.skeleton.boneInverses[fi.frame.head]!;
+      const bone = hsk.skeleton.bones[fi.frame.head]!;
+      bone.updateMatrixWorld(true);
+      face = (x, y, z) => headAnchor.worldToLocal(new THREE.Vector3(x, y, z).applyMatrix3(fi.frame.Rt).add(fi.frame.o).applyMatrix4(boneInv).applyMatrix4(bone.matrixWorld));
+    }
+    extras = buildAttachments(look, { head: headAnchor, pelvis: neutralFrame(pelvis, root), wristL: handL, body, face, ears: fi ? EAR_LANDMARKS[fi.body] : undefined }, shadows);
+  }
   const arms: ArmBones[] = [];
   for (const [k, side] of [
     ["R", 1],
@@ -237,7 +355,8 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
     if (upper && fore && hand) arms.push({ upper, fore, hand, side, fingers });
   }
   const fadeable = [...materials];
-  for (const e of extras)
+  extras.push(...own);
+  for (const e of extras.filter((x) => !own.includes(x)))
     e.traverse((c) => {
       const m = (c as THREE.Mesh).material;
       if ((c as THREE.Mesh).isMesh && m) (Array.isArray(m) ? m : [m]).forEach((x) => fadeable.push(x));
@@ -251,7 +370,7 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
       mm.needsUpdate = true;
     }
   }
-  return { root, full, lite, materials, fadeable, extras, head, jaw: bone("Bip01_MJaw"), arms, spine: bone("Bip01_Spine1"), faceU, headMesh };
+  return { root, full, lite, materials, fadeable, extras, head, jaw: bone("Bip01_MJaw"), arms, spine: bone("Bip01_Spine1"), faceU, headMesh, lodMeshes };
 }
 
 function disposeInstance(inst: Instance) {
@@ -260,7 +379,8 @@ function disposeInstance(inst: Instance) {
     e.traverse((c) => {
       const m = c as THREE.Mesh;
       if (m.isMesh) {
-        m.geometry.dispose();
+        // fitted hair / headwear geometry is cached and shared by everyone with the same body + style
+        if (!m.geometry.userData.gkShared) m.geometry.dispose();
         (Array.isArray(m.material) ? m.material : [m.material]).forEach((x) => x.dispose());
       }
     }),
@@ -395,7 +515,7 @@ function HumanBody({
   const lifeOk = useDeferredReady();
   const key = encodeLook(look);
   // `key` (the encoded look) captures every look field, so `look` itself is not a dependency
-  const inst = useMemo(() => buildInstance(model.scene, look, meta, shadows, keepClothes), [model.scene, key, meta, shadows, keepClothes]);
+  const inst = useMemo(() => buildInstance(model.scene, look, meta, shadows, keepClothes, modelId), [model.scene, key, meta, shadows, keepClothes, modelId]);
   const animator = useMemo(() => new HumanAnimator(inst.root, clipsFor(meta.anim, anims.animations, meta.hipY), meta.anim, seed), [inst, anims.animations, meta, seed]);
   const proc = useMemo(() => new ProceduralLayer({ root: inst.root, arms: inst.arms, spine: inst.spine, head: inst.head }), [inst]);
   // (built before the first mixer update: it measures the standing foot heights in the bind pose)
@@ -514,6 +634,8 @@ function HumanBody({
     if (headHiNow !== s.headHi && inst.headMesh) {
       s.headHi = headHiNow;
       inst.headMesh.mesh.geometry = headHiNow ? inst.headMesh.hi : inst.headMesh.lo;
+      // fitted hair / hats: every layer up close, one simplified layer further out
+      for (const l of inst.lodMeshes) l.mesh.geometry = headHiNow ? l.near : l.far;
     }
     const every = (dist < 15 ? 1 : dist < 30 ? 2 : dist < 60 ? 4 : 8) * (quality === "lite" && dist > 8 ? 2 : 1);
     s.frame++;

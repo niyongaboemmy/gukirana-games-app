@@ -58,6 +58,11 @@ export interface LookUniforms {
   uLipTint: { value: THREE.Color };
   uMakeup: { value: THREE.Vector4 };
   uSpecMap: { value: number };
+  /** P2-AVA-10: close-cut fade on the sides / back (painted scalp hair gives way to shaved skin), eye distance (m) */
+  uHairFade: { value: number };
+  uFaceIpd: { value: number };
+  /** grey / salt-and-pepper beard and brows: share of silver hairs */
+  uHairGrey: { value: number };
 }
 
 /**
@@ -69,7 +74,7 @@ export const FACIAL_HAIR_PARAMS: Record<FaceLook["facialHair"], [number, number,
   none: [0, 0, 0, 0, 0, 0],
   stubble: [0.9, 0.7, 0.72, 0.46, 0, 0],
   moustache: [0, 1, 0, 0.92, 0, 0],
-  goatee: [0, 0.95, 1, 0.9, 0, 0],
+  goatee: [0, 0.8, 0.9, 0.8, 0, 0],
   chinstrap: [0, 0, 0, 0.88, 1, 0],
   short: [0.95, 0.95, 0.95, 0.8, 0, 0],
   full: [1, 1, 1, 1, 0, 0.16],
@@ -121,6 +126,13 @@ function faceUniforms(face: FaceLook, frame: FaceFrame | null) {
   };
 }
 
+/** Share of silver hairs for a hair colour (same rule as hair.ts greyAmount). */
+function greyOf(hex: string): number {
+  const hsl = { h: 0, s: 0, l: 0 };
+  new THREE.Color(hex).getHSL(hsl);
+  return hsl.s > 0.18 ? 0 : THREE.MathUtils.clamp((hsl.l - 0.3) / 0.5, 0, 1);
+}
+
 function printTex(id: OutfitItem["print"]): THREE.Texture | null {
   if (!id) return null;
   const t = fabricTexture(id);
@@ -158,6 +170,9 @@ export function lookUniforms(look: AvatarLook, meta: HumanModelMeta, isHead: boo
     uHair: { value: lin(look.hairColor) },
     uHairRef: { value: meta.regions.hair },
     uHairToSkin: { value: look.hairStyle === "bald" ? 1 : 0 },
+    uHairFade: { value: look.hairStyle === "fade" || look.hairStyle === "lowfade" || look.hairStyle === "waves" || look.hairStyle === "hightop" ? 1 : 0 },
+    uHairGrey: { value: greyOf(look.hairColor) },
+    uFaceIpd: { value: frame ? 1 / Math.max(1e-6, Math.hypot(frame.m.elements[0]!, frame.m.elements[3]!, frame.m.elements[6]!)) : 0.0638 },
     // skirts / long wraps: the base trousers become legs (skin) below the garment mesh
     uLegsSkin: { value: bottomKind === "skirt" || bottomKind === "longwrap" ? 1 : 0 },
     uTopPrint: { value: printTex(top?.print) },
@@ -184,7 +199,7 @@ uniform sampler2D uBottomPrint; uniform float uBottomPrintOn;
 float gkDetail(float l, float ref, float k) { return mix(1.0, pow(clamp(l / max(ref, 1e-4), 0.0, 3.5), 0.8), k); }
 uniform float uFaceOn; uniform float uFaceDetail; uniform vec4 uFaceL; uniform vec3 uIris;
 uniform vec4 uFH; uniform vec4 uFH2; uniform vec4 uBrow; uniform vec4 uMarks; uniform vec3 uLipTint; uniform vec4 uMakeup;
-uniform float uSpecMap;
+uniform float uSpecMap; uniform float uHairFade; uniform float uFaceIpd; uniform float uHairGrey;
 varying vec3 vGkF;
 // per-fragment results shared with the roughness / normal / lighting chunks
 float gkSkinW = 0.0; float gkEyeW = 0.0; float gkIrisW = 0.0; float gkBeardW = 0.0; float gkLipW = 0.0; float gkHairW = 0.0;
@@ -258,13 +273,14 @@ if (uFaceOn > 0.5) {
     * smoothstep(-0.62, -0.28, q.z + jit * 0.4) * (1.0 - smoothstep(1.0, 1.18, ax + jit * 0.3)) * notLips;
   // moustache: the upper lip between the mouth and the nose, drooping a little towards the corners
   float mustY = mix(mY, uFaceL.w, 0.42) - 0.26 * q.x * q.x;
-  float mustH = max(0.06, (uFaceL.w - mY) * 0.25);
-  float must = (1.0 - smoothstep(0.72, 1.06, length(vec2(q.x / 0.6, (q.y - mustY) / mustH)) + jit * 1.6)) * notLips;
+  float mustH = max(0.05, (uFaceL.w - mY) * 0.19);
+  float must = (1.0 - smoothstep(0.72, 1.06, length(vec2(q.x / 0.6, (q.y - mustY) / mustH)) + jit * 0.9)) * notLips;
   // goatee: chin patch + a thin ring round the mouth corners joining it to the moustache, soul patch under the lip
-  float chin = 1.0 - smoothstep(0.78, 1.06, length(vec2(q.x / 0.37, (q.y - (mY - 0.43)) / 0.33)) + jit * 1.4);
+  // short goatee: a chin patch narrower than the mouth, a little soul patch under the lip
+  float chin = 1.0 - smoothstep(0.72, 1.12, length(vec2(q.x / 0.27, (q.y - (mY - 0.44)) / 0.27)) + jit * 0.6);
   float ringD = abs(length(vec2(q.x / 0.52, (q.y - (mY - 0.12)) / 0.45)) - 1.0);
-  float ring = (1.0 - smoothstep(0.06, 0.2, ringD + jit * 0.6)) * (1.0 - smoothstep(mY - 0.06, mY + 0.1, q.y));
-  float goat = max(chin, ring * 0.75) * notLips;
+  float ring = (1.0 - smoothstep(0.05, 0.24, ringD + jit * 0.35)) * (1.0 - smoothstep(mY - 0.06, mY + 0.1, q.y));
+  float goat = max(chin, ring * 0.5) * notLips;
   float strap = region * max(smoothstep(0.76, 0.94, ax + jit * 0.3), 1.0 - smoothstep(mY - 0.62, mY - 0.42, q.y + jit));
   float cover = max(max(region * uFH.x, must * uFH.y), max(goat * uFH.z, strap * uFH2.x)) * front * skinish;
   // hair strands: anisotropic noise along the growth direction (down on chin and jaw, down-and-out on the moustache)
@@ -275,7 +291,8 @@ if (uFaceOn > 0.5) {
   float sv = s1 * 0.6 + s2 * 0.4;
   float clump = gkNoise(q.xy * 11.0 + 1.7);
   // patchy growth: density varies over the face (never a uniform painted shape)
-  float patchy = 0.62 + 0.38 * gkNoise(q.xy * 5.0 + 4.2);
+  // patchy growth for stubble; full beards / goatees grow dense with only a soft variation (P2-AVA-10)
+  float patchy = mix(0.62 + 0.38 * gkNoise(q.xy * 5.0 + 4.2), 0.86 + 0.14 * gkNoise(q.xy * 5.0 + 4.2), smoothstep(0.7, 0.95, uFH.w));
   float dens = cover * uFH.w * patchy;
   // near: strands pass a density threshold (sparse speckle for stubble, dense for beards); far: the mean coverage
   float fine = clamp(1.4 - fw * 34.0 * 1.6, 0.0, 1.0) * det;
@@ -288,6 +305,11 @@ if (uFaceOn > 0.5) {
   gkCol = mix(gkCol, gkCol * vec3(0.93, 0.94, 0.96), shade * (1.0 - smoothstep(0.6, 0.9, uFH.w)));
   gkCol *= 1.0 - shade * (0.75 + 0.25 * clump);
   vec3 hairC = max(uHair * 1.6, vec3(0.016, 0.012, 0.0105)) * (0.7 + 0.6 * clump) * (0.75 + 0.5 * sv);
+  if (uHairGrey > 0.001) {
+    // salt-and-pepper: dark hairs with silver ones among them (per hair, not a flat grey)
+    float gsel = step(gkHash(floor(gp * vec2(60.0, 16.0)) + 2.3), uHairGrey);
+    hairC = mix(vec3(0.02, 0.017, 0.015) * (0.7 + 0.6 * clump), vec3(0.4, 0.39, 0.38) * (0.8 + 0.4 * sv), gsel);
+  }
   gkCol = mix(gkCol, hairC, clamp(beardA, 0.0, 0.9));
   // stubble: short hairs growing out of follicles (a jittered ~1.5 mm grid along the growth direction), each a
   // short dark dash; below a pixel they fade into their mean darkening
@@ -345,7 +367,7 @@ if (uFaceOn > 0.5) {
     float l0 = dot(gkCol, vec3(0.2126, 0.7152, 0.0722));
     float ls = dot(uSkin, vec3(0.2126, 0.7152, 0.0722));
     float dark = clamp(1.0 - ls * 5.0, 0.0, 1.0);
-    vec3 nat = uSkin * mix(vec3(1.0, 0.72, 0.7), vec3(0.86, 0.64, 0.7), dark);
+    vec3 nat = uSkin * mix(vec3(1.0, 0.79, 0.74), vec3(0.88, 0.68, 0.7), dark);
     // keep the photo's lip shading but squeeze it round the skin's own brightness (a touch darker on dark skin)
     float lt = ls * mix(0.98, 0.84, dark) * pow(clamp(l0 / max(ls, 1e-4), 0.2, 4.0), 0.45);
     nat *= lt / max(dot(nat, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
@@ -381,12 +403,23 @@ const RECOLOUR = /* glsl */ `
     // scalp hair: a noise-broken hairline (no painted edge), more depth in the photo's own strands / curls
     float gkHn = gkNoise(vMapUv * 900.0) - 0.5;
     float gkHair = clamp(gkM.g + gkHn * 1.2 * gkM.g * (1.0 - gkM.g) * 4.0, 0.0, 1.0);
-    vec3 gkHairCol = mix(max(uHair, vec3(0.011, 0.0095, 0.0085)) * gkDetail(gkL, uHairRef, 0.95), uSkin * gkDetail(gkL, uHairRef, 0.12) * 0.92, uHairToSkin);
+    vec3 gkHairCol = mix(max(uHair, vec3(0.011, 0.0095, 0.0085)) * gkDetail(gkL, uHairRef, 0.95), mix(uSkin, vec3(dot(uSkin, vec3(0.2126, 0.7152, 0.0722))), 0.3) * gkDetail(gkL, uHairRef, 0.1) * 0.66, uHairToSkin);
     gkCol = mix(gkCol, gkHairCol, gkHair);
     // baby hairs: just outside the hairline the skin carries a faint, fine darkening
     float gkNearHair = texture2D(uMask, vMapUv, 2.5).g;
     float gkBaby = clamp(gkNearHair - gkM.g, 0.0, 1.0) * gkM.r * (1.0 - uHairToSkin);
     gkCol = mix(gkCol, gkHairCol, gkBaby * 0.45 * step(0.55, gkNoise(vMapUv * 1400.0)));
+    if (uHairFade > 0.5 && uFaceOn > 0.5) {
+      vec3 gkFm = vGkF * uFaceIpd;
+      float gkSide = smoothstep(0.035, 0.07, -gkFm.z);
+      float gkBack = smoothstep(0.1, 0.17, -gkFm.z);
+      float gkY0 = mix(0.014, -0.034, gkBack);
+      float gkFade = gkSide * (1.0 - smoothstep(gkY0, gkY0 + 0.056, gkFm.y));
+      // shaved: the skin with a faint shadow of the hair under it
+      vec3 gkShave = mix(uSkin, vec3(dot(uSkin, vec3(0.2126, 0.7152, 0.0722))), 0.25) * 0.7 * (0.92 + 0.16 * gkNoise(vMapUv * 700.0));
+      gkCol = mix(gkCol, gkShave, gkFade * gkHair * 0.95);
+      gkHair *= 1.0 - gkFade * 0.95;
+    }
     gkHairW = gkHair * (1.0 - uHairToSkin);
     gkH += gkHairW * (gkDetail(gkL, uHairRef, 1.0) - 1.0) * 0.6;
     // collar region: hard threshold so the soft mask edge never tints the throat
@@ -404,7 +437,7 @@ const RECOLOUR = /* glsl */ `
     float gkShoe = clamp(1.0 - gkM.r - gkM.g - gkM.b, 0.0, 1.0);
     gkCol = mix(gkCol, min(uShoes * gkDetail(gkL, uShoesRef, 0.85), vec3(0.7)), gkShoe * uClothes);
   }
-  gkSkinW = gkM.r * (1.0 - gkM.g) * (1.0 - gkBeardW * 0.7);
+  gkSkinW = clamp(gkM.r * (1.0 - gkM.g) + gkM.g * uHairToSkin, 0.0, 1.0) * (1.0 - gkBeardW * 0.7);
   diffuseColor.rgb = gkCol;
 }
 `;
@@ -419,12 +452,12 @@ const ROUGH = /* glsl */ `
 {
   vec4 gkM2 = texture2D(uMask, vMapUv);
   float gkGloss = smoothstep(0.04, 0.42, gkSpec);
-  roughnessFactor = mix(roughnessFactor, uSpecMap > 0.5 ? mix(0.78, 0.6, gkGloss) : 0.68, gkM2.r);
+  roughnessFactor = mix(roughnessFactor, uSpecMap > 0.5 ? mix(0.78, 0.6, gkGloss) : 0.68, clamp(gkM2.r + gkM2.g * uHairToSkin, 0.0, 1.0));
   if (uIsHead < 0.5) roughnessFactor = mix(roughnessFactor, 0.75, clamp(1.0 - gkM2.r - gkM2.g - gkM2.b, 0.0, 1.0));
   if (uIsHead > 0.5) {
     roughnessFactor = mix(roughnessFactor, 0.66, gkHairW);
     roughnessFactor = mix(roughnessFactor, 0.82, gkBeardW);
-    roughnessFactor = mix(roughnessFactor, uMakeup.z > 0.5 ? 0.36 : 0.6, gkLipW);
+    roughnessFactor = mix(roughnessFactor, uMakeup.z > 0.5 ? 0.36 : 0.7, gkLipW);
     roughnessFactor = mix(roughnessFactor, mix(0.24, 0.12, gkIrisW), gkEyeW);
   }
 }
@@ -502,7 +535,7 @@ export function makeLookMaterial(base: THREE.MeshStandardMaterial, look: AvatarL
         .replace("#include <lights_physical_fragment>", SPEC)
         .replace("#include <lights_fragment_end>", WARM);
   };
-  m.customProgramCacheKey = () => "gk-human-look-2";
+  m.customProgramCacheKey = () => "gk-human-look-3";
   return m;
 }
 

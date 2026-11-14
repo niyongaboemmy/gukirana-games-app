@@ -50,6 +50,10 @@ const HAIR: Record<Body, W<string>> = {
     ["short", 12],
     ["fade", 3],
     ["bald", 3],
+    ["cornrowbun", 10],
+    ["braidtail", 10],
+    ["twists", 6],
+    ["shortlocs", 3],
   ],
   masculine: [
     ["short", 30],
@@ -62,6 +66,12 @@ const HAIR: Record<Body, W<string>> = {
     ["bun", 1],
     ["puffs", 1],
     ["headwrap", 1],
+    ["lowfade", 18],
+    ["buzz", 6],
+    ["waves", 5],
+    ["twists", 4],
+    ["shortlocs", 4],
+    ["hightop", 2],
   ],
   neutral: [
     ["short", 16],
@@ -74,6 +84,14 @@ const HAIR: Record<Body, W<string>> = {
     ["puffs", 6],
     ["headwrap", 6],
     ["bald", 8],
+    ["lowfade", 6],
+    ["buzz", 4],
+    ["waves", 3],
+    ["twists", 4],
+    ["shortlocs", 3],
+    ["hightop", 2],
+    ["cornrowbun", 3],
+    ["braidtail", 3],
   ],
 };
 const HAIR_COLOR: W<string> = [

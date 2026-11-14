@@ -1,10 +1,10 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer } from "@react-three/drei";
 import * as THREE from "three";
 import { Avatar } from "@/world/Avatar";
-import type { AvatarLook } from "@/world/outfits";
+import { decodeLook, type AvatarLook } from "@/world/outfits";
 
 export type PreviewFocus = "body" | "face";
 
@@ -33,6 +33,19 @@ function CameraRig({ focus, bodyType }: { focus: PreviewFocus; bodyType: string 
 
 /** Dev / screenshot hook: `window.__gkPreview = { yaw }` holds the turntable at a fixed angle (not in production). */
 const devYaw = () => (process.env.NODE_ENV !== "production" && typeof window !== "undefined" ? (window as unknown as { __gkPreview?: { yaw?: number } }).__gkPreview?.yaw : undefined);
+
+/** Dev / screenshot hook: `window.__gkPreview = { look: "<look code>" }` previews that look (not in production). */
+function DevLook({ onLook }: { onLook: (l: AvatarLook | null) => void }) {
+  const last = useRef<string | undefined>(undefined);
+  useFrame(() => {
+    if (process.env.NODE_ENV === "production" || typeof window === "undefined") return;
+    const code = (window as unknown as { __gkPreview?: { look?: string } }).__gkPreview?.look;
+    if (code === last.current) return;
+    last.current = code;
+    onLook(code ? decodeLook(code, "#2F80ED") : null);
+  });
+  return null;
+}
 
 /** Small studio scene for the avatar creator: turntable + drag to rotate, local Lightformer environment (offline). */
 function Turntable({ look, emote, focus }: { look: AvatarLook; emote: number; focus: PreviewFocus }) {
@@ -85,6 +98,8 @@ function Turntable({ look, emote, focus }: { look: AvatarLook; emote: number; fo
 }
 
 export default function AvatarPreview({ look, emote = 0, focus = "body" }: { look: AvatarLook; emote?: number; focus?: PreviewFocus }) {
+  const [devLook, setDevLook] = useState<AvatarLook | null>(null);
+  const shown = devLook ?? look;
   return (
     <Canvas
       shadows="percentage"
@@ -95,12 +110,13 @@ export default function AvatarPreview({ look, emote = 0, focus = "body" }: { loo
       style={{ touchAction: "none" }}
     >
       <color attach="background" args={["#1a1b1e"]} />
-      <hemisphereLight args={["#dfe9ff", "#2a2440", 0.7]} />
+      {/* neutral / warm studio light (a blue fill turned dark hair blue, P2-AVA-10) */}
+      <hemisphereLight args={["#f4efe8", "#2b2620", 0.7]} />
       <directionalLight position={[2.5, 4, 3]} intensity={2.2} castShadow shadow-mapSize={[1024, 1024]} shadow-bias={-0.0005} />
-      <directionalLight position={[-3, 2, -2]} intensity={0.9} color="#9fc4ff" />
+      <directionalLight position={[-3, 2, -2]} intensity={0.85} color="#ffe9d6" />
       <Environment frames={1} resolution={64}>
         <Lightformer form="rect" intensity={3} position={[2, 3, 3]} scale={[4, 4, 1]} target={[0, 1, 0]} />
-        <Lightformer form="rect" intensity={1.5} color="#9fc4ff" position={[-3, 2, -1]} scale={[3, 3, 1]} target={[0, 1, 0]} />
+        <Lightformer form="rect" intensity={1.4} color="#f3e6d8" position={[-3, 2, -1]} scale={[3, 3, 1]} target={[0, 1, 0]} />
         <Lightformer form="ring" intensity={2} color="#FFC83D" position={[0, 4, -3]} scale={2} target={[0, 1, 0]} />
       </Environment>
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
@@ -111,8 +127,9 @@ export default function AvatarPreview({ look, emote = 0, focus = "body" }: { loo
         <ringGeometry args={[1.05, 1.1, 64]} />
         <meshBasicMaterial color={new THREE.Color("#3DA9FC").multiplyScalar(1.5)} toneMapped={false} />
       </mesh>
-      <CameraRig focus={focus} bodyType={look.bodyType} />
-      <Turntable look={look} emote={emote} focus={focus} />
+      <CameraRig focus={focus} bodyType={shown.bodyType} />
+      <Turntable look={shown} emote={emote} focus={focus} />
+      {process.env.NODE_ENV !== "production" && <DevLook onLook={setDevLook} />}
     </Canvas>
   );
 }
