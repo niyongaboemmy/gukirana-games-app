@@ -38,6 +38,7 @@ export const GATE_MSG: Record<string, string> = {
   VALIDATION_ERROR: "That doesn't look right. Check it and try again.",
   OTP_INVALID: "Wrong or expired code. Try again.",
   OTP_RATE_LIMITED: "Too many attempts. Wait a minute, then request a new code.",
+  ACCOUNT_INACTIVE: "This account is suspended. Contact support.",
   USERNAME_TAKEN: "That username is taken. Try another.",
   BAD_ID: "Enter a phone number (e.g. 0788 123 456) or an email address.",
   BAD_CODE: "Enter the 6-digit code.",
@@ -55,7 +56,8 @@ export const isValidId = (s: string) => {
 };
 export const USERNAME_RE = /^[\p{L}\p{N}_.-]{3,16}$/u;
 
-const errMsg = (e: unknown) => (e instanceof ApiError ? (GATE_MSG[e.code] ?? GATE_MSG.VALIDATION_ERROR!) : GATE_MSG.NETWORK!);
+/** API error → the kiosk message (unknown codes read as a validation problem) */
+export const errMsg = (e: unknown) => (e instanceof ApiError ? (GATE_MSG[e.code] ?? GATE_MSG.VALIDATION_ERROR!) : GATE_MSG.NETWORK!);
 
 export const useGate = create<GateState>()((set, get) => ({
   step: "arrive",
