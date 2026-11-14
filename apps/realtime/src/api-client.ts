@@ -1,5 +1,6 @@
 import { loadEnv } from "@gukirana/config";
 import type { SignedMatchResult } from "@gukirana/signing";
+import type { ArenaRealtimeState, ArenaUserAccess } from "@gukirana/contracts";
 
 const env = loadEnv();
 const headers = { "content-type": "application/json", "x-internal-token": env.INTERNAL_SERVICE_TOKEN };
@@ -41,6 +42,14 @@ export const api = {
   /** staff per office in one admin-block room (the API sums rooms for the reception directory) */
   reportOccupancy: async (room: string, offices: Record<string, number>) => {
     const r = await fetch(`${env.API_INTERNAL_URL}/internal/admin-block/occupancy`, { method: "POST", headers, body: JSON.stringify({ room, offices }), signal: AbortSignal.timeout(3000) });
+    if (!r.ok) throw new Error(`API_${r.status}`);
+  },
+  /** Tournament Arena (P2-ARN-02): building switch, current event, active bars — polled ~5 s by social/arena-access.ts */
+  arenaState: () => get<ArenaRealtimeState>("/internal/arena/state"),
+  arenaAccess: (userId: string, eventId?: string) =>
+    get<ArenaUserAccess>(`/internal/arena/access/${encodeURIComponent(userId)}${eventId ? `?event=${encodeURIComponent(eventId)}` : ""}`),
+  reportArena: async (room: string, p: { concourse: number; seats: number; inside: string[] }) => {
+    const r = await fetch(`${env.API_INTERNAL_URL}/internal/arena/occupancy`, { method: "POST", headers, body: JSON.stringify({ room, ...p }), signal: AbortSignal.timeout(3000) });
     if (!r.ok) throw new Error(`API_${r.status}`);
   },
 };

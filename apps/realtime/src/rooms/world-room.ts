@@ -1,5 +1,6 @@
 import { Room, type Client } from "@colyseus/core";
 import {
+  ArenaMsg,
   BlockListSchema,
   CALL_RING_MS,
   CallEndSchema,
@@ -38,6 +39,8 @@ import { RateLimiter } from "../social/rate.js";
 import { PairRegistry } from "../social/pairs.js";
 import { OfficeRegistry, type Via } from "../social/offices.js";
 import { accessOf, officeConfig, reportOccupancy } from "../social/office-access.js";
+import { ArenaHall } from "./arena-hall.js";
+import { arenaConfig } from "../social/arena-access.js";
 
 export interface WorldPlayer {
   id: string;
@@ -92,6 +95,8 @@ export class WorldRoom extends Room {
   private rate = new RateLimiter();
   private pairs = new PairRegistry();
   private offices = new OfficeRegistry();
+  /** Tournament Arena rules (hall "arena" only, P2-ARN-02) */
+  private arena: ArenaHall | null = null;
   private lastChat = new Map<string, number>();
   private lastEmote = new Map<string, number>();
   private tick = 0;
@@ -273,6 +278,24 @@ export class WorldRoom extends Room {
         const snap = this.offices.snapshot();
         if (Object.keys(snap).length) reportOccupancy(this.roomId, snap);
       }, officeConfig.reportMs);
+    }
+
+    // ---- Tournament Arena (hall "arena"): entry gate, zones, bowl seats, removal on close / bar (rooms/arena-hall.ts)
+    if (this.hallGame === "arena") {
+      const arena = (this.arena = new ArenaHall({
+        roomId: this.roomId,
+        players: () => [...this.players.keys()],
+        uidOf: (sid) => this.users.get(sid)?.sub,
+        send: (sid, type, msg) => this.client(sid)?.send(type, msg),
+        broadcast: (type, msg) => this.broadcast(type, msg),
+        kick: (sid) => this.client(sid)?.leave(4003),
+        later: (fn, ms) => void this.clock.setTimeout(fn, ms),
+      }));
+      this.onMessage(ArenaMsg.zone, (client, raw: unknown) => void arena.onZone(client.sessionId, raw));
+      this.onMessage(ArenaMsg.sit, (client, raw: { seat?: unknown }) => void arena.onSit(client.sessionId, raw));
+      this.onMessage(ArenaMsg.stand, (client) => arena.onStand(client.sessionId));
+      this.clock.setInterval(() => void arena.sync(), arenaConfig.statePollMs);
+      this.clock.setInterval(() => arena.report(), arenaConfig.reportMs);
     }
 
     // ---- seats (hall chairs + plaza bench places): one person per seat, one seat per person
@@ -576,12 +599,17 @@ export class WorldRoom extends Room {
     }
   }
 
-  override onJoin(
+  override async onJoin(
     client: Client,
     options: { name?: unknown; color?: unknown; level?: unknown; look?: unknown; bodyType?: unknown; blocks?: unknown } = {},
     auth?: UserClaims | true,
-  ): void {
+  ): Promise<void> {
     const claims = auth && auth !== true ? auth : null;
+    if (this.arena) {
+      // arena entry gate before anyone sees the joiner: closed / barred / full → refused, the client walks back
+      const denial = await this.arena.gate(client.sessionId, claims?.sub, this.players.size);
+      if (denial) return this.arena.refuse(client.sessionId, denial);
+    }
     if (claims) this.users.set(client.sessionId, claims);
     const look = claims?.look ?? options.look;
     // the joiner's own block list (from the API) applies before anyone becomes visible
@@ -610,6 +638,7 @@ export class WorldRoom extends Room {
     client.send("seats", this.seats.snapshot());
     if (this.hallGame === "admin") for (const [office, occupants] of Object.entries(this.offices.snapshot())) client.send(OfficeEvt.occupancy, { office, occupants });
     this.sendVisible(client.sessionId, "joined", player);
+    if (this.arena) await this.arena.joined(client.sessionId);
   }
 
   override onLeave(client: Client): void {
@@ -634,9 +663,11 @@ export class WorldRoom extends Room {
     this.offices.forget(sid);
     const office = this.offices.leave(sid);
     if (office) this.leftOffice(office);
+    this.arena?.left(sid);
   }
 
   override onDispose(): void {
     if (this.hallGame === "admin") reportOccupancy(this.roomId, {});
+    if (this.arena) this.arena.report();
   }
 }

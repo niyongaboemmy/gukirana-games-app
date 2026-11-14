@@ -56,6 +56,10 @@ export const ArenaEventSchema = z.object({
   vipCapacity: z.number().int().min(0),
   passesIssued: z.number().int().nonnegative(),
   description: z.string().max(400).default(""),
+  /** P2-ARN-02 additions (optional so older mocks still parse): VIP passes issued (included in passesIssued) */
+  vipIssued: z.number().int().nonnegative().optional(),
+  /** rules are only `public`: no pass needed to sit, first come first served up to capacity (guests included) */
+  openSeating: z.boolean().optional(),
 });
 export type ArenaEvent = z.infer<typeof ArenaEventSchema>;
 
@@ -74,6 +78,9 @@ export const ARENA_DENIALS = [
   "EVENT_NOT_OPEN", // doors not open yet / ended / cancelled
   "SEAT_TAKEN",
   "RATE_LIMITED",
+  // P2-ARN-02 additions
+  "PASS_LIMIT", // already holds the maximum number of passes for upcoming events
+  "ROOM_FULL", // the arena room reached maxConcourse
 ] as const;
 export type ArenaDenial = (typeof ARENA_DENIALS)[number];
 
@@ -130,6 +137,8 @@ export const ArenaEvt = {
   occupancy: "arena-occupancy", // { concourse, seats }
   /** admin closed the arena or barred you: walk out to the plaza */
   removed: "arena-removed", // { reason: "ARENA_CLOSED" | "BARRED" }
+  /** P2-ARN-02 addition: taken bowl seats in this room (on join and on every change) */
+  seats: "arena-seats", // { taken: string[] }
 } as const;
 
 export const ArenaZoneMsgSchema = z.object({ zone: z.enum(["seats", "vip", "floor"]) });
@@ -159,3 +168,49 @@ export function isValidArenaSeat(seat: unknown): seat is string {
 }
 
 export const arenaSeatZone = (seat: string): "seats" | "vip" => (seat.startsWith("V") ? "vip" : "seats");
+
+/* ---------------- P2-ARN-02 additions ---------------- */
+
+/** GET/PUT /admin/arena/settings */
+export const ArenaSettingsSchema = z.object({
+  open: z.boolean(),
+  /** default spectator capacity for new events (≤ ARENA_SEATS) */
+  defaultCapacity: z.number().int().min(1).max(ARENA_SEATS),
+  /** people in one arena room (realtime refuses more with ROOM_FULL) */
+  maxConcourse: z.number().int().min(1).max(500),
+});
+export type ArenaSettings = z.infer<typeof ArenaSettingsSchema>;
+
+/** Manual status moves allowed by PATCH /admin/arena/events/:id { status }. Time moves scheduled → doors_open → live → ended on their own. */
+export const ARENA_TRANSITIONS: Record<ArenaEventStatus, readonly ArenaEventStatus[]> = {
+  draft: ["scheduled", "cancelled"],
+  scheduled: ["draft", "doors_open", "cancelled"],
+  doors_open: ["live", "cancelled"],
+  live: ["ended", "cancelled"],
+  ended: [],
+  cancelled: [],
+};
+
+/** VIP box seats in the bowl (ARENA_BOWL.vip): 24 */
+export const ARENA_VIP_SEATS = ARENA_BOWL.vip.sections.length * ARENA_BOWL.vip.rows * ARENA_BOWL.vip.seats;
+
+/** Staff roles: enter a closed arena, walk the floor, never walked out by a close; manage /admin/arena. */
+export const ARENA_STAFF_ROLES = ["super_admin", "event_manager"] as const;
+
+/** GET /internal/arena/state (realtime polls it every ~5 s): building switch, current event, active bars. */
+export interface ArenaRealtimeState {
+  open: boolean;
+  maxConcourse: number;
+  current: { id: string; status: ArenaEventStatus; openSeating: boolean; capacity: number; vipCapacity: number; passesIssued: number } | null;
+  /** user ids with an active bar */
+  barred: string[];
+}
+
+/** GET /internal/arena/access/:userId?event= */
+export interface ArenaUserAccess {
+  open: boolean;
+  barred: boolean;
+  pass: { eventId: string; zone: "seats" | "vip" | "floor"; seat: string | null } | null;
+  roles: string[];
+  level: number;
+}

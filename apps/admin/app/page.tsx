@@ -1,4 +1,4 @@
-const MODULES = ["Access", "Users", "KYC review", "Finance", "Risk & fraud", "Games & config", "World & moderation", "Levels & awards", "Compliance"];
+const MODULES = ["Access", "Arena", "Users", "KYC review", "Finance", "Risk & fraud", "Games & config", "World & moderation", "Levels & awards", "Compliance"];
 
 export default function AdminHome() {
   return (
@@ -12,6 +12,8 @@ export default function AdminHome() {
               <a href="/finance" style={{ color: "inherit", fontWeight: 700 }}>Finance · economy settings + reports →</a>
             ) : m === "Access" ? (
               <a href="/access" style={{ color: "inherit", fontWeight: 700 }}>Access · roles, offices + grants →</a>
+            ) : m === "Arena" ? (
+              <a href="/arena" style={{ color: "inherit", fontWeight: 700 }}>Arena · open/close, events, passes + bars →</a>
             ) : (
               m
             )}

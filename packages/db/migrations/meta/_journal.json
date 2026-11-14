@@ -57,6 +57,13 @@
       "when": 1794615704616,
       "tag": "0007_buildings",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794615745057,
+      "tag": "0008_arena",
+      "breakpoints": true
     }
   ]
 }
