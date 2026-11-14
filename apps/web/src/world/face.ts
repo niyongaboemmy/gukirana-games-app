@@ -199,21 +199,20 @@ const SEED_MARKS: W<SkinMark> = [
   ["markLip", 3],
   ["markChin", 3],
 ];
+/**
+ * Default make-up (P2-AVA-08): none on masculine and neutral bodies, and never gloss by default (shine only when the
+ * player picks it); some feminine defaults get a subtle matte lip tint or liner.
+ */
 const SEED_MAKEUP: Record<BodyType, W<Makeup>> = {
   feminine: [
-    ["none", 52],
-    ["gloss", 22],
+    ["none", 64],
     ["berry", 10],
     ["red", 4],
-    ["liner", 8],
-    ["linerBerry", 4],
+    ["liner", 14],
+    ["linerBerry", 8],
   ],
   masculine: [["none", 1]],
-  neutral: [
-    ["none", 86],
-    ["gloss", 10],
-    ["liner", 4],
-  ],
+  neutral: [["none", 1]],
 };
 
 function fnv1a(s: string): number {

@@ -93,9 +93,12 @@ export function LocalPlayer({
   const outfit = useProfile((s) => s.outfit);
   const liveColor = useProfile((s) => s.color) || color;
   const topColor = useProfile((s) => s.topColor);
+  // the chosen face too (P2-AVA-08): without it your own avatar showed the seeded default face (e.g. a goatee you
+  // never picked) while everyone else saw your real one
+  const face = useProfile((s) => s.face);
   const look = useMemo(
-    () => lookOf({ bodyType, skinTone, hairStyle, hairColor, outfit, color: liveColor, topColor }),
-    [bodyType, skinTone, hairStyle, hairColor, outfit, liveColor, topColor],
+    () => lookOf({ bodyType, skinTone, hairStyle, hairColor, outfit, color: liveColor, topColor, face }),
+    [bodyType, skinTone, hairStyle, hairColor, outfit, liveColor, topColor, face],
   );
   const group = useRef<THREE.Group>(null);
   const anim = useRef(0);

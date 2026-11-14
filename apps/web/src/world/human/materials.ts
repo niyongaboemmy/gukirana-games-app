@@ -57,39 +57,47 @@ export interface LookUniforms {
   uMarks: { value: THREE.Vector4 };
   uLipTint: { value: THREE.Color };
   uMakeup: { value: THREE.Vector4 };
+  uSpecMap: { value: number };
 }
 
-/** Facial hair: full beard, moustache, goatee coverage, hair density, chin strap coverage, extra length. */
-const FACIAL_HAIR_PARAMS: Record<FaceLook["facialHair"], [number, number, number, number, number, number]> = {
+/**
+ * Facial hair (P2-AVA-08): [full beard, moustache, goatee (chin + ring round the mouth), hair density, chin strap,
+ * extra length]. Density < ~0.6 reads as stubble (fine speckle with skin between), higher as hair with soft,
+ * noise-broken edges. All zero for "none": nothing is painted and the base heads carry no baked beard.
+ */
+export const FACIAL_HAIR_PARAMS: Record<FaceLook["facialHair"], [number, number, number, number, number, number]> = {
   none: [0, 0, 0, 0, 0, 0],
-  stubble: [0.3, 0.34, 0.3, 0.5, 0, 0],
-  moustache: [0, 0.9, 0, 0.9, 0, 0],
-  goatee: [0, 0.88, 0.9, 0.9, 0, 0],
-  chinstrap: [0, 0, 0, 0.9, 0.88, 0],
-  short: [0.8, 0.84, 0.84, 0.85, 0, 0],
-  full: [0.93, 0.93, 0.93, 1, 0, 0.16],
-  shadow: [0.3, 0.88, 0.3, 0.6, 0, 0],
+  stubble: [0.9, 0.85, 0.9, 0.46, 0, 0],
+  moustache: [0, 1, 0, 0.92, 0, 0],
+  goatee: [0, 0.95, 1, 0.9, 0, 0],
+  chinstrap: [0, 0, 0, 0.88, 1, 0],
+  short: [0.95, 0.95, 0.95, 0.8, 0, 0],
+  full: [1, 1, 1, 1, 0, 0.16],
+  shadow: [0.75, 0.9, 0.8, 0.5, 0, 0],
 };
 /** Brows: darken, thickness, arch, cover the base brow outside the new shape. */
 const BROW_PARAMS: Record<FaceLook["brows"], [number, number, number, number]> = {
   natural: [0, 1, 0, 0],
   full: [0.5, 1.35, 0, 0],
-  arched: [0.4, 0.95, 1, 0.55],
-  straight: [0.38, 1.05, -0.7, 0.45],
-  thin: [0.3, 0.6, 0.35, 0.85],
+  arched: [0.42, 0.95, 1, 0.55],
+  straight: [0.4, 1.05, -0.7, 0.45],
+  thin: [0.32, 0.6, 0.35, 0.85],
   bold: [0.75, 1.45, 0.15, 0],
 };
-/** Make-up: lip tint colour, lip amount, eyeliner amount. */
-const LIP_TINTS: Record<FaceLook["makeup"], [string, number, number]> = {
-  none: ["#000000", 0, 0],
-  gloss: ["#8a4f40", 0.18, 0],
-  berry: ["#6b1d38", 0.5, 0],
-  red: ["#8e261f", 0.5, 0],
-  liner: ["#000000", 0, 1],
-  linerBerry: ["#6b1d38", 0.45, 1],
+/**
+ * Make-up: lip tint colour, lip amount, eyeliner amount, gloss (0/1). Subtle and matte unless "gloss" is chosen;
+ * "none" keeps natural lips (their colour comes from the skin tone, see FACE).
+ */
+export const LIP_TINTS: Record<FaceLook["makeup"], [string, number, number, number]> = {
+  none: ["#000000", 0, 0, 0],
+  gloss: ["#7a4a3e", 0.12, 0, 1],
+  berry: ["#6b2a3c", 0.34, 0, 0],
+  red: ["#862b22", 0.36, 0, 0],
+  liner: ["#000000", 0, 0.7, 0],
+  linerBerry: ["#6b2a3c", 0.3, 0.7, 0],
 };
 
-function faceUniforms(face: FaceLook, frame: FaceFrame | null, meta: HumanModelMeta) {
+function faceUniforms(face: FaceLook, frame: FaceFrame | null) {
   const fh = FACIAL_HAIR_PARAMS[face.facialHair] ?? FACIAL_HAIR_PARAMS.none;
   const br = BROW_PARAMS[face.brows] ?? BROW_PARAMS.natural;
   const lip = LIP_TINTS[face.makeup] ?? LIP_TINTS.none;
@@ -105,12 +113,11 @@ function faceUniforms(face: FaceLook, frame: FaceFrame | null, meta: HumanModelM
     uFaceL: { value: frame?.l.clone() ?? new THREE.Vector4(-1.14, 0.6, 0.27, -0.5) },
     uIris: { value: lin(face.eyeColor) },
     uFH: { value: new THREE.Vector4(fh[0], fh[1], fh[2], fh[3]) },
-    // y: the base head has a painted goatee to shave off where the chosen style leaves skin
-    uFH2: { value: new THREE.Vector4(fh[4], meta.beard ? 1 : 0, fh[5], 0) },
+    uFH2: { value: new THREE.Vector4(fh[4], 0, fh[5], 0) },
     uBrow: { value: new THREE.Vector4(br[0], br[1], br[2], br[3]) },
     uMarks: { value: new THREE.Vector4(freckles, mark?.[0] ?? 0, mark?.[1] ?? 0, mark ? 1 : 0) },
     uLipTint: { value: lin(lip[0]) },
-    uMakeup: { value: new THREE.Vector4(lip[1], lip[2], face.makeup === "gloss" || face.makeup === "berry" || face.makeup === "linerBerry" ? 1 : 0, 0) },
+    uMakeup: { value: new THREE.Vector4(lip[1], lip[2], lip[3], 0) },
   };
 }
 
@@ -158,7 +165,8 @@ export function lookUniforms(look: AvatarLook, meta: HumanModelMeta, isHead: boo
     uBottomPrint: { value: printTex(bottom?.print) },
     uBottomPrintOn: { value: bottom?.print ? 1 : 0 },
     uClothes: { value: keepClothes ? 0 : 1 },
-    ...faceUniforms(look.face ?? DEFAULT_FACE, isHead ? frame : null, meta),
+    uSpecMap: { value: meta.specInMask && isHead ? 1 : 0 },
+    ...faceUniforms(look.face ?? DEFAULT_FACE, isHead ? frame : null),
   };
 }
 
@@ -176,10 +184,18 @@ uniform sampler2D uBottomPrint; uniform float uBottomPrintOn;
 float gkDetail(float l, float ref, float k) { return mix(1.0, pow(clamp(l / max(ref, 1e-4), 0.0, 3.5), 0.8), k); }
 uniform float uFaceOn; uniform float uFaceDetail; uniform vec4 uFaceL; uniform vec3 uIris;
 uniform vec4 uFH; uniform vec4 uFH2; uniform vec4 uBrow; uniform vec4 uMarks; uniform vec3 uLipTint; uniform vec4 uMakeup;
+uniform float uSpecMap;
 varying vec3 vGkF;
-// per-fragment results shared with the roughness / lighting chunks
-float gkSkinW = 0.0; float gkEyeW = 0.0; float gkBeardW = 0.0; float gkLipW = 0.0;
+// per-fragment results shared with the roughness / normal / lighting chunks
+float gkSkinW = 0.0; float gkEyeW = 0.0; float gkIrisW = 0.0; float gkBeardW = 0.0; float gkLipW = 0.0; float gkHairW = 0.0;
+float gkSpec = 0.25; float gkH = 0.0; float gkAO = 1.0;
 float gkHash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+float gkNoise(vec2 p) {
+  vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(gkHash(i), gkHash(i + vec2(1.0, 0.0)), u.x), mix(gkHash(i + vec2(0.0, 1.0)), gkHash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+// band-limited octave: fades to its mean (0.5) as its cells approach the pixel size (no shimmer at a distance)
+float gkOct(vec2 p, float cellsPerPx) { return mix(0.5, gkNoise(p), clamp(1.4 - cellsPerPx * 1.6, 0.0, 1.0)); }
 `;
 
 /** Vertex side: the bind-pose face position (moves with the skin, so painted details follow lids, lips and jaw). */
@@ -193,10 +209,18 @@ vGkF = uFaceM * (position - uFaceO);
 `;
 
 /**
- * Face details painted on the head from the bind-pose face position q (face units: 1 = eye distance, origin between
- * the eyes, +x the person's left, +y up, +z forward): iris colour + a softer sclera, facial hair coloured from the
- * hair colour (hair-fine stipple near, its mean further away), shaving the base head's painted goatee, brows,
- * freckles / a beauty mark, lip tint and eyeliner. All tints of the photographic texture, never decals.
+ * Face details on the head, from the bind-pose face position q (face units: 1 = eye distance, origin between the eyes,
+ * +x the person's left, +y up, +z forward). Everything is a tint of the photographic texture, never a decal:
+ *  - eyes: chosen iris colour over the photo iris, a soft dark limbal ring, a warm off-white sclera that darkens
+ *    towards the corners (a wet, low-roughness cornea gives the catchlight in the lighting);
+ *  - facial hair: density fields with organic, noise-broken edges that follow the lip line and the jaw, hair strands
+ *    as anisotropic noise along the growth direction (down on the chin, down-and-out on the moustache), skin showing
+ *    between them, stubble as fine speckle; colour from the hair colour, slightly lifted and varied per clump. Strand
+ *    octaves fade to their mean as they shrink below a pixel (the shader's own distance LOD);
+ *  - brows: hair-like strands (inner hairs up, the rest outwards), feathered top edge, tapered tail;
+ *  - natural lips coloured from the skin tone (no pink default), optional matte make-up, freckles, beauty marks;
+ *  - a soft cavity occlusion at the inner eye corners and the mouth corners (indirect light only).
+ * gkH (a height for the strand / curl bump in the normal chunk) and the weights feed the later chunks.
  */
 const FACE = /* glsl */ `
 if (uFaceOn > 0.5) {
@@ -205,79 +229,130 @@ if (uFaceOn > 0.5) {
   float mY = uFaceL.x;
   float front = smoothstep(-0.2, 0.3, q.z);
   float skinish = clamp(gkM.r + gkM.g, 0.0, 1.0);
-  float aa = uFaceDetail * clamp(1.0 - fwidth(q.x) * 30.0, 0.0, 1.0);
-  vec3 gkShaved = uSkin * gkDetail(min(gkL, uSkinRef * 1.05), uSkinRef, 0.35);
-  // ---- eyes: iris tint (unmasked texels round the eye bones) and a slightly dimmer, warmer sclera
+  // face units per pixel (screen footprint) and the detail LOD from the CPU (distance)
+  float fw = max(length(dFdx(q.xy)), length(dFdy(q.xy))) + 1e-5;
+  float det = uFaceDetail;
+  // organic edge noise (low frequency, no aliasing concerns)
+  float eN = gkNoise(q.xy * 7.0 + 11.0) - 0.5;
+  float eN2 = gkOct(q.xy * 19.0 + 3.1, fw * 19.0) - 0.5;
+  float jit = eN * 0.12 + eN2 * 0.045;
+  // ---- eyes: iris tint over the photo iris, a soft limbal ring, a warm sclera darker towards the corners
   float eyeD = length(vec3(ax - 0.5, q.y, q.z * 0.7));
   float eyeR = (1.0 - smoothstep(0.3, 0.38, eyeD)) * (1.0 - skinish);
   float iris = eyeR * (1.0 - smoothstep(0.1, 0.22, gkL));
-  gkCol = mix(gkCol, uIris * gkDetail(gkL, 0.06, 0.6), iris * 0.72);
-  gkCol = mix(gkCol, gkCol * vec3(0.9, 0.86, 0.82), eyeR * smoothstep(0.15, 0.35, gkL));
+  float limbal = eyeR * smoothstep(0.07, 0.15, gkL) * (1.0 - smoothstep(0.17, 0.3, gkL));
+  vec3 irisCol = uIris * gkDetail(gkL, 0.06, 0.75);
+  gkCol = mix(gkCol, irisCol, iris * 0.75);
+  gkCol *= 1.0 - 0.4 * limbal;
+  float sclera = eyeR * smoothstep(0.15, 0.35, gkL);
+  float corner = smoothstep(0.08, 0.26, abs(ax - 0.5));
+  gkCol = mix(gkCol, gkCol * vec3(0.86, 0.81, 0.77) * (1.0 - 0.22 * corner), sclera);
   gkEyeW = eyeR;
-  // ---- facial hair regions
-  float lipE = length(vec2(q.x / 0.5, (q.y - mY) / 0.16));
-  float notLips = smoothstep(0.9, 1.15, lipE);
-  float topY = mix(mY + 0.42, -0.14, smoothstep(0.5, 1.0, ax));
-  float region = (1.0 - smoothstep(topY - 0.2, topY + 0.06, q.y))
-    * smoothstep(mY - 1.05 - uFH2.z, mY - 0.85 - uFH2.z, q.y)
-    * smoothstep(-0.6, -0.3, q.z) * (1.0 - smoothstep(1.02, 1.2, ax)) * notLips;
+  gkIrisW = iris;
+  // ---- facial hair: where it may grow
+  float lipE = length(vec2(q.x / 0.47, (q.y - mY) / 0.155));
+  float notLips = smoothstep(0.95, 1.18, lipE + eN2 * 0.12);
+  float topY = mix(mY + 0.42, -0.16, smoothstep(0.48, 1.0, ax));
+  float region = (1.0 - smoothstep(topY - 0.24, topY + 0.03, q.y + jit))
+    * smoothstep(mY - 1.07 - uFH2.z, mY - 0.83 - uFH2.z, q.y - jit * 0.7)
+    * smoothstep(-0.62, -0.28, q.z + jit * 0.4) * (1.0 - smoothstep(1.0, 1.18, ax + jit * 0.3)) * notLips;
   // moustache: the upper lip between the mouth and the nose, drooping a little towards the corners
-  float mustY = mix(mY, uFaceL.w, 0.42) - 0.28 * q.x * q.x;
-  float mustH = max(0.06, (uFaceL.w - mY) * 0.24);
-  float must = (1.0 - smoothstep(0.75, 1.05, length(vec2(q.x / 0.6, (q.y - mustY) / mustH)))) * smoothstep(0.85, 1.05, length(vec2(q.x / 0.46, (q.y - mY) / 0.12)));
-  float goat = (1.0 - smoothstep(0.8, 1.05, length(vec2(q.x / 0.36, (q.y - (mY - 0.42)) / 0.34)))) * notLips;
-  float strap = region * max(smoothstep(0.76, 0.94, ax), 1.0 - smoothstep(mY - 0.6, mY - 0.4, q.y));
-  float cover = max(max(region * uFH.x, must * uFH.y), max(goat * uFH.z, strap * uFH2.x));
-  // shave the base head's own beard wherever the chosen style leaves skin
-  float shave = uFH2.y * region * (1.0 - smoothstep(0.0, 0.5, cover / 0.9)) * front;
-  gkCol = mix(gkCol, gkShaved, shave * skinish);
-  if (cover > 0.001) {
-    float n = gkHash(floor(vec2(q.x, q.y + q.z * 0.6) * 75.0));
-    // sparse dots for stubble, dense strands with variation for beards; their mean further away
-    float dots = mix(1.0, step(0.5, n) * 2.0, aa);
-    float strands = mix(1.0, 0.55 + 0.9 * n, aa);
-    float amt = cover * mix(dots, strands, smoothstep(0.45, 0.65, cover)) * mix(0.75, 1.0, uFH.w);
-    gkCol = mix(gkCol, uHair * 1.15 + vec3(0.002), clamp(amt, 0.0, 1.0) * front * skinish);
-    gkBeardW = clamp(cover, 0.0, 1.0) * front;
-  }
-  // ---- brows: optionally clear the base brow, then paint the chosen shape in the hair colour
+  float mustY = mix(mY, uFaceL.w, 0.42) - 0.26 * q.x * q.x;
+  float mustH = max(0.06, (uFaceL.w - mY) * 0.25);
+  float must = (1.0 - smoothstep(0.72, 1.06, length(vec2(q.x / 0.6, (q.y - mustY) / mustH)) + jit * 1.6)) * notLips;
+  // goatee: chin patch + a thin ring round the mouth corners joining it to the moustache, soul patch under the lip
+  float chin = 1.0 - smoothstep(0.78, 1.06, length(vec2(q.x / 0.37, (q.y - (mY - 0.43)) / 0.33)) + jit * 1.4);
+  float ringD = abs(length(vec2(q.x / 0.52, (q.y - (mY - 0.12)) / 0.45)) - 1.0);
+  float ring = (1.0 - smoothstep(0.06, 0.2, ringD + jit * 0.6)) * (1.0 - smoothstep(mY - 0.06, mY + 0.1, q.y));
+  float goat = max(chin, ring * 0.75) * notLips;
+  float strap = region * max(smoothstep(0.76, 0.94, ax + jit * 0.3), 1.0 - smoothstep(mY - 0.62, mY - 0.42, q.y + jit));
+  float cover = max(max(region * uFH.x, must * uFH.y), max(goat * uFH.z, strap * uFH2.x)) * front * skinish;
+  // hair strands: anisotropic noise along the growth direction (down on chin and jaw, down-and-out on the moustache)
+  vec2 gdir = normalize(vec2(sign(q.x) * mix(0.18, 0.65, clamp(must * 2.0, 0.0, 1.0)), -1.0));
+  vec2 gp = vec2(dot(q.xy, vec2(-gdir.y, gdir.x)), dot(q.xy, gdir));
+  float s1 = gkOct(gp * vec2(34.0, 9.0), fw * 34.0);
+  float s2 = gkOct(gp * vec2(80.0, 22.0) + 7.3, fw * 80.0);
+  float sv = s1 * 0.6 + s2 * 0.4;
+  float clump = gkNoise(q.xy * 11.0 + 1.7);
+  // patchy growth: density varies over the face (never a uniform painted shape)
+  float patchy = 0.62 + 0.38 * gkNoise(q.xy * 5.0 + 4.2);
+  float dens = cover * uFH.w * patchy;
+  // near: strands pass a density threshold (sparse speckle for stubble, dense for beards); far: the mean coverage
+  float fine = clamp(1.4 - fw * 34.0 * 1.6, 0.0, 1.0) * det;
+  float aNear = clamp((sv - (1.0 - dens) * 0.9) * 3.0, 0.0, 1.0) * smoothstep(0.0, 0.3, dens);
+  float aFar = smoothstep(0.0, 0.85, dens) * 0.74;
+  float beardA = mix(aFar, aNear * 0.9, fine) * (0.85 + 0.15 * clump);
+  // the skin under a beard / stubble is darker (follicles, shadow between hairs): stubble reads mostly as this
+  // (stubble: a cool shadow of the hair under the skin, strongest on light skin)
+  float shade = smoothstep(0.0, 0.75, cover) * patchy * mix(0.4, 0.2, smoothstep(0.45, 0.9, uFH.w)) * step(0.001, uFH.w);
+  gkCol = mix(gkCol, gkCol * mix(vec3(0.8, 0.82, 0.86), vec3(1.0), smoothstep(0.6, 0.9, uFH.w)), shade * 1.6);
+  gkCol *= 1.0 - shade * (0.75 + 0.25 * clump);
+  vec3 hairC = max(uHair * 1.6, vec3(0.016, 0.012, 0.0105)) * (0.7 + 0.6 * clump) * (0.75 + 0.5 * sv);
+  gkCol = mix(gkCol, hairC, clamp(beardA, 0.0, 0.9));
+  gkBeardW = clamp(dens * 1.4, 0.0, 1.0);
+  gkH += gkBeardW * (sv - 0.5) * 1.8 * fine;
+  // ---- brows: optionally clear the base brow, then paint the chosen shape as strands in the hair colour
   float bx = ax - 0.6;
   float baseB = 1.0 - smoothstep(0.8, 1.1, length(vec2(bx / 0.4, (q.y - uFaceL.z - 0.02) / 0.11)));
   float archY = uFaceL.z + 0.02 - uBrow.z * 0.55 * bx * bx + uBrow.z * 0.03;
-  float styleB = 1.0 - smoothstep(0.75, 1.05, length(vec2(bx / 0.37, (q.y - archY) / (0.07 * uBrow.y))));
-  styleB *= smoothstep(0.08, 0.2, ax);
+  vec2 bq = vec2(bx / 0.37, (q.y - archY) / (0.07 * uBrow.y));
+  // feathered top edge, crisper lower edge, tapered tail
+  float bD = length(vec2(bq.x, bq.y * (bq.y > 0.0 ? 0.85 : 1.1))) + eN2 * 0.35 + max(bq.x, 0.0) * 0.25;
+  float styleB = (1.0 - smoothstep(0.62, 1.05, bD)) * smoothstep(0.08, 0.22, ax);
   gkCol = mix(gkCol, gkShaved, baseB * (1.0 - styleB) * uBrow.w * front * skinish);
-  float bn = mix(1.0, 0.6 + 0.8 * gkHash(floor(q.xy * vec2(40.0, 90.0))), aa);
-  gkCol = mix(gkCol, uHair * 1.2 + vec3(0.002), clamp(styleB * uBrow.x * bn, 0.0, 1.0) * front * skinish);
+  vec2 bd = normalize(vec2(sign(q.x), mix(1.9, 0.18, smoothstep(-0.34, 0.02, bx))));
+  vec2 bp = vec2(dot(q.xy, vec2(-bd.y, bd.x)), dot(q.xy, bd));
+  float bs = gkOct(bp * vec2(105.0, 26.0), fw * 105.0) * 0.6 + gkOct(bp * vec2(48.0, 12.0) + 5.0, fw * 48.0) * 0.4;
+  float bFine = clamp(1.4 - fw * 105.0 * 1.6, 0.0, 1.0) * det;
+  float browA = styleB * uBrow.x * mix(1.0, smoothstep(0.25, 0.75, bs + (styleB - 0.5) * 0.6), bFine);
+  // the photo brow (hair-masked texels) breaks into strands with skin between them; a shade lighter overall
+  float natB = baseB * gkM.g * (1.0 - styleB * uBrow.x) * front;
+  gkCol = mix(gkCol, gkShaved * 0.85, natB * mix(0.22, (1.0 - smoothstep(0.3, 0.62, bs)) * 0.75, bFine));
+  gkCol = mix(gkCol, max(uHair * 1.3, vec3(0.012, 0.009, 0.008)) * (0.8 + 0.4 * bs), clamp(browA, 0.0, 1.0) * front * skinish);
+  gkH += (browA + natB) * (bs - 0.5) * bFine;
   // ---- freckles (cheeks and the bridge of the nose) and a beauty mark
-  if (uMarks.x > 0.0 && uFaceDetail > 0.01) {
+  if (uMarks.x > 0.0 && det > 0.01) {
     float area = max(1.0 - smoothstep(0.3, 0.6, length(vec2(ax - 0.5, q.y + 0.45))), 1.0 - smoothstep(0.12, 0.28, length(vec2(q.x, q.y + 0.28))));
     vec2 c = q.xy * 24.0;
     vec2 id = floor(c);
     vec2 off = vec2(gkHash(id + 7.1), gkHash(id + 3.7)) - 0.5;
     float spot = step(gkHash(id), uMarks.x) * (1.0 - smoothstep(0.12, 0.27, length(fract(c) - 0.5 - off * 0.5)));
-    gkCol *= mix(1.0, 0.6, spot * area * front * gkM.r * uFaceDetail);
+    gkCol *= mix(1.0, 0.6, spot * area * front * gkM.r * det);
   }
   if (uMarks.w > 0.5) {
     float d = length(vec2(q.x - uMarks.y, q.y - uMarks.z));
     gkCol = mix(gkCol, gkCol * 0.32, (1.0 - smoothstep(0.03, 0.046, d)) * front * gkM.r);
   }
-  // ---- make-up: lip tint (keeps the lip texture) and a thin upper-lid liner
-  float lips = (1.0 - smoothstep(0.8, 1.0, length(vec2(q.x / 0.42, (q.y - mY) / 0.15)))) * front;
-  gkLipW = lips * gkM.r;
-  if (uMakeup.x > 0.0) {
+  // ---- lips: natural colour from the skin tone (deeper and cooler on dark skin, rosier on light skin), the
+  // photo's lip shading kept; optional matte tint; a thin upper-lid liner
+  float lips = (1.0 - smoothstep(0.78, 1.04, length(vec2(q.x / 0.43, (q.y - mY) / 0.15)))) * front;
+  gkLipW = lips * gkM.r * (1.0 - gkBeardW * 0.8);
+  {
     float l0 = dot(gkCol, vec3(0.2126, 0.7152, 0.0722));
-    vec3 tint = uLipTint * (l0 / max(dot(uLipTint, vec3(0.2126, 0.7152, 0.0722)), 1e-4));
-    gkCol = mix(gkCol, tint, uMakeup.x * gkLipW);
+    float ls = dot(uSkin, vec3(0.2126, 0.7152, 0.0722));
+    float dark = clamp(1.0 - ls * 5.0, 0.0, 1.0);
+    vec3 nat = uSkin * mix(vec3(1.0, 0.72, 0.7), vec3(0.86, 0.64, 0.7), dark);
+    // keep the photo's lip shading but squeeze it round the skin's own brightness (a touch darker on dark skin)
+    float lt = ls * mix(0.98, 0.84, dark) * pow(clamp(l0 / max(ls, 1e-4), 0.2, 4.0), 0.45);
+    nat *= lt / max(dot(nat, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
+    gkCol = mix(gkCol, nat, 0.72 * gkLipW);
+    l0 = mix(l0, lt, 0.72 * gkLipW);
+    if (uMakeup.x > 0.0) {
+      vec3 tint = uLipTint * (l0 / max(dot(uLipTint, vec3(0.2126, 0.7152, 0.0722)), 1e-4));
+      gkCol = mix(gkCol, tint, uMakeup.x * gkLipW);
+    }
   }
   if (uMakeup.y > 0.0) {
     float ld = length(vec2((ax - 0.5) / 0.3, (q.y - 0.03) / 0.16));
-    float liner = (1.0 - smoothstep(0.06, 0.14, abs(ld - 1.0))) * step(0.02, q.y) * smoothstep(0.25, 0.4, ax);
-    gkCol = mix(gkCol, vec3(0.008, 0.006, 0.005), liner * (1.0 - eyeR) * front * 0.85);
+    float liner = (1.0 - smoothstep(0.05, 0.13, abs(ld - 1.0))) * step(0.02, q.y) * smoothstep(0.25, 0.42, ax);
+    gkCol = mix(gkCol, gkCol * 0.25, liner * (1.0 - eyeR) * front * 0.8 * uMakeup.y);
   }
+  // ---- soft cavity occlusion: inner eye corners, mouth corners (indirect light only, see WARM)
+  float aoE = 1.0 - smoothstep(0.0, 0.14, length(vec2(ax - 0.26, (q.y + 0.02) * 1.3)));
+  float aoM = 1.0 - smoothstep(0.0, 0.1, length(vec2(ax - 0.45, (q.y - mY) * 1.4)));
+  gkAO = 1.0 - (0.3 * aoE + 0.32 * aoM) * front;
 }
 `;
-
 
 const RECOLOUR = /* glsl */ `
 #include <map_fragment>
@@ -287,13 +362,24 @@ const RECOLOUR = /* glsl */ `
   float gkL = dot(gkBase, vec3(0.2126, 0.7152, 0.0722));
   vec3 gkSkinCol = mix(gkBase * uSkinMul, uSkin * gkDetail(gkL, uSkinRef, 0.9), uSkinMix);
   vec3 gkCol = mix(gkBase, gkSkinCol, gkM.r);
+  if (uSpecMap > 0.5) gkSpec = gkM.a;
   if (uIsHead > 0.5) {
-    vec3 gkHairCol = mix(max(uHair, vec3(0.011, 0.0095, 0.0085)) * gkDetail(gkL, uHairRef, 0.75), uSkin * gkDetail(gkL, uHairRef, 0.12) * 0.92, uHairToSkin);
-    gkCol = mix(gkCol, gkHairCol, gkM.g);
+    // scalp hair: a noise-broken hairline (no painted edge), more depth in the photo's own strands / curls
+    float gkHn = gkNoise(vMapUv * 900.0) - 0.5;
+    float gkHair = clamp(gkM.g + gkHn * 1.2 * gkM.g * (1.0 - gkM.g) * 4.0, 0.0, 1.0);
+    vec3 gkHairCol = mix(max(uHair, vec3(0.011, 0.0095, 0.0085)) * gkDetail(gkL, uHairRef, 0.95), uSkin * gkDetail(gkL, uHairRef, 0.12) * 0.92, uHairToSkin);
+    gkCol = mix(gkCol, gkHairCol, gkHair);
+    // baby hairs: just outside the hairline the skin carries a faint, fine darkening
+    float gkNearHair = texture2D(uMask, vMapUv, 2.5).g;
+    float gkBaby = clamp(gkNearHair - gkM.g, 0.0, 1.0) * gkM.r * (1.0 - uHairToSkin);
+    gkCol = mix(gkCol, gkHairCol, gkBaby * 0.45 * step(0.55, gkNoise(vMapUv * 1400.0)));
+    gkHairW = gkHair * (1.0 - uHairToSkin);
+    gkH += gkHairW * (gkDetail(gkL, uHairRef, 1.0) - 1.0) * 0.6;
     // collar region: hard threshold so the soft mask edge never tints the throat
     // (only at the neck base: stray mask texels on the throat used to show as top-coloured specks)
     float gkNeck = uFaceOn > 0.5 ? 1.0 - smoothstep(-3.1, -2.7, vGkF.y) : 1.0;
     gkCol = mix(gkCol, uTop * gkDetail(gkL, uTopRef, 0.8), smoothstep(0.6, 0.85, gkM.b) * uClothes * gkNeck);
+    vec3 gkShaved = uSkin * gkDetail(min(gkL, uSkinRef * 1.05), uSkinRef, 0.35);
     ${FACE}
   } else {
     vec3 gkTopC = uTopPrintOn > 0.5 ? texture2D(uTopPrint, vMapUv * 7.0).rgb : uTop;
@@ -304,46 +390,80 @@ const RECOLOUR = /* glsl */ `
     float gkShoe = clamp(1.0 - gkM.r - gkM.g - gkM.b, 0.0, 1.0);
     gkCol = mix(gkCol, min(uShoes * gkDetail(gkL, uShoesRef, 0.85), vec3(0.7)), gkShoe * uClothes);
   }
-  gkSkinW = gkM.r * (1.0 - gkM.g);
+  gkSkinW = gkM.r * (1.0 - gkM.g) * (1.0 - gkBeardW * 0.7);
   diffuseColor.rgb = gkCol;
 }
 `;
 
+/**
+ * Roughness: matte skin (no glare). With the specular map (heads of the player bodies) the photo's own oil
+ * distribution drives it: a soft sheen on the forehead / nose (T-zone), matte cheeks; without it, one matte value.
+ * Facial hair and scalp hair matte-to-satin, natural lips a soft sheen (gloss only with the gloss make-up), eyes wet.
+ */
 const ROUGH = /* glsl */ `
 #include <roughnessmap_fragment>
 {
   vec4 gkM2 = texture2D(uMask, vMapUv);
-  // skin has a soft sheen, fabric is matte, hair slightly glossy
-  // skin: slightly glossier in the T-zone / darker creases, matte elsewhere (not plastic)
-  float gkLr = dot(texture2D(map, vMapUv).rgb, vec3(0.3, 0.59, 0.11));
-  // matte skin (no glare): a faint sheen on the brighter T-zone only
-  roughnessFactor = mix(roughnessFactor, mix(0.66, 0.57, smoothstep(0.05, 0.4, gkLr)), gkM2.r);
+  float gkGloss = smoothstep(0.04, 0.42, gkSpec);
+  roughnessFactor = mix(roughnessFactor, uSpecMap > 0.5 ? mix(0.78, 0.6, gkGloss) : 0.68, gkM2.r);
   if (uIsHead < 0.5) roughnessFactor = mix(roughnessFactor, 0.75, clamp(1.0 - gkM2.r - gkM2.g - gkM2.b, 0.0, 1.0));
   if (uIsHead > 0.5) {
-    roughnessFactor = mix(roughnessFactor, 0.66, gkM2.g);
-    // facial hair matte; lips a soft sheen (more with gloss); eyes wet: a soft catchlight
-    roughnessFactor = mix(roughnessFactor, 0.8, gkBeardW);
-    roughnessFactor = mix(roughnessFactor, uMakeup.z > 0.5 ? 0.38 : 0.5, gkLipW * (1.0 - gkBeardW));
-    roughnessFactor = mix(roughnessFactor, 0.3, gkEyeW);
+    roughnessFactor = mix(roughnessFactor, 0.66, gkHairW);
+    roughnessFactor = mix(roughnessFactor, 0.82, gkBeardW);
+    roughnessFactor = mix(roughnessFactor, uMakeup.z > 0.5 ? 0.36 : 0.6, gkLipW);
+    roughnessFactor = mix(roughnessFactor, mix(0.24, 0.12, gkIrisW), gkEyeW);
   }
 }
 `;
 
-const WARM = /* glsl */ `
-#include <lights_fragment_end>
-// skin: light scattered under the surface warms the shadow side a little (cheap subsurface stand-in, no glare)
-reflectedLight.indirectDiffuse += gkSkinW * diffuseColor.rgb * vec3(0.07, 0.028, 0.014);
-reflectedLight.directDiffuse *= mix(vec3(1.0), vec3(1.03, 0.985, 0.96), gkSkinW);
+/** Strand / curl relief (beard, brows, scalp hair) as a bump from gkH: screen-space derivatives, no tangents. */
+const BUMP = /* glsl */ `
+#include <normal_fragment_maps>
+if (uIsHead > 0.5) {
+  vec3 gkSx = dFdx(-vViewPosition);
+  vec3 gkSy = dFdy(-vViewPosition);
+  vec3 gkR1 = cross(gkSy, normal);
+  vec3 gkR2 = cross(normal, gkSx);
+  float gkDet = dot(gkSx, gkR1) * faceDirection;
+  vec2 gkDh = vec2(dFdx(gkH), dFdy(gkH)) * 0.0006;
+  vec3 gkGrad = sign(gkDet) * (gkDh.x * gkR1 + gkDh.y * gkR2);
+  normal = normalize(abs(gkDet) * normal - gkGrad);
+}
 `;
 
-const RIM = /* glsl */ `
-#include <emissivemap_fragment>
+/** Specular strength: skin F0 ≈ 0.028 (not the plastic 0.04), less on matte areas; hair ≈ 0.046. */
+const SPEC = /* glsl */ `
+#include <lights_physical_fragment>
 {
-  // skin: faint warm sheen at grazing angles (subsurface / peach-fuzz rim), so skin never reads as matte plastic
-  float gkSk = texture2D(uMask, vMapUv).r;
-  float gkRim = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 3.0);
-  totalEmissiveRadiance += uSkin * vec3(1.0, 0.82, 0.72) * gkRim * gkSk * 0.12;
+  float gkF = mix(1.0, mix(0.55, 0.85, smoothstep(0.04, 0.42, gkSpec)), gkSkinW);
+  gkF = mix(gkF, 0.9, gkHairW);
+  gkF = mix(gkF, 0.7, gkBeardW);
+  material.specularColor *= gkF;
+  material.specularColorBlended *= gkF;
 }
+`;
+
+/**
+ * Skin diffuse: wrapped lighting per colour channel (light bleeds further round the terminator in red than in blue),
+ * a cheap stand-in for subsurface scattering: soft, warm shadow edges instead of the hard Lambert line.
+ */
+const WRAP_FROM = "reflectedLight.directDiffuse += irradiance * diffuseBRDF * ( 1.0 - F );";
+const WRAP_TO = /* glsl */ `
+vec3 gkDI = irradiance;
+if (gkSkinW > 0.001) {
+  vec3 gkW = vec3(0.46, 0.22, 0.13);
+  vec3 gkNL = clamp((vec3(dot(geometryNormal, directLight.direction)) + gkW) / (1.0 + gkW), 0.0, 1.0);
+  gkDI = mix(irradiance, gkNL * directLight.color, gkSkinW);
+}
+reflectedLight.directDiffuse += gkDI * diffuseBRDF * ( 1.0 - F );
+`;
+
+const WARM = /* glsl */ `
+#include <lights_fragment_end>
+// skin: light scattered under the surface warms the shadow side a little; cavities (eye / mouth corners) get less
+// ambient light
+reflectedLight.indirectDiffuse *= mix(1.0, gkAO, uIsHead);
+reflectedLight.indirectDiffuse += gkSkinW * diffuseColor.rgb * vec3(0.05, 0.02, 0.01);
 `;
 
 /** Clone a base Rocketbox material and attach the look recolour shader. */
@@ -361,12 +481,14 @@ export function makeLookMaterial(base: THREE.MeshStandardMaterial, look: AvatarL
     shader.fragmentShader =
       HEADER +
       shader.fragmentShader
+        .replace("#include <lights_physical_pars_fragment>", THREE.ShaderChunk.lights_physical_pars_fragment.replace(WRAP_FROM, WRAP_TO))
         .replace("#include <map_fragment>", RECOLOUR)
         .replace("#include <roughnessmap_fragment>", ROUGH)
-        .replace("#include <emissivemap_fragment>", RIM)
+        .replace("#include <normal_fragment_maps>", BUMP)
+        .replace("#include <lights_physical_fragment>", SPEC)
         .replace("#include <lights_fragment_end>", WARM);
   };
-  m.customProgramCacheKey = () => "gk-human-look";
+  m.customProgramCacheKey = () => "gk-human-look-2";
   return m;
 }
 

@@ -19,8 +19,11 @@ export interface HumanModelMeta {
   regions: { skin: number; top: number; bottom: number; shoes: number; hair: number };
   /** Base model already has hair cards (separate mesh named "haircards"). */
   hairCards: boolean;
-  /** The base head has a painted beard (shaved off in the shader unless the chosen facial hair covers it). */
-  beard?: boolean;
+  /**
+   * The head's recolour mask carries the photo's specular map in its alpha channel (P2-AVA-08): skin gloss follows
+   * the real oil distribution (T-zone sheen, matte cheeks) instead of one value.
+   */
+  specInMask?: boolean;
 }
 
 const BASE = "/assets/characters";
@@ -33,6 +36,7 @@ export const HUMAN_MODELS: Record<HumanModelId, HumanModelMeta> = {
     skinRef: [0.0872, 0.0335, 0.0184],
     regions: { skin: 0.0637, top: 0.0855, bottom: 0.1527, shoes: 0.3992, hair: 0.0066 },
     hairCards: false,
+    specInMask: true,
   },
   feminine: {
     url: `${BASE}/feminine.glb`,
@@ -41,6 +45,7 @@ export const HUMAN_MODELS: Record<HumanModelId, HumanModelMeta> = {
     skinRef: [0.4608, 0.1791, 0.0697],
     regions: { skin: 0.1811, top: 0.0594, bottom: 0.0082, shoes: 0.0261, hair: 0.0091 },
     hairCards: true,
+    specInMask: true,
   },
   neutral: {
     url: `${BASE}/neutral.glb`,
@@ -49,7 +54,7 @@ export const HUMAN_MODELS: Record<HumanModelId, HumanModelMeta> = {
     skinRef: [0.2368, 0.0818, 0.0308],
     regions: { skin: 0.1284, top: 0.1166, bottom: 0.0357, shoes: 0.3117, hair: 0.012 },
     hairCards: false,
-    beard: true,
+    specInMask: true,
   },
   guard: {
     url: `${BASE}/guard.glb`,

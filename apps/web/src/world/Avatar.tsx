@@ -9,6 +9,7 @@ import { encodeLook, type AvatarLook } from "./outfits";
 import { ANIM_SETS, HUMAN_MODELS, type HumanModelId, type HumanModelMeta } from "./human/meta";
 import { makeHairCardMaterial, makeLookMaterial, type LookUniforms } from "./human/materials";
 import { faceFrameOf, FaceRig } from "./human/face-rig";
+import { smoothHeadNormals, tessellateHead } from "./human/head-geometry";
 import { buildAttachments, neutralFrame } from "./human/attachments";
 import { clipsFor, HumanAnimator } from "./human/animator";
 import { aimBone, ProceduralLayer, type ArmBones } from "./human/procedural";
@@ -97,13 +98,25 @@ export const tagVisible = (d: number, id: string | undefined, range = Infinity) 
 /** Name tags keep a readable size: 0.6× up close … 1.0× from 10 m on. */
 export const tagScale = (d: number) => THREE.MathUtils.clamp(d / 10, 0.6, 1);
 
-/** Prepare a loaded base model once: pull the recolour masks out of the emissive slot, set shadow/culling flags. */
+/**
+ * Smooth (Phong-tessellated) head geometry per base head geometry (P2-AVA-08), shared by everyone with that body.
+ * People within HEAD_HI_RANGE get it; further away the original ~1.4k-triangle head (with smoothed normals) is enough.
+ */
+const headHi = new WeakMap<THREE.BufferGeometry, THREE.BufferGeometry>();
+const HEAD_HI_RANGE = 9;
+
+/**
+ * Prepare a loaded base model once: pull the recolour masks out of the emissive slot, set shadow/culling flags,
+ * smooth the head normals (no facets on cheeks / jaw / nose) and build its tessellated near version.
+ */
 function prepareBase(scene: THREE.Object3D) {
   if (scene.userData.gkPrepared) return;
   scene.userData.gkPrepared = true;
+  const heads = new Set<THREE.BufferGeometry>();
   scene.traverse((o) => {
     const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
     if (!m || !(o as THREE.Mesh).isMesh) return;
+    if (m.name === "head" && (o as THREE.SkinnedMesh).isSkinnedMesh) heads.add((o as THREE.Mesh).geometry);
     if (m.emissiveMap) {
       m.emissiveMap.colorSpace = THREE.NoColorSpace;
       m.userData.gkMask = m.emissiveMap;
@@ -116,6 +129,10 @@ function prepareBase(scene: THREE.Object3D) {
     }
     if (m.map) m.map.anisotropy = 4;
   });
+  for (const g of heads) {
+    smoothHeadNormals(g);
+    if (!headHi.has(g)) headHi.set(g, tessellateHead(g, 0.6));
+  }
 }
 
 const PARTS = new Set(["body", "lod1", "haircards"]);
@@ -146,6 +163,8 @@ interface Instance {
   spine: THREE.Bone | null;
   /** head material uniforms (face detail LOD) */
   faceU: LookUniforms | null;
+  /** the near head mesh with its original and tessellated geometry (swapped by distance) */
+  headMesh: { mesh: THREE.Mesh; lo: THREE.BufferGeometry; hi: THREE.BufferGeometry } | null;
 }
 
 function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMeta, shadows: boolean, keepClothes: boolean): Instance {
@@ -162,10 +181,13 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
     if (!frame && m.isSkinnedMesh && m.skeleton.bones.some((b) => b.name === "Bip01_LEye")) frame = faceFrameOf(m);
   });
   let faceU: LookUniforms | null = null;
+  let headMesh: Instance["headMesh"] = null;
   root.traverse((o) => {
     const mesh = o as THREE.SkinnedMesh;
     if (!mesh.isMesh) return;
     const part = partOf(mesh, root);
+    const hi = part === "body" ? headHi.get(mesh.geometry) : undefined;
+    if (hi && !headMesh) headMesh = { mesh, lo: mesh.geometry, hi };
     const base = mesh.material as THREE.MeshStandardMaterial;
     let m = matCache.get(base);
     if (!m) {
@@ -228,7 +250,7 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
       mm.needsUpdate = true;
     }
   }
-  return { root, full, lite, materials, fadeable, extras, head, jaw: bone("Bip01_MJaw"), arms, spine: bone("Bip01_Spine1"), faceU };
+  return { root, full, lite, materials, fadeable, extras, head, jaw: bone("Bip01_MJaw"), arms, spine: bone("Bip01_Spine1"), faceU, headMesh };
 }
 
 function disposeInstance(inst: Instance) {
@@ -391,7 +413,11 @@ function HumanBody({
     };
   }, [inst, animator]);
 
-  const st = useRef({ last: new THREE.Vector3(), has: false, speed: 0, fwd: 0, yaw: 0, yawRate: 0, frame: seed % 8, acc: 0, jaw: 0, jawT: 0, look: 0, near: null as boolean | null, phone: 0, tilt: 0, fade: 1, faded: false, faceLod: -1 });
+  const st = useRef({ last: new THREE.Vector3(), has: false, speed: 0, fwd: 0, yaw: 0, yawRate: 0, frame: seed % 8, acc: 0, jaw: 0, jawT: 0, look: 0, near: null as boolean | null, phone: 0, tilt: 0, fade: 1, faded: false, faceLod: -1, headHi: null as boolean | null });
+  // a rebuilt person (new look) starts with every level visible and the original head: pick the levels again
+  useEffect(() => {
+    Object.assign(st.current, { near: null, faceLod: -1, headHi: null });
+  }, [inst]);
   const props = useMemo(buildProps, []);
   const tilt = useRef<THREE.Group>(null);
   useEffect(() => {
@@ -474,6 +500,12 @@ function HumanBody({
     if (faceLod !== s.faceLod && inst.faceU) {
       s.faceLod = faceLod;
       inst.faceU.uFaceDetail.value = faceLod;
+    }
+    // smooth (tessellated) head up close, the original head further out (both shared by everyone with this body)
+    const headHiNow = near && dist < HEAD_HI_RANGE;
+    if (headHiNow !== s.headHi && inst.headMesh) {
+      s.headHi = headHiNow;
+      inst.headMesh.mesh.geometry = headHiNow ? inst.headMesh.hi : inst.headMesh.lo;
     }
     const every = (dist < 15 ? 1 : dist < 30 ? 2 : dist < 60 ? 4 : 8) * (quality === "lite" && dist > 8 ? 2 : 1);
     s.frame++;

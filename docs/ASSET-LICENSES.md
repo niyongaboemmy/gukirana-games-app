@@ -8,13 +8,13 @@ Licence policy: CC0 or permissive (MIT / CC-BY with attribution) only. Not allow
 redistributing the raw asset (Mixamo downloads, Ready Player Me, MetaHuman, paid-store assets) or anything with an
 unclear licence.
 
-## Characters — `apps/web/public/assets/characters/` (payload 4.06 MB + 1.22 MB lazy life clips)
+## Characters — `apps/web/public/assets/characters/` (payload 4.50 MB + 1.22 MB lazy life clips)
 
 | File | Source asset | Author | Licence |
 | --- | --- | --- | --- |
-| `masculine.glb` (432 KB) | `Assets/Avatars/Adults/Male_Adult_12` | Microsoft Rocketbox Avatar Library (Microsoft Research) | MIT |
-| `feminine.glb` (604 KB) | `Assets/Avatars/Professions/Business_Female_01` | Microsoft Rocketbox Avatar Library | MIT |
-| `neutral.glb` (380 KB) | `Assets/Avatars/Adults/Male_Adult_17` | Microsoft Rocketbox Avatar Library | MIT |
+| `masculine.glb` (559 KB) | `Assets/Avatars/Adults/Male_Adult_12` | Microsoft Rocketbox Avatar Library (Microsoft Research) | MIT |
+| `feminine.glb` (768 KB) | `Assets/Avatars/Professions/Business_Female_01` | Microsoft Rocketbox Avatar Library | MIT |
+| `neutral.glb` (528 KB) | `Assets/Avatars/Adults/Male_Adult_17` | Microsoft Rocketbox Avatar Library | MIT |
 | `guard.glb` (689 KB) | `Assets/Avatars/Professions/Security_Male_01` (non-player gate staff) | Microsoft Rocketbox Avatar Library | MIT |
 | `anim-m.glb` (983 KB) | `Assets/Animations/all_animations_max_motextr_*/m_*.max.fbx` (12 clips, below) | Microsoft Rocketbox Avatar Library | MIT |
 | `anim-f.glb` (969 KB) | `Assets/Animations/all_animations_max_motextr_*/f_*.max.fbx` (12 clips, below) | Microsoft Rocketbox Avatar Library | MIT |
@@ -41,6 +41,27 @@ Modifications (pipeline run with FBX2glTF 0.9.7, `@gltf-transform/*` 4.x, `mesho
    are kept; locomotion root motion removed (in place) after measuring each clip's native ground speed; looping
    clips trimmed to 5–11 s with a 0.6 s blend back to the first frame; seated clips re-based so the pelvis sits on a
    0.46 m seat centred on the avatar origin; keyframes resampled and meshopt-compressed.
+
+### Head textures rebuilt (P2-AVA-08)
+
+The three player heads (`masculine`, `feminine`, `neutral`) were rebuilt from the original 2048 px Rocketbox TGAs
+(`m007_head_*`, `f014_head_*`, `m022_head_*` in the same MIT repository; same author and licence as above). The
+meshes, skins and the guard are unchanged.
+
+1. Head normal map 512 → 1024 px WebP (q84): the pore and wrinkle detail of the original map is back (the 512 px
+   map was nearly flat, which made the faces read as smooth plastic masks).
+2. The original specular map (512 px) is stored in the alpha channel of the recolour mask (lossless WebP): skin
+   roughness follows the real oil distribution (soft sheen on forehead / nose, matte cheeks).
+3. `neutral` only: the baked goatee, moustache and stubble of `Male_Adult_17` were removed from the albedo (skin
+   field rebuilt from the surrounding skin, pore detail from the forehead) and from the normal / specular maps; the
+   beard texels of the recolour mask are skin again. Clean-shaven is now really clean; facial hair is only what the
+   player chooses (drawn in the head shader).
+4. Packed back into the existing glbs (images replaced, binary chunk re-packed; meshopt geometry untouched).
+   Added payload: +0.44 MB.
+
+Scripts (Python + numpy / Pillow, Node): `clean_neutral.py`, `build_textures.py`, `repack.mjs`; kept with the task
+notes, not in the repo. At load time the head geometry is also smoothed and tessellated (see
+`apps/web/src/world/human/head-geometry.ts`); no new geometry files are shipped.
 
 ### Everyday-life clips: `life-m.glb` (0.61 MB) and `life-f.glb` (0.61 MB)
 
@@ -126,6 +147,7 @@ one alpha-cut atlas (`world/Flowers.tsx`) — original work, no third-party cont
 | Quaternius / Kenney animated characters (CC0) | Licence fine, but stylised low-poly — does not meet the "real person" brief |
 | Khronos sample models (CesiumMan, RiggedFigure) | Licence fine, far too simple |
 | VRoid / VRM samples | Anime style, VRM-specific licence terms |
+| A new, denser CC0 base head (MakeHuman exports, CC0 scans) — evaluated for P2-AVA-08 | Licence fine, but it would have to be re-rigged to the Rocketbox face bones (blinks, jaw, lips, the Face tab's proportions), stitched to three bodies with matching skin textures and re-fitted to every seated pose: a new character pipeline, not a fix. The Rocketbox heads were kept and improved instead: 2048 px source textures, load-time smoothing + Phong tessellation, a skin shading model and shader-drawn hair. |
 
 ## Interiors — `apps/web/public/assets/interiors/` (payload 4.0 MB total, lazy-loaded per hall)
 
