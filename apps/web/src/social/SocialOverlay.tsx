@@ -10,6 +10,7 @@ import { tracks } from "./motion";
 import { PersonMenu } from "./PersonMenu";
 import { useSocial } from "./social-store";
 import { PairInvitePrompt, PairPendingChip, SpotPrompt } from "./ActionPrompts";
+import { SO } from "./strings";
 
 /**
  * Screen-space social UI shared by the plaza and the halls: person menu, call bar (incoming / calling / in call),
@@ -123,7 +124,7 @@ function PeopleSheet() {
       <div role="dialog" aria-label="People here" className="w-[min(340px,90vw)]" onClick={(e) => e.stopPropagation()}>
         <PaperCard size="sm" title={`People here · ${people.length + 1}`} icon={Users} onClose={close} className="max-h-[78vh]" bodyClassName="!p-2.5">
           {people.length === 0 ? (
-            <p className="pnote text-xs">Nobody else is here right now.</p>
+            <p className="pnote text-xs">{SO.nobodyNow}</p>
           ) : (
             <div className="plist">
               {people.map(({ p, d }) => (

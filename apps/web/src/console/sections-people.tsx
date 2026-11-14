@@ -79,11 +79,11 @@ export function People({ canStatus, canRoles, toast, me }: { canStatus: boolean;
             <table className="gkc-table gkc-hide-sm">
               <thead>
                 <tr>
-                  <th>Player</th>
-                  <th>Contact</th>
+                  <th>{C.colPlayer}</th>
+                  <th>{C.colContact}</th>
                   <th>{C.level}</th>
                   <th>{C.rolesL}</th>
-                  <th>Status</th>
+                  <th>{C.colStatus}</th>
                   <th>{C.joined}</th>
                 </tr>
               </thead>
@@ -396,7 +396,7 @@ export function Finance({ toast }: { toast: (t: string) => void }) {
           <section className="gkc-card">
             <h2><TrendingUp size={16} /> {C.daily}</h2>
             {byDay.length === 0 ? (
-              <p className="gkc-row-sub">No ledger activity in this period.</p>
+              <p className="gkc-row-sub">{C.noLedger}</p>
             ) : (
               <div className="gkc-bars">
                 {byDay.map((d) => (

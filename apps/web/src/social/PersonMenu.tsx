@@ -14,6 +14,7 @@ import { requestCall } from "@/voice/call";
 import { fetchProfile, sendReport, type PublicProfile } from "./api";
 import { tracks } from "./motion";
 import { notify, openThread, useSocial } from "./social-store";
+import { SO } from "./strings";
 
 /**
  * Person menu (core usability): tap / click anyone (avatar, name tag, chat name, people list) → Wave, Chat,
@@ -219,7 +220,7 @@ export function PersonMenu() {
                   Level {profile.level} · member since {profile.memberSince}
                 </p>
                 {Object.keys(profile.ratings).length === 0 ? (
-                  <p className="pmuted">No rated games yet.</p>
+                  <p className="pmuted">{SO.noRated}</p>
                 ) : (
                   <div className="grid gap-1.5">
                     {Object.entries(profile.ratings).map(([g, r]) => (
@@ -278,7 +279,7 @@ export function PersonMenu() {
 
         {panel === "report" && (
           <div id="person-panel" className="plist mt-3 p-3 text-sm">
-            <p className="mb-2 pmuted">What happened? Recent chat lines are attached for our safety team.</p>
+            <p className="mb-2 pmuted">{SO.reportNote}</p>
             <div className="mb-2 grid gap-1">
               {REPORT_REASONS.map((r) => (
                 <label key={r.id} className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 ${reason === r.id ? "bg-[#8c684a]/15" : "hover:bg-[#8c684a]/8"}`}>

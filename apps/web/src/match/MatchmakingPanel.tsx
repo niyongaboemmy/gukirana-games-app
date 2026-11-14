@@ -14,6 +14,7 @@ import { useRoom } from "@/rooms/room-store";
 import { useSocial } from "@/social/social-store";
 import { promptWrap } from "@/hud/Prompt";
 import { QUICK_MATCH_EVENT } from "@/hud/usePhoneHud";
+import { M } from "./strings";
 
 const GAMES: { id: GameId; icon: typeof DieIcon; color: string }[] = [
   { id: "igisoro", icon: SeedsIcon, color: "#27AE60" },
@@ -50,7 +51,7 @@ function GameStakePicker({ onConfirm, confirmLabel, onCancel, initialGame = "igi
         ))}
       </div>
       <div>
-        <p className="plabel mb-1.5">Stake each</p>
+        <p className="plabel mb-1.5">{M.stakeEach}</p>
         <div className="flex flex-wrap gap-1.5">
           {STAKES.map((s) => (
             <button key={s} type="button" disabled={s > stars} onClick={() => setStake(s)} className={`ptab num min-h-10! flex-none! rounded-full! px-3.5! text-sm! disabled:opacity-30 ${stake === s ? "is-on" : ""}`}>
@@ -61,7 +62,7 @@ function GameStakePicker({ onConfirm, confirmLabel, onCancel, initialGame = "igi
         <p className="pmuted mt-2 text-xs">{stake > 0 ? `Winner gets ${stake * 2} Stars. Stakes are held in escrow by the server.` : "No stake: just for fun and rating."}</p>
       </div>
       <div className="flex gap-2">
-        <button type="button" onClick={onCancel} className="pbtn pbtn-secondary flex-1">Cancel</button>
+        <button type="button" onClick={onCancel} className="pbtn pbtn-secondary flex-1">{M.cancel}</button>
         <button type="button" disabled={!affordable} onClick={() => onConfirm(game, stake)} className="pbtn pbtn-primary flex-1">{confirmLabel}</button>
       </div>
     </div>
@@ -202,7 +203,7 @@ export function MatchmakingPanel() {
           <PaperCard title={sheet === "quick" ? "Quick Match" : `Challenge ${challengeTarget?.name ?? ""}`} icon={sheet === "quick" ? Zap : Swords} onClose={() => setSheet(null)} className="max-h-[92vh]">
             {sheet === "challenge" && (
               <div className="mb-3">
-                <p className="plabel mb-1.5">Player</p>
+                <p className="plabel mb-1.5">{M.player}</p>
                 <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
                   {challengeable.map((p) => (
                     <button

@@ -4,6 +4,7 @@ import { Loader2, Lock, Mic, MicOff, Minus, Plus } from "lucide-react";
 import { useSession } from "@/lib/session";
 import { cameraState, MAX_ORBIT } from "@/world/Player";
 import { enableVoice, disableVoice, pttDown, pttUp, toggleOpenMic, useVoice } from "@/voice/voice";
+import { H } from "./strings";
 
 
 const btn = "icon-button pointer-events-auto size-12 rounded-card phone:size-9 phone:rounded-full";
@@ -55,7 +56,7 @@ export function WorldControls() {
             >
               {status === "starting" ? <Loader2 size={18} className="animate-spin" /> : <MicOff size={18} strokeWidth={1.9} />}
               {/* desktop: a small caption under the icon; phone: icon only (same size as the zoom buttons) */}
-              <span className="label text-[9px] leading-none tracking-[0.14em] text-on-glass-muted phone:hidden">Voice</span>
+              <span className="label text-[9px] leading-none tracking-[0.14em] text-on-glass-muted phone:hidden">{H.voice}</span>
               {status === "denied" && <span aria-hidden className="absolute right-1.5 top-1.5 size-2 rounded-full bg-danger ring-2 ring-ink-900" />}
             </button>
           ) : (

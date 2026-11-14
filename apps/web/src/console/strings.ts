@@ -1,5 +1,10 @@
 /** Staff console strings (to move to @gukirana/i18n keys `console.*`). Plain words. */
 export const C = {
+  recorded: "Every action is recorded with your name.",
+  noLedger: "No ledger activity in this period.",
+  colPlayer: "Player",
+  colContact: "Contact",
+  colStatus: "Status",
   brand: "Gukirana Control",
   brandSub: "Staff console",
   logOff: "Log off",

@@ -16,6 +16,7 @@ import { usePhoneHud } from "@/hud/usePhoneHud";
 import { isGameHall, type HallLayout } from "./layouts";
 import { TablePicker } from "./TablePicker";
 import { PaperCard } from "@/ui/PaperCard";
+import { R } from "./strings";
 
 const glass = "glass rounded-card";
 
@@ -103,7 +104,7 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
         </button>
         {peopleOpen && (!phone || people.length > 0) && (
           <div className={`menu pointer-events-auto mt-1.5 max-h-[38vh] overflow-y-auto p-1.5 phone:w-[min(240px,30vw)]`}>
-            {people.length === 0 && <p className="px-2 py-3 text-xs text-on-glass-muted">Nobody else here yet. Sit at a table and find an opponent, or invite a friend.</p>}
+            {people.length === 0 && <p className="px-2 py-3 text-xs text-on-glass-muted">{R.nobodyHere}</p>}
             {people.map((p) => {
               const table = seatOf(p.id);
               return (
@@ -141,7 +142,7 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
               onClose={() => setChallenge(null)}
               footer={
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => setChallenge(null)} className="pbtn pbtn-secondary flex-1">Cancel</button>
+                  <button type="button" onClick={() => setChallenge(null)} className="pbtn pbtn-secondary flex-1">{R.cancel}</button>
                   <button
                     type="button"
                     onClick={() => {
@@ -156,7 +157,7 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
               }
             >
               <p className="pmuted mb-3 text-sm">{layout.title} · the server holds both stakes in escrow and pays the winner 2×.</p>
-              <p className="plabel mb-1.5">Stake</p>
+              <p className="plabel mb-1.5">{R.stake}</p>
               <div className="flex flex-wrap gap-1.5">
                 {STAKES.map((s) => (
                   <button key={s} type="button" disabled={s > stars} aria-pressed={stake === s} onClick={() => setStake(s)} className={`ptab flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-bold disabled:opacity-30 ${stake === s ? "is-on" : ""}`}>
@@ -236,7 +237,7 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
             )}
             {livePlay && authed && quick.status !== "waiting" && (
               <div className="mt-3 flex flex-wrap items-center gap-1.5 text-sm phone:mt-2 phone:flex-nowrap phone:gap-1 phone:overflow-x-auto phone:text-xs">
-                <span className="plabel mr-1 phone:text-[10px]">Stake</span>
+                <span className="plabel mr-1 phone:text-[10px]">{R.stake}</span>
                 {STAKES.map((s) => (
                   <button key={s} type="button" disabled={s > stars} aria-pressed={stake === s} onClick={() => setStake(s)} className={`ptab flex shrink-0 items-center gap-1 rounded-full px-3 py-1 font-bold disabled:opacity-30 phone:px-2.5 ${stake === s ? "is-on" : ""}`}>
                     {s === 0 ? "Friendly" : <>{s} <Star size={11} className="fill-current" /></>}

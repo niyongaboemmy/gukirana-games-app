@@ -72,7 +72,7 @@ export function LudoControls({ die, rolling, color, canRoll, onRoll, hint }: { d
           className="press flex min-h-14 items-center gap-2 rounded-2xl bg-game-ludo px-8 font-display text-lg font-bold text-white shadow-[inset_0_1px_0_rgb(255_255_255/.3),0_10px_24px_-10px_rgb(255_138_31/.8)]"
         >
           <DieIcon size={20} /> {rolling ? t("ludo.rolling") : t("ludo.roll")}
-          <kbd className="kbd ml-1 rounded px-1.5 text-xs max-sm:hidden">Space</kbd>
+          <kbd className="kbd ml-1 rounded px-1.5 text-xs max-sm:hidden">{t("game.keySpace")}</kbd>
         </button>
       ) : (
         <p className="max-w-[60vw] text-sm text-on-glass-muted" aria-live="polite">

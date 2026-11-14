@@ -5,6 +5,8 @@
 const en = {
   "game.leave": "Leave",
   "game.menu": "Menu",
+  "game.stars": "Stars",
+  "game.keySpace": "Space",
   "game.paused": "Game menu",
   "game.resume": "Resume",
   "game.howToPlay": "How to play",

@@ -7,6 +7,7 @@ import { lookOf, useProfile } from "@/lib/profile-store";
 import { BODY_TYPE_HINT, BODY_TYPES } from "@/world/outfits";
 import { Joystick } from "@/hud/Joystick";
 import { xrStore } from "@/world/xr-store";
+import { UI } from "./strings";
 
 const AvatarCreator = dynamic(() => import("./AvatarCreator").then((m) => m.AvatarCreator), { ssr: false });
 
@@ -216,7 +217,7 @@ export function GateFlow() {
               <span className="grid size-9 place-items-center rounded-full bg-primary/25 text-primary-300 phone:size-7!">
                 <UserRound size={18} strokeWidth={1.85} />
               </span>
-              <h1 className="text-xl font-extrabold phone:text-base!">Show your ID</h1>
+              <h1 className="text-xl font-extrabold phone:text-base!">{UI.showId}</h1>
             </div>
             <p className="text-sm text-white/70 [@media(max-height:430px)]:hidden">Enter your phone number or email. We&apos;ll send a one-time code.</p>
             <label className="sr-only" htmlFor="gate-id">
@@ -260,7 +261,7 @@ export function GateFlow() {
               <span className="grid size-9 place-items-center rounded-full bg-primary/25 text-primary-300 phone:size-7!">
                 <KeyRound size={18} strokeWidth={1.85} />
               </span>
-              <h1 className="text-xl font-extrabold phone:text-base!">Enter your code</h1>
+              <h1 className="text-xl font-extrabold phone:text-base!">{UI.enterCode}</h1>
             </div>
             <p className="text-sm text-white/70">
               Sent to <b className="text-white">{g.identifier}</b>
@@ -330,9 +331,9 @@ export function GateFlow() {
               void g.finishSetup(lookOf(useProfile.getState()));
             }}
           >
-            <h1 className="text-xl font-extrabold phone:text-base!">Welcome to the wardrobe</h1>
+            <h1 className="text-xl font-extrabold phone:text-base!">{UI.wardrobeTitle}</h1>
             <label className="flex flex-col gap-1">
-              <span className="text-sm font-semibold text-white/80">Username</span>
+              <span className="text-sm font-semibold text-white/80">{UI.username}</span>
               <input
                 ref={ref}
                 value={g.username}

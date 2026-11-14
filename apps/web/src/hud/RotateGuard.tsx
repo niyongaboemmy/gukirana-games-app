@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Smartphone } from "lucide-react";
+import { H } from "./strings";
 
 /** Phones must play in landscape (SRS UI-04). Portrait shows this screen + a Classic 2D option. */
 export function RotateGuard() {
@@ -19,8 +20,8 @@ export function RotateGuard() {
         <div className="animate-[spin_2.4s_ease-in-out_infinite]">
           <Smartphone size={64} strokeWidth={1.75} />
         </div>
-        <p className="text-2xl font-extrabold">Rotate your phone</p>
-        <p className="max-w-xs text-sm text-white/70">The games world is built for landscape. Turn your phone sideways to play.</p>
+        <p className="text-2xl font-extrabold">{H.rotateTitle}</p>
+        <p className="max-w-xs text-sm text-white/70">{H.rotateText}</p>
         <p className="text-xs text-white/50">Tip: lock rotation off in your phone settings.</p>
       </div>
     </div>

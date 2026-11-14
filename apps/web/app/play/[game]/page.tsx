@@ -2,6 +2,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { UI } from "@/components/strings";
 
 const Loading = () => <div className="fixed inset-0 grid place-items-center bg-ink-950 font-display font-bold text-white">Setting up the table…</div>;
 const GAMES = {
@@ -20,7 +21,7 @@ export default function PlayPage() {
   if (!Game)
     return (
       <div className="grid min-h-dvh place-items-center bg-ink-950 text-white">
-        <Link href="/world">Unknown game. Back to the Plaza</Link>
+        <Link href="/world">{UI.unknownGame}</Link>
       </div>
     );
   return <Game />;

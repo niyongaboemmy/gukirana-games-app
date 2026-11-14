@@ -15,6 +15,7 @@ import { DieIcon, PoolBallIcon, SeedsIcon } from "@/ui/game-icons";
 import { useSocial } from "@/social/social-store";
 import { unblockKey } from "@/lib/realtime";
 import { signOut as walkOut } from "@/world/stage";
+import { UI } from "./strings";
 
 const GAMES = [
   { id: "pool", label: "Pool", icon: PoolBallIcon, color: "#2F80ED" },
@@ -120,13 +121,13 @@ export function SettingsModal({ onClose, onEditAvatar }: { onClose: () => void; 
           </div>
 
           {/* settings */}
-          <p className="plabel mb-1.5 mt-4">Settings</p>
+          <p className="plabel mb-1.5 mt-4">{UI.settings}</p>
           <div className="plist">
             <div className="prow">
               <span className="prow-icon">
                 <Footprints size={18} />
               </span>
-              <span className="prow-title flex-1">Walking pace</span>
+              <span className="prow-title flex-1">{UI.walkingPace}</span>
               <div className="pseg w-[200px]">
                 {PACES.map((p) => (
                   <button key={p} type="button" aria-pressed={speed === p} onClick={() => setPace(p)} className="min-h-9! text-sm! capitalize">
@@ -139,7 +140,7 @@ export function SettingsModal({ onClose, onEditAvatar }: { onClose: () => void; 
               <span className="prow-icon">
                 <Palette size={18} />
               </span>
-              <span className="prow-title flex-1">Windows</span>
+              <span className="prow-title flex-1">{UI.windows}</span>
               <div className="pseg w-[220px]">
                 {(["auto", "light", "dark"] as const).map((t) => (
                   <button key={t} type="button" aria-pressed={paperTheme === t} onClick={() => setPaperTheme(t)} className="min-h-9! text-sm! capitalize">
@@ -151,8 +152,8 @@ export function SettingsModal({ onClose, onEditAvatar }: { onClose: () => void; 
             <div className="prow">
               <span className={`prow-icon ${voice === "on" ? "is-plus" : ""}`}>{voice === "on" ? <Mic size={18} /> : <MicOff size={18} />}</span>
               <span className="flex-1">
-                <span className="prow-title block">Voice chat</span>
-                {voice === "denied" && <span className="prow-sub pminus">Microphone blocked in the browser</span>}
+                <span className="prow-title block">{UI.voiceChat}</span>
+                {voice === "denied" && <span className="prow-sub pminus">{UI.micBlocked}</span>}
               </span>
               <button type="button" role="switch" aria-checked={voice === "on"} aria-label="Voice chat" onClick={() => (voice === "on" ? disableVoice() : void enableVoice())} className="pswitch" />
             </div>
@@ -216,7 +217,7 @@ export function SettingsModal({ onClose, onEditAvatar }: { onClose: () => void; 
               </button>
             )}
           </div>
-          <p className="pnote mt-3">You can also sign out at the gate exit. Stars are practice currency with no cash value.</p>
+          <p className="pnote mt-3">{UI.signOutNote}</p>
         </PaperCard>
       </section>
     </div>,

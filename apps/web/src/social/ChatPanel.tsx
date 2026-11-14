@@ -6,6 +6,7 @@ import { useWorld } from "@/lib/world-store";
 import { acceptDm, blockPerson, sendChat, sendDm } from "@/lib/realtime";
 import { useSession } from "@/lib/session";
 import { openThread, totalUnread, useSocial, type ChatTab } from "./social-store";
+import { SO } from "./strings";
 
 /**
  * Chat sheet (DESIGN-SPEC §12.2, SRS FR-COM-04/05): Nearby (≈12 m, also shown as speech bubbles), Room (the whole
@@ -132,8 +133,8 @@ export function ChatPanel() {
 
         {tab === "private" && !t && (
           <>
-            {!authed && <p className="pmuted">Sign in at the gate to send private messages.</p>}
-            {authed && Object.keys(threads).length === 0 && <p className="pmuted">No private chats yet. Tap a person and choose Chat.</p>}
+            {!authed && <p className="pmuted">{SO.dmSignIn}</p>}
+            {authed && Object.keys(threads).length === 0 && <p className="pmuted">{SO.dmEmpty}</p>}
             {Object.values(threads)
               .sort((a, b) => (b.lines.at(-1)?.t ?? 0) - (a.lines.at(-1)?.t ?? 0))
               .map((th) => (

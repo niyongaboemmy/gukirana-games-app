@@ -380,7 +380,7 @@ export function ResultModal({ won, draw = false, starsDelta, xp, summary, onRema
         <p className="mt-1 text-sm text-on-glass-muted">{summary}</p>
         <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
           <div className="ptile">
-            <p className="text-on-glass-muted">Stars</p>
+            <p className="text-on-glass-muted">{t("game.stars")}</p>
             <p className={`num text-xl font-bold ${starsDelta > 0 ? "text-success" : "text-white"}`}>
               {starsDelta >= 0 ? "+" : ""}
               {starsDelta} <Star size={16} className="inline fill-current align-[-2px]" />

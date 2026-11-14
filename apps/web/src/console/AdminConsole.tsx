@@ -132,7 +132,7 @@ export function AdminConsole({ office, roles, sections, onLogOff, standalone = f
               </button>
             );
           })}
-          <span className="gkc-nav-foot">Every action is recorded with your name.</span>
+          <span className="gkc-nav-foot">{C.recorded}</span>
         </nav>
         <main ref={main} className="gkc-main">
           <div className="gkc-h1">
