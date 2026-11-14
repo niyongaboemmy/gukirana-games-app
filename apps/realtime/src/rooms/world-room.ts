@@ -33,6 +33,7 @@ import { CallRegistry } from "../social/calls.js";
 import { InterestManager, TICK_MS, type Mover } from "../social/interest.js";
 import { RateLimiter } from "../social/rate.js";
 import { PairRegistry } from "../social/pairs.js";
+import { MoveGuard } from "../social/movement.js";
 import { OfficeDesk } from "./office-desk.js";
 import { ArenaHall } from "./arena-hall.js";
 import { arenaConfig } from "../social/arena-access.js";
@@ -102,6 +103,8 @@ export class WorldRoom extends Room {
   private interest = new InterestManager();
   private rate = new RateLimiter();
   private pairs = new PairRegistry();
+  /** speed / teleport clamp on the positions the room keeps (social/movement.ts, GAP-014) */
+  private moveGuard = new MoveGuard();
   /** Administrative Block only (hall "admin") */
   private desk: OfficeDesk | null = null;
   /** Tournament Arena rules (hall "arena" only, P2-ARN-02) */
@@ -267,8 +270,10 @@ export class WorldRoom extends Room {
       const p = this.players.get(client.sessionId);
       if (!parsed.success || !p) return;
       const m = parsed.data;
-      p.x = Math.max(-6000, Math.min(6000, m.x));
-      p.z = Math.max(-6000, Math.min(6000, m.z));
+      const want = { x: Math.max(-6000, Math.min(6000, m.x)), z: Math.max(-6000, Math.min(6000, m.z)) };
+      const at = this.moveGuard.apply(p.id, p, want);
+      p.x = at.x;
+      p.z = at.z;
       p.yaw = m.yaw;
       // only known action codes; contact codes (handshake, fist bump, hug) only while consented and paired
       p.anim = isKnownAnim(m.anim) ? this.pairs.allowAnim(p.id, m.anim, Date.now()) : 0;
@@ -660,6 +665,7 @@ export class WorldRoom extends Room {
     this.blocks.forget(sid);
     this.dms.forget(sid);
     this.interest.forget(sid);
+    this.moveGuard.forget(sid);
     for (const inv of this.pairs.forget(sid)) this.client(inv.from === sid ? inv.to : inv.from)?.send("pair-closed", { id: inv.id, to: sid, reason: "LEFT" });
     if (this.seats.release(sid)) this.broadcastSeats();
     this.desk?.onLeave(sid);

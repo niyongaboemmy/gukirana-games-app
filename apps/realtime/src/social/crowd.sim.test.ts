@@ -14,6 +14,7 @@ import { SignJWT } from "jose";
 import { loadEnv } from "@gukirana/config";
 import { NEARBY_CHAT_RANGE, PLAZA_SEATS } from "@gukirana/contracts";
 import { WorldRoom } from "../rooms/world-room.js";
+import { moveConfig } from "./movement.js";
 
 const N = Number(process.env.CROWD_N ?? 20); // CROWD_N=45 for a fuller room (max 50 per instance, one late joiner in the block test)
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -61,6 +62,9 @@ const send = (b: Bot, x: number, z: number, yaw = 0, anim = 1) => {
 const clear = () => bots.forEach((b) => (b.inbox.length = 0));
 
 beforeAll(async () => {
+  // these bots are placed anywhere between scenarios (test set-up, not walking): no speed clamp here; the clamp
+  // itself is covered by movement.test.ts
+  moveConfig.burstCm = 1e9;
   http = createServer();
   game = new Server({ transport: new WebSocketTransport({ server: http }) });
   game.define("plaza", WorldRoom);
