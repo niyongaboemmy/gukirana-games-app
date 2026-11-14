@@ -240,7 +240,8 @@ describe("search, export, reports, limits, schemas", () => {
     expect(await ids({ role: "super_admin" })).toEqual([boss, boss2].sort());
     expect(await ids({ minLevel: 2, maxLevel: 9 })).toEqual([p3]); // xp 100 = level 2
     expect(await ids({ maxLevel: 1, role: "" as never })).toContain(p2);
-    const old = new Date(Date.now() - 40 * 86_400_000).toISOString().slice(0, 10);
+    // the filter takes a Kigali calendar day (UTC+2): build it in Kigali time, or the test fails from 00:00 to 02:00 CAT
+    const old = new Date(Date.now() - 40 * 86_400_000 + 2 * 3_600_000).toISOString().slice(0, 10);
     expect(await ids({ joinedTo: old })).toEqual([p2]);
     expect(await ids({ seen: -30 })).toContain(p2);
     expect(await ids({ seen: 7 })).not.toContain(p2);
