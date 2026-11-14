@@ -65,7 +65,8 @@ const matte = (m: THREE.MeshStandardMaterial) => {
 
 /** Carved board top: a finely tessellated plane with 32 spherical pits pressed in. */
 function boardGeometry(lite: boolean) {
-  const g = new THREE.PlaneGeometry(BOARD.w, BOARD.d, lite ? 64 : 96, lite ? 32 : 48).rotateX(-Math.PI / 2);
+  // (GAP-008: 96 × 48 was 9.2k triangles per board × 16 boards; 8 grid steps per pit keep the pits round)
+  const g = new THREE.PlaneGeometry(BOARD.w, BOARD.d, lite ? 48 : 64, lite ? 24 : 32).rotateX(-Math.PI / 2);
   const p = g.getAttribute("position") as THREE.BufferAttribute;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i);
