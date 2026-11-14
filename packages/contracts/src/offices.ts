@@ -81,5 +81,125 @@ export const OFFICE_REFUSALS = ["DECLINED", "EXPIRED", "NOBODY_INSIDE", "NOT_ALL
 export type OfficeRefusal = (typeof OFFICE_REFUSALS)[number];
 
 export const OfficeEnterSchema = z.object({ office: OfficeIdSchema });
-export const OfficeAnswerSchema = z.object({ knockId: z.string().min(1).max(40), allow: z.boolean() });
+/**
+ * Answer a knock. `action` (P2-ADM-04) is the full choice: Let in / Please wait / Decline. The older
+ * `{ allow: boolean }` form keeps working (allow → "allow", !allow → "decline"); `action` wins when both are sent.
+ */
+export const OfficeAnswerActionSchema = z.enum(["allow", "wait", "decline"]);
+export type OfficeAnswerAction = z.infer<typeof OfficeAnswerActionSchema>;
+export const OfficeAnswerSchema = z
+  .object({ knockId: z.string().min(1).max(40), allow: z.boolean().optional(), action: OfficeAnswerActionSchema.optional() })
+  .refine((a) => a.allow !== undefined || a.action !== undefined, "allow or action is required");
+export const answerAction = (a: { allow?: boolean; action?: OfficeAnswerAction }): OfficeAnswerAction => a.action ?? (a.allow ? "allow" : "decline");
 export const KNOCK_TTL_MS = 30_000;
+
+/* ---------------- P2-ADM-04: queue, Please wait, capacity, office conversation (all additive) ---------------- */
+
+/** a knock answered "Please wait" (or queued at a full office) stays open this long, renewed on every wait */
+export const KNOCK_WAIT_TTL_MS = 180_000;
+
+/** client → server (additive) */
+export const OfficeMsgV2 = {
+  /** stop waiting: withdraw my knock */
+  cancel: "office-cancel", // { knockId }
+  /** office text chat: reaches only the people inside the same office */
+  chat: "office-chat", // { text }
+} as const;
+
+/** server → client (additive) */
+export const OfficeEvtV2 = {
+  /** to the visitor: staff asked you to wait (or the office is full); the knock stays queued */
+  wait: "office-wait", // { office, knockId, expiresInMs, reason: "ASKED" | "FULL" }
+  /** to staff inside: this knock is finished (answered by someone, expired, withdrawn, the visitor left) */
+  knockClosed: "office-knock-closed", // { office, knockId, outcome: KnockOutcome }
+  /** to the people inside one office: who is in the conversation (only those inside ever see the names) */
+  members: "office-members", // { office, members: { id, name, staff }[] }
+  /** office text chat line (only to the people inside that office) */
+  chat: "office-chat", // { office, id, name, color, text, t }
+} as const;
+
+export const KNOCK_OUTCOMES = ["ALLOWED", "DECLINED", "EXPIRED", "CANCELLED", "LEFT", "NOBODY_INSIDE"] as const;
+export type KnockOutcome = (typeof KNOCK_OUTCOMES)[number];
+export type WaitReason = "ASKED" | "FULL";
+export const OfficeCancelSchema = z.object({ knockId: z.string().min(1).max(40) });
+export const OfficeChatSchema = z.object({ text: z.string().min(1).max(400) });
+/**
+ * office-occupancy payload: `occupants` (staff inside, as before) plus, additively, `visitors` (people let in) and
+ * `queue` (open knocks). Counts only, never who.
+ */
+export const OfficeOccupancySchema = z.object({
+  office: OfficeIdSchema,
+  occupants: z.number().int().nonnegative(),
+  visitors: z.number().int().nonnegative().optional(),
+  queue: z.number().int().nonnegative().optional(),
+});
+export type OfficeOccupancy = z.infer<typeof OfficeOccupancySchema>;
+
+/* ---------------- seats (P2-ADM-04) ---------------- */
+
+/**
+ * Administrative Block seats (hall "admin"), validated by the realtime server (positions: apps/web admin-block/plan.ts):
+ *  - `lobby-{n}`: sofa, armchairs and waiting benches (anyone);
+ *  - `{office}-officer`: the chair behind the desk (a holder of that office's role who is inside);
+ *  - `{office}-visitor-{n}`: the visitor chairs facing the desk (people inside that office);
+ *  - `{office}-meeting-{n}`: the meeting-table chairs (people inside that office).
+ * An office takes as many visitors (people let in) as it has visitor chairs.
+ */
+export const ADMIN_LOBBY_SEATS = 11;
+export const OFFICE_VISITOR_SEATS = 3;
+export const OFFICE_MEETING_SEATS = 4;
+export const OFFICE_CAPACITY = OFFICE_VISITOR_SEATS;
+export type AdminSeat =
+  | { kind: "lobby"; n: number }
+  | { kind: "officer"; office: SeedOfficeId }
+  | { kind: "visitor" | "meeting"; office: SeedOfficeId; n: number };
+const SEED_IDS = new Set<string>(SEED_OFFICES.map((o) => o.id));
+const ADMIN_SEAT = /^(?:lobby-(\d{1,2})|([a-z-]{3,24}?)-(officer|visitor|meeting)(?:-(\d))?)$/;
+
+/** Parses an Administrative Block seat id (null: not one). */
+export function parseAdminSeat(id: unknown): AdminSeat | null {
+  if (typeof id !== "string" || id.length > 40) return null;
+  const m = ADMIN_SEAT.exec(id);
+  if (!m) return null;
+  if (m[1] !== undefined) {
+    const n = Number(m[1]);
+    return n < ADMIN_LOBBY_SEATS && String(n) === m[1] ? { kind: "lobby", n } : null;
+  }
+  const office = m[2]!;
+  if (!SEED_IDS.has(office)) return null;
+  const kind = m[3] as "officer" | "visitor" | "meeting";
+  if (kind === "officer") return m[4] === undefined ? { kind, office: office as SeedOfficeId } : null;
+  if (m[4] === undefined) return null;
+  const n = Number(m[4]);
+  return n < (kind === "visitor" ? OFFICE_VISITOR_SEATS : OFFICE_MEETING_SEATS) ? { kind, office: office as SeedOfficeId, n } : null;
+}
+export const isAdminSeat = (id: unknown): id is string => parseAdminSeat(id) !== null;
+/** every admin seat id (lobby first, then per office: officer, visitors, meeting chairs) */
+export const ADMIN_SEAT_IDS: readonly string[] = [
+  ...Array.from({ length: ADMIN_LOBBY_SEATS }, (_, n) => `lobby-${n}`),
+  ...SEED_OFFICES.flatMap((o) => [
+    `${o.id}-officer`,
+    ...Array.from({ length: OFFICE_VISITOR_SEATS }, (_, n) => `${o.id}-visitor-${n}`),
+    ...Array.from({ length: OFFICE_MEETING_SEATS }, (_, n) => `${o.id}-meeting-${n}`),
+  ]),
+];
+
+/* ---------------- reception (P2-ADM-04): POST /admin-block/reception ---------------- */
+
+/** One chat turn with the reception assistant. History is the last few turns, held by the client (nothing is stored). */
+export const ReceptionTurnSchema = z.object({ role: z.enum(["visitor", "reception"]), text: z.string().min(1).max(800) });
+export const ReceptionRequestSchema = z.object({
+  message: z.string().trim().min(1).max(300),
+  history: z.array(ReceptionTurnSchema).max(8).default([]),
+});
+export type ReceptionRequest = z.infer<typeof ReceptionRequestSchema>;
+export const ReceptionReplySchema = z.object({
+  reply: z.string().min(1).max(800),
+  /** quick follow-up chips */
+  suggestions: z.array(z.string().max(60)).max(4).optional(),
+  /** "Take me there": the office the reply is about */
+  officeHint: OfficeIdSchema.optional(),
+  /** who answered: the model, or the built-in rules (no key / slow / failed) */
+  source: z.enum(["model", "rules"]),
+});
+export type ReceptionReply = z.infer<typeof ReceptionReplySchema>;

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isAdminSeat } from "./offices.js";
 
 /**
  * Shared social contracts (SRS §8.4, FR-COM-*, SAFE-*): seat ids the realtime server validates, chat scopes,
@@ -66,6 +67,7 @@ export const isHallId = (g: unknown): g is HallId => g === "pool" || g === "ludo
 
 /** `plaza` → bench seats; a hall id → that hall's chairs. Anything else (or an unknown id) is rejected. */
 export function isValidSeat(place: "plaza" | HallId, seat: unknown): seat is string {
+  if (place === "admin") return isAdminSeat(seat); // lobby / officer / visitor / meeting chairs (offices.ts, P2-ADM-04)
   if (typeof seat !== "string" || seat.length > 8) return false;
   if (place === "plaza") return PLAZA_SEAT_IDS.has(seat);
   const m = /^t(\d{1,2})s(\d)$/.exec(seat);

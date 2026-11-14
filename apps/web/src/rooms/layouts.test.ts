@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ARENA_SEATS, HALL_SEATING, isValidArenaSeat, isValidSeat } from "@gukirana/contracts";
+import { ADMIN_SEAT_IDS, ARENA_SEATS, HALL_SEATING, isValidArenaSeat, isValidSeat } from "@gukirana/contracts";
 import { HALLS, IGISORO_STOOL_Z, LUDO_POUF, POOL_CUE_CLEARANCE, type HallLayout } from "./layouts";
 import { freeChair, nearestTable, tableAt, tableStatuses } from "./table-status";
 
@@ -10,7 +10,8 @@ describe("hall layouts", () => {
   it.each(Object.values(HALLS).filter((L) => L.game !== "arena"))("$game: seats match the server's seat contract", (L: HallLayout) => {
     const spec = HALL_SEATING[L.game];
     expect(L.tables.length).toBe(spec.tables);
-    expect(L.seats.length).toBe(spec.tables * spec.chairs);
+    // the Administrative Block has no table chairs: its own seat ids (contracts offices.ts ADMIN_SEAT_IDS)
+    expect(L.seats.length).toBe(L.game === "admin" ? ADMIN_SEAT_IDS.length : spec.tables * spec.chairs);
     for (const s of L.seats) expect(isValidSeat(L.game, s.id)).toBe(true);
     expect(new Set(L.seats.map((s) => s.id)).size).toBe(L.seats.length);
   });

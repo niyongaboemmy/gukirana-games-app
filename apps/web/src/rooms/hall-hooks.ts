@@ -28,6 +28,10 @@ export interface HallHooks {
   stand?: () => void;
   /** last word on the follow camera (keep it inside the bowl, above the rake) */
   camClamp?: (cam: { x: number; y: number; z: number }) => void;
+  /** may this chair be offered to you right now ("Sit down" prompt)? (the server has the final say) */
+  seatOk?: (id: string) => boolean;
+  /** movement input is suspended (a full-screen window has the keyboard, e.g. the office computer) */
+  frozen?: () => boolean;
 }
 export const hallHooks: Partial<Record<HallGame, HallHooks>> = {};
 

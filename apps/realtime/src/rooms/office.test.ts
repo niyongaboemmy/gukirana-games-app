@@ -11,7 +11,7 @@ import { WebSocketTransport } from "@colyseus/ws-transport";
 import { Client, type Room } from "colyseus.js";
 import { SignJWT } from "jose";
 import { loadEnv } from "@gukirana/config";
-import { OfficeEvt, OfficeMsg, SEED_OFFICES } from "@gukirana/contracts";
+import { KNOCK_WAIT_TTL_MS, OFFICE_CAPACITY, OfficeEvt, OfficeEvtV2, OfficeMsg, OfficeMsgV2, SEED_OFFICES } from "@gukirana/contracts";
 import { WorldRoom } from "./world-room.js";
 import {
   clearAccessCache,
@@ -117,12 +117,12 @@ describe("Administrative Block offices", () => {
     await until(() => !!it.last(OfficeEvt.admitted));
     expect(it.last(OfficeEvt.admitted)).toEqual({ office: "it-office", via: "role" });
     await until(() => !!other.last(OfficeEvt.occupancy));
-    expect(other.last(OfficeEvt.occupancy)).toEqual({ office: "it-office", occupants: 1 });
+    expect(other.last(OfficeEvt.occupancy)).toEqual({ office: "it-office", occupants: 1, visitors: 0, queue: 0 });
     expect(reports.at(-1)).toEqual({ "it-office": 1 });
     // a late joiner gets the current lamps on join
     const late = await person([]);
     await until(() => !!late.last(OfficeEvt.occupancy));
-    expect(late.last(OfficeEvt.occupancy)).toEqual({ office: "it-office", occupants: 1 });
+    expect(late.last(OfficeEvt.occupancy)).toMatchObject({ office: "it-office", occupants: 1 });
   });
 
   it("an all-offices role (super admin) enters any office", async () => {
@@ -174,7 +174,7 @@ describe("Administrative Block offices", () => {
     await until(() => !!visitor.last(OfficeEvt.admitted));
     expect(visitor.last(OfficeEvt.admitted)).toEqual({ office: "accountant", via: "invite" });
     // occupancy counts staff (the visitor is not staff)
-    expect(acct.last(OfficeEvt.occupancy)).toEqual({ office: "accountant", occupants: 1 });
+    expect(acct.last(OfficeEvt.occupancy)).toEqual({ office: "accountant", occupants: 1, visitors: 1, queue: 0 });
 
     // after leaving, the invite is gone: the next visit knocks again
     visitor.room.send(OfficeMsg.leave, { office: "accountant" });
@@ -300,5 +300,154 @@ describe("Administrative Block offices", () => {
     await wait(150);
     expect(p.of(OfficeEvt.admitted)).toHaveLength(0);
     expect(p.of(OfficeEvt.refused)).toHaveLength(0);
+  });
+});
+
+/** P2-ADM-04: the knock queue (Let in / Please wait / Decline), capacity, withdrawing, office chairs, conversation */
+describe("Administrative Block: queue, capacity, chairs, conversation", () => {
+  /** a staff member inside `office` */
+  const staffIn = async (office: string) => {
+    const s = await person([office]);
+    enter(s, office);
+    await until(() => !!s.last(OfficeEvt.admitted));
+    return s;
+  };
+  const knockAndGet = async (v: Person, office: string, staff: Person, nth = 1) => {
+    const before = v.of(OfficeEvt.knocking).length;
+    enter(v, office);
+    await until(() => v.of(OfficeEvt.knocking).length > before && staff.of(OfficeEvt.knock).length >= nth);
+    return v.last(OfficeEvt.knocking)!.knockId as string;
+  };
+  const fromId = (m: Record<string, unknown>) => (m.from as { id: string }).id;
+  const seats = (p: Person) => (p.last("seats") ?? {}) as Record<string, string>;
+  const members = (p: Person) => (p.last(OfficeEvtV2.members)?.members as unknown[] | undefined) ?? [];
+
+  it("Please wait keeps the knock queued (TTL extended); another staff member lets them in later; prompts close", async () => {
+    const a = await staffIn("it-office");
+    const b = await staffIn("it-office");
+    const v = await person([]);
+    const id = await knockAndGet(v, "it-office", a);
+    await until(() => b.of(OfficeEvt.knock).length === 1);
+    a.room.send(OfficeMsg.answer, { knockId: id, action: "wait" });
+    await until(() => !!v.last(OfficeEvtV2.wait));
+    const w = v.last(OfficeEvtV2.wait)!;
+    expect(w).toMatchObject({ office: "it-office", knockId: id, reason: "ASKED" });
+    expect(w.expiresInMs as number).toBeGreaterThan(KNOCK_WAIT_TTL_MS - 2000);
+    expect(v.last(OfficeEvt.refused)).toBeUndefined();
+    // both staff see the knock again, now "waiting"; the lamps show the queue (counts only)
+    await until(() => b.of(OfficeEvt.knock).some((k) => k.status === "waiting"));
+    expect(v.last(OfficeEvt.occupancy)).toMatchObject({ office: "it-office", occupants: 2, queue: 1 });
+    b.room.send(OfficeMsg.answer, { knockId: id, action: "allow" });
+    await until(() => !!v.last(OfficeEvt.admitted));
+    expect(v.last(OfficeEvt.admitted)).toEqual({ office: "it-office", via: "invite" });
+    await until(() => !!a.last(OfficeEvtV2.knockClosed));
+    expect(a.last(OfficeEvtV2.knockClosed)).toEqual({ office: "it-office", knockId: id, outcome: "ALLOWED" });
+    // the other staff member's late answer does nothing
+    a.room.send(OfficeMsg.answer, { knockId: id, action: "decline" });
+    await wait(80);
+    expect(v.last(OfficeEvt.refused)).toBeUndefined();
+  });
+
+  it("a full office queues new knocks (never refuses) until a visitor chair is free", async () => {
+    const s = await staffIn("accountant");
+    const guests: Person[] = [];
+    for (let i = 0; i < OFFICE_CAPACITY; i++) {
+      const g = await person([]);
+      const id = await knockAndGet(g, "accountant", s, i + 1);
+      s.room.send(OfficeMsg.answer, { knockId: id, allow: true });
+      await until(() => !!g.last(OfficeEvt.admitted));
+      guests.push(g);
+    }
+    const late = await person([]);
+    enter(late, "accountant");
+    await until(() => !!late.last(OfficeEvtV2.wait));
+    expect(late.last(OfficeEvtV2.wait)).toMatchObject({ office: "accountant", reason: "FULL" });
+    expect(late.last(OfficeEvt.refused)).toBeUndefined();
+    await until(() => s.of(OfficeEvt.knock).some((k) => fromId(k) === late.sid));
+    const k = s.of(OfficeEvt.knock).filter((m) => fromId(m) === late.sid).at(-1)!;
+    expect(k).toMatchObject({ status: "waiting", full: true });
+    // Let in while full: still waiting
+    s.room.send(OfficeMsg.answer, { knockId: k.knockId, action: "allow" });
+    await until(() => late.of(OfficeEvtV2.wait).length === 2);
+    expect(late.last(OfficeEvt.admitted)).toBeUndefined();
+    // a visitor leaves: the queue is offered again with a free chair, and Let in works
+    guests[0]!.room.send(OfficeMsg.leave, {});
+    await until(() => s.of(OfficeEvt.knock).some((m) => m.knockId === k.knockId && m.full === false));
+    s.room.send(OfficeMsg.answer, { knockId: k.knockId, action: "allow" });
+    await until(() => !!late.last(OfficeEvt.admitted));
+  });
+
+  it("a visitor can withdraw a knock; leaving the hall closes it too", async () => {
+    officeConfig.knockGapMs = 0;
+    const s = await staffIn("customer-support");
+    const v = await person([]);
+    const id = await knockAndGet(v, "customer-support", s);
+    v.room.send(OfficeMsgV2.cancel, { knockId: id });
+    await until(() => !!s.last(OfficeEvtV2.knockClosed));
+    expect(s.last(OfficeEvtV2.knockClosed)).toEqual({ office: "customer-support", knockId: id, outcome: "CANCELLED" });
+    // somebody else's knock can't be withdrawn by a stranger
+    const id2 = await knockAndGet(v, "customer-support", s, 2);
+    const other = await person([]);
+    other.room.send(OfficeMsgV2.cancel, { knockId: id2 });
+    await wait(80);
+    expect(s.of(OfficeEvtV2.knockClosed)).toHaveLength(1);
+    await v.room.leave();
+    await until(() => s.of(OfficeEvtV2.knockClosed).length === 2);
+    expect(s.last(OfficeEvtV2.knockClosed)).toMatchObject({ knockId: id2, outcome: "LEFT" });
+  });
+
+  it("office chairs: visitors only inside, the officer chair only for the role; leaving frees the chair", async () => {
+    const s = await staffIn("it-office");
+    const v = await person([]);
+    v.room.send("sit", { seat: "lobby-3" });
+    await until(() => seats(v)["lobby-3"] === v.sid);
+    v.room.send("sit", { seat: "it-office-visitor-0" });
+    await until(() => v.last("seat-taken")?.reason === "NOT_INSIDE");
+    // waiting in the lobby: the answer still arrives while seated
+    const id = await knockAndGet(v, "it-office", s);
+    s.room.send(OfficeMsg.answer, { knockId: id, action: "allow" });
+    await until(() => !!v.last(OfficeEvt.admitted));
+    v.room.send("sit", { seat: "it-office-officer" });
+    await until(() => v.last("seat-taken")?.reason === "STAFF_ONLY");
+    v.room.send("sit", { seat: "it-office-visitor-0" });
+    await until(() => seats(v)["it-office-visitor-0"] === v.sid);
+    expect(seats(v)["lobby-3"]).toBeUndefined(); // one seat per person
+    // a chair in another office is refused
+    v.room.send("sit", { seat: "accountant-visitor-0" });
+    await until(() => v.of("seat-taken").length === 3);
+    s.room.send("sit", { seat: "it-office-officer" });
+    await until(() => seats(s)["it-office-officer"] === s.sid);
+    v.room.send(OfficeMsg.leave, {});
+    await until(() => seats(s)["it-office-visitor-0"] === undefined);
+    expect(seats(s)["it-office-officer"]).toBe(s.sid);
+  });
+
+  it("the people inside one office share a private conversation (members + office chat)", async () => {
+    const s = await staffIn("super-admin");
+    const v = await person([]);
+    const outside = await person([]);
+    const id = await knockAndGet(v, "super-admin", s);
+    s.room.send(OfficeMsg.answer, { knockId: id, action: "allow" });
+    await until(() => members(s).length === 2);
+    expect(members(s)).toEqual(
+      expect.arrayContaining([
+        { id: s.sid, name: expect.any(String), staff: true },
+        { id: v.sid, name: expect.any(String), staff: false },
+      ]),
+    );
+    expect(outside.of(OfficeEvtV2.members)).toHaveLength(0);
+    v.room.send(OfficeMsgV2.chat, { text: "Good morning" });
+    await until(() => !!s.last(OfficeEvtV2.chat));
+    expect(s.last(OfficeEvtV2.chat)).toMatchObject({ office: "super-admin", id: v.sid, text: "Good morning" });
+    await wait(80);
+    expect(outside.of(OfficeEvtV2.chat)).toHaveLength(0);
+    // somebody outside the offices can't post into one
+    outside.room.send(OfficeMsgV2.chat, { text: "hello?" });
+    await wait(80);
+    expect(s.of(OfficeEvtV2.chat)).toHaveLength(1);
+    // leaving: the visitor's conversation empties, the staff member is alone again
+    v.room.send(OfficeMsg.leave, {});
+    await until(() => members(v).length === 0 && v.of(OfficeEvtV2.members).length > 1);
+    await until(() => members(s).length === 1);
   });
 });

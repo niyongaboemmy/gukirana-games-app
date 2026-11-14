@@ -1,6 +1,6 @@
 "use client";
 import { Suspense, useEffect, useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer } from "@react-three/drei";
 import * as THREE from "three";
 import { GeoBatch } from "@/world/geo";
@@ -12,7 +12,9 @@ import { GltfInstances, Instanced, model, usePbr, type Xform } from "./interior-
 import { imigongoPanel } from "./room-textures";
 import { SouthWall, WindowWall } from "./shell";
 import { doors, registerAdminHooks, updateDoors } from "@/admin-block/doors";
-import { canEnter, occupantsOf, useOffices } from "@/admin-block/office-client";
+import { canEnter, occupantsOf, queueOf, useOffices, visitorsOf } from "@/admin-block/office-client";
+import { useConsole } from "@/console/console-store";
+import { setMonitorProjector } from "@/admin-block/computer";
 import {
   ADMIN_WALLS,
   BENCHES,
@@ -26,6 +28,7 @@ import {
   MEETING_R,
   OFFICE_PLANS,
   officeFurniture,
+  officerMonitor,
   OPENING,
   RECEPTION,
   RECEPTIONIST,
@@ -361,8 +364,15 @@ function DoorSigns() {
   );
   useEffect(() => () => [...lamps, ...plates].forEach((m) => m.dispose()), [lamps, plates]);
   useEffect(() => {
-    OFFICE_PLANS.forEach((o, i) => lamps[i]!.emissive.set(STATUS_HEX[doorStatus(occupantsOf(o.id, st))]));
+    OFFICE_PLANS.forEach((o, i) => lamps[i]!.emissive.set(STATUS_HEX[doorStatus(occupantsOf(o.id, st), visitorsOf(o.id, st))]));
   }, [st, lamps]);
+  // visitors queued at a door: its lamp breathes softly (well below the bloom threshold)
+  useFrame(({ clock }) => {
+    OFFICE_PLANS.forEach((o, i) => {
+      const q = queueOf(o.id, st) > 0;
+      lamps[i]!.emissiveIntensity = q ? 0.4 + 0.25 * (0.5 + 0.5 * Math.sin(clock.elapsedTime * 3)) : 0.55;
+    });
+  });
   return (
     <group>
       {OFFICE_PLANS.map((o, i) => (
@@ -388,7 +398,9 @@ function DirectoryBoard() {
   useEffect(() => {
     const rows = st.offices.map((o) => {
       const n = occupantsOf(o.id, st);
-      return { name: o.name, status: statusLabel(n), dot: STATUS_HEX[doorStatus(n)], note: canEnter(o.id) ? S.youCanEnter : null };
+      const v = visitorsOf(o.id, st);
+      const q = queueOf(o.id, st);
+      return { name: o.name, status: statusLabel(n, v), dot: STATUS_HEX[doorStatus(n, v)], note: canEnter(o.id) ? (q ? `${S.youCanEnter} · ${S.queued(q)}` : S.youCanEnter) : q ? S.queued(q) : null };
     });
     texRef.current = paintDirectory(texRef.current, rows, S.directoryBoard, st.source === "api" ? S.visitorsKnock : S.offline);
     if (mat.emissiveMap !== texRef.current) {
@@ -478,6 +490,54 @@ function Graphics({ screens, h }: { screens: ScreenSpot[]; h: number }) {
         </mesh>
       ))}
     </group>
+  );
+}
+
+/**
+ * The officers' computers (P2-ADM-04): registers the monitor → screen-rect projector the staff console zooms out of,
+ * and lights a soft glow on the monitor whose console is open (one small plane, drawn only while open).
+ */
+function OfficeComputers() {
+  const { camera, gl } = useThree();
+  const open = useConsole((s) => (s.open ? s.office : null));
+  useEffect(() => {
+    const v = new THREE.Vector3();
+    setMonitorProjector((office) => {
+      const o = OFFICE_PLANS.find((p) => p.id === office);
+      if (!o) return null;
+      const m = officerMonitor(o);
+      const r = gl.domElement.getBoundingClientRect();
+      let x0 = Infinity;
+      let y0 = Infinity;
+      let x1 = -Infinity;
+      let y1 = -Infinity;
+      for (const [dx, dy] of [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ] as const) {
+        v.set(m.x + (dx * m.w) / 2, m.y + (dy * m.h) / 2, m.z).project(camera);
+        if (v.z > 1) return null; // behind the camera
+        const sx = r.left + ((v.x + 1) / 2) * r.width;
+        const sy = r.top + ((1 - v.y) / 2) * r.height;
+        x0 = Math.min(x0, sx);
+        y0 = Math.min(y0, sy);
+        x1 = Math.max(x1, sx);
+        y1 = Math.max(y1, sy);
+      }
+      return { x: x0, y: y0, width: Math.max(1, x1 - x0), height: Math.max(1, y1 - y0) };
+    });
+    return () => setMonitorProjector(null);
+  }, [camera, gl]);
+  const o = open ? OFFICE_PLANS.find((p) => p.id === open) : undefined;
+  if (!o) return null;
+  const m = officerMonitor(o);
+  return (
+    <mesh position={[m.x, m.y, m.z - 0.004]} rotation={[0, Math.PI, 0]}>
+      <planeGeometry args={[m.w + 0.04, m.h + 0.04]} />
+      <meshBasicMaterial color="#fff1dc" transparent opacity={0.22} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+    </mesh>
   );
 }
 
@@ -600,6 +660,7 @@ export function AdminBlock({ layout, lite }: { layout: HallLayout; lite: boolean
       <DoorSigns />
       <DirectoryBoard />
       <Graphics screens={built.screens} h={h} />
+      <OfficeComputers />
       <Suspense fallback={null}>
         <Receptionist lite={lite} />
       </Suspense>
