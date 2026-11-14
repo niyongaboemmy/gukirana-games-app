@@ -1,9 +1,12 @@
 "use client";
-import { Check, Coffee, Loader2, PersonStanding, X } from "lucide-react";
+import { Camera, Check, Coffee, GlassWater, Loader2, NotebookPen, PersonStanding, X } from "lucide-react";
 import { useWorld } from "@/lib/world-store";
 import { respondPair } from "@/lib/realtime";
 import { EMOTE_PICKER, PAIR_ACTIONS } from "./actions";
-import { doAction, goToSpot, people, SPOTS } from "./people";
+import { doAction, people, SPOTS } from "./people";
+import { startSpot, usePlazaUi } from "@/world/PlazaCards";
+import { PA } from "@/world/strings";
+import { KeyHint } from "@/hud/Prompt";
 import { useSocial } from "./social-store";
 
 /**
@@ -81,16 +84,20 @@ export function PairPendingChip() {
   );
 }
 
-/** At a lamp post or the café glass: "Lean here"; at the café window: "Coffee". */
+/** Icon per place kind (lamp post / café glass lean, café counter, water point, notice board, volcano viewpoint). */
+const SPOT_ICON = { lean: PersonStanding, coffee: Coffee, water: GlassWater, board: NotebookPen, photo: Camera } as const;
+
+/** At a place you can use (lamp post, café, water point, notice board, viewpoint): its prompt — tap, or E. */
 export function SpotPrompt() {
   const idx = useSocial((s) => s.nearSpot);
   const busy = useWorld((s) => !!s.emote && s.emote.until > Date.now());
+  const card = usePlazaUi((s) => s.card);
   const spot = idx != null ? SPOTS[idx] : undefined;
-  if (!spot || busy || people.move) return null;
-  const coffee = spot.kind === "coffee";
+  if (!spot || busy || people.move || card) return null;
+  const Icon = SPOT_ICON[spot.kind];
   return (
-    <button type="button" onClick={() => goToSpot(spot)} className={`${glass} press pointer-events-auto flex items-center gap-2 px-3 py-1.5 text-sm font-bold`}>
-      {coffee ? <Coffee size={16} /> : <PersonStanding size={16} />} {coffee ? "Get a coffee" : "Lean here"}
+    <button type="button" onClick={() => startSpot(spot)} className={`${glass} press pointer-events-auto flex items-center gap-2 px-3 py-1.5 text-sm font-bold`}>
+      <KeyHint k="E" small /> <Icon size={16} /> {PA.prompt[spot.kind]}
     </button>
   );
 }

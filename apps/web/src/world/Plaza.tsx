@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { RoundedBox, Sparkles, Text } from "@react-three/drei";
+import { RoundedBox, Text } from "@react-three/drei";
 import * as THREE from "three";
 import { ARENA, buildDistrict } from "./District";
 import { LUDO_DIE, PLOTS } from "./footprints";
@@ -11,9 +11,10 @@ import { DOOR, DOOR_OPEN_RADIUS, DOOR_RING, doorInset, doorLocal, VESTIBULE_DEPT
 import { doorHold, doorOpen } from "./transition";
 import { selfPose, useWorld } from "@/lib/world-store";
 import { plazaDoorSound, PlazaLife } from "./Ambience";
+import { PlazaActivities } from "./PlazaActivities";
 import { EntryGate } from "./gate/EntryGate";
 import { GAME_COLORS, LED_BOOST, worldMaterials, type Tier } from "./materials";
-import { arenaScreenTexture, posterTexture } from "./textures";
+import { arenaScreenTexture } from "./textures";
 import { FountainWater } from "./Fountain";
 import { DoorBadge, Vestibule } from "./Vestibule";
 import { watchBuildings } from "./buildings";
@@ -25,22 +26,17 @@ import { NearOnly, StaticMerge } from "./static-merge";
 
 const FONT = "/fonts/Baloo2.ttf";
 
+const NO_SHADOW = new Set(["basalt", "granite", "basinFloor", "brass", "lampHead", "screenFrame"]);
+
 /** Merged static district: ~one draw call per material. */
 function District({ tier }: { tier: Tier }) {
   const geos = useMemo(() => buildDistrict(tier), [tier]);
   const mats = useMemo(() => worldMaterials(tier), [tier]);
   useEffect(() => () => geos.forEach((g) => g.dispose()), [geos]);
-  // the arena's LED ribbons slowly cycle purple → blue → gold (one shared material, cheap to animate)
+  // the arena's LED ribbons: a steady arena purple (P2-WLD-09: the purple → blue → gold colour cycle was one more
+  // thing moving in every view of the plaza; a calm, constant accent reads better)
   const halo = mats["led-halo"] as THREE.MeshBasicMaterial;
-  const base = useMemo(() => [new THREE.Color(GAME_COLORS.arena), new THREE.Color(GAME_COLORS.sky), new THREE.Color(GAME_COLORS.gold)], []);
-  const boost = LED_BOOST[tier];
-  useFrame(({ clock }) => {
-    const t = (clock.elapsedTime * 0.08) % 3;
-    const i = Math.floor(t);
-    const a = base[i]!;
-    const b = base[(i + 1) % 3]!;
-    halo.color.copy(a).lerp(b, THREE.MathUtils.smoothstep(t - i, 0.2, 0.8)).multiplyScalar(boost);
-  });
+  useEffect(() => void halo.color.set(GAME_COLORS.arena).multiplyScalar(LED_BOOST[tier]), [halo, tier]);
   return (
     <group>
       {[...geos.entries()].map(([key, g]) => {
@@ -48,7 +44,9 @@ function District({ tier }: { tier: Tier }) {
         if (!m) return null;
         const unlit = m instanceof THREE.MeshBasicMaterial;
         const transparent = m.transparent;
-        const ground = key === "paving" || key === "asphalt";
+        // flush / flat or tiny parts cast no shadow (P2-WLD-09: each merged material is one more shadow-pass draw;
+        // kerb strips, granite discs, the basin floor, brass inlays, lamp diffusers and screen panels add nothing seen)
+        const ground = key === "paving" || key === "asphalt" || NO_SHADOW.has(key);
         return <mesh key={key} geometry={g} material={m} castShadow={!unlit && !transparent && !ground && tier !== "lite"} receiveShadow={!unlit && tier !== "lite"} userData={{ noMerge: key === "led-halo" }} />;
       })}
     </group>
@@ -303,35 +301,19 @@ function ArenaScreen({ tier }: { tier: Tier }) {
     t.repeat.set(0.25, 1);
     return t;
   }, []);
+  // one message every 12 s with a slow 1.2 s slide (was 5 s / 0.6 s: a screen flipping in every plaza view)
   useFrame(({ clock }) => {
-    tex.offset.x = Math.floor(clock.elapsedTime / 5) * 0.25 + Math.min(1, (clock.elapsedTime % 5) / 0.6) * 0.25 - 0.25;
+    tex.offset.x = Math.floor(clock.elapsedTime / 12) * 0.25 + Math.min(1, (clock.elapsedTime % 12) / 1.2) * 0.25 - 0.25;
   });
   const gold = useMemo(() => new THREE.Color(GAME_COLORS.gold).multiplyScalar(LED_BOOST[tier]), [tier]);
-  const posters = useMemo(
-    () =>
-      [posterTexture("WEEKEND CUP", "Pool · Ludo · Igisoro", GAME_COLORS.arena), posterTexture("LIVE FINALS", "Coming soon", "#2F80ED")].map(
-        (t) => new THREE.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: "#ffffff", emissiveIntensity: 0.45, roughness: 0.3 }),
-      ),
-    [],
-  );
   return (
     <group position={[x, 0, z]} rotation={[0, rotY, 0]}>
       <mesh position={[0, 12.6, ARENA.cz + ARENA.rz + 1.17]}>
         <planeGeometry args={[16.4, 4.8]} />
         <meshBasicMaterial map={tex} toneMapped={false} color={tier === "lite" ? "#ffffff" : "#d8d8d8"} />
       </mesh>
-      {/* poster lightboxes on the lobby glazing, right of the doors; ticket window sign on the left */}
-      {posters.map((m, i) => (
-        <group key={i} position={[3.15 + i * 1.5, 2.0, -1.13]}>
-          <mesh material={m}>
-            <planeGeometry args={[1.0, 2.0]} />
-          </mesh>
-          <mesh position={[0, 0, -0.03]}>
-            <boxGeometry args={[1.1, 2.1, 0.05]} />
-            <meshStandardMaterial color="#c9ced6" metalness={0.85} roughness={0.35} />
-          </mesh>
-        </group>
-      ))}
+      {/* ticket window sign, left of the doors (P2-WLD-09: the two made-up event posters on the right are gone —
+          the real schedule is on the plaza notice board) */}
       <Text font={FONT} fontSize={0.2} color="#f4f1ea" position={[-4.6, 2.62, -0.69]} anchorX="center" anchorY="middle" letterSpacing={0.12}>
         TICKETS
       </Text>
@@ -371,7 +353,7 @@ function Fountain({ tier }: { tier: Tier }) {
           ))}
         </NearOnly>
       </group>
-      <Sparkles count={30} scale={[5, 3, 5]} position={[0, 5, 0]} size={2.5} speed={0.3} color="#FFC83D" />
+      {/* (P2-WLD-09: the twinkling gold sparkles round the hologram are gone: flicker over the calmest spot) */}
     </group>
   );
 }
@@ -590,6 +572,7 @@ export function Plaza({ nearPortal, tier = "standard" }: { nearPortal: string | 
       </group>
       <group name="plaza-life" userData={{ noMerge: true }}>
         <PlazaLife tier={tier} />
+        <PlazaActivities tier={tier} />
       </group>
       <group name="doors">
         {PORTALS.map((p) => (

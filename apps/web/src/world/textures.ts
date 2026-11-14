@@ -607,7 +607,7 @@ export function doorPreviewTexture(kind: IconKind, color: string, label: string)
 
 /** Animated LED screen content for the arena (scrolls via texture offset). */
 export function arenaScreenTexture(): THREE.CanvasTexture {
-  return ledScreenTexture("arena-screen", ["TOURNAMENT ARENA", "LIVE FINALS SOON", "GUKIRANA PLAYGROUND", "PLAY  MEET  WIN"]);
+  return ledScreenTexture("arena-screen", ["TOURNAMENT ARENA", "MURAKAZA NEZA", "GUKIRANA PLAYGROUND", "PLAY  MEET  WIN"]);
 }
 
 /** 4-message LED screen strip (2048×150; show one quarter at a time with repeat.x = 0.25). */
@@ -641,23 +641,25 @@ export function ledScreenTexture(key: string, msgs: [string, string, string, str
 export function hoardingTexture(): THREE.CanvasTexture {
   return cached("hoarding", () => {
     const { c, g } = canvas(512, 300);
-    g.fillStyle = "#22266E";
+    // (P2-WLD-09: a calm, matte site print — muted slate with a thin ochre band and small lettering, instead of a
+    // loud navy poster shouting NEW GAMES on every fence panel)
+    g.fillStyle = "#39404a";
     g.fillRect(0, 0, 512, 300);
     for (let i = 0; i < 16; i++) {
-      g.fillStyle = i % 2 ? "#FFC83D" : "#B5532A";
+      g.fillStyle = i % 2 ? "#a98b4e" : "#7a5a3c";
       g.beginPath();
       g.moveTo(i * 32, 300);
-      g.lineTo(i * 32 + 16, 262);
+      g.lineTo(i * 32 + 16, 282);
       g.lineTo(i * 32 + 32, 300);
       g.fill();
     }
-    g.fillStyle = "rgba(255,255,255,0.95)";
+    g.fillStyle = "rgba(236,232,224,0.92)";
     g.textAlign = "center";
-    g.font = "900 64px system-ui, sans-serif";
-    g.fillText("NEW GAMES", 256, 120);
-    g.fillStyle = "#FFC83D";
-    g.font = "800 44px system-ui, sans-serif";
-    g.fillText("BUILDING NOW", 256, 190);
+    g.font = "700 40px system-ui, sans-serif";
+    g.fillText("NEW HALL", 256, 128);
+    g.fillStyle = "rgba(236,232,224,0.7)";
+    g.font = "600 26px system-ui, sans-serif";
+    g.fillText("Under construction", 256, 172);
     const t = finish("hoarding", c, { aniso: 4 });
     t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
     return t;
@@ -948,6 +950,58 @@ export function posterTexture(title: string, sub: string, color: string): THREE.
     g.fillStyle = "rgba(255,255,255,0.8)";
     g.fillText(sub, 64, 190);
     const t = finish(key, c, { aniso: 4 });
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    return t;
+  });
+}
+
+/**
+ * Plaza notice board face (P2-WLD-09): cork with a printed header and pinned paper cards. The cards carry only
+ * headings and ruled lines — the real schedule and hall status open in a window when you read the board.
+ */
+export function noticeBoardTexture(): THREE.CanvasTexture {
+  return cached("notice-board", () => {
+    const W = 512;
+    const H = 304;
+    const { c, g } = canvas(W, H);
+    const r = rng(77);
+    g.fillStyle = "#a8825a";
+    g.fillRect(0, 0, W, H);
+    speckle(g, W, H, r, 2600, 0.1, false);
+    speckle(g, W, H, r, 1400, 0.06, true);
+    g.fillStyle = "#23262c";
+    g.fillRect(0, 0, W, 50);
+    g.fillStyle = "#f2efe8";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.font = "700 26px system-ui, sans-serif";
+    g.fillText("NOTICE BOARD  ·  AMATANGAZO", W / 2, 26);
+    const card = (x: number, y: number, w: number, h: number, tilt: number, head: string, pin: string) => {
+      g.save();
+      g.translate(x + w / 2, y + h / 2);
+      g.rotate(tilt);
+      g.fillStyle = "rgba(0,0,0,0.18)";
+      g.fillRect(-w / 2 + 3, -h / 2 + 4, w, h);
+      g.fillStyle = "#f6f2e9";
+      g.fillRect(-w / 2, -h / 2, w, h);
+      g.fillStyle = "#2b2f36";
+      g.font = "700 19px system-ui, sans-serif";
+      if (head) g.fillText(head, 0, -h / 2 + 24);
+      g.fillStyle = "rgba(43,47,54,0.22)";
+      if (head) for (let i = 0; i < 5; i++) g.fillRect(-w / 2 + 18, -h / 2 + 48 + i * 18, w - 36 - (i % 2) * 30, 5);
+      g.fillStyle = pin;
+      g.beginPath();
+      g.arc(0, -h / 2 + 7, 6, 0, Math.PI * 2);
+      g.fill();
+      g.restore();
+    };
+    card(26, 70, 222, 150, -0.03, "ARENA EVENTS", "#9b51e0");
+    card(272, 74, 214, 140, 0.025, "HALLS TODAY", "#27ae60");
+    card(118, 236, 276, 52, 0, "", "#d9a441");
+    g.fillStyle = "#2b2f36";
+    g.font = "600 17px system-ui, sans-serif";
+    g.fillText("Today's news: read the board", W / 2, 266);
+    const t = finish("notice-board", c, { aniso: 8 });
     t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
     return t;
   });

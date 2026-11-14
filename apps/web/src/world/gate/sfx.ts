@@ -1,9 +1,10 @@
 "use client";
 /** Tiny synthesized UI sounds (WebAudio, no audio files). Muted users: browsers block audio until a gesture anyway. */
 import { uiAudio as ac } from "@/lib/audio";
+import { useGamePrefs } from "@/games/feedback";
 
 function tone(freq: number, start: number, dur: number, type: OscillatorType = "sine", gain = 0.12) {
-  const a = ac();
+  const a = useGamePrefs.getState().sound ? ac() : null; // the "Game sounds" setting (P2-WLD-09)
   if (!a) return;
   const o = a.createOscillator();
   const g = a.createGain();
@@ -20,12 +21,13 @@ function tone(freq: number, start: number, dur: number, type: OscillatorType = "
 
 /** Access granted: rising two-note chime. */
 export function chime() {
-  tone(659.25, 0, 0.35);
-  tone(987.77, 0.12, 0.55);
+  tone(659.25, 0, 0.35, "sine", 0.09);
+  tone(987.77, 0.12, 0.55, "sine", 0.08);
 }
-/** Error: short low buzz. */
+/** Error: a short soft low "dum" (triangle, not a harsh square buzz). */
 export function buzz() {
-  tone(140, 0, 0.18, "square", 0.05);
+  tone(196, 0, 0.16, "triangle", 0.06);
+  tone(147, 0.09, 0.22, "triangle", 0.05);
 }
 /** Key press tick. */
 export function tick() {

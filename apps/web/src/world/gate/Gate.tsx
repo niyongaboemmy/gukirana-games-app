@@ -225,7 +225,7 @@ function WelcomeScreen({ tier }: { tier: Tier }) {
   }, []);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
-    tex.offset.x = Math.floor(t / 4) * 0.25 + Math.min(1, (t % 4) / 0.5) * 0.25 - 0.25;
+    tex.offset.x = Math.floor(t / 10) * 0.25 + Math.min(1, (t % 10) / 1.0) * 0.25 - 0.25; // (P2-WLD-09: 10 s per message, was 4 s)
   });
   return (
     <group>

@@ -10,6 +10,7 @@ import { Flowers } from "./Flowers";
 import { sessionMemo } from "./session-cache";
 import { BitmapTextureLoader } from "./bitmap-texture";
 import { COMPOUND_R } from "./layout";
+import { mistUniform } from "./activities";
 
 /** How far the compound (and so the farmland) moved out from the first 88 m layout (P1-WLD-03). */
 const GROW = COMPOUND_R - 88;
@@ -303,8 +304,8 @@ function buildVolcanoes(tier: Tier): { geo: THREE.BufferGeometry; craters: THREE
   // (GAP-008: 5 × 120 × 360 × 2 = 432k triangles, more than the whole Standard budget, for mountains 1.7–2.3 km away.
   // Only the flank that faces the compound is ever seen (anywhere in the compound is within ~6° of the plaza as seen
   // from the volcanoes), so each cone is built over a ±115° arc towards the plaza, with the summit-dense rings kept.)
-  const rings = tier === "lite" ? 32 : 64;
-  const segsFull = tier === "lite" ? 96 : 180; // angular density, per full turn
+  const rings = tier === "lite" ? 32 : 48; // (P2-WLD-09: 64 → 48 rings, 180 → 150 per turn: −37% triangles, same silhouette at 2 km)
+  const segsFull = tier === "lite" ? 96 : 150; // angular density, per full turn
   const ARC = (115 * Math.PI) / 180;
   const parts: THREE.BufferGeometry[] = [];
   const craters: THREE.Vector3[] = [];
@@ -686,11 +687,12 @@ function Mist({ tier }: { tier: Tier }) {
     const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, color: "#f4f7fa", fog: false });
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = uTime;
+      sh.uniforms.uMorning = mistUniform; // P2-WLD-09: the banks thicken with the Musanze morning mist
       sh.vertexShader = sh.vertexShader
-        .replace("#include <common>", "#include <common>\nuniform float uTime;\nattribute vec3 aMist;\nvarying float vMist;")
+        .replace("#include <common>", "#include <common>\nuniform float uTime;\nuniform float uMorning;\nattribute vec3 aMist;\nvarying float vMist;")
         .replace(
           "#include <begin_vertex>",
-          "#include <begin_vertex>\ntransformed.x += sin(uTime * 0.03 + aMist.x) * aMist.y;\nvMist = aMist.z * (0.85 + 0.15 * sin(uTime * 0.1 + aMist.x * 1.7));",
+          "#include <begin_vertex>\ntransformed.x += sin(uTime * 0.03 + aMist.x) * aMist.y;\nvMist = min(1.0, aMist.z * (0.85 + 0.15 * sin(uTime * 0.1 + aMist.x * 1.7)) * (1.0 + 1.3 * uMorning));",
         );
       sh.fragmentShader = sh.fragmentShader
         .replace("#include <common>", "#include <common>\nvarying float vMist;")
@@ -733,17 +735,21 @@ export function Landscape({ tier }: { tier: Tier }) {
   const volcanoMat = useMemo(() => sessionMemo("landscape:volcano-mat", () => {
     const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, map: detail, fog: false });
     m.onBeforeCompile = (sh) => {
-      // aerial perspective: blue-grey haze and loss of saturation with distance (km-scale), output (sRGB) space
-      sh.fragmentShader = sh.fragmentShader.replace(
-        "#include <fog_fragment>",
-        `#include <fog_fragment>
+      // aerial perspective: blue-grey haze and loss of saturation with distance (km-scale), output (sRGB) space;
+      // thicker while the Musanze morning mist lies in the valleys (P2-WLD-09)
+      sh.uniforms.uMorning = mistUniform;
+      sh.fragmentShader = sh.fragmentShader
+        .replace("#include <common>", "#include <common>\nuniform float uMorning;")
+        .replace(
+          "#include <fog_fragment>",
+          `#include <fog_fragment>
         {
           float gkD = length(vViewPosition);
-          float gkK = 1.0 - exp(-gkD * 0.00046);
+          float gkK = 1.0 - exp(-gkD * 0.00046 * (1.0 + 1.6 * uMorning));
           vec3 gkG = vec3(dot(gl_FragColor.rgb, vec3(0.3, 0.59, 0.11)));
           gl_FragColor.rgb = mix(mix(gl_FragColor.rgb, gkG, 0.45 * gkK), vec3(0.706, 0.765, 0.812), gkK);
         }`,
-      );
+        );
     };
     m.customProgramCacheKey = () => "gk-volcano-haze";
     return m;
