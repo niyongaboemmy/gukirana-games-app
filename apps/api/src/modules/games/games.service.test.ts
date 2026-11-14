@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { accessAudit, createDatabase, eq, friendlyPlays, matches, users, type Database } from "@gukirana/db";
 import { keyFromSeed, signResult, type SignedMatchResult } from "@gukirana/signing";
-import { DEFAULT_GAME_SETTINGS, type GameId } from "@gukirana/contracts";
+import { DEFAULT_FIGHT_RULES, DEFAULT_GAME_SETTINGS, type GameId } from "@gukirana/contracts";
 import { DEFAULT_ECONOMY } from "@gukirana/money";
 import { LedgerService } from "../ledger/ledger.service.js";
 import { matchEscrow, userStars } from "../ledger/accounts.js";
@@ -307,5 +307,33 @@ describe("game settings (versioned, bounded, audited)", () => {
     expect((await settings.history("igisoro")).length).toBeGreaterThanOrEqual(2);
     await games.void(running.matchId, "SERVER_ERROR");
     await settings.update("igisoro", DEFAULT_GAME_SETTINGS.igisoro, "restore", "test");
+  });
+});
+
+describe("boxing (P3-FGT-01): a fight game on the same money paths", () => {
+  it("seeded disabled; the fight block is bounded; a row without one runs with the defaults; matches copy it", async () => {
+    const off = (await games.offer(c)).games.find((g) => g.game === "boxing")!;
+    expect(off).toMatchObject({ enabled: false, friendly: { ok: false, reason: "GAME_DISABLED" }, rules: { fight: DEFAULT_FIGHT_RULES, maxMatchMinutes: 15 } });
+    expect(await fail(create([c, d], 25, "boxing"))).toMatchObject({ code: "GAME_DISABLED" });
+    const bad = await fail(settings.update("boxing", { ...DEFAULT_GAME_SETTINGS.boxing, fight: { ...DEFAULT_FIGHT_RULES, rounds: 9 } }, "bad", "test"));
+    expect(bad?.code).toBe("INVALID_SETTINGS");
+    expect(await fail(settings.update("boxing", { ...DEFAULT_GAME_SETTINGS.boxing, fight: { ...DEFAULT_FIGHT_RULES, roundSeconds: 20 } }, "bad", "test"))).toMatchObject({ code: "INVALID_SETTINGS" });
+    // saved without the fight block (older editor): the defaults fill it in; a turn game never carries one
+    const { fight: _f, ...noFight } = DEFAULT_GAME_SETTINGS.boxing;
+    void _f;
+    const row = await settings.update("boxing", { ...noFight, enabled: true }, "open boxing", "staff-1");
+    expect(row.settings.fight).toEqual(DEFAULT_FIGHT_RULES);
+    expect((await settings.update("ludo", { ...DEFAULT_GAME_SETTINGS.ludo, fight: DEFAULT_FIGHT_RULES }, "noop", "test")).settings.fight).toBeUndefined();
+    await settings.update("boxing", { ...DEFAULT_GAME_SETTINGS.boxing, enabled: true, fight: { ...DEFAULT_FIGHT_RULES, rounds: 2, roundSeconds: 45 } }, "short fights", "staff-1");
+    const audit = await db.select().from(accessAudit).where(eq(accessAudit.target, "game:boxing"));
+    expect(audit.at(-1)?.detail).toMatch(/fight: .*rounds=3.* → .*rounds=2/);
+    const before = [await stars(c), await stars(d)];
+    const m = await create([c, d], 25, "boxing");
+    expect(m.rules).toMatchObject({ fight: { rounds: 2, roundSeconds: 45, restSeconds: 15, idleSeconds: 20 }, maxMatchMinutes: 15 });
+    expect([await stars(c), await stars(d)]).toEqual([before[0]! - 25, before[1]! - 25]); // escrow before the bell
+    await games.void(m.matchId, "LEFT_BEFORE_START");
+    expect([await stars(c), await stars(d)]).toEqual(before);
+    await settings.update("boxing", DEFAULT_GAME_SETTINGS.boxing, "restore", "test");
+    await settings.update("ludo", DEFAULT_GAME_SETTINGS.ludo, "restore", "test");
   });
 });
