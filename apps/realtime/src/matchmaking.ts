@@ -3,10 +3,12 @@ import { api } from "./api-client.js";
 
 export const GAMES = ["igisoro", "ludo", "pool"] as const;
 export type GameId = (typeof GAMES)[number];
+/** the default stakes (the API's per-game settings decide which are allowed: STAKE_NOT_ALLOWED otherwise) */
 export const STAKES = [0, 25, 50, 100, 200] as const;
 
 export const isGame = (g: unknown): g is GameId => typeof g === "string" && (GAMES as readonly string[]).includes(g);
-export const isStake = (s: unknown): s is number => typeof s === "number" && (STAKES as readonly number[]).includes(s);
+/** a well-formed stake (0 = friendly); whether this game allows it is the API's call (game_settings, P1-GAME-06) */
+export const isStake = (s: unknown): s is number => typeof s === "number" && Number.isSafeInteger(s) && s >= 0 && s <= 10_000;
 
 const SEATS: Record<GameId, [number, number]> = { igisoro: [0, 1], ludo: [0, 2], pool: [0, 1] };
 
@@ -14,7 +16,8 @@ const SEATS: Record<GameId, [number, number]> = { igisoro: [0, 1], ludo: [0, 2],
 export async function startMatch(game: GameId, stake: number, userIds: [string, string]): Promise<{ roomId: string; matchId: string }> {
   const seats = SEATS[game];
   const created = await api.createMatch({ game, variant: "classic", stake, players: userIds.map((userId, i) => ({ userId, seat: seats[i]! })) });
-  const room = await matchMaker.createRoom("match", { matchId: created.matchId, game, variant: "classic", stake, players: created.players });
+  // the room runs with the rules the API copied onto the match (running matches keep them when an admin edits)
+  const room = await matchMaker.createRoom("match", { matchId: created.matchId, game, variant: "classic", stake, players: created.players, rules: created.rules });
   return { roomId: room.roomId, matchId: created.matchId };
 }
 

@@ -3,6 +3,8 @@ import { z } from "zod";
 import {
   BuildingIdSchema,
   DeleteAccountSchema,
+  GameIdSchema,
+  UpdateGameSettingsSchema,
   EXPORT_ROLES,
   LiftSanctionSchema,
   PresenceReportSchema,
@@ -28,6 +30,7 @@ import { Actor, RequireRole, RoleGuard } from "../admin-block/role.guard.js";
 import { StaffLimits } from "../admin-block/staff-limits.js";
 import { EconomyService } from "../economy/economy.service.js";
 import { BuildingsService } from "./buildings.service.js";
+import { GameSettingsService } from "../games/game-settings.service.js";
 import { ConsoleService, kigaliDayStart } from "./console.service.js";
 import { PresenceStore } from "./presence.js";
 import { ModerationService } from "./moderation.service.js";
@@ -58,6 +61,7 @@ export class ConsoleController {
     private readonly moderation: ModerationService,
     private readonly reports: ReportsService,
     private readonly limits: StaffLimits,
+    private readonly gameSettings: GameSettingsService,
   ) {}
 
   @Get("me")
@@ -222,6 +226,29 @@ export class ConsoleController {
     const r = await this.buildings.set(bid, b.open, b.message, who);
     await this.access.record(who, b.open ? "building.open" : "building.close", `building:${bid}`, b.open ? null : b.message || null);
     return r;
+  }
+
+  /** per-game live-match rules (P1-GAME-06): friendly games per day, stakes, timers */
+  @Get("games")
+  @RequireRole(...SECTION_ROLES.games)
+  listGames() {
+    return this.gameSettings.all();
+  }
+
+  @Get("games/:game/history")
+  @RequireRole(...SECTION_ROLES.games)
+  gameHistory(@Param("game") game: string) {
+    return this.gameSettings.history(parse(GameIdSchema, game), 30);
+  }
+
+  /** a new version for one game (bounds checked, reason required, audited); new matches use it at once */
+  @Put("games/:game")
+  @RequireRole(...SECTION_ROLES.games)
+  setGame(@Param("game") game: string, @Body() body: unknown, @Actor() who: string) {
+    const g = parse(GameIdSchema, game);
+    const b = parse(UpdateGameSettingsSchema, body);
+    this.limits.hit(who, "mutate");
+    return this.gameSettings.update(g, b.settings, b.reason, who);
   }
 
   @Get("presence")

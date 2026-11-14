@@ -40,3 +40,4 @@ export * from "./offices.js";
 export * from "./arena.js";
 export * from "./console.js";
 export * from "./identity.js";
+export * from "./games.js";

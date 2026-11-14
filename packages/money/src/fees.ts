@@ -48,3 +48,17 @@ export function quoteChallenge(stake: Coins, players = 2, premiumDiscountBp = 0)
   const fee = computeTableFee(stake, DEFAULT_FEE_BANDS, premiumDiscountBp);
   return { stake, fee, totalToPay: coins(stake + fee), pot: coins(stake * players) };
 }
+
+/** The currencies a match can be staked in (Stars: practice, no cash value; Coins: licensed pilot only). */
+export type MatchCurrency = "STAR" | "COIN";
+
+/**
+ * Table fee each player pays on top of a match stake (P1-GAME-06). The single place a match fee is decided:
+ * friendly games (stake 0) and Stars matches carry no fee (Stars have no cash value, so the platform earns nothing
+ * on them); Coins matches pay the fee band of the stake. Validation ("balance covers stake + fee") and the escrow
+ * lock use this, so turning on a Stars fee later is a one-line product decision here.
+ */
+export function matchTableFee(currency: MatchCurrency, stake: Coins, bands: readonly FeeBand[] = DEFAULT_FEE_BANDS): Coins {
+  if (stake === 0 || currency === "STAR") return coins(0);
+  return computeTableFee(stake, bands);
+}

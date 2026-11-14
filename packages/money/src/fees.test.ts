@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { coins, coinsToRwf, rwfToCoins } from "./coins.js";
-import { computeTableFee, quoteChallenge } from "./fees.js";
+import { computeTableFee, matchTableFee, quoteChallenge } from "./fees.js";
 
 describe("computeTableFee", () => {
   it.each([
@@ -35,6 +35,16 @@ describe("computeTableFee", () => {
 describe("quoteChallenge", () => {
   it("winner gets exactly 2× the stake; fee is a separate line", () => {
     expect(quoteChallenge(coins(100))).toEqual({ stake: 100, fee: 8, totalToPay: 108, pot: 200 });
+  });
+});
+
+describe("matchTableFee (P1-GAME-06)", () => {
+  it("friendly and Stars matches carry no fee; Coins pay the fee band", () => {
+    expect(matchTableFee("STAR", coins(0))).toBe(0);
+    expect(matchTableFee("STAR", coins(100))).toBe(0);
+    expect(matchTableFee("COIN", coins(0))).toBe(0);
+    expect(matchTableFee("COIN", coins(100))).toBe(8);
+    expect(matchTableFee("COIN", coins(25))).toBe(3);
   });
 });
 

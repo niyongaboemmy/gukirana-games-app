@@ -17,3 +17,5 @@ export const userStars = (userId: string): AccountRef => ({ ownerType: "user", o
 /** Source of practice Stars (no cash value). Contra account, may go negative. */
 export const starsBudget = (): AccountRef => ({ ownerType: "platform", ownerId: PLATFORM_ID, kind: "budget", currency: "STAR", allowNegative: true });
 export const matchEscrow = (matchId: string, currency: Currency): AccountRef => ({ ownerType: "escrow", ownerId: matchId, kind: "locked", currency });
+/** Platform fee income (table fees, tournament rake). */
+export const platformRevenue = (currency: Currency): AccountRef => ({ ownerType: "platform", ownerId: PLATFORM_ID, kind: "revenue", currency });

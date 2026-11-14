@@ -6,7 +6,8 @@ import { IdentityController } from "./modules/identity/identity.controller.js";
 import { IdentityService } from "./modules/identity/identity.service.js";
 import { LevelsService } from "./modules/levels/levels.service.js";
 import { WalletController } from "./modules/wallet/wallet.controller.js";
-import { GamesController, PlayersInternalController } from "./modules/games/games.controller.js";
+import { GamesController, GamesPublicController, PlayersInternalController } from "./modules/games/games.controller.js";
+import { GameSettingsService } from "./modules/games/game-settings.service.js";
 import { GamesService } from "./modules/games/games.service.js";
 import { SocialController } from "./modules/social/social.controller.js";
 import { SocialService } from "./modules/social/social.service.js";
@@ -26,7 +27,7 @@ import { ReportsService } from "./modules/console/reports.service.js";
 /** Modular monolith root (plan §3). */
 @Module({
   imports: [DbModule, LedgerModule, AdminBlockModule, ArenaModule],
-  controllers: [HealthController, IdentityController, WalletController, GamesController, SocialController, EconomyPublicController, EconomyAdminController, ConsoleController, BuildingsPublicController, PresenceInternalController, SuspensionsInternalController, PlayersInternalController],
-  providers: [IdentityService, LevelsService, GamesService, SocialService, EconomyService, WalletService, ConsoleService, ModerationService, ReportsService, BuildingsService, PresenceStore, AuthGuard, InternalGuard, AdminGuard],
+  controllers: [HealthController, IdentityController, WalletController, GamesController, SocialController, EconomyPublicController, EconomyAdminController, ConsoleController, BuildingsPublicController, PresenceInternalController, SuspensionsInternalController, PlayersInternalController, GamesPublicController],
+  providers: [IdentityService, LevelsService, GameSettingsService, GamesService, SocialService, EconomyService, WalletService, ConsoleService, ModerationService, ReportsService, BuildingsService, PresenceStore, AuthGuard, InternalGuard, AdminGuard],
 })
 export class AppModule {}

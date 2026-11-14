@@ -4,7 +4,7 @@ import { z } from "zod";
  * Staff admin console (P2-CON-01): opened from the office computer (full screen) or at /console.
  * Sections are granted by role; the API enforces the same map on every endpoint (RoleGuard + RequireRole).
  */
-export const CONSOLE_SECTIONS = ["overview", "visitors", "users", "reports", "buildings", "monitor", "roles", "finance"] as const;
+export const CONSOLE_SECTIONS = ["overview", "visitors", "users", "reports", "buildings", "monitor", "roles", "finance", "games"] as const;
 export type ConsoleSection = (typeof CONSOLE_SECTIONS)[number];
 
 /** every staff role that may open the console at all */
@@ -20,6 +20,8 @@ export const SECTION_ROLES: Record<ConsoleSection, readonly string[]> = {
   monitor: ["super_admin", "it_admin"],
   roles: ["super_admin"],
   finance: ["super_admin", "accountant"],
+  /** per-game live-match rules: friendly games per day, stakes, timers (P1-GAME-06) */
+  games: ["super_admin", "it_admin"],
 };
 /** may change a player's account status (suspend / reactivate) */
 export const USER_STATUS_ROLES = ["super_admin", "it_admin", "support_agent"] as const;

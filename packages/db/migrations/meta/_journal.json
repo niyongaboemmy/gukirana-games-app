@@ -71,6 +71,13 @@
       "when": 1794655386549,
       "tag": "0009_moderation",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794669020240,
+      "tag": "0010_game_rules",
+      "breakpoints": true
     }
   ]
 }

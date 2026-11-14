@@ -1,30 +1,39 @@
 import { loadEnv } from "@gukirana/config";
 import type { SignedMatchResult } from "@gukirana/signing";
-import type { ArenaRealtimeState, ArenaUserAccess } from "@gukirana/contracts";
+import type { ArenaRealtimeState, ArenaUserAccess, MatchRules, VoidCause } from "@gukirana/contracts";
 
 const env = loadEnv();
 const headers = { "content-type": "application/json", "x-internal-token": env.INTERNAL_SERVICE_TOKEN };
 
 export interface CreatedMatch {
   matchId: string;
+  /** the game's rules snapshot this match runs with (P1-GAME-06) */
+  rules?: MatchRules;
   players: { userId: string; seat: number; rating: number; name: string; color: string }[];
 }
 
-/** An API refusal: `message` is the error code; `userId` names the player it is about, when the API says so. */
+/**
+ * An API refusal: `message` is the error code; `userId` names the player it is about, when the API says so; `limit`
+ * is the friendly-games-per-day limit for FRIENDLY_LIMIT_REACHED.
+ */
 export class ApiError extends Error {
-  constructor(code: string, readonly userId?: string) {
+  constructor(
+    code: string,
+    readonly userId?: string,
+    readonly limit?: number,
+  ) {
     super(code);
   }
 }
 
 async function call<T>(path: string, body: unknown): Promise<T> {
   const r = await fetch(`${env.API_INTERNAL_URL}${path}`, { method: "POST", headers, body: JSON.stringify(body) });
-  type Body = { code?: string; userId?: string; ownerType?: string; ownerId?: string };
+  type Body = { code?: string; userId?: string; ownerType?: string; ownerId?: string; limit?: number };
   const json = (await r.json().catch(() => ({}))) as T & Body & { message?: Body };
   if (!r.ok) {
     const b: Body = json?.message && typeof json.message === "object" ? json.message : json;
     // the ledger's INSUFFICIENT_FUNDS names the account owner instead of `userId`
-    throw new ApiError(b?.code ?? `API_${r.status}`, b?.userId ?? (b?.ownerType === "user" ? b.ownerId : undefined));
+    throw new ApiError(b?.code ?? `API_${r.status}`, b?.userId ?? (b?.ownerType === "user" ? b.ownerId : undefined), typeof b?.limit === "number" ? b.limit : undefined);
   }
   return json;
 }
@@ -45,8 +54,13 @@ export interface UserAccess {
 
 export interface Eligibility {
   ok: boolean;
-  /** ACCOUNT_INACTIVE | ON_A_BREAK | DAILY_LIMIT_REACHED | INSUFFICIENT_FUNDS | UNKNOWN_PLAYER */
+  /**
+   * ACCOUNT_INACTIVE | ON_A_BREAK | DAILY_LIMIT_REACHED | INSUFFICIENT_FUNDS | FRIENDLY_LIMIT_REACHED | ALREADY_IN_MATCH
+   * | GAME_DISABLED | STAKE_NOT_ALLOWED | UNKNOWN_PLAYER
+   */
   reason?: string;
+  /** FRIENDLY_LIMIT_REACHED: the game's friendly games per day */
+  limit?: number;
 }
 export interface SuspensionFeed {
   cursor: string;
@@ -61,9 +75,12 @@ export const api = {
     call<CreatedMatch>("/internal/matches", input),
   submitResult: (r: SignedMatchResult) =>
     call<{ status: string; pot?: number; ratings?: Record<string, number>; xp?: Record<string, number> }>(`/internal/matches/${r.matchId}/result`, r),
-  voidMatch: (matchId: string) => call<{ status: string }>(`/internal/matches/${matchId}/void`, {}),
-  /** may this player be put into a match at this stake (active account, break, daily limit, Stars) */
-  eligibility: (userId: string, stake: number) => get<Eligibility>(`/internal/players/${encodeURIComponent(userId)}/eligibility?stake=${stake}`),
+  voidMatch: (matchId: string, cause?: VoidCause) => call<{ status: string }>(`/internal/matches/${matchId}/void`, cause ? { cause } : {}),
+  /** the matches this server runs (every ~20 s); the API answers with the ones that are no longer active */
+  heartbeat: (matchIds: string[]) => call<{ inactive: string[] }>("/internal/matches/heartbeat", { matchIds }),
+  /** may this player be put into a match at this stake (active account, not in a match, break, daily limit, Stars, game rules) */
+  eligibility: (userId: string, stake: number, game?: string) =>
+    get<Eligibility>(`/internal/players/${encodeURIComponent(userId)}/eligibility?stake=${stake}${game ? `&game=${encodeURIComponent(game)}` : ""}`),
   /** accounts suspended since `since` (polled by social/accounts.ts) */
   suspensions: (since: string | null) => get<SuspensionFeed>(`/internal/suspensions${since ? `?since=${encodeURIComponent(since)}` : ""}`),
   /** Administrative Block: roles + enterable offices (cached briefly by social/office-access.ts) */
