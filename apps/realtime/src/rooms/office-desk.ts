@@ -10,6 +10,7 @@ import {
   OfficeEnterSchema,
   OfficeEvt,
   OfficeEvtV2,
+  OfficeEvtV3,
   OfficeMsg,
   OfficeMsgV2,
   parseAdminSeat,
@@ -51,6 +52,9 @@ export interface DeskHost {
 export class OfficeDesk {
   readonly offices = new OfficeRegistry();
   private lastChat = new Map<string, number>();
+  /** office → token of the pending "visitors alone" walk-out (GAP-013); a newer token / staff return cancels it */
+  private alone = new Map<string, number>();
+  private aloneSeq = 0;
 
   constructor(private readonly h: DeskHost) {
     h.onMessage(OfficeMsg.enter, (c, raw) => void this.onEnter(c, raw));
@@ -164,6 +168,8 @@ export class OfficeDesk {
 
   private admit(sid: string, office: string, via: Via) {
     const prev = this.offices.enter(sid, office, via);
+    if (via === "role" && this.alone.delete(office))
+      for (const v of this.offices.visitors(office)) this.h.client(v)?.send(OfficeEvtV3.officerBack, { office });
     for (const k of this.offices.knocksBy(sid)) if (k.office === office && this.offices.take(k.id)) this.closed(k, "ALLOWED");
     this.h.client(sid)?.send(OfficeEvt.admitted, { office, via });
     if (prev) this.leftOffice(prev, sid);
@@ -189,6 +195,32 @@ export class OfficeDesk {
         this.refuse(k.from, office, "NOBODY_INSIDE", k.id);
         this.queueChanged(office);
       }
+    this.visitorsAlone(office);
+  }
+
+  /**
+   * GAP-013: no staff left in `office` but visitors are still inside. Tell them now; after the grace time, if still
+   * nobody with the role came back, take them out of the office (the client walks them to the lobby).
+   */
+  private visitorsAlone(office: string) {
+    const visitors = this.offices.visitors(office);
+    if (!visitors.length || this.offices.staff(office).length || this.alone.has(office)) return;
+    const token = ++this.aloneSeq;
+    this.alone.set(office, token);
+    const graceMs = officeConfig.officerLeftGraceMs;
+    for (const v of visitors) this.h.client(v)?.send(OfficeEvtV3.officerLeft, { office, graceMs });
+    this.h.later(() => {
+      if (this.alone.get(office) !== token) return; // staff came back (or a newer round started)
+      this.alone.delete(office);
+      if (this.offices.staff(office).length) return;
+      for (const v of this.offices.visitors(office)) {
+        if (this.offices.leave(v) !== office) continue;
+        this.releaseOfficeSeat(v);
+        this.h.client(v)?.send(OfficeEvtV2.members, { office, members: [] });
+        this.h.client(v)?.send(OfficeEvtV3.walkOut, { office, reason: "OFFICER_LEFT" });
+      }
+      this.officeChanged(office);
+    }, graceMs);
   }
 
   private async onEnter(client: Client, raw: unknown) {
@@ -293,7 +325,10 @@ export class OfficeDesk {
     if (r === "ok") this.h.broadcastSeats();
   }
 
-  /** voice relay: both in the same office, or both outside the offices (lobby / corridor proximity voice) */
+  /**
+   * Text chat, voice relay: both in the same office, or both outside the offices (lobby / corridor). Offices are
+   * private (GAP-012): lobby chat never reaches people inside an office, and office talk never reaches the lobby.
+   */
   sameRoom(a: string, b: string): boolean {
     return this.offices.officeOf(a) === this.offices.officeOf(b);
   }

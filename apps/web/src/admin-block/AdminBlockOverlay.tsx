@@ -97,10 +97,10 @@ export function AdminBlockOverlay({ layout }: { layout: HallLayout }) {
   }, []);
   // countdowns on the local clock
   useEffect(() => {
-    if (!st.knocking && !st.incoming.length) return;
+    if (!st.knocking && !st.incoming.length && !st.alone) return;
     const id = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(id);
-  }, [st.knocking, st.incoming.length]);
+  }, [st.knocking, st.incoming.length, st.alone]);
   // standing behind your own desk (the computer prompt without sitting down)
   useEffect(() => {
     if (!st.inside || st.via !== "role") return setAtDesk(false);
@@ -241,6 +241,14 @@ export function AdminBlockOverlay({ layout }: { layout: HallLayout }) {
           </button>
         )}
       </div>
+
+      {/* the officer left the office you are visiting (GAP-013): wait in the lobby; shown out after the grace time */}
+      {st.alone && st.inside === st.alone.office && (
+        <div role="status" className={`${glass} absolute left-1/2 top-16 flex -translate-x-1/2 flex-col items-center gap-0.5 px-4 py-2 text-center text-sm phone:top-[46px] phone:px-3 phone:py-1 phone:text-xs`}>
+          <span className="font-bold">{S.officerLeft}</span>
+          <span className="text-on-glass-muted">{S.officerLeftSub(Math.max(0, Math.ceil((st.alone.until - now) / 1000)))}</span>
+        </div>
+      )}
 
       {/* walking to an office */}
       {st.goingTo && !picker && !st.knocking && (

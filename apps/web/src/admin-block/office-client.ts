@@ -5,6 +5,7 @@ import {
   MyRolesSchema,
   OfficeEvt,
   OfficeEvtV2,
+  OfficeEvtV3,
   OfficeMsg,
   OfficeMsgV2,
   OfficeSummarySchema,
@@ -115,6 +116,10 @@ interface OfficeState {
   atReception: boolean;
   /** a knock (door rattle + sound) to play at this office: { office, at } */
   knockFx: { office: string; at: number } | null;
+  /** the last staff member left the office you are visiting: you are shown back to the lobby at `until` (local clock) */
+  alone: { office: string; until: number } | null;
+  /** the server took you out of this office (nobody came back): walk out to the lobby (doors.ts does the walking) */
+  walkOut: string | null;
   set: (p: Partial<Omit<OfficeState, "set">>) => void;
 }
 
@@ -142,6 +147,8 @@ export const useOffices = create<OfficeState>()((set) => ({
   goingTo: null,
   atReception: false,
   knockFx: null,
+  alone: null,
+  walkOut: null,
   set,
 }));
 
@@ -208,6 +215,7 @@ type WaitMsg = { office: string; knockId: string; expiresInMs?: number; reason?:
 type ClosedMsg = { office: string; knockId: string; outcome?: KnockOutcome };
 type MembersMsg = { office: string; members: OfficeMember[] };
 type ChatMsg = { office: string } & OfficeChatLine;
+type AloneMsg = { office: string; graceMs?: number };
 
 const dropIncoming = (knockId: string) => useOffices.setState((s) => ({ incoming: s.incoming.filter((x) => x.knockId !== knockId) }));
 
@@ -265,6 +273,10 @@ export const handlers = {
   },
   [OfficeEvtV2.chat]: (m: ChatMsg) =>
     useOffices.setState((s) => ({ chat: [...s.chat, { id: m.id, name: m.name, color: m.color, text: m.text, t: m.t }].slice(-60) })),
+  // GAP-013: the officer left while you visit; after the grace time the server shows you out (walk to the lobby)
+  [OfficeEvtV3.officerLeft]: (m: AloneMsg) => useOffices.setState({ alone: { office: m.office, until: Date.now() + (m.graceMs ?? 60_000) } }),
+  [OfficeEvtV3.officerBack]: (m: AloneMsg) => useOffices.setState((s) => (s.alone?.office === m.office ? { alone: null } : {})),
+  [OfficeEvtV3.walkOut]: (m: AloneMsg) => useOffices.setState({ alone: null, walkOut: m.office, members: [], chat: [] }),
 } as const;
 
 /** Start listening (the admin hall is on screen). Returns the unbind. */
@@ -296,6 +308,8 @@ export function bindOffices(): () => void {
       atDoor: null,
       goingTo: null,
       atReception: false,
+      alone: null,
+      walkOut: null,
       occupancy: {},
       visitors: {},
       queue: {},

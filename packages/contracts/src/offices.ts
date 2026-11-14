@@ -118,6 +118,19 @@ export const OfficeEvtV2 = {
   chat: "office-chat", // { office, id, name, color, text, t }
 } as const;
 
+/**
+ * FIX-A (GAP-013): the last staff member left an office while visitors are inside. The visitors are told at once
+ * (`officerLeft`, with how long they may stay), and after OFFICER_LEFT_GRACE_MS with nobody back the server takes them
+ * out of the office (`walkOut`: the client walks them back to the lobby, like stepping out). A staff member walking
+ * back in first cancels it (`officerBack`).
+ */
+export const OFFICER_LEFT_GRACE_MS = 60_000;
+export const OfficeEvtV3 = {
+  officerLeft: "office-officer-left", // { office, graceMs }
+  officerBack: "office-officer-back", // { office }
+  walkOut: "office-walk-out", // { office, reason: "OFFICER_LEFT" }
+} as const;
+
 export const KNOCK_OUTCOMES = ["ALLOWED", "DECLINED", "EXPIRED", "CANCELLED", "LEFT", "NOBODY_INSIDE"] as const;
 export type KnockOutcome = (typeof KNOCK_OUTCOMES)[number];
 export type WaitReason = "ASKED" | "FULL";

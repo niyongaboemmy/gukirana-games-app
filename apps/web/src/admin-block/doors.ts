@@ -66,6 +66,23 @@ function tapTarget(p: P): P {
   return p;
 }
 
+/**
+ * Shown out of an office (GAP-013: the officer left and nobody came back): stand up, walk out through the door and
+ * on to the reception counter in the lobby. The door stays passable until you are out (you are still "inside" for
+ * the client until you cross the door line, which then sends office-leave as for any step out).
+ */
+export function walkToLobby(): void {
+  if (useRoom.getState().seated) getUp();
+  pendingSeat = null;
+  pendingWalkIn = null;
+  const legs = routeBetween({ x: selfPose.x, z: selfPose.z }, RECEPTION_TALK);
+  nav.target = legs.shift() ?? null;
+  nav.goal = null;
+  nav.progress = { best: Infinity, since: performance.now(), detours: 0 };
+  walkQueue.legs = legs;
+  useOffices.getState().set({ goingTo: null });
+}
+
 /** walk to an office door from anywhere in the block; the last short leg turns you to face the door */
 export function goToOffice(id: string): void {
   const o = officePlan(id);
@@ -140,6 +157,15 @@ export function registerAdminHooks(): () => void {
   hallHooks.admin = { solids: closedDoors, route: routeBetween, tap: tapTarget, seatOk, frozen: () => useConsole.getState().open };
   bindVoiceZones();
   const unsub = useOffices.subscribe((s, prev) => {
+    if (s.walkOut && s.walkOut !== prev.walkOut) {
+      const office = s.walkOut;
+      useOffices.setState({ walkOut: null });
+      if (s.inside === office || s.admitted === office) {
+        suppressAuto = office; // no automatic re-entry at that door
+        walkToLobby();
+      }
+      return;
+    }
     if (s.admitted && s.admitted !== prev.admitted) {
       // let in (or a role holder admitted) while standing at the door: walk on in once the door has swung open;
       // let in while waiting elsewhere (seated in the lobby): stand up and walk to the door first

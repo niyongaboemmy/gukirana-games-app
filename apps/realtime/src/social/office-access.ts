@@ -1,4 +1,4 @@
-import { KNOCK_TTL_MS } from "@gukirana/contracts";
+import { KNOCK_TTL_MS, OFFICER_LEFT_GRACE_MS } from "@gukirana/contracts";
 import { api, type UserAccess } from "../api-client.js";
 
 /** Role changes in the back office reach the doors within this time (no re-login). */
@@ -19,6 +19,8 @@ export const officeConfig = {
   maxOpenKnocks: 3,
   /** occupancy heartbeat to the API */
   reportMs: 30_000,
+  /** visitors left alone in an office are walked out after this (GAP-013) */
+  officerLeftGraceMs: OFFICER_LEFT_GRACE_MS,
 };
 
 let source: Source = (uid) => api.access(uid);

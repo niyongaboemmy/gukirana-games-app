@@ -357,15 +357,20 @@ export class WorldRoom extends Room {
       const scope = parsed.data.scope;
       const msg = { id: p.id, name: p.name, color: p.color, text: r.text, t: now, masked: !!r.reason, scope };
       const range = NEARBY_CHAT_RANGE * 100;
+      // Administrative Block: offices are private rooms (GAP-012), like the office voice scope below
+      const desk = this.desk;
+      const sameRoom = (sid: string) => !desk || desk.sameRoom(client.sessionId, sid);
       this.sendVisible(client.sessionId, "chat", msg, {
         self: true,
         only:
           scope === "nearby"
             ? (sid) => {
                 const o = this.players.get(sid);
-                return !!o && Math.hypot(o.x - p.x, o.z - p.z) <= range;
+                return !!o && Math.hypot(o.x - p.x, o.z - p.z) <= range && sameRoom(sid);
               }
-            : undefined,
+            : desk
+              ? sameRoom
+              : undefined,
       });
     });
 

@@ -11,7 +11,7 @@ import { WebSocketTransport } from "@colyseus/ws-transport";
 import { Client, type Room } from "colyseus.js";
 import { SignJWT } from "jose";
 import { loadEnv } from "@gukirana/config";
-import { KNOCK_WAIT_TTL_MS, OFFICE_CAPACITY, OfficeEvt, OfficeEvtV2, OfficeMsg, OfficeMsgV2, SEED_OFFICES } from "@gukirana/contracts";
+import { KNOCK_WAIT_TTL_MS, OFFICE_CAPACITY, OfficeEvt, OfficeEvtV2, OfficeEvtV3, OfficeMsg, OfficeMsgV2, SEED_OFFICES } from "@gukirana/contracts";
 import { WorldRoom } from "./world-room.js";
 import {
   clearAccessCache,
@@ -449,5 +449,63 @@ describe("Administrative Block: queue, capacity, chairs, conversation", () => {
     v.room.send(OfficeMsg.leave, {});
     await until(() => members(v).length === 0 && v.of(OfficeEvtV2.members).length > 1);
     await until(() => members(s).length === 1);
+  });
+
+  it("offices are private for text chat too: lobby chat never reaches an office, office talk never the lobby (GAP-012)", async () => {
+    const s = await staffIn("it-office");
+    const lobby = await person([]);
+    const lobby2 = await person([]);
+    await wait(1100); // chat has a minimum interval per session
+    lobby.room.send("chat", { text: "anyone at reception?", scope: "room" });
+    await until(() => lobby2.of("chat").some((m) => m.text === "anyone at reception?"));
+    await wait(100);
+    expect(s.of("chat").filter((m) => m.text === "anyone at reception?")).toHaveLength(0);
+    s.room.send("chat", { text: "server room notes", scope: "room" });
+    await until(() => s.of("chat").some((m) => m.text === "server room notes")); // own echo
+    await wait(150);
+    expect(lobby.of("chat").filter((m) => m.text === "server room notes")).toHaveLength(0);
+    expect(lobby2.of("chat").filter((m) => m.text === "server room notes")).toHaveLength(0);
+  });
+
+  it("the last officer leaving: visitors are told, then shown out after the grace time (GAP-013)", async () => {
+    officeConfig.officerLeftGraceMs = 300;
+    try {
+      const s = await staffIn("accountant");
+      const v = await person([]);
+      const id = await knockAndGet(v, "accountant", s);
+      s.room.send(OfficeMsg.answer, { knockId: id, action: "allow" });
+      await until(() => !!v.last(OfficeEvt.admitted));
+      s.room.send(OfficeMsg.leave, {});
+      await until(() => !!v.last(OfficeEvtV3.officerLeft));
+      expect(v.last(OfficeEvtV3.officerLeft)).toEqual({ office: "accountant", graceMs: 300 });
+      await until(() => !!v.last(OfficeEvtV3.walkOut), 2000);
+      expect(v.last(OfficeEvtV3.walkOut)).toEqual({ office: "accountant", reason: "OFFICER_LEFT" });
+      await until(() => s.of(OfficeEvt.occupancy).some((m) => m.office === "accountant" && m.occupants === 0 && m.visitors === 0));
+      // out of the office: office chat no longer reaches them / from them
+      v.room.send(OfficeMsgV2.chat, { text: "still here?" });
+      await wait(100);
+      expect(v.of(OfficeEvtV2.chat)).toHaveLength(0);
+    } finally {
+      officeConfig.officerLeftGraceMs = 60_000;
+    }
+  });
+
+  it("an officer coming back within the grace time keeps the visitor in (GAP-013)", async () => {
+    officeConfig.officerLeftGraceMs = 400;
+    try {
+      const s = await staffIn("customer-support");
+      const v = await person([]);
+      const id = await knockAndGet(v, "customer-support", s);
+      s.room.send(OfficeMsg.answer, { knockId: id, action: "allow" });
+      await until(() => !!v.last(OfficeEvt.admitted));
+      s.room.send(OfficeMsg.leave, {});
+      await until(() => !!v.last(OfficeEvtV3.officerLeft));
+      enter(s, "customer-support");
+      await until(() => !!v.last(OfficeEvtV3.officerBack));
+      await wait(600);
+      expect(v.of(OfficeEvtV3.walkOut)).toHaveLength(0);
+    } finally {
+      officeConfig.officerLeftGraceMs = 60_000;
+    }
   });
 });

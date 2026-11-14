@@ -95,6 +95,10 @@ export const S = {
   voiceOff: "Turn on voice",
   useComputer: "Use computer",
   seatRefused: "That chair is for this office's staff.",
+
+  /* ---- FIX-A GAP-013: the officer left while you visit ---- */
+  officerLeft: "The officer has left — please wait in the lobby",
+  officerLeftSub: (s: number) => (s > 0 ? `You will be shown back to the lobby in ${s}s` : "Showing you back to the lobby…"),
 } as const;
 
 /** the status of an office door: vacant, staff inside, or in a meeting (staff with a visitor, or several staff) */
