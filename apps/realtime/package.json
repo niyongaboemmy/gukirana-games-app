@@ -12,7 +12,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@colyseus/core": "^0.16.19",
+    "@colyseus/core": "^0.18.28",
     "@colyseus/ws-transport": "^0.16.5",
     "@gukirana/config": "workspace:*",
     "@gukirana/contracts": "workspace:*",
