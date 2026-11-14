@@ -7,6 +7,7 @@ import { isOnScreen, useArea } from "@/world/stage";
 import type { HallLayout } from "@/rooms/layouts";
 import { HallRingKit } from "./assets-shim";
 import { RingSigns } from "./ring-signs";
+import { Banners, Benches, FloorMarks, LightPools } from "./hall-dressing";
 import { FEATURE_RING } from "./plan";
 import { BIG_SCREEN, BOXING_DOOR, BOXING_SIZE, FEATURE_STAGE, RINGS } from "./plan";
 import { useRingKitRings } from "./rings";
@@ -31,7 +32,7 @@ import { fightActions } from "./actions";
 export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: boolean }) {
   const scene = useThree((s) => s.scene);
   useLayoutEffect(() => {
-    scene.background = new THREE.Color("#0f0f11");
+    scene.background = new THREE.Color("#2a2826");
   }, [scene]);
   useEffect(() => {
     startFightMock();
@@ -56,6 +57,10 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
       <HallRingKit rings={features} size="pro" y={FEATURE_RING.stage} lite={lite} />
       <RingPanels />
       <PlatformShadows />
+      <LightPools lite={lite} />
+      <FloorMarks />
+      <Benches />
+      <Banners />
       <RingSigns />
       <BigScreen />
       <group userData={{ noMerge: true }}>
@@ -81,8 +86,8 @@ function HallLights({ lite }: { lite: boolean }) {
   });
   return (
     <group userData={{ noMerge: true }}>
-      <hemisphereLight args={["#f3efe8", "#3b3a3d", lite ? 1.6 : 1.25]} />
-      <ambientLight intensity={lite ? 0.25 : 0.14} />
+      <hemisphereLight args={["#fff1de", "#4a4038", lite ? 1.7 : 1.35]} />
+      <ambientLight color="#ffe9d0" intensity={lite ? 0.3 : 0.2} />
       {/* one soft directional for shape (no shadow map over 93 m: the platforms get baked-style blobs) */}
       <directionalLight position={[14, 30, 10]} intensity={lite ? 0.9 : 1.0} color="#fff4e6" />
       {!lite &&
@@ -118,9 +123,10 @@ function Shell({ layout, lite }: { layout: HallLayout; lite: boolean }) {
     slat.needsUpdate = true;
     return {
       floor: new THREE.MeshStandardMaterial({ map: floorMap, color: "#8a8780", roughness: 0.72, metalness: 0 }),
-      wall: new THREE.MeshStandardMaterial({ map: concreteTexture(), color: "#4a4a4e", roughness: 0.9 }),
+      wall: new THREE.MeshStandardMaterial({ map: concreteTexture(), color: "#77736d", roughness: 0.9 }),
       slats: new THREE.MeshStandardMaterial({ map: slat, color: "#b07c50", roughness: 0.75 }),
-      ceiling: new THREE.MeshStandardMaterial({ color: "#151517", roughness: 0.95 }),
+      ceiling: new THREE.MeshStandardMaterial({ map: concreteTexture(), color: "#4a4744", emissive: "#3a3530", emissiveIntensity: 0.9, roughness: 0.95 }),
+      strip: new THREE.MeshBasicMaterial({ color: new THREE.Color("#fff0dc").multiplyScalar(0.85), toneMapped: false }),
       truss: new THREE.MeshStandardMaterial({ color: "#121214", roughness: 0.7, metalness: 0.4 }),
       locker: new THREE.MeshStandardMaterial({ color: "#2c2d31", roughness: 0.6, metalness: 0.3 }),
       sponsor: new THREE.MeshStandardMaterial({ color: "#1d1d20", roughness: 0.7 }),
@@ -193,6 +199,12 @@ function Shell({ layout, lite }: { layout: HallLayout; lite: boolean }) {
             ))}
         </group>
       ))}
+      {/* linear light strips along the hall under the roof (no dark void overhead) */}
+      {[-13.6, -6.6, 0, 6.6, 13.6].map((z) => (
+        <mesh key={`st${z}`} material={mats.strip} position={[0, h - 0.06, z]}>
+          <boxGeometry args={[w - 4, 0.05, 0.22]} />
+        </mesh>
+      ))}
       {/* back wall: lockers either side, sponsor wall in the middle */}
       {[-1, 1].map((s) => (
         <mesh key={`k${s}`} material={mats.locker} position={[s * 30, 1.1, -d / 2 + 0.33]}>
@@ -254,7 +266,7 @@ function FeatureStage() {
 function RingPanels() {
   const ref = useRef<THREE.InstancedMesh>(null);
   const geo = useMemo(() => new THREE.BoxGeometry(1, 0.08, 1), []);
-  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: new THREE.Color("#fff3e2").multiplyScalar(0.92), toneMapped: false }), []);
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: new THREE.Color("#ffe8c8").multiplyScalar(0.95), toneMapped: false }), []);
   useLayoutEffect(() => {
     const m = new THREE.Matrix4();
     RINGS.forEach((r, i) => {

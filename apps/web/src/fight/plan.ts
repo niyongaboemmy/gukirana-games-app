@@ -156,9 +156,22 @@ export function nearestRing(x: number, z: number, max = 6): { ring: RingPlace; d
 }
 
 /** back-wall lockers (colliders), north–south aisle centres for the Leave route */
+/**
+ * Spectator benches (P3-FGT-03) along the long walls: the south wall (clear of the lobby door) and the middle of the
+ * north wall between the locker banks. Seat 0.45 m high, 0.5 m deep, against the wall.
+ */
+export const BOXING_BENCHES: R[] = (() => {
+  const out: R[] = [];
+  const zs = BOXING_SIZE.d / 2 - 0.55;
+  const zn = -BOXING_SIZE.d / 2 + 0.55;
+  for (let x = -BOXING_SIZE.w / 2 + 3; x <= BOXING_SIZE.w / 2 - 3; x += 4.2) if (Math.abs(x - BOXING_DOOR.x) > 3.4) out.push({ x, z: zs, w: 3, d: 0.5 });
+  for (let x = -16.8; x <= 16.8; x += 4.2) out.push({ x, z: zn, w: 3, d: 0.5 });
+  return out;
+})();
 export const BOXING_COLLIDERS: R[] = [
   { x: -30, z: -BOXING_SIZE.d / 2 + 0.35, w: 22, d: 0.6 },
   { x: 30, z: -BOXING_SIZE.d / 2 + 0.35, w: 22, d: 0.6 },
+  ...BOXING_BENCHES,
 ];
 export const BOXING_AISLES: number[] = [
   -BOXING_SIZE.w / 2 + MARGIN / 2 + 0.05,
