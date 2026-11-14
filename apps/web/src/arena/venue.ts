@@ -1,5 +1,5 @@
 import { ACT, type ArenaStatus } from "@gukirana/contracts";
-import { angleOf, bowlSeat, COMMENTATORS, CONCESSIONS, CONCOURSE, GANTRY, KIOSK, LOBBY, OUTER_R, polar, RESTROOM, SECTIONS, seatFront, VIP } from "./bowl";
+import { angleOf, bowlSeat, COMMENTATORS, CONCESSIONS, CONCOURSE, GANTRY, KIOSK, LOBBY, OUTER_R, polar, RESTROOM, SECTIONS, seatFront, TOTEM_ANGLES, VIP } from "./bowl";
 
 /**
  * The living venue (P2-ARN-04): interaction points, PA announcements, the crowd-noise level and the VIP box voice
@@ -23,8 +23,8 @@ export interface Spot {
 export const EVENT_BOARD = { x: 6.8, z: 27.9 } as const;
 /** photo spot: the concourse rail above section A/L, the whole bowl behind you */
 export const PHOTO_SPOT = { x: 0, z: CONCOURSE.r0 + 0.55, yaw: 0 } as const;
-/** digital wayfinding totems on the concourse (bearing, deg) */
-export const TOTEM_ANGLES = [45, 135, 225, 315] as const;
+/** digital wayfinding totems on the concourse (bearing, deg; beside the upper stairs) */
+export { TOTEM_ANGLES };
 export const TOTEM_R = CONCOURSE.r1 - 0.45;
 export const totemPos = (deg: number) => polar(TOTEM_R, deg);
 

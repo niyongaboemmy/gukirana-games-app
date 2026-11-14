@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Armchair,
   Camera,
@@ -18,8 +18,14 @@ import {
   Mic,
   MicOff,
   PartyPopper,
+  CircleDot,
+  Crown,
+  Dices,
+  Grid2x2,
   ScanSearch,
   Sparkles,
+  ZoomIn,
+  ZoomOut,
   Ticket,
   Trophy,
   UserRound,
@@ -45,7 +51,7 @@ import { climbGantry, endPhoto, goToSeat, startPhoto, takeSeat, useVenue, visitR
 import { BOWL_SEATS, CONCOURSE, FLOOR_R, LOBBY, LOWER_BACK, OUTER_R, polar, SECTIONS, sectionLabel, UPPER_BACK, type BowlSeat } from "./bowl";
 import { boxAt, countdown, crowdLevel, PA, voiceRule, type SpotKind } from "./venue";
 import { paChime, setCrowd, setFocusDuck } from "./sound";
-import { useSpectate } from "./spectate";
+import { useSpectate, VIEW_TARGETS, ZOOM_STEPS, type ViewTarget } from "./spectate";
 import { A, denialText, scopeWords, V, whenWords } from "./strings";
 
 const glass = "glass rounded-card";
@@ -219,8 +225,26 @@ export function ArenaOverlay({ layout }: { layout: HallLayout }) {
     };
   }, []);
 
+  // the seat card's share of the screen: the eye view centres what you watch in the space above it
+  const seatCard = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = seatCard.current;
+    if (!el) return void useSpectate.setState({ inset: 0 });
+    const measure = () => useSpectate.setState({ inset: Math.min(0.6, Math.max(0, (window.innerHeight - el.getBoundingClientRect().top) / Math.max(1, window.innerHeight))) });
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+      useSpectate.setState({ inset: 0 });
+    };
+  }, [seated]);
   useEffect(() => {
     if (seated) setLastSeat(seated);
+    // VIP box seats start framed on the stage (VIP view); other seats start on the natural eye lens
+    if (seated) useSpectate.getState().frame(seated.startsWith("V") ? "stage" : null);
   }, [seated]);
 
   const near = venue.near;
@@ -280,7 +304,8 @@ export function ArenaOverlay({ layout }: { layout: HallLayout }) {
   })();
   const sectionOfSeat = seated?.split("-")[0] ?? null;
   // one prompt at a time: seat in front of you → the venue spot → the exit
-  const prompt: "seat" | "spot" | "exit" | null = seated || st.pending || st.walkingTo || leaving || venue.photo || venue.restroom ? null : nearSeat ? "seat" : near ? "spot" : nearExit ? "exit" : null;
+  // (and none while a venue window or the event card is open: the window IS that interaction — P2-HAL-11)
+  const prompt: "seat" | "spot" | "exit" | null = seated || st.pending || st.walkingTo || leaving || venue.photo || venue.restroom || venue.panel || st.cardOpen ? null : nearSeat ? "seat" : near ? "spot" : nearExit ? "exit" : null;
   const card = "pointer-events-auto absolute left-1/2 top-16 w-[min(380px,90vw)] -translate-x-1/2 phone:top-[46px] phone:w-[min(340px,48vw)]";
   const modal = (children: React.ReactNode, onClose: () => void, wide = false) => (
     <div className="pscrim pointer-events-auto grid place-items-center p-4" onClick={onClose}>
@@ -717,7 +742,7 @@ export function ArenaOverlay({ layout }: { layout: HallLayout }) {
         </div>
       )}
       {seated && (
-        <div className="pointer-events-auto absolute bottom-[max(16px,env(safe-area-inset-bottom))] left-1/2 w-[min(380px,90vw)] -translate-x-1/2 phone:bottom-0 phone:w-[min(340px,46vw)]">
+        <div ref={seatCard} className="pointer-events-auto absolute bottom-[max(16px,env(safe-area-inset-bottom))] left-1/2 w-[min(430px,92vw)] -translate-x-1/2 phone:bottom-0 phone:w-[min(410px,52vw)]">
           <PaperCard
             size="sm"
             title={A.seated(seated)}
@@ -734,7 +759,7 @@ export function ArenaOverlay({ layout }: { layout: HallLayout }) {
               {ev ? ` · ${ev.title}` : ""}
               {cd ? ` · ${V.startsIn(cd.text)}` : ""}
             </p>
-            <SpectatorControls />
+            <SpectatorControls vip={!!seated?.startsWith("V")} />
           </PaperCard>
         </div>
       )}
@@ -742,31 +767,59 @@ export function ArenaOverlay({ layout }: { layout: HallLayout }) {
   );
 }
 
-/** Seated: look from your own eyes at the podium (default), or the over-the-shoulder view; zoom onto the stage. */
-function SpectatorControls() {
-  const { eye, focus, set } = useSpectate();
+const TARGET_ICON: Record<ViewTarget, LucideIcon> = { stage: ScanSearch, pool: CircleDot, ludo: Dices, igisoro: Grid2x2, desk: Mic };
+
+/**
+ * Seated: look from your own eyes at the stage (default), or the over-the-shoulder view. Stage zoom (P2-HAL-11): tap
+ * Stage or a table to frame it from your seat (a real lens: always sharp), − / + zoom steps on top; VIP seats start
+ * framed on the stage. One row each, never wrapping (phone landscape: icons with short words, the row scrolls).
+ */
+function SpectatorControls({ vip }: { vip: boolean }) {
+  const { eye, target, zoom, set, frame } = useSpectate();
+  const step = (d: number) => useSpectate.setState((s) => ({ zoom: Math.max(0, Math.min(ZOOM_STEPS.length - 1, s.zoom + d)), nonce: s.nonce + 1, eye: true }));
   return (
     <div className="mt-2 grid gap-1.5">
       <div className="flex items-center gap-1.5">
-        <div className="pseg flex-1" role="group" aria-label={A.eyeView}>
+        <div className="pseg min-w-0 flex-1" role="group" aria-label={A.eyeView}>
           <button type="button" aria-pressed={eye} onClick={() => set({ eye: true })} className="min-h-9! whitespace-nowrap text-sm! phone:min-h-8! phone:text-xs!">
-            <Eye size={15} /> {A.eyeView}
+            {vip ? <Crown size={15} /> : <Eye size={15} />} {vip ? A.vipView : A.eyeView}
           </button>
-          <button type="button" aria-pressed={!eye} onClick={() => set({ eye: false, focus: false })} className="min-h-9! whitespace-nowrap text-sm! phone:min-h-8! phone:text-xs!">
+          <button type="button" aria-pressed={!eye} onClick={() => set({ eye: false })} className="min-h-9! whitespace-nowrap text-sm! phone:min-h-8! phone:text-xs!">
             <UserRound size={15} /> {A.behindView}
           </button>
         </div>
-        <button
-          type="button"
-          aria-pressed={focus}
-          disabled={!eye}
-          onClick={() => set({ focus: !focus })}
-          className={`ptab !min-h-9 !flex-none whitespace-nowrap px-3 text-sm phone:!min-h-8 phone:text-xs ${focus ? "is-on" : ""} disabled:opacity-40`}
-        >
-          <ScanSearch size={15} /> {focus ? A.focusOn : A.focusStage}
-        </button>
+        <div className="flex flex-none items-center gap-1" role="group" aria-label={A.viewTargetsLabel}>
+          <button type="button" disabled={!eye || zoom <= 0} onClick={() => step(-1)} aria-label={A.zoomOut} className="ptab !min-h-9 !flex-none !px-2 phone:!min-h-8 disabled:opacity-40">
+            <ZoomOut size={15} />
+          </button>
+          <span className="w-8 text-center text-sm font-bold tabular-nums phone:w-7 phone:text-xs" aria-live="polite">
+            {A.zoomLevel(ZOOM_STEPS[zoom] ?? 1)}
+          </span>
+          <button type="button" disabled={!eye || zoom >= ZOOM_STEPS.length - 1} onClick={() => step(1)} aria-label={A.zoomIn} className="ptab !min-h-9 !flex-none !px-2 phone:!min-h-8 disabled:opacity-40">
+            <ZoomIn size={15} />
+          </button>
+        </div>
       </div>
-      {eye && <p className="pmuted text-xs phone:hidden">{A.viewHint}</p>}
+      {eye && (
+        <div className="flex flex-nowrap gap-1 overflow-x-auto" role="group" aria-label={A.viewTargetsLabel}>
+          {VIEW_TARGETS.map((t) => {
+            const I = TARGET_ICON[t];
+            const on = target === t;
+            return (
+              <button
+                key={t}
+                type="button"
+                aria-pressed={on}
+                onClick={() => frame(on ? null : t)}
+                className={`ptab !min-h-8 !flex-none items-center gap-1 whitespace-nowrap !px-2 text-sm phone:!min-h-7 phone:!px-1.5 phone:text-xs ${on ? "is-on" : ""}`}
+              >
+                <I size={14} /> {A.viewTargets[t]}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {eye && <p className="pmuted text-xs phone:hidden">{A.targetHint}</p>}
     </div>
   );
 }

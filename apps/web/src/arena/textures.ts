@@ -21,7 +21,7 @@ function tex(c: HTMLCanvasElement, repeat: [number, number] = [1, 1], srgb = tru
   t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.repeat.set(...repeat);
-  t.anisotropy = 4;
+  t.anisotropy = 8;
   return t;
 }
 const FONT = "system-ui, -apple-system, Segoe UI, sans-serif";
@@ -194,7 +194,8 @@ export function ribbonTexture(words: string[], tone = C.charcoal) {
 /** Warm timber acoustic slats (vertical) with dark gaps: the shell, lobby walls, portal blocks. */
 export function slatTexture() {
   const { c, g } = canvas(256, 256);
-  g.fillStyle = "#1c1916";
+  // (the joints are a deep warm brown, not black: at a distance the mip levels average to a calm timber tone)
+  g.fillStyle = "#2e241b";
   g.fillRect(0, 0, 256, 256);
   for (let i = 0; i < 8; i++) {
     const v = h1(i) * 14;

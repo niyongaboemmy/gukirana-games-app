@@ -37,7 +37,8 @@ export interface HallHooks {
   face?: () => number | null;
   /** seated: an eye-level spectator camera for this seat (eye + the point to face, both in world space); null = the
    *  usual over-the-shoulder seated camera. `focus` asks for a tight lens on the look point. */
-  seatedView?: (seatId: string) => { eye: { x: number; y: number; z: number }; look: { x: number; y: number; z: number }; focus: boolean } | null;
+  /** `fov` = the lens to use (deg; null = the free eye lens with wheel / pinch zoom), `nonce` = re-centre on change */
+  seatedView?: (seatId: string, aspect: number) => { eye: { x: number; y: number; z: number }; look: { x: number; y: number; z: number }; fov: number | null; nonce: number; inset: number } | null;
   /** movement input is suspended (a full-screen window has the keyboard, e.g. the office computer) */
   frozen?: () => boolean;
 }

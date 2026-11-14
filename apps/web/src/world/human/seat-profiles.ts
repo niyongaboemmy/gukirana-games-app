@@ -63,10 +63,12 @@ export const SEAT_PROFILES: Record<SeatKind, SeatProfile> = {
   task: { seatH: 0.5, hipFwd: 0.06, lean: 0, legroom: 0.7, footFwd: 0 },
   // seat 0.495 m, back 0.13 m behind the origin
   visitor: { seatH: 0.49, hipFwd: 0.06, lean: 0, legroom: 0.7, footFwd: 0 },
-  // pad 0.4775 m; the tread ends 0.61 m ahead of the origin (then the step down to the row in front)
-  stadium: { seatH: 0.47, hipFwd: 0, lean: 0, legroom: 0.46, footFwd: 0 },
-  // pad 0.497 m (seat scaled ×1.04 high), flat box floor
-  vip: { seatH: 0.49, hipFwd: 0, lean: 0.04, legroom: 0.6, footFwd: 0 },
+  // pad 0.4775 m; the tread ends 0.61 m ahead of the origin (then the step down to the row in front). The back pad's
+  // front face is 0.108 m behind the origin at hip height: slide 5 cm forward so the buttocks / lower back rest
+  // against it instead of passing through it (P2-HAL-11: from behind the shirt showed under the back pad)
+  stadium: { seatH: 0.47, hipFwd: 0.05, lean: 0, legroom: 0.46, footFwd: 0 },
+  // pad 0.497 m (seat scaled ×1.04 high, ×1.12 deep: back pad 0.13 m behind the origin), flat box floor
+  vip: { seatH: 0.49, hipFwd: 0.03, lean: 0.04, legroom: 0.6, footFwd: 0 },
 };
 
 /**
@@ -89,8 +91,10 @@ export const SEAT_FURNITURE: Record<SeatKind, { top: number; back: number; front
   waitBench: { top: 0.48, back: 0.18, front: 0.34 },
   task: { top: 0.51, back: 0.125, front: 0.32 },
   visitor: { top: 0.495, back: 0.13, front: 0.32 },
-  stadium: { top: 0.4775, back: 0.12, front: 0.22 },
-  vip: { top: 0.497, back: 0.16, front: 0.24 },
+  // back = the back pad's front face at hip height (y ≈ 0.54–0.58 m), measured from seatGeometry: −0.188 m from the
+  // seat point (pad box at z −0.235, 0.04 deep, reclined 0.15 rad) + SEAT_BACK
+  stadium: { top: 0.4775, back: 0.108, front: 0.22 },
+  vip: { top: 0.497, back: 0.13, front: 0.24 },
 };
 
 /**
