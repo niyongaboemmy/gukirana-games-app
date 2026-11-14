@@ -88,6 +88,21 @@ describe("users", () => {
     await expect(svc.setStatus(boss, boss, "suspended", "test")).rejects.toMatchObject({ response: { code: "CANNOT_CHANGE_SELF" } });
     await expect(svc.setStatus(accountant, player, "suspended", "test")).rejects.toMatchObject({ response: { code: "ROLE_REQUIRED" } });
   });
+
+  it("search takes _ % and \\ literally (GAP-006): qa_lv30 is found, wildcards match nothing extra", async () => {
+    await db.insert(users).values([
+      { id: "bbbbbbbb-0000-4000-8000-0000000000a1", email: "lv30@example.test", username: "qa_lv30" },
+      { id: "bbbbbbbb-0000-4000-8000-0000000000a2", email: "lv31@example.test", username: "qaXlv30" },
+      { id: "bbbbbbbb-0000-4000-8000-0000000000a3", email: "pct@example.test", username: "50%off" },
+    ]);
+    const names = async (q: string) => (await svc.listUsers(q, undefined, 0)).items.map((u) => u.username).sort();
+    expect(await names("qa_lv30")).toEqual(["qa_lv30"]);
+    expect(await names("qa_")).toEqual(["qa_lv30"]);
+    expect(await names("%")).toEqual(["50%off"]);
+    expect(await names("\\")).toEqual([]);
+    expect((await access.listUsers("qa_lv")).map((u) => u.username)).toEqual(["qa_lv30"]);
+    expect((await access.listUsers("_")).map((u) => u.username)).toEqual(["qa_lv30"]);
+  });
 });
 
 describe("suspension ends the session (GAP-001 / GAP-002)", () => {

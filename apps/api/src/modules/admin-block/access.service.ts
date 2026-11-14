@@ -12,7 +12,6 @@ import {
   asc,
   desc,
   eq,
-  ilike,
   inArray,
   offices,
   or,
@@ -25,6 +24,7 @@ import { SEED_OFFICES, SEED_ROLES, type MyRoles, type OfficeSummary } from "@guk
 import { createLogger } from "@gukirana/observability";
 import { DB, type Db } from "../../common/db.module.js";
 import { newId } from "../../common/ids.js";
+import { ilikeContains } from "../../common/like.js";
 import { maskEmail, maskPhone, parseLoginId } from "../identity/phone.js";
 
 const log = createLogger("access");
@@ -198,15 +198,15 @@ export class AccessService implements OnModuleInit {
     const term = q?.trim().slice(0, 60);
     let ids: string[];
     if (term) {
-      const like = `%${term.replace(/[%_\\]/g, "")}%`;
+      // matched literally: "_" / "%" are characters here, not wildcards (GAP-006)
       const found = await this.db
         .select({ id: users.id })
         .from(users)
         .where(
           or(
-            ilike(users.username, like),
-            ilike(users.email, like),
-            ilike(users.phone, like),
+            ilikeContains(users.username, term),
+            ilikeContains(users.email, term),
+            ilikeContains(users.phone, term),
             UUID.test(term) ? eq(users.id, term) : undefined,
           ),
         )

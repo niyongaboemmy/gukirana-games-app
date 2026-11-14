@@ -1,8 +1,9 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
-import { accessAudit, and, asc, count, desc, eq, gt, gte, ilike, inArray, or, refreshTokens, userRoles, users } from "@gukirana/db";
+import { accessAudit, and, asc, count, desc, eq, gt, gte, inArray, or, refreshTokens, userRoles, users } from "@gukirana/db";
 import { USER_STATUS_ROLES, sectionsFor, type ConsoleOverview, type ConsoleUser, type UserStatus } from "@gukirana/contracts";
 import { DB, type Db } from "../../common/db.module.js";
 import { forgetUserStatus } from "../../common/user-status.js";
+import { ilikeContains } from "../../common/like.js";
 import { GamesService } from "../games/games.service.js";
 import { AccessService, SUPER_ADMIN as SUPER_ADMIN_ROLE } from "../admin-block/access.service.js";
 import { OccupancyStore } from "../admin-block/occupancy.js";
@@ -88,9 +89,9 @@ export class ConsoleService {
 
   async listUsers(q: string | undefined, status: string | undefined, page: number): Promise<{ items: ConsoleUser[]; page: number; more: boolean }> {
     const term = q?.trim().slice(0, 60);
-    const like = term ? `%${term.replace(/[%_\\]/g, "")}%` : null;
+    // the term is matched literally: "_" and "%" in usernames are characters, not wildcards (GAP-006)
     const where = and(
-      like ? or(ilike(users.username, like), ilike(users.email, like), ilike(users.phone, like), term && UUID.test(term) ? eq(users.id, term) : undefined) : undefined,
+      term ? or(ilikeContains(users.username, term), ilikeContains(users.email, term), ilikeContains(users.phone, term), UUID.test(term) ? eq(users.id, term) : undefined) : undefined,
       status === "active" || status === "suspended" ? eq(users.status, status) : undefined,
     );
     const p = Math.max(0, Math.min(400, Math.floor(page) || 0));
