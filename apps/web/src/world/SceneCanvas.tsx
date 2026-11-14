@@ -51,7 +51,7 @@ function preloadFor(path: string) {
   useGLTF.preload(ANIM_SETS[own.anim].url, false);
   for (const url of ["/assets/env/ground-grass.webp", "/assets/env/ground-grass-n.webp", "/assets/env/acacia-imp.webp", "/assets/env/eucalyptus-imp.webp", "/fonts/Baloo2.ttf"])
     void fetch(url, { cache: "force-cache" }).catch(() => undefined);
-  const hall = /^\/room\/(pool|ludo|igisoro)/.exec(path)?.[1] as HallGame | undefined;
+  const hall = /^\/room\/(pool|ludo|igisoro|admin)/.exec(path)?.[1] as HallGame | undefined;
   if (hall) preloadHall(hall);
 }
 if (typeof window !== "undefined") preloadFor(location.pathname);

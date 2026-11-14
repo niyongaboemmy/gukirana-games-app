@@ -177,6 +177,8 @@ export async function connectPlaza(
       useMatch.setState({ quick: m, notice: m.status === "error" ? reasonText(m.reason) : null }),
     );
     room.onMessage("match-ready", (m) => useMatch.setState({ ready: m, incoming: [], outgoing: null, quick: { status: "idle" } }));
+    // feature modules (e.g. admin-block/office-client) listen through `onRoomMessage`
+    for (const type of extra.keys()) bindExtra(room, type);
     room.onLeave(() => {
       room = null;
       resetSocial();
@@ -187,6 +189,33 @@ export async function connectPlaza(
   } finally {
     connecting = false;
   }
+}
+
+/* ---------------- extension point for feature modules (P2-ADM-02: the Administrative Block offices) ---------------- */
+
+const extra = new Map<string, Set<(m: unknown) => void>>();
+const boundTo = new WeakMap<Room, Set<string>>();
+function bindExtra(r: Room, type: string) {
+  const done = boundTo.get(r) ?? new Set<string>();
+  boundTo.set(r, done);
+  if (done.has(type)) return;
+  done.add(type);
+  r.onMessage(type, (m: unknown) => extra.get(type)?.forEach((fn) => fn(m)));
+}
+/** Listen to a room message (current and future room connections). Returns the unsubscribe. */
+export function onRoomMessage<T>(type: string, fn: (m: T) => void): () => void {
+  const set = extra.get(type) ?? new Set();
+  extra.set(type, set);
+  const h = fn as (m: unknown) => void;
+  set.add(h);
+  if (room) bindExtra(room, type);
+  return () => void set.delete(h);
+}
+/** Send a message on the current room connection; false when not connected. */
+export function roomSend(type: string, payload: unknown): boolean {
+  if (!room) return false;
+  room.send(type, payload);
+  return true;
 }
 
 /** Session-scoped social state (threads, calls, bubbles) does not carry over to another room. */

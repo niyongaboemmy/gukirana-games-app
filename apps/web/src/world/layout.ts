@@ -1,6 +1,7 @@
 import { PLAZA_BENCH_CLUSTERS, PLAZA_BENCH_COURT, PLAZA_BENCHES } from "@gukirana/contracts";
 import type { PortalId } from "@/lib/world-store";
 import type { IconKind } from "./textures";
+import { ADMIN_BLOCK_ON } from "@/admin-block/flags";
 
 /**
  * Gukirana Arena District layout in metres (DESIGN-SPEC §6.1–6.2, docs/WORLD-ARENA-DESIGN.md §5).
@@ -57,7 +58,8 @@ export const PORTALS: PortalDef[] = [
   { id: "pool", label: "Pool Hall", sub: "8-Ball", color: "#2F80ED", href: "/room/pool", angleDeg: -44, kind: "pool", plot: "hall" },
   { id: "arena", label: "Tournament Arena", sub: "Tournaments", color: "#9B51E0", href: null, angleDeg: 0, kind: "arena" },
   { id: "ludo", label: "Ludo Lounge", sub: "Dice & tactics", color: "#FF8A1F", href: "/room/ludo", angleDeg: 44, kind: "ludo", plot: "hall" },
-  { id: "soon-right", label: "Coming Soon", sub: "Chess", color: "#8A94A6", href: null, angleDeg: 88, kind: "soon", plot: "hall" },
+  // the +88° hall plot (reserved for a 36 × 28 m hall): the Administrative Block (P2-ADM-02)
+  { id: "admin", label: "Administrative Block", sub: "Offices", color: "#C9A96B", href: ADMIN_BLOCK_ON ? "/room/admin" : null, angleDeg: 88, kind: "admin", plot: "hall" },
   { id: "soon-se", label: "Coming Soon", sub: "Esports", color: "#8A94A6", href: null, angleDeg: 144, kind: "soon" },
 ];
 
@@ -173,7 +175,7 @@ export const COLLIDERS: Collider[] = [
 
 /** Door line of each building in its door frame (local z; negative = set back into the facade). */
 export function doorInset(kind: PortalDef["kind"]): number {
-  return kind === "arena" ? -1.15 : kind === "igisoro" ? -2.15 : kind === "pool" ? -0.55 : kind === "ludo" ? -0.4 : -0.45;
+  return kind === "arena" ? -1.15 : kind === "igisoro" ? -2.15 : kind === "pool" ? -0.55 : kind === "ludo" ? -0.4 : kind === "admin" ? -1.6 : -0.45;
 }
 
 /** Depth of the entrance lobby behind a hall door (world/Vestibule): deep enough that the follow camera passes the

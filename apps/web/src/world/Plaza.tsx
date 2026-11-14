@@ -55,6 +55,7 @@ const BADGE: Record<PortalDef["kind"], [number, number] | null> = {
   ludo: [5.0, 0.87],
   igisoro: null, // the lettered timber fascia board on the porch is its sign
   arena: [4.62, -0.93],
+  admin: null, // the lettered limestone fascia is its sign
   soon: null,
 };
 
@@ -93,7 +94,13 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
         <ringGeometry args={[0.85, 1.1, 48]} />
         <meshBasicMaterial ref={ring} color={ledColor} transparent opacity={0.5} toneMapped={false} depthWrite={false} />
       </mesh>
-      {def.kind === "igisoro" ? (
+      {def.kind === "admin" ? (
+        // cut bronze capitals on the limestone fascia (lit by daylight, not an LED sign)
+        <Text font={FONT} fontSize={0.52} position={[0, 6.45, 0.13]} anchorX="center" anchorY="middle" letterSpacing={0.16}>
+          {def.label.toUpperCase()}
+          <meshStandardMaterial color="#3a3227" roughness={0.75} metalness={0.2} />
+        </Text>
+      ) : def.kind === "igisoro" ? (
         // carved lettering on the timber fascia board hung under the porch roof (District.ts igisoroCourt)
         <Text font={FONT} fontSize={0.36} color="#f1e3c4" position={[0, 4.16, 0.9]} anchorX="center" anchorY="middle" letterSpacing={0.1}>
           {def.label.toUpperCase()}

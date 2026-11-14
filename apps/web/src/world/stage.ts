@@ -18,7 +18,7 @@ import { HALLS } from "@/rooms/layouts";
  * "area" with its own THREE.Scene (+ camera) hung under the renderer's root scene; only the area on screen is
  * visible, the others stay mounted, compiled and GPU-resident but are never drawn:
  *   outdoor    the gate AND the plaza (one scene: the arrival gate stands at the south end of the plaza's avenue)
- *   hall:<id>  a hall interior (pool, ludo, igisoro)
+ *   hall:<id>  a hall interior (pool, ludo, igisoro, admin)
  * Routes still exist (deep links, back button, realtime room switching), but they only follow the picture: walking
  * through a door switches the area in the same frame (`crossTo`), and the URL is updated afterwards.
  */
@@ -32,7 +32,7 @@ export const hallOf = (v: View | Area | null): HallGame | null => (v && v.starts
 export function viewForPath(path: string): View | null {
   if (path === "/gate") return "gate";
   if (path === "/world") return "plaza";
-  const m = /^\/room\/(pool|ludo|igisoro)\/?$/.exec(path);
+  const m = /^\/room\/(pool|ludo|igisoro|admin)\/?$/.exec(path);
   return m ? (`hall:${m[1]}` as View) : null;
 }
 
@@ -162,7 +162,7 @@ export const stageNav: { push: (href: string) => void; replace: (href: string) =
 /* ---------------- shared frames: plaza door ↔ hall door ---------------- */
 
 /** Door line of each hall building in its plaza door frame (keep in sync with Plaza.tsx `Door` insets). */
-const DOOR_INSET: Record<HallGame, number> = { pool: doorInset("pool"), ludo: doorInset("ludo"), igisoro: doorInset("igisoro") };
+const DOOR_INSET: Record<HallGame, number> = { pool: doorInset("pool"), ludo: doorInset("ludo"), igisoro: doorInset("igisoro"), admin: doorInset("admin") };
 
 /**
  * The hall's door line IS the plaza door's line: a position keeps its lateral offset from the door centre, its

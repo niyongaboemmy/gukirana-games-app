@@ -5,7 +5,8 @@ import * as THREE from "three";
 import { selfPose } from "@/lib/world-store";
 import { uiAudio } from "@/lib/audio";
 import { isOnScreen, useArea } from "./stage";
-import { DOOR_RING } from "./layout";
+import { DOOR_RING, PORTALS, ringPoint } from "./layout";
+import { ADMIN_FLAGPOLES, ADMIN_FLAG_Z } from "./District";
 import type { Tier } from "./materials";
 
 /*
@@ -205,9 +206,9 @@ const POLES = [-11.5, -10, 10, 11.5];
 const FLAG_COLORS = ["#00A1DE", "#FAD201", "#20603D", "#9B51E0"]; // Rwanda blue/yellow/green + arena purple
 
 /** Cloth flag: vertices sway with a travelling wave whose amplitude grows away from the pole (pinned edge stays still). */
-function Flag({ x, color, phase, tier }: { x: number; color: string; phase: number; tier: Tier }) {
+function Flag({ x, color, phase, tier, y = 10.3, z = -DOOR_RING + 3, map }: { x: number; color: string; phase: number; tier: Tier; y?: number; z?: number; map?: THREE.Texture }) {
   const mat = useMemo(() => {
-    const m = new THREE.MeshStandardMaterial({ color, roughness: 0.85, side: THREE.DoubleSide });
+    const m = new THREE.MeshStandardMaterial({ color, map: map ?? null, roughness: 0.85, side: THREE.DoubleSide });
     m.onBeforeCompile = (s) => {
       s.uniforms.uTime = { value: 0 };
       s.uniforms.uPhase = { value: phase };
@@ -225,14 +226,14 @@ function Flag({ x, color, phase, tier }: { x: number; color: string; phase: numb
         );
     };
     return m;
-  }, [color, phase]);
+  }, [color, phase, map]);
   const geo = useMemo(() => new THREE.PlaneGeometry(FLAG_W, FLAG_H, tier === "lite" ? 8 : 20, tier === "lite" ? 3 : 6).translate(FLAG_W / 2, 0, 0), [tier]);
   useFrame(({ clock }) => {
     const s = mat.userData.shader as { uniforms: { uTime: { value: number } } } | undefined;
     if (s) s.uniforms.uTime.value = clock.elapsedTime;
   });
   // arena door on the ring at 0°: local +z faces the fountain; poles stand 3 m in front of the facade
-  return <mesh geometry={geo} material={mat} position={[x + 0.06, 10.3, -DOOR_RING + 3]} castShadow={tier !== "lite"} />;
+  return <mesh geometry={geo} material={mat} position={[x + 0.06, y, z]} castShadow={tier !== "lite"} />;
 }
 
 export function PlazaLife({ tier }: { tier: Tier }) {
@@ -241,7 +242,56 @@ export function PlazaLife({ tier }: { tier: Tier }) {
       {POLES.map((x, i) => (
         <Flag key={x} x={x} color={FLAG_COLORS[i]!} phase={i * 1.7} tier={tier} />
       ))}
+      <AdminFlags tier={tier} />
       <Soundscape />
+    </group>
+  );
+}
+
+/** Rwanda's flag (blue, yellow, green; the golden sun in the fly-side top corner), painted once. */
+let rwanda: THREE.CanvasTexture | null = null;
+function rwandaFlag() {
+  if (rwanda) return rwanda;
+  const c = document.createElement("canvas");
+  c.width = 192;
+  c.height = 128;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#00A1DE";
+  g.fillRect(0, 0, 192, 64);
+  g.fillStyle = "#FAD201";
+  g.fillRect(0, 64, 192, 32);
+  g.fillStyle = "#20603D";
+  g.fillRect(0, 96, 192, 32);
+  g.fillStyle = "#E5BE01";
+  const cx = 160;
+  const cy = 26;
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    g.beginPath();
+    g.moveTo(cx + Math.cos(a - 0.09) * 10, cy + Math.sin(a - 0.09) * 10);
+    g.lineTo(cx + Math.cos(a) * 18, cy + Math.sin(a) * 18);
+    g.lineTo(cx + Math.cos(a + 0.09) * 10, cy + Math.sin(a + 0.09) * 10);
+    g.fill();
+  }
+  g.beginPath();
+  g.arc(cx, cy, 9, 0, Math.PI * 2);
+  g.fill();
+  rwanda = new THREE.CanvasTexture(c);
+  rwanda.colorSpace = THREE.SRGBColorSpace;
+  return rwanda;
+}
+
+/** The Administrative Block's three flags (Rwanda in the middle, the compound's gold either side). */
+function AdminFlags({ tier }: { tier: Tier }) {
+  const p = PORTALS.find((q) => q.id === "admin");
+  const map = useMemo(() => (typeof document === "undefined" ? undefined : rwandaFlag()), []);
+  if (!p) return null;
+  const d = ringPoint(p.angleDeg, DOOR_RING);
+  return (
+    <group position={[d.x, 0, d.z]} rotation={[0, d.rotY, 0]}>
+      {ADMIN_FLAGPOLES.map((x, i) => (
+        <Flag key={x} x={x} y={8.3} z={ADMIN_FLAG_Z} color={i === 1 ? "#ffffff" : "#C9A96B"} map={i === 1 ? map : undefined} phase={i * 1.3 + 0.4} tier={tier} />
+      ))}
     </group>
   );
 }

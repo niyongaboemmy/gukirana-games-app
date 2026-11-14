@@ -13,7 +13,7 @@ import { useSocial } from "@/social/social-store";
 import { getUp, sitDown } from "./RoomPlayer";
 import { KeyHint, PROMPT_BTN, promptWrap } from "@/hud/Prompt";
 import { usePhoneHud } from "@/hud/usePhoneHud";
-import type { HallLayout } from "./layouts";
+import { isGameHall, type HallLayout } from "./layouts";
 import { TablePicker } from "./TablePicker";
 import { PaperCard } from "@/ui/PaperCard";
 
@@ -145,7 +145,7 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
                   <button
                     type="button"
                     onClick={() => {
-                      propose(challenge.id, layout.game, stake);
+                      if (isGameHall(layout.game)) propose(challenge.id, layout.game, stake);
                       setChallenge(null);
                     }}
                     className="pbtn pbtn-primary flex-1"
@@ -226,7 +226,7 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
                   <Bot size={18} /> Practice vs AI
                 </button>
                 {livePlay && authed ? (
-                  <button type="button" onClick={() => quickMatchJoin(layout.game, stake)} className="pbtn pbtn-primary phone:text-sm">
+                  <button type="button" onClick={() => isGameHall(layout.game) && quickMatchJoin(layout.game, stake)} className="pbtn pbtn-primary phone:text-sm">
                     <Zap size={18} /> Find an opponent
                   </button>
                 ) : (
