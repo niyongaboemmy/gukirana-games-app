@@ -112,18 +112,24 @@ if (only.has("admin")) {
       const k3 = await bodyText(page);
       check("admin.knock UI: waiting / please wait / declined copy", /Waiting for an answer|Knocking/i.test(k1) && /wait/i.test(k2) && /can't see you right now|Declined/i.test(k3), [k1, k2, k3].map((t) => t.match(/(Knocking|Waiting|wait|Declined)[^|\n]{0,60}/i)?.[0]).join(" / "));
     } else note("admin.__gkOffice hook", "missing");
-    // lobby seat
-    const seat = await page.evaluate(() => {
-      try {
-        window.__gkAct?.sitNearest?.();
-        return true;
-      } catch (e) {
-        return String(e);
-      }
+    // lobby seat: walk to the first waiting-lounge armchair (exact pose from admin-block/plan.ts via __gkAdmin.seat),
+    // "Sit down" (E), then "Stand up" (E)
+    await page.keyboard.press("Escape");
+    const chair = await page.evaluate(() => {
+      const s = window.__gkAdmin?.seat?.("lobby-3");
+      if (!s) return null;
+      window.__gkAdmin.walkTo(s.x - 0.9, s.z);
+      return s;
     });
-    const sat = await waitFor(page, () => window.__gkWorld?.()?.social?.seated, { timeout: 20000 });
-    check("admin.lobby seat", seat === true && sat, `seated=${sat}`);
-    await page.evaluate(() => window.__gkAct?.standFromBench?.());
+    const sitPrompt = chair && (await waitFor(page, () => /\bSit down\b/.test(document.body.innerText), { timeout: 40000 }));
+    if (sitPrompt) await page.keyboard.press("KeyE");
+    const sat = sitPrompt && (await waitFor(page, () => /\bStand up\b/.test(document.body.innerText), { timeout: 10000 }));
+    check("admin.lobby seat: walk to the armchair, Sit down (E)", !!sat, `chair=${JSON.stringify(chair)} prompt=${sitPrompt} pose=${JSON.stringify(await page.evaluate(() => ({ x: window.__gkProbe.self.x, z: window.__gkProbe.self.z })))}`);
+    await shot(page, `admin-lobby-seat-${vp}`, { quality: 45 });
+    if (sat) {
+      await page.keyboard.press("KeyE");
+      check("admin.lobby seat: Stand up (E)", await waitFor(page, () => !/\bStand up\b/.test(document.body.innerText), { timeout: 8000 }));
+    }
     // leave
     await resetFrames(page);
     const t0 = Date.now();
@@ -146,7 +152,26 @@ if (only.has("admin")) {
     check("admin.role holder auto-enters the office (no knock)", inside, (await bodyText(page)).slice(0, 200).replace(/\n+/g, " | "));
     const ib = await buttons(page);
     note("admin.inside office buttons", JSON.stringify(ib));
-    const comp = await clickText(page, /computer|use the computer|console|sit at the desk/i, { timeout: 4000 });
+    // walk round behind the officer's desk (exact chair pose from admin-block/plan.ts), sit at the desk if offered,
+    // then "Use computer" (E)
+    const off = await page.evaluate(() => {
+      const s = window.__gkAdmin?.seat?.("customer-support-officer");
+      if (!s) return null;
+      window.__gkAdmin.walkTo(s.x + 0.75, s.z - 0.2);
+      return s;
+    });
+    const deskPrompt = off && (await waitFor(page, () => /Use computer|Sit at your desk/i.test(document.body.innerText), { timeout: 30000 }));
+    note("admin.officer desk", `chair=${JSON.stringify(off)} prompt=${deskPrompt} pose=${JSON.stringify(await page.evaluate(() => ({ x: window.__gkProbe.self.x, z: window.__gkProbe.self.z })))}`);
+    let comp = false;
+    for (let i = 0; i < 3 && deskPrompt && !comp; i++) {
+      if (/Use computer/i.test(await bodyText(page))) {
+        await page.keyboard.press("KeyE");
+        comp = true;
+      } else {
+        await page.keyboard.press("KeyE"); // Sit at your desk
+        await waitFor(page, () => /Use computer/i.test(document.body.innerText), { timeout: 6000 });
+      }
+    }
     const boot = await waitFor(page, () => /Starting Gukirana Control|Signing in as|Checking your staff role/i.test(document.body.innerText) || !!document.querySelector("nav[aria-label='Sections']"), { timeout: 20000 });
     const nav = await waitFor(page, () => !!document.querySelector("nav[aria-label='Sections']"), { timeout: 20000 });
     check("admin.officer computer → console boot", comp && boot && nav, `clicked=${comp} boot=${boot} nav=${nav}`);
@@ -172,8 +197,16 @@ if (only.has("arena")) {
     const r = await walkIn(o.page, "arena");
     await sleep(1500);
     const txt = (await bodyText(o.page)).replace(/\n+/g, " | ");
-    check("arena.barred user does not get in", r.view !== "hall:arena" || /can't enter the arena|not allowed in the arena/i.test(txt), `view=${r.view} ${txt.slice(0, 200)}`);
-    check("arena.barred message in plain words", /can't enter the arena|not allowed in the arena/i.test(txt), txt.match(/(can't|not allowed)[^|]{0,80}/i)?.[0] ?? "");
+    const d = await o.page.evaluate(() => ({ notice: document.querySelector("[data-door-notice='arena']")?.textContent ?? "", open: window.__gkProbe?.doors?.arena ?? 0 }));
+    check("arena.barred user does not get in, doors stay shut", r.view !== "hall:arena" && d.open < 0.1, `view=${r.view} doorOpen=${d.open.toFixed(2)}`);
+    check("arena.barred message in plain words (door card)", /can't enter the arena/i.test(d.notice) && /not allowed in the arena/i.test(d.notice), d.notice.slice(0, 160));
+    // E / Interact at the shut door explains again after the card was closed (GAP-004)
+    await clickText(o.page, /^Close$/, { timeout: 1500 });
+    await sleep(400);
+    await o.page.keyboard.press("KeyE");
+    await sleep(1200);
+    const again = await o.page.evaluate(() => document.querySelector("[data-door-notice='arena']")?.textContent ?? "");
+    check("arena.barred: E at the door shows the card again", /not allowed in the arena/i.test(again) && txt.length > 0, again.slice(0, 120));
     await shot(o.page, `arena-barred-${vp}`, { quality: 45 });
     await close(o);
   }
@@ -190,18 +223,39 @@ if (only.has("arena")) {
     const txt = (await bodyText(page)).replace(/\n+/g, " | ");
     note("arena.arrival text", txt.slice(0, 500));
     note("arena.buttons", JSON.stringify(await buttons(page)));
-    const card = (await clickText(page, /today in the arena|event|QA Members Night/i, { timeout: 3000 })) || /QA Members Night/.test(txt);
+    const card = (await clickText(page, /today in the arena|^event$|QA Members Night|^you have a pass$/i, { timeout: 3000 })) || /QA Members Night/.test(txt);
     await sleep(800);
     const ctxt = (await bodyText(page)).replace(/\n+/g, " | ");
     check("arena.event card shows the event + who may come in plain words", card && /QA Members Night/.test(ctxt) && /(signed-in|members|everyone|anyone|players)/i.test(ctxt), ctxt.slice(0, 300));
-    const got = await clickText(page, /^get a pass$/i, { timeout: 3000 });
+    const already = /You have a pass/i.test(await bodyText(page)); // the account kept its pass from an earlier run
+    const got = already || (await clickText(page, /^get a pass$/i, { timeout: 3000 }));
     const have = await waitFor(page, () => /You have a pass|Bowl seat pass/i.test(document.body.innerText), { timeout: 8000 });
-    check("arena.get a pass", got && have);
+    check("arena.get a pass", got && have, already ? "already held" : "");
     await shot(page, `arena-card-${vp}`, { quality: 45 });
     const finder = await clickText(page, /^find a seat$/i, { timeout: 3000 });
     await sleep(800);
-    const best = await clickText(page, /best free seat/i, { timeout: 3000 });
-    const seated = await waitFor(page, () => /^Seat [A-Z0-9-]+/m.test(document.body.innerText) || /Stand up/.test(document.body.innerText), { timeout: 45000 });
+    // v2 finder: tiers + section tiles ("<section>: N free"); a tile walks you to that section's best free seat
+    await clickText(page, /^Lower/i, { timeout: 1500 });
+    const best = await page.evaluate(() => {
+      const b = [...document.querySelectorAll("button[aria-label$=' free']")].find((x) => !x.disabled && !/: 0 free$/.test(x.getAttribute("aria-label")));
+      if (!b) return null;
+      b.click();
+      return b.getAttribute("aria-label");
+    });
+    note("arena.seat finder tile", String(best));
+    // v2: the finder walks you along the aisles to the seat's legroom, then asks for it; poll the arena store
+    let seated = false;
+    const trail = [];
+    for (let t = 0; t < 60 && !seated; t++) {
+      await sleep(1000);
+      const st = await page.evaluate(() => {
+        const a = window.__gkArena?.store?.getState?.() ?? {};
+        return { walkingTo: a.walkingTo ?? null, pending: a.pending ?? null, denied: a.denied?.reason ?? null, x: +window.__gkProbe.self.x.toFixed(1), z: +window.__gkProbe.self.z.toFixed(1), stand: /Stand up/.test(document.body.innerText) };
+      });
+      if (t % 5 === 0) trail.push(JSON.stringify(st));
+      seated = st.stand;
+    }
+    note("arena.seat finder trail", trail.join(" "));
     check("arena.seat finder → walk to best seat → sit", finder && best && seated, (await bodyText(page)).match(/(Seat|Walking to seat|Asking for seat)[^|\n]{0,30}/g)?.slice(0, 4).join(" / ") ?? "");
     if (seated) {
       await clickText(page, /^stand up$/i, { timeout: 2000 });
@@ -217,7 +271,7 @@ if (only.has("arena")) {
     const r2 = await walkIn(page, "arena");
     await sleep(1200);
     const ctx2 = (await bodyText(page)).replace(/\n+/g, " | ");
-    check("arena.closed door keeps players out with a message", r2.view !== "hall:arena" || /arena is closed/i.test(ctx2), `view=${r2.view} ${ctx2.match(/arena is closed[^|]{0,60}/i)?.[0] ?? ""}`);
+    check("arena.closed door keeps players out with a message", r2.view !== "hall:arena" && /arena is closed/i.test(ctx2), `view=${r2.view} ${ctx2.match(/arena is closed[^|]{0,60}/i)?.[0] ?? ""}`);
     await api("/admin/arena/settings", { method: "PUT", headers: adm, body: { open: true } });
     // return the pass via the API (UI return covered by the card if offered)
     const st = await api("/arena/status", { token: null });

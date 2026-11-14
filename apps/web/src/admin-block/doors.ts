@@ -305,4 +305,20 @@ let presenceTick = 0;
 
 // QA hook (dev, or a production build with NEXT_PUBLIC_GK_QA=1), like window.__gkNav
 if ((process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_GK_QA === "1") && typeof window !== "undefined")
-  Object.assign(window as unknown as Record<string, unknown>, { __gkAdmin: { goToOffice, knockAt, doors } });
+  Object.assign(window as unknown as Record<string, unknown>, {
+    __gkAdmin: {
+      goToOffice,
+      knockAt,
+      doors,
+      // exact walk targets for the QA journeys (lobby chairs, the officer's desk): seat poses + a walk along the
+      // block's corridors (the same route legs goToOffice uses)
+      seat: adminSeat,
+      walkTo: (x: number, z: number) => {
+        const legs = [...routeBetween({ x: selfPose.x, z: selfPose.z }, { x, z }), { x, z }];
+        nav.target = legs.shift() ?? null;
+        nav.goal = null;
+        nav.progress = { best: Infinity, since: performance.now(), detours: 0 };
+        walkQueue.legs = legs;
+      },
+    },
+  });
