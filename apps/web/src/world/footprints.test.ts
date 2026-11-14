@@ -59,7 +59,7 @@ describe("campus layout (P1-WLD-03)", () => {
 
   it("no two buildings touch (≥ 1.5 m apart), and none stands on the entry gate, now and with every hall at 36 × 28 m", () => {
     const grown = (p: Plot) => {
-      if (p.type !== "pool" && p.type !== "ludo" && p.type !== "igisoro") return undefined;
+      if (p.type !== "pool" && p.type !== "ludo" && p.type !== "igisoro" && p.type !== "admin") return undefined;
       const h = wingedPlan(PLOT_HALL_SIZE, Math.sign(p.angleDeg));
       return [
         { x0: -9, x1: 9, z0: 1.6, z1: -h.wing },

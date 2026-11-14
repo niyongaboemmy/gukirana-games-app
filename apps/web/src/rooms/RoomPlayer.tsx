@@ -15,6 +15,7 @@ import { useWalletSheet } from "@/wallet/WalletSheet";
 import { clearHandoff, peekHandoff } from "@/world/stage";
 import type { HallLayout, Seat } from "./layouts";
 import { freeChair, tableAt } from "./table-status";
+import { hallHooks, walkQueue } from "./hall-hooks";
 
 const SIT_ANIM = 13;
 const SEAT_RANGE = 1.5;
@@ -122,6 +123,9 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   const look = lookOf(profile);
   const { w, d } = layout.size;
   const solids = useMemo(() => [...layout.tables, ...layout.colliders], [layout]);
+  /** full-height walls (static) — blockers for walking and for the follow camera */
+  const walls = useMemo(() => layout.walls ?? [], [layout]);
+  const hooks = hallHooks[layout.game];
   /** chairs / stools are solid too (round footprint at the seat, sized per hall's furniture) */
   const chairR = layout.game === "pool" ? 0.42 : layout.game === "ludo" ? 0.38 : 0.28;
 
@@ -166,7 +170,13 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
           return null;
         }
         clearPick();
-        return { x: THREE.MathUtils.clamp(p.x, -w / 2 + 0.5, w / 2 - 0.5), z: THREE.MathUtils.clamp(p.z, -d / 2 + 0.6, d / 2 + 3.5) };
+        const q = { x: THREE.MathUtils.clamp(p.x, -w / 2 + 0.5, w / 2 - 0.5), z: THREE.MathUtils.clamp(p.z, -d / 2 + 0.6, d / 2 + 3.5) };
+        const hk = hallHooks[layout.game];
+        if (!hk?.route) return q;
+        // halls with rooms off a corridor: walk there through the doors / openings, leg by leg
+        const legs = hk.route({ x: pos.current.x, z: pos.current.z }, hk.tap ? hk.tap(q) : q);
+        walkQueue.legs = legs.slice(1);
+        return legs[0] ?? q;
       },
     );
     const wheel = (e: WheelEvent) => (cameraState.distance = THREE.MathUtils.clamp(cameraState.distance + e.deltaY * 0.006, 2.2, 12));
@@ -178,6 +188,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       el.removeEventListener("wheel", wheel);
       keys.clear();
       nav.target = null;
+      walkQueue.legs = [];
       clearPick();
       // leaving the hall: stale chair / exit flags would hide the plaza's "Enter …" prompt and swallow E there
       useRoom.getState().set({ nearSeat: null, nearExit: false, seated: null, leaving: false });
@@ -298,8 +309,11 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     if (!R.leaving) leaveStart.current = 0;
     if (R.leaving && !exited.current && !leaveStart.current) {
       leaveStart.current = performance.now();
-      // Manhattan route along the aisles to the door, walked at ~2.3 m/s, + 3 s slack; never less than 8 s
-      const route = Math.abs(pos.current.x - layout.door.x) + Math.abs(d / 2 - pos.current.z) + 2;
+      // Manhattan route along the aisles to the door (or the hall's own route through its doors), walked at
+      // ~2.3 m/s, + 3 s slack; never less than 8 s
+      const route = hooks?.route
+        ? routeLen(pos.current, hooks.route({ x: pos.current.x, z: pos.current.z }, { x: layout.door.x, z: d / 2 + 1.2 })) + 2
+        : Math.abs(pos.current.x - layout.door.x) + Math.abs(d / 2 - pos.current.z) + 2;
       leaveLimit.current = Math.max(8000, (route / 2.3) * 1000 + 3000);
       leaveProgress.current = { best: Infinity, at: leaveStart.current };
     }
@@ -310,7 +324,11 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       const pz = pos.current.z;
       const fz = d / 2 - 2.4;
       const ax = layout.aisles.reduce((b, x) => (Math.abs(x - px) < Math.abs(b - px) ? x : b), layout.aisles[0] ?? layout.door.x);
-      const toDoor = pz > fz - 0.2 ? Math.hypot(px - layout.door.x, pz - d / 2) : Math.abs(px - ax) + (fz - pz) + Math.hypot(ax - layout.door.x, d / 2 - fz);
+      const toDoor = hooks?.route
+        ? routeLen(pos.current, hooks.route({ x: px, z: pz }, { x: layout.door.x, z: d / 2 + 1.2 }))
+        : pz > fz - 0.2
+          ? Math.hypot(px - layout.door.x, pz - d / 2)
+          : Math.abs(px - ax) + (fz - pz) + Math.hypot(ax - layout.door.x, d / 2 - fz);
       if (toDoor < leaveProgress.current.best - 0.3) leaveProgress.current = { best: toDoor, at: performance.now() };
     }
     const stalled = R.leaving && performance.now() - leaveProgress.current.at > 3000;
@@ -345,7 +363,9 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       const aisles = layout.aisles; // table-free north–south aisles (rooms/layouts.ts)
       const aisle = aisles.reduce((best, x) => (Math.abs(x - px) < Math.abs(best - px) ? x : best), aisles[0] ?? layout.door.x);
       const frontZ = d / 2 - 2.4; // open band between the last tables and the door
-      if (pz > frontZ - 0.2) nav.target = { x: layout.door.x, z: d / 2 + 1.2 };
+      walkQueue.legs = [];
+      if (hooks?.route) nav.target = hooks.route({ x: px, z: pz }, { x: layout.door.x, z: d / 2 + 1.2 })[0] ?? { x: layout.door.x, z: d / 2 + 1.2 };
+      else if (pz > frontZ - 0.2) nav.target = { x: layout.door.x, z: d / 2 + 1.2 };
       else if (Math.abs(px - aisle) > 0.45) nav.target = { x: aisle, z: pz };
       else nav.target = { x: aisle, z: frontZ + 0.3 };
     }
@@ -462,10 +482,17 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       anim.current = intro.current > 0.05 && sp > 0 ? 1 : 0;
     } else {
       intro.current = 0;
+      // multi-leg scripted walk (routes through doors): the next leg once the current one is reached
+      if (!nav.target && walkQueue.legs.length && !R.leaving) {
+        nav.target = walkQueue.legs.shift()!;
+        nav.goal = null;
+        nav.progress = { best: Infinity, since: performance.now(), detours: 0 };
+      }
       const s = steer({ keys, joyX: W.input.x, joyY: W.input.y, camYaw: cameraState.yaw, facing: facing.current, x: pos.current.x, z: pos.current.z, walkSpeed: WALK_SPEEDS[W.speed] ?? WALK_SPEEDS.slow, run, dt });
       pos.current.x += s.dx;
       pos.current.z += s.dz;
       facing.current = s.facing;
+      if (s.mode === "keys" || s.mode === "joy") walkQueue.legs = []; // manual input takes over
       autoFollow(cameraState, s, dt);
       if (s.moving) anim.current = run || s.speed > 2.6 ? 2 : 1;
       else {
@@ -475,8 +502,9 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     }
 
     if (!seat && !stand) {
-      // tables + furniture colliders (rect + body radius)
-      for (const t of solids) {
+      // tables + furniture colliders + walls + dynamic solids (closed doors) (rect + body radius)
+      const dyn = hooks?.solids?.() ?? [];
+      for (const t of walls.length || dyn.length ? [...solids, ...walls, ...dyn] : solids) {
         const hx = t.w / 2 + 0.32;
         const hz = t.d / 2 + 0.32;
         const dx = pos.current.x - t.x;
@@ -626,6 +654,23 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
         }
       }
     }
+    if (walls.length) {
+      // full-height walls and closed doors: the camera stays on your side of them (pulled in along the view line,
+      // at any height), so it never looks at a wall from behind or into the office next door
+      const tall = [...walls, ...(hooks?.solids?.() ?? [])];
+      const inWall = (x: number, z: number, m: number) => tall.some((t) => Math.abs(x - t.x) < t.w / 2 + m && Math.abs(z - t.z) < t.d / 2 + m);
+      const N = 24;
+      for (let k = 1; k <= N; k++) {
+        const f = k / N;
+        if (inWall(target.x + (cx - target.x) * f, target.z + (cz - target.z) * f, 0.2)) {
+          const keep = Math.max(0, (k - 1.3) / N);
+          cx = target.x + (cx - target.x) * keep;
+          cz = target.z + (cz - target.z) * keep;
+          cy = target.y + (cy - target.y) * Math.max(keep, 0.2);
+          break;
+        }
+      }
+    }
     // keep the camera inside the room
     cx = THREE.MathUtils.clamp(cx, -w / 2 + 0.3, w / 2 - 0.3);
     cz = THREE.MathUtils.clamp(cz, -d / 2 + 0.3, d / 2 - 0.35); // camera always inside the hall
@@ -686,6 +731,16 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     </>
   );
 }
+
+const routeLen = (from: { x: number; z: number }, route: { x: number; z: number }[]) => {
+  let len = 0;
+  let at = from;
+  for (const p of route) {
+    len += Math.hypot(p.x - at.x, p.z - at.z);
+    at = p;
+  }
+  return len;
+};
 
 export function sitDown(seatId: string) {
   // a pending click-to-walk target (e.g. the chair itself, now solid) would read as "wants to walk" and stand you up

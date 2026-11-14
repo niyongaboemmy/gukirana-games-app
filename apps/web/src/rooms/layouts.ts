@@ -1,5 +1,7 @@
 /** Hall interiors (metres, DESIGN-SPEC §6.1/§6.4). Room spans x ∈ [-W/2, W/2], z ∈ [-D/2, D/2]; entrance door on the south wall (+z). */
-export type HallGame = "pool" | "ludo" | "igisoro";
+import { ADMIN_COLLIDERS, ADMIN_COLOR, ADMIN_SIZE, ADMIN_WALLS } from "@/admin-block/plan";
+
+export type HallGame = "pool" | "ludo" | "igisoro" | "admin";
 
 export interface Table {
   id: string;
@@ -37,6 +39,11 @@ export interface HallLayout {
    * chair. Halls without lanes walk the open strip between the table and its chairs (Pool).
    */
   lanes?: number[];
+  /**
+   * Full-height interior walls (Administrative Block offices / corridor): solid for walking AND for the follow
+   * camera (it pulls in in front of them at any height, unlike low furniture). Halls without partitions have none.
+   */
+  walls?: Rect[];
 }
 export interface Rect {
   x: number;
@@ -59,7 +66,7 @@ function build(
   tables: Omit<Table, "id">[],
   seatOffsets: (t: Omit<Table, "id">) => { x: number; z: number }[],
   colliders: Rect[],
-  opts: { size?: { w: number; d: number; h: number }; aisles?: number[]; lanes?: number[] } = {},
+  opts: { size?: { w: number; d: number; h: number }; aisles?: number[]; lanes?: number[]; walls?: Rect[] } = {},
 ): HallLayout {
   const size = opts.size ?? { w: W, d: D, h: 4.4 };
   const T = tables.map((t, i) => ({ ...t, id: `t${i}` }));
@@ -69,6 +76,7 @@ function build(
   const aisles = (opts.aisles ?? LEGACY_AISLES).filter((x) => T.every((tb) => Math.abs(tb.x - x) > tb.w / 2 + 1.05));
   const layout: HallLayout = { game, title, subtitle, color, size, door: { x: 0, w: 2.6 }, spawn: { x: 0, z: size.d / 2 - 2.4 }, tables: T, seats, colliders, aisles };
   if (opts.lanes) layout.lanes = opts.lanes;
+  if (opts.walls) layout.walls = opts.walls;
   return layout;
 }
 
@@ -245,6 +253,15 @@ export const HALLS: Record<HallGame, HallLayout> = {
     ],
     { size: IGISORO_SIZE, aisles: IGISORO_AISLES },
   ),
+  // Administrative Block (P2-ADM-02): no game tables. Reception lobby, a corridor and four closed offices
+  // (admin-block/plan.ts); the walls are solid for walking and the camera, the office doors are dynamic colliders.
+  admin: build("admin", "Administrative Block", "Reception · four offices", ADMIN_COLOR, [], () => [], ADMIN_COLLIDERS, {
+    size: { ...ADMIN_SIZE },
+    aisles: [0],
+    walls: ADMIN_WALLS,
+  }),
 };
 
-export const isHallGame = (g: string): g is HallGame => g === "pool" || g === "ludo" || g === "igisoro";
+export const isHallGame = (g: string): g is HallGame => g === "pool" || g === "ludo" || g === "igisoro" || g === "admin";
+/** halls with game tables (seats claimed through the realtime server) */
+export const isGameHall = (g: string): g is Exclude<HallGame, "admin"> => g === "pool" || g === "ludo" || g === "igisoro";

@@ -8,7 +8,7 @@ import { calmKitenge, KITENGE_ART, KITENGE_RUG, ludoMenu, ludoTableBoard, tableN
 import type { HallGame } from "./layouts";
 import { useStage } from "@/world/stage";
 
-/** What each hall loads (keep in sync with PoolHall / LudoLounge / IgisoroCourt). */
+/** What each hall loads (keep in sync with PoolHall / LudoLounge / IgisoroCourt / AdminBlock). */
 const HALL_ASSETS: Record<HallGame, { models: string[]; pbr: [PbrName, boolean][] }> = {
   pool: {
     models: ["mid_century_lounge_chair", "potted_plant_02", "sofa_02", "wine_bottles_01"],
@@ -17,6 +17,10 @@ const HALL_ASSETS: Record<HallGame, { models: string[]; pbr: [PbrName, boolean][
   ludo: {
     models: ["modern_arm_chair_01", "Ottoman_01", "potted_plant_02", "potted_plant_04"],
     pbr: [["herringbone_parquet", true], ["oak_veneer_01", true], ["velour_velvet", false], ["white_plaster_02", false]],
+  },
+  admin: {
+    models: ["potted_plant_02", "potted_plant_04", "sofa_02", "modern_arm_chair_01"],
+    pbr: [["white_plaster_02", true], ["oak_veneer_01", true], ["velour_velvet", false]],
   },
   igisoro: {
     models: ["mid_century_lounge_chair", "potted_plant_02", "sofa_02", "wicker_basket_01"],

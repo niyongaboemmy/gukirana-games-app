@@ -384,7 +384,7 @@ export function LocalPlayer({
     for (const p of PORTALS) {
       const t = portalTransform(p);
       const doorDist = Math.hypot(t.entryX - pos.current.x, t.entryZ - pos.current.z);
-      if (doorDist < 12 && (p.id === "pool" || p.id === "ludo" || p.id === "igisoro")) preloadHall(p.id); // warm the hall while walking up
+      if (doorDist < 12 && (p.id === "pool" || p.id === "ludo" || p.id === "igisoro" || p.id === "admin")) preloadHall(p.id); // warm the hall while walking up
       if (doorDist >= INTERACT_RADIUS) continue;
       // no "Enter …" prompt while stepping out of a hall or when walking away from that door
       if (performance.now() < reentryAfter.current) continue;

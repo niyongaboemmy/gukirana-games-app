@@ -45,7 +45,7 @@ export function wingedPlan(size: { w: number; d: number; h: number }, away: numb
 const angleOf = (id: string) => PORTALS.find((p) => p.id === id)?.angleDeg ?? 0;
 /** A playable hall's building, from its interior size. */
 export function wingedHall(game: HallGame) {
-  return wingedPlan(HALLS[game].size, Math.sign(angleOf(game)) || 1, game === "pool" ? 8.6 : game === "igisoro" ? 5.0 : 6.8);
+  return wingedPlan(HALLS[game].size, Math.sign(angleOf(game)) || 1, game === "pool" ? 8.6 : game === "igisoro" ? 5.0 : game === "admin" ? 8.0 : 6.8);
 }
 
 /** Igisoro Court: a thatched porch wing (its door in the lava wall behind the porch) and the thatched hall behind. */
@@ -74,6 +74,7 @@ const igiRects: Rect[] = [
 export const FOOTPRINTS = {
   pool: hallRects(wingedHall("pool")),
   ludo: hallRects(wingedHall("ludo")),
+  admin: hallRects(wingedHall("admin")),
   igisoro: igiRects,
   // the drum as horizontal bands hugging its ellipse (a single bounding box would block the gaps beside it), plus
   // the glazed lobby, canopy and flagpoles in front

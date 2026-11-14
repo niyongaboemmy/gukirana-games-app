@@ -27,6 +27,7 @@ export const GAME_COLORS = {
   ludo: "#FF8A1F",
   igisoro: "#27AE60",
   arena: "#9B51E0",
+  admin: "#C9A96B",
   soon: "#8A94A6",
   sky: "#3DA9FC",
   gold: "#FFC83D",
@@ -108,6 +109,9 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     // soft contact / ambient-occlusion decals under furniture (the only grounding on Lite)
     ao: new THREE.MeshBasicMaterial({ map: blobTexture(), color: "#000000", transparent: true, opacity: tier === "lite" ? 0.5 : 0.32, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
     concrete: std({ map: concreteTexture(), roughness: 0.85, color: "#e9e4da" }),
+    // Administrative Block: honed limestone cladding and dark bronze-anodised fins (matte)
+    limestone: std({ map: concreteTexture(), roughness: 0.88, color: "#d8d0bf" }),
+    bronze: std({ color: "#3f382f", roughness: 0.75, metalness: 0.2 }),
     concreteDark: std({ map: concreteTexture(), roughness: 0.8, color: "#6f6c68" }),
     wood: std({ map: woodTexture(), roughness: 0.6, color: "#f0d6b8" }),
     woodDark: std({ map: woodTexture(), roughness: 0.55, color: "#7a5236" }),
@@ -145,6 +149,7 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     "led-ludo": ledMaterial(GAME_COLORS.ludo, tier),
     "led-igisoro": ledMaterial(GAME_COLORS.igisoro, tier),
     "led-arena": ledMaterial(GAME_COLORS.arena, tier),
+    "led-admin": ledMaterial(GAME_COLORS.admin, tier, 0.7),
     "led-soon": ledMaterial(GAME_COLORS.soon, tier, 0.5),
     "led-sky": ledMaterial(GAME_COLORS.sky, tier),
     "led-gold": ledMaterial(GAME_COLORS.gold, tier, 0.9),

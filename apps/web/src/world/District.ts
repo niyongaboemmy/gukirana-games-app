@@ -188,6 +188,63 @@ function ludoLounge(b: GeoBatch) {
 }
 
 /**
+ * Administrative Block (P2-ADM-02, +88° hall plot): a restrained civic office building. Honed limestone entrance
+ * wing with a full-height glass curtain wall set back behind a deep stone frame, a thin cantilevered canopy over the
+ * door, a lettered stone fascia ("ADMINISTRATIVE BLOCK", Plaza.tsx) and three flagpoles; the office floor behind
+ * is a limestone volume with bronze fins and ribbon glazing. Door line at z = −1.6 (layout.ts doorInset).
+ */
+function adminBlock(b: GeoBatch) {
+  const hall = wingedHall("admin");
+  const W = 14.4;
+  const D = hall.wing;
+  const H = 7.2;
+  const z = -1.6;
+  // stone frame: deep side piers, base course, the fascia band that carries the lettering, roof slab
+  for (const s of [-1, 1]) {
+    b.box("limestone", 0.9, H, D, { p: [s * (W / 2 - 0.45), H / 2, -D / 2], tile: 1.6 });
+    b.box("basalt", 0.96, 0.5, D + 0.06, { p: [s * (W / 2 - 0.45), 0.25, -D / 2 + 0.03], tile: 1.2 });
+  }
+  b.box("limestone", W, 1.5, 1.2, { p: [0, H - 0.75, -0.5], tile: 1.6 });
+  b.box("limestone", W + 0.4, 0.4, D + 0.6, { p: [0, H + 0.2, -D / 2 + 0.3], tile: 2 });
+  b.box("bronze", W + 0.42, 0.06, 0.06, { p: [0, H - 1.52, 0.11] });
+  // curtain wall on the door line: glass with bronze mullions and transom, the door opening in the middle
+  wallWithDoor(b, "glass", W - 1.8, H - 1.5, z, 0.12, 6);
+  for (let x = -W / 2 + 0.9; x <= W / 2 - 0.89; x += 1.35) if (Math.abs(x) > DOOR.w / 2 + 0.3) b.box("bronze", 0.08, H - 1.5, 0.16, { p: [x, (H - 1.5) / 2, z + 0.06] });
+  b.box("bronze", W - 1.8, 0.08, 0.16, { p: [0, DOOR.h + 0.3, z + 0.06] });
+  // lit lobby volume read through the glazing (ceiling + floor)
+  b.box("concrete", W - 1.8, 0.1, 6, { p: [0, H - 1.6, z - 3], tile: 2 });
+  for (const x of [-4, 0, 4]) b.box("lampHead", 0.1, 0.02, 5.6, { p: [x, H - 1.66, z - 3] });
+  b.box("granite", W - 1.8, 0.03, 6, { p: [0, 0.015, z - 3], tile: 2.4 });
+  // thin cantilevered canopy over the entrance, with a bronze edge and soft soffit lights
+  b.box("white", 7.2, 0.22, 3.4, { p: [0, 4.6, z + 1.55] });
+  b.box("bronze", 7.24, 0.24, 0.04, { p: [0, 4.6, z + 3.26] });
+  for (const x of [-2.4, 0, 2.4]) b.box("lampHead", 0.6, 0.02, 0.6, { p: [x, 4.48, z + 1.7] });
+  // entrance steps / basalt forecourt
+  b.box("basalt", W - 1.2, 0.06, 2.0, { p: [0, 0.03, z + 1.0], tile: 1.2 });
+  doorSurround(b, "led-admin", z);
+  // the office floor behind: limestone volume, bronze fins over the ribbon windows on the side walls
+  const { x0, x1, z0, z1, H: H2 } = hall;
+  hallVolume(b, "limestone", x0, x1, z0, z1, H2, 1.6);
+  for (const x of [x0 - 0.03, x1 + 0.03]) {
+    ribbon(b, x, z0 - 1.2, z1 + 1.2, 2.3, 2.2);
+    for (let zz = z0 - 1.2; zz >= z1 + 1.2; zz -= 1.8) b.box("bronze", 0.5, 2.6, 0.08, { p: [x + Math.sign(x - (x0 + x1) / 2) * 0.25, 2.3, zz] });
+  }
+  // front shoulders beside the wing: glazing at the office level
+  for (const s of [-1, 1]) {
+    const xa = s < 0 ? x0 + 1.0 : WING_HW + 1.0;
+    const xb = s < 0 ? -WING_HW - 1.0 : x1 - 1.0;
+    if (xb - xa > 2) b.box("glass", xb - xa, 2.2, 0.06, { p: [(xa + xb) / 2, 2.3, z0 + 0.03], tile: 6 });
+  }
+  // flagpoles (east of the entrance; the cloth flags are animated in Ambience.tsx)
+  for (const x of ADMIN_FLAGPOLES) {
+    b.cyl("steel", 0.045, 0.06, 9, 8, { p: [x, 4.5, ADMIN_FLAG_Z] });
+    b.cyl("basalt", 0.22, 0.26, 0.3, 12, { p: [x, 0.15, ADMIN_FLAG_Z] });
+  }
+}
+export const ADMIN_FLAGPOLES = [8.9, 10.2, 11.5];
+export const ADMIN_FLAG_Z = -0.4;
+
+/**
  * A white lime-plaster block on a lava-stone base course, Imigongo frieze under the eaves, timber-framed windows and
  * a hipped thatch roof (inspired by the royal palace at Nyanza). `door`: the front wall gets the lava door section;
  * `hidden`: front-wall span (x range) covered by another block, left without windows.
@@ -694,6 +751,7 @@ export function buildDistrict(tier: string): Map<string, THREE.BufferGeometry> {
     ludo: ludoLounge,
     igisoro: igisoroCourt,
     arena: tournamentArena,
+    admin: adminBlock,
     soon: comingSoon,
   };
   // every plot from the data (layout.ts PORTALS / EXPANSION_PLOTS → footprints.ts PLOTS)
