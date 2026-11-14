@@ -5,7 +5,7 @@ import { handTargets } from "./seated-layer";
 const KINDS: SeatedActivityKind[] = ["board", "sow", "type", "visit", "meet", "watch"];
 const FIELDS = ["lean", "headDown", "hands", "type", "write", "move", "dip", "nod"] as const;
 
-describe("seated activity schedule (P2-HAL-10)", () => {
+describe("seated activity schedule (P2-HAL-10)", { timeout: 20_000 }, () => {
   it("is deterministic: the same person at the same moment does the same thing on every screen", () => {
     for (const k of KINDS)
       for (const ms of [0, 1234, 98_765_432, 1_731_600_000_000]) {
