@@ -22,6 +22,7 @@ import { useDoorShut } from "./door-access";
 import { atlasPlane, labelAtlas, type LabelAtlas } from "./label-atlas";
 import { W } from "./strings";
 import { arenaGate } from "@/arena/flags";
+import { FightFacadeBoard } from "@/fight/FacadeBoard";
 import { NearOnly, StaticMerge } from "./static-merge";
 
 const FONT = "/fonts/Baloo2.ttf";
@@ -583,6 +584,7 @@ export function Plaza({ nearPortal, tier = "standard" }: { nearPortal: string | 
       <group name="signs">
         <ArenaScreen tier={tier} />
         <GiantDie />
+        <FightFacadeBoard />
         <Totems />
         <Wayfinding />
         <ServiceSign />

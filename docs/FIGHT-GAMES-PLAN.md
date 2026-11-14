@@ -280,6 +280,18 @@ benches, posters. Room size small (cheap scene). Its hall room is a plain `hall`
   *Watch*) subscribes to that ring's frames (`boxing-watch`, one ring at a time). A *Watch* camera (rail view /
   overhead) is offered. Cheers / emotes reuse the social emotes.
 
+**As built (W, P3-FGT-01 world):** data in `apps/web/src/fight/plan.ts` (tested in `plan.test.ts`).
+- Hall 93 × 30 × 11 m; ring pitch **6.2 m across × 6.4 m deep** (§4.1 fallback: at 6.4 m across the outer back rings
+  pierce the chamfered corners); all 50 rings kept. Rows A–D at z = 9.5 / 3.1 / −3.3 / −9.7; a 3 m front cross aisle.
+- R1 / R2 stand **front / back** (z 4.4 / −6.2) on one raised 1.2 m stage in the feature zone (side by side does not fit
+  14 m with 6.1 m rings + a rail); the four-sided screen hangs between them.
+- Ring transform convention for the ring kit: at `rotY = 0` the **red corner is local (−x, +z)** (towards the door),
+  blue (+x, −z); steps at those two corners.
+- Building: lobby wing 30 × 10 m behind the door line, hall behind it, back corners chamfered 3.6 m (r ≤ 155.9).
+  The lobby's Boxing door (x = −8.3) is the hall's south door: hall → hall crossing `world/stage.ts enterSubhall`.
+- Reaching it: the **Fight walk** (`world/layout.ts FIGHT_WALK`), a paved path out of the plaza at 133° (between the
+  help desk and the Esports plot), along the outer promenade, to the door; the only walkable ground beyond the plaza.
+
 ### 4.4 Lighting and look
 
 Matte everything (roughness ≥ 0.6), no mirror floors. One soft key (hemisphere + a directional for shape), each ring
