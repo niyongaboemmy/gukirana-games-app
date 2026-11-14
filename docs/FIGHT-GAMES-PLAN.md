@@ -592,3 +592,15 @@ work on phone landscape, keyboard and gamepad; console edits of the fight block 
   `fight/bridge.ts` `MyFight` gained optional `names`, `level`, `begun`, `settled` (additive). Live client hook:
   `registerLiveFight()` in `fight/game/actions.ts` (G2 registers from `fight/game/net/`); the HUD feed is
   `fight/game/ui-store.ts` `useFightUi.push(events)` (live client pushes fight events there too).
+- 2026-11-14 P3-FGT-01 game server + live client (G2), additive only: `BoxingHallMsg.pong` (`boxing-pong` { n }),
+  `BoxingHallEvt.ping` (`boxing-ping` { n }, every 5 s: the hall's median RTT for `HIGH_LATENCY`), `BoxingHallEvt.quick`
+  (`boxing-quick` { status: "waiting" | "idle", stake? }). Payload notes: `boxing-assigned` { ring: null } = you no
+  longer hold a ring; `boxing-denied` may carry a games-API reason (`MatchRefusal`, `OPPONENT_CANT_PLAY`) and `limit`;
+  `boxing-join` accepts an optional `stake` (→ `STAKE_MISMATCH`); a full spectator rail answers `HALL_FULL`. Fight
+  room (`boxing`): `init` { you, seat, corner, ring, matchId, stake, players, rules, fight, begun }, `pause` { who,
+  connected, budgetMs }, `timeout` { userId, strikes, max }, `result` { ranks, reason, cause?, loser?, outcome,
+  stateHash, settlement, pending? }; `pong` { t, now }. Proposals: `propose` with game `boxing` is accepted only in the
+  Boxing hall (a free ring is assigned; `match-ready` carries `ring`). Realtime keeps a copy of the ring centres
+  (`apps/realtime/src/rooms/boxing-rings.ts`) for the reach check — keep it in step with `apps/web/src/fight/plan.ts`.
+  Web: `fight/game/net/client.ts` `useBoxingNetClient()` (mount once in the Boxing hall scene) and `useBoxingNet`
+  (quick status, last refusal text, my ring). Match store `GameId` gains `boxing`.
