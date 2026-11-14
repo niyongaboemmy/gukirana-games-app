@@ -74,7 +74,8 @@ export interface ConsoleOverview {
   online: PresenceTotals;
   offices: Record<string, number>;
   buildings: Building[];
-  audit: { id: string; who: string; action: string; target: string; detail: string | null; at: string }[] | null;
+  /** whoName / targetName / detailText: the same row in plain words (FIX-A GAP-016; additive) */
+  audit: { id: string; who: string; action: string; target: string; detail: string | null; at: string; whoName?: string; targetName?: string; detailText?: string | null }[] | null;
   /** today (Kigali day): platform fees in Stars and coins, matches settled, Stars issued */
   finance: { feesStars: number; feesCoins: number; matchesSettled: number; starsIssued: number } | null;
 }

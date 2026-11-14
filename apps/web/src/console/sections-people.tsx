@@ -268,8 +268,11 @@ function UserDrawer({ id, me, canStatus, canRoles, toast, onClose, onChanged }: 
                     {u.history.map((h) => (
                       <div key={h.id} className="gkc-row">
                         <span className="min-w-0 flex-1">
-                          <span className="gkc-row-title block">{actionText(h.action)}</span>
-                          {h.detail && <span className="gkc-row-sub block">{h.detail}</span>}
+                          <span className="gkc-row-title block">
+                            {actionText(h.action)}
+                            {h.whoName && <span className="gkc-muted"> · {h.whoName}</span>}
+                          </span>
+                          {(h.detailText ?? h.detail) && <span className="gkc-row-sub block">{h.detailText ?? h.detail}</span>}
                         </span>
                         <span className="gkc-row-sub whitespace-nowrap">{date(h.at)}</span>
                       </div>

@@ -66,9 +66,9 @@ export function AuditList({ rows, empty = C.noAudit }: { rows: AuditRow[] | null
           <span className="gkc-dot" style={{ background: a.action.includes("suspend") || a.action.includes("close") ? "var(--c-bad)" : "var(--c-choc-hi)" }} />
           <span className="min-w-0 flex-1">
             <span className="gkc-row-title block truncate">
-              {shortWho(a.who)} {actionText(a.action)} <span className="gkc-muted">· {a.target.length > 20 ? `${a.target.slice(0, 8)}…` : a.target}</span>
+              {a.whoName ?? shortWho(a.who)} {actionText(a.action)} <span className="gkc-muted">· {a.targetName ?? (a.target.length > 20 ? `${a.target.slice(0, 8)}…` : a.target)}</span>
             </span>
-            {a.detail && <span className="gkc-row-sub block truncate">{a.detail}</span>}
+            {(a.detailText ?? a.detail) && <span className="gkc-row-sub block truncate" title={a.detailText ?? a.detail ?? undefined}>{a.detailText ?? a.detail}</span>}
           </span>
           <span className="gkc-row-sub whitespace-nowrap">{ago(a.at)}</span>
         </div>
@@ -304,7 +304,7 @@ export function Monitor({ toast }: { toast: (t: string) => void }) {
   }, [toast]);
   const shown = useMemo(() => {
     const t = q.trim().toLowerCase();
-    return rows && (t ? rows.filter((a) => `${a.who} ${actionText(a.action)} ${a.target} ${a.detail ?? ""}`.toLowerCase().includes(t)) : rows);
+    return rows && (t ? rows.filter((a) => `${a.who} ${a.whoName ?? ""} ${actionText(a.action)} ${a.target} ${a.targetName ?? ""} ${a.detail ?? ""} ${a.detailText ?? ""}`.toLowerCase().includes(t)) : rows);
   }, [rows, q]);
   return (
     <div className="gkc-cols">

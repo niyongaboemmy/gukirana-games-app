@@ -80,7 +80,10 @@ describe("users", () => {
     expect(await svc.setStatus(support, player, "suspended", "abusive chat")).toEqual({ id: player, status: "suspended", changed: true });
     expect((await svc.listUsers(undefined, "suspended", 0)).items.map((u) => u.id)).toEqual([player]);
     const d = await svc.userDetail(player);
-    expect(d.history[0]).toMatchObject({ action: "user.suspend", detail: "abusive chat", who: support });
+    expect(d.history[0]).toMatchObject({ action: "user.suspend", detail: "abusive chat", who: support, whoName: "helper" });
+    // the console's staff-action feed names people instead of ids (GAP-016)
+    expect((await svc.auditFeed(5))[0]).toMatchObject({ action: "user.suspend", whoName: "helper", targetName: "player", detailText: "abusive chat" });
+    expect((await svc.auditFeed(50, "helper")).length).toBeGreaterThan(0);
     expect((await svc.setStatus(support, player, "active", "appeal accepted")).changed).toBe(true);
   });
 

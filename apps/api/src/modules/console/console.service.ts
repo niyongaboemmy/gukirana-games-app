@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
-import { accessAudit, and, asc, count, desc, eq, gt, gte, inArray, or, refreshTokens, userRoles, users } from "@gukirana/db";
+import { accessAudit, and, asc, count, desc, eq, gt, gte, inArray, or, refreshTokens, roles as rolesTable, userRoles, users } from "@gukirana/db";
 import { USER_STATUS_ROLES, sectionsFor, type ConsoleOverview, type ConsoleUser, type UserStatus } from "@gukirana/contracts";
 import { DB, type Db } from "../../common/db.module.js";
 import { forgetUserStatus } from "../../common/user-status.js";
@@ -14,6 +14,7 @@ import { levelForXp } from "../levels/xp.js";
 import { maskEmail, maskPhone } from "../identity/phone.js";
 import { BuildingsService } from "./buildings.service.js";
 import { PresenceStore } from "./presence.js";
+import { auditUserIds, describeAudit, type AuditNames } from "./audit-text.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PAGE = 25;
@@ -74,9 +75,7 @@ export class ConsoleService {
         starsIssued: star?.starsIssued ?? 0,
       };
     }
-    const audit = sections.includes("monitor")
-      ? (await this.access.auditLog(8)).map((a) => ({ id: a.id, who: a.who, action: a.action, target: a.target, detail: a.detail, at: a.at.toISOString() }))
-      : null;
+    const audit = sections.includes("monitor") ? await this.auditFeed(8) : null;
     return {
       users: usersBlock,
       online: this.presence.totals(),
@@ -84,6 +83,36 @@ export class ConsoleService {
       buildings: await this.buildings.list(),
       audit,
       finance,
+    };
+  }
+
+  /**
+   * Recent staff actions for the console, with usernames / building, office and role names and the detail in words
+   * (GAP-016). `q` filters on the words as well as the raw fields.
+   */
+  async auditFeed(limit: number, q?: string) {
+    const rows = await this.access.auditLog(limit);
+    const names = await this.auditNames(rows);
+    const t = q?.trim().toLowerCase();
+    return rows
+      .map((a) => ({ id: a.id, who: a.who, action: a.action, target: a.target, detail: a.detail, at: a.at.toISOString(), ...describeAudit(a, names) }))
+      .filter((a) => !t || `${a.who} ${a.whoName} ${a.action} ${a.target} ${a.targetName} ${a.detail ?? ""} ${a.detailText ?? ""}`.toLowerCase().includes(t));
+  }
+
+  /** the names audit rows refer to: accounts, buildings, offices, roles */
+  private async auditNames(rows: { who: string; target: string; detail: string | null }[]): Promise<AuditNames> {
+    const ids = auditUserIds(rows);
+    const [us, bs, os, rs] = await Promise.all([
+      ids.length ? this.db.select({ id: users.id, username: users.username }).from(users).where(inArray(users.id, ids)) : Promise.resolve([]),
+      this.buildings.list(),
+      this.access.listOffices(),
+      this.db.select({ id: rolesTable.id, name: rolesTable.name }).from(rolesTable),
+    ]);
+    return {
+      users: new Map(us.map((u) => [u.id, u.username])),
+      buildings: new Map(bs.map((b) => [b.id as string, b.name])),
+      offices: new Map(os.map((o) => [o.id, o.name])),
+      roles: new Map(rs.map((r) => [r.id, r.name])),
     };
   }
 
@@ -130,6 +159,7 @@ export class ConsoleService {
       this.ledger.balance(userCoins(id)),
       this.access.auditFor(`user:${id}`, 20),
     ]);
+    const names = await this.auditNames(history);
     return {
       id: u.id,
       username: u.username,
@@ -143,7 +173,10 @@ export class ConsoleService {
       roles: grants.map((g) => ({ role: g.roleId, grantedBy: g.grantedBy, grantedAt: g.grantedAt.toISOString() })),
       stars,
       coins,
-      history: history.map((a) => ({ id: a.id, who: a.who, action: a.action, detail: a.detail, at: a.at.toISOString() })),
+      history: history.map((a) => {
+        const w = describeAudit(a, names);
+        return { id: a.id, who: a.who, action: a.action, detail: a.detail, at: a.at.toISOString(), whoName: w.whoName, detailText: w.detailText };
+      }),
     };
   }
 

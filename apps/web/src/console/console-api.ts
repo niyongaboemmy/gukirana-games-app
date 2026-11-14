@@ -10,6 +10,10 @@ export interface AuditRow {
   target: string;
   detail: string | null;
   at: string;
+  /** the row in plain words (server-side names: usernames, building / office / role names) */
+  whoName?: string;
+  targetName?: string;
+  detailText?: string | null;
 }
 export interface UserDetail {
   id: string;
@@ -24,7 +28,7 @@ export interface UserDetail {
   roles: { role: string; grantedBy: string | null; grantedAt: string }[];
   stars: number;
   coins: number;
-  history: { id: string; who: string; action: string; detail: string | null; at: string }[];
+  history: { id: string; who: string; action: string; detail: string | null; at: string; whoName?: string; detailText?: string | null }[];
 }
 export interface RoleRow {
   id: string;

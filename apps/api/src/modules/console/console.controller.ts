@@ -89,12 +89,8 @@ export class ConsoleController {
 
   @Get("audit")
   @RequireRole(...SECTION_ROLES.monitor)
-  async audit(@Query("limit") limit?: string, @Query("q") q?: string) {
-    const rows = await this.access.auditLog(Math.min(300, Number(limit) || 100));
-    const t = q?.trim().toLowerCase();
-    return rows
-      .filter((a) => !t || `${a.who} ${a.action} ${a.target} ${a.detail ?? ""}`.toLowerCase().includes(t))
-      .map((a) => ({ id: a.id, who: a.who, action: a.action, target: a.target, detail: a.detail, at: a.at.toISOString() }));
+  audit(@Query("limit") limit?: string, @Query("q") q?: string) {
+    return this.console.auditFeed(Math.min(300, Number(limit) || 100), q);
   }
 
   @Get("finance")
