@@ -431,14 +431,15 @@ Contract changes after today: **additive only**; whoever needs one adds it in th
 - **Defer:** VR gestures, locker room, kickboxing / wrestling / karate interiors, ring closing by staff, featured-fight
   director, replays, 1M-fight sim, spectator betting (never — not in scope).
 
-## 10. Needs the user's decision
+## 10. User decisions (accepted 2026-11-14)
 
-1. **Site:** merging expansion plots 09 + 10 at 140° for a ≈ 95 × 30 m hall (D7) — OK, or another bearing?
-2. **Headgear default on** (amateur look, hides hair-fit issues) — or off by default?
-3. **Round format** 3 × 60 s (+ 15 s rest) default — or 3 × 90 s?
-4. **Stakes** for boxing at launch: same defaults as the other games (25 / 50 / 100 / 200) — boxing is seeded
-   disabled either way.
-5. **Guests** may practise in rings (proposed yes); live fights need an account (required by the money rules).
+The user accepted the recommended answers:
+
+1. **Site:** expansion plots 09 + 10 merged at 140° for a ≈ 95 × 30 m hall (D7).
+2. **Headgear:** on by default.
+3. **Round format:** 3 × 60 s with 15 s rest (admin-editable within the bounds).
+4. **Stakes at launch:** the same defaults as the other games (25 / 50 / 100 / 200); Boxing stays seeded disabled.
+5. **Guests** may practise vs AI in free rings; live fights need an account (money rules).
 
 ## 11. Agent W brief (world)
 
