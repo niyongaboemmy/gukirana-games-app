@@ -15,6 +15,10 @@ All amounts are integers (`Coins`, minor currency units); all formulas live in `
 ## 2. How the platform earns
 
 **Table fee (rake):** each player pays a fee on top of the stake. The winner receives exactly both stakes (FR-ESC-03).
+The fee of a match comes from one function, `matchTableFee(currency, stake)` in `packages/money`: Coins matches pay
+the band below; **Stars matches and friendly games carry no fee** (Stars have no cash value). Match validation checks
+that a player holds stake + fee, and escrow locks stake + fee, so a Stars fee would be a one-line change there.
+How a match ends (forfeit, void, refund) is in [GAME-EXIT-RULES.md](GAME-EXIT-RULES.md).
 
 ```
 fee(stake)       = clamp( round_half_up(stake × rate_bp / 10 000), minFee, cap )   (rate from the fee band of the stake; ≥ minFeeRateBp)

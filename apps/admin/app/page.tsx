@@ -12,6 +12,8 @@ export default function AdminHome() {
               <a href="/finance" style={{ color: "inherit", fontWeight: 700 }}>Finance · economy settings + reports →</a>
             ) : m === "Access" ? (
               <a href="/access" style={{ color: "inherit", fontWeight: 700 }}>Access · roles, offices + grants →</a>
+            ) : m === "Games & config" ? (
+              <a href="/games" style={{ color: "inherit", fontWeight: 700 }}>Games · friendly games per day, stakes, timers →</a>
             ) : m === "Arena" ? (
               <a href="/arena" style={{ color: "inherit", fontWeight: 700 }}>Arena · open/close, events, passes + bars →</a>
             ) : (

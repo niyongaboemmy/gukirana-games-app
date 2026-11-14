@@ -294,7 +294,7 @@ export class MatchRoom extends Room {
 
   private sendState(client: Client): void {
     const userId = this.sessions.get(client.sessionId) ?? "spectator";
-    client.send("state", { state: this.mod.viewFor(this.state_, userId), turn: this.mod.currentTurn(this.state_), deadline: this.deadline, hash: this.mod.hash(this.state_) });
+    client.send("state", { state: this.mod.viewFor(this.state_, userId), turn: this.mod.currentTurn(this.state_), deadline: this.deadline, hash: this.mod.hash(this.state_), started: this.moves > 0 });
   }
 
   private armTurnTimer(): void {

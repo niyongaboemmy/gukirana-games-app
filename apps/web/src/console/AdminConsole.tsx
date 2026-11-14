@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Activity, BellRing, Building2, Coins, Flag, KeyRound, LayoutDashboard, LogOut, MonitorSmartphone, Users, type LucideIcon } from "lucide-react";
+import { Activity, BellRing, Building2, Coins, Dices, Flag, KeyRound, LayoutDashboard, LogOut, MonitorSmartphone, Users, type LucideIcon } from "lucide-react";
 import { EXPORT_ROLES, type ConsoleOverview, type ConsoleSection } from "@gukirana/contracts";
 import { useSession } from "@/lib/session";
 import { useOffices } from "@/admin-block/office-client";
@@ -8,6 +8,7 @@ import { consoleApi } from "./console-api";
 import { Buildings, Monitor, Overview, Visitors } from "./sections-live";
 import { Finance, People, Roles } from "./sections-people";
 import { Reports } from "./sections-reports";
+import { Games } from "./sections-games";
 import { C } from "./strings";
 import "./console.css";
 
@@ -20,6 +21,7 @@ const ICONS: Record<ConsoleSection, LucideIcon> = {
   monitor: Activity,
   roles: KeyRound,
   finance: Coins,
+  games: Dices,
 };
 const ROLE_NAMES: Record<string, string> = { super_admin: "Super Admin", it_admin: "IT Administrator", accountant: "Accountant", support_agent: "Support Agent", event_manager: "Event Manager" };
 const roleName = (r: string) => ROLE_NAMES[r] ?? r.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -154,6 +156,7 @@ export function AdminConsole({ office, roles, sections, onLogOff, standalone = f
           {section === "monitor" && <Monitor toast={toast} />}
           {section === "roles" && <Roles toast={toast} me={me?.id ?? null} />}
           {section === "finance" && <Finance toast={toast} />}
+          {section === "games" && <Games canEdit={can("games")} toast={toast} />}
         </main>
       </div>
       {toastText && (

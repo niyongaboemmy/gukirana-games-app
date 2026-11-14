@@ -212,8 +212,8 @@ export async function connectPlaza(
     const local = <T extends { expires: number; ttlMs?: number }>(p: T): T => (p.ttlMs ? { ...p, expires: Date.now() + p.ttlMs } : p);
     room.onMessage("proposal", (p: IncomingProposal & { ttlMs?: number }) => useMatch.setState((s) => ({ incoming: [...s.incoming.filter((x) => x.id !== p.id), local(p)] })));
     room.onMessage("proposal-sent", (p: { id: string; to?: string; game: "igisoro" | "ludo" | "pool"; stake: number; expires: number; ttlMs?: number }) => useMatch.setState({ outgoing: local(p), notice: null }));
-    room.onMessage("proposal-failed", (m: { reason: string }) => useMatch.setState({ notice: reasonText(m.reason) }));
-    room.onMessage("proposal-closed", (m: { id: string; reason: string }) =>
+    room.onMessage("proposal-failed", (m: { reason: string; game?: string; limit?: number }) => useMatch.setState({ notice: reasonText(m.reason, m) }));
+    room.onMessage("proposal-closed", (m: { id: string; reason: string; game?: string; limit?: number }) =>
       useMatch.setState((s) => ({
         incoming: s.incoming.filter((x) => x.id !== m.id),
         outgoing: s.outgoing?.id === m.id ? null : s.outgoing,
@@ -221,12 +221,12 @@ export async function connectPlaza(
           s.outgoing?.id === m.id && m.reason === "EXPIRED"
             ? `No answer from ${s.outgoing.to ?? "them"} — the challenge expired`
             : s.outgoing?.id === m.id || m.reason !== "EXPIRED"
-              ? reasonText(m.reason)
+              ? reasonText(m.reason, m)
               : s.notice,
       })),
     );
-    room.onMessage("quickmatch", (m: { status: "idle" | "waiting" | "error"; game?: "igisoro" | "ludo" | "pool"; stake?: number; reason?: string }) =>
-      useMatch.setState({ quick: m, notice: m.status === "error" ? reasonText(m.reason) : null }),
+    room.onMessage("quickmatch", (m: { status: "idle" | "waiting" | "error"; game?: "igisoro" | "ludo" | "pool"; stake?: number; reason?: string; limit?: number }) =>
+      useMatch.setState({ quick: m, notice: m.status === "error" ? reasonText(m.reason, m) : null }),
     );
     room.onMessage("match-ready", (m) => useMatch.setState({ ready: m, incoming: [], outgoing: null, quick: { status: "idle" } }));
     // the account was suspended while connected (GAP-001): the server closes the connection; the session ends here

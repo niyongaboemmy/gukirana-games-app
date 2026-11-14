@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Armchair, Bot, DoorOpen, Loader2, Mic, Star, Swords, Users, X, Zap } from "lucide-react";
+import { Armchair, Bot, DoorOpen, Loader2, Mic, Swords, Users, X, Zap } from "lucide-react";
 import { useWorld } from "@/lib/world-store";
-import { useMatch, STAKES } from "@/lib/match-store";
+import { useMatch } from "@/lib/match-store";
+import { StakeChips } from "@/match/StakeChips";
 import { propose, quickMatchJoin, quickMatchLeave } from "@/lib/realtime";
 import { useVoice } from "@/voice/voice";
 import { rememberBeforeGame } from "@/lib/return-point";
@@ -36,7 +37,6 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
   const others = useWorld((s) => Object.keys(s.players).length);
   const quick = useMatch((s) => s.quick);
   const authed = useSession((s) => s.status === "authenticated");
-  const stars = useSession((s) => s.me?.stars ?? 0);
   const [stake, setStake] = useState(25);
   const players = useWorld((s) => s.players);
   const talking = useVoice((s) => s.talking);
@@ -158,13 +158,7 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
             >
               <p className="pmuted mb-3 text-sm">{layout.title} · the server holds both stakes in escrow and pays the winner 2×.</p>
               <p className="plabel mb-1.5">{R.stake}</p>
-              <div className="flex flex-wrap gap-1.5">
-                {STAKES.map((s) => (
-                  <button key={s} type="button" disabled={s > stars} aria-pressed={stake === s} onClick={() => setStake(s)} className={`ptab flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-bold disabled:opacity-30 ${stake === s ? "is-on" : ""}`}>
-                    {s === 0 ? "Friendly" : <>{s} <Star size={12} className="fill-current" /></>}
-                  </button>
-                ))}
-              </div>
+              {isGameHall(layout.game) && <StakeChips game={layout.game} value={stake} onChange={setStake} />}
             </PaperCard>
           </div>
         </div>
@@ -236,13 +230,9 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
               </div>
             )}
             {livePlay && authed && quick.status !== "waiting" && (
-              <div className="mt-3 flex flex-wrap items-center gap-1.5 text-sm phone:mt-2 phone:flex-nowrap phone:gap-1 phone:overflow-x-auto phone:text-xs">
-                <span className="plabel mr-1 phone:text-[10px]">{R.stake}</span>
-                {STAKES.map((s) => (
-                  <button key={s} type="button" disabled={s > stars} aria-pressed={stake === s} onClick={() => setStake(s)} className={`ptab flex shrink-0 items-center gap-1 rounded-full px-3 py-1 font-bold disabled:opacity-30 phone:px-2.5 ${stake === s ? "is-on" : ""}`}>
-                    {s === 0 ? "Friendly" : <>{s} <Star size={11} className="fill-current" /></>}
-                  </button>
-                ))}
+              <div className="mt-3 text-sm phone:mt-2 phone:text-xs">
+                <span className="plabel mb-1 block phone:text-[10px]">{R.stake}</span>
+                {isGameHall(layout.game) && <StakeChips game={layout.game} value={stake} onChange={setStake} compact />}
               </div>
             )}
             <p className="pmuted mt-2 text-xs phone:hidden">Tip: stand near another player and use Challenge to play them directly.</p>
