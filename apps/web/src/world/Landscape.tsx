@@ -11,6 +11,8 @@ import { sessionMemo } from "./session-cache";
 import { BitmapTextureLoader } from "./bitmap-texture";
 import { COMPOUND_R } from "./layout";
 import { mistUniform } from "./activities";
+import { buildCountryside, countrysideMask, polyDist, type Countryside } from "./countryside";
+import { terrainMaterial } from "./terrain-shader";
 
 /** How far the compound (and so the farmland) moved out from the first 88 m layout (P1-WLD-03). */
 const GROW = COMPOUND_R - 88;
@@ -165,11 +167,19 @@ function terrainColor(x: number, z: number, h: number, out: THREE.Color) {
     out.copy(_lawn);
     return;
   }
-  for (const l of LAKES)
-    if (h < l.level + 0.6 && lakeDist(l, x, z) < 1.45) {
-      out.set("#4a4031");
+  for (const l of LAKES) {
+    const d = lakeDist(l, x, z);
+    if (d < 1.6) {
+      // lake bed silt under the water, then a marshy papyrus fringe softly into the fields (no hard ring)
+      if (h < l.level + 0.6) {
+        out.set("#55695c"); // shallows: the bed seen through the feathered water edge
+        return;
+      }
+      plotColor(x, z, out);
+      out.lerp(_c2.set("#4c6a32"), 1 - smooth(1.2, 1.6, d));
       return;
     }
+  }
   plotColor(x, z, out);
   const band = Math.floor((h + 0.06) / TERRACE);
   const f = (h + 0.06) / TERRACE - band;
@@ -177,6 +187,17 @@ function terrainColor(x: number, z: number, h: number, out: THREE.Color) {
   out.lerp(_c2.set("#3e6b30"), 0.25 * fbm(x * 0.03, z * 0.03, 2));
   // the compound lawn runs out softly into the farmland (no hard seam behind the gate)
   out.lerp(_lawn, 1 - smooth(COMPOUND_R, COMPOUND_R + 30, r));
+}
+
+/** How much of the shader's field / terrace detail a terrain vertex gets: 0 on the campus lawn and the lake shores,
+ *  1 out in the farmland (Landscape terrain material). */
+function farmWeight(x: number, z: number, h: number): number {
+  let w = smooth(COMPOUND_R, COMPOUND_R + 30, Math.hypot(x, z));
+  for (const l of LAKES) {
+    const d = lakeDist(l, x, z);
+    if (d < 1.6) w *= h < l.level + 0.6 ? 0 : smooth(1.2, 1.6, d);
+  }
+  return w;
 }
 
 function buildTerrain(tier: Tier): THREE.BufferGeometry {
@@ -189,6 +210,7 @@ function buildTerrain(tier: Tier): THREE.BufferGeometry {
   const pos: number[] = [];
   const col: number[] = [];
   const uv: number[] = [];
+  const farm: number[] = [];
   const c = new THREE.Color();
   for (const r of radii)
     for (let i = 0; i <= segs; i++) {
@@ -199,6 +221,7 @@ function buildTerrain(tier: Tier): THREE.BufferGeometry {
       pos.push(x, h, z);
       terrainColor(x, z, h, c);
       col.push(c.r, c.g, c.b);
+      farm.push(farmWeight(x, z, h));
       uv.push(x / 6, z / 6);
     }
   const idx: number[] = [];
@@ -213,6 +236,7 @@ function buildTerrain(tier: Tier): THREE.BufferGeometry {
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
   g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute("aFarm", new THREE.Float32BufferAttribute(farm, 1));
   g.setIndex(idx);
   g.computeVertexNormals();
   return g;
@@ -440,6 +464,10 @@ function inLake(x: number, z: number) {
   return LAKES.some((l) => lakeDist(l, x, z) < 1.5);
 }
 
+/** Roads, rivers and villages round the campus (seeded, built once per session). */
+const countryside = (): Countryside =>
+  sessionMemo("landscape:countryside", () => buildCountryside(COMPOUND_R + 4, (x, z) => LAKES.some((l) => lakeDist(l, x, z) < 1.25), { x: LAKES[0]!.x, z: LAKES[0]!.z }));
+
 function Vegetation({ tier }: { tier: Tier }) {
   const lite = tier === "lite";
   // deterministic (seeded) placements: built once per session, shared with the halls' window views
@@ -461,13 +489,17 @@ function Vegetation({ tier }: { tier: Tier }) {
       if (Math.abs(x) < 26 && z > 60 && z < 125 + GROW) return false; // avenue, arrival gate and its forecourt
       return !inLake(x, z);
     };
+    const country = countryside();
+    /** on (or within `m` m of) a road or the river water */
+    const near = (x: number, z: number, m: number) =>
+      country.roads.some((l) => polyDist(x, z, l) < 3 + m) || country.rivers.some((v) => polyDist(x, z, v.line) < v.w / 2 + m);
     // scattered acacias on the farmland hills, scrub and lava boulders between the fields
     for (let i = 0; i < (lite ? 40 : 110); i++) {
       const a = r() * Math.PI * 2;
       const rad = 92 + GROW + r() * 260;
       const x = Math.sin(a) * rad;
       const z = Math.cos(a) * rad;
-      if (!outside(x, z) || (-z / rad > 0.75 && rad > 200)) continue;
+      if (!outside(x, z) || near(x, z, 2) || (-z / rad > 0.75 && rad > 200)) continue;
       const y = terrainHeight(x, z) - 0.05;
       const k = r();
       if (k < 0.5) acacia.push({ x, y, z, rotY: r() * Math.PI * 2, s: 0.8 + r() * 0.4 });
@@ -492,28 +524,26 @@ function Vegetation({ tier }: { tier: Tier }) {
         const v = (r() - 0.5) * bd;
         const x = cx + u * Math.cos(rot) - v * Math.sin(rot);
         const z = cz + u * Math.sin(rot) + v * Math.cos(rot);
-        if (!outside(x, z)) continue;
+        if (!outside(x, z) || near(x, z, 2)) continue;
         euca.push({ x, y: terrainHeight(x, z) - 0.05, z, rotY: r() * Math.PI * 2, s: 0.7 + r() * 0.35, sy: 1 + r() * 0.3 });
       }
     }
-    // farmhouses with iron-sheet roofs on the hills
-    for (let i = 0; i < (lite ? 50 : 130); i++) {
-      const a = r() * Math.PI * 2;
-      const rad = 120 + GROW + r() * 330;
-      const x = Math.sin(a) * rad;
-      const z = Math.cos(a) * rad;
-      if (!outside(x, z) || (-z / rad > 0.8 && rad > 260)) continue;
+    // houses (P2-WLD-11): roadside villages (imidugudu, rows facing the road) plus scattered farmsteads on the hills;
+    // ochre / whitewashed walls, roofs of silver or weathered corrugated iron, some rusty, some red clay tiles
+    const WALLS = ["#b9874f", "#c99a62", "#a8723f", "#d1b48c", "#e0d8c8"];
+    const ROOFS = ["#a3a9ac", "#a3a9ac", "#8c9296", "#7f8589", "#7a4630", "#a4553b", "#9a4b34"];
+    const house = (x: number, z: number, rot: number, bananaClumps: number) => {
       const y = terrainHeight(x, z);
-      const rot = r() * Math.PI;
-      const w = 5 + r() * 3;
-      // ochre / terracotta mud-brick walls sunk into the slope, grey or rusty corrugated iron roofs
-      walls.push({ m: mat4(x, y + 0.9, z, w, 2.8, 4, rot), c: new THREE.Color(["#b9874f", "#c99a62", "#a8723f", "#d1b48c"][Math.floor(r() * 4)]!) });
-      roofs.push({ m: mat4(x, y + 2.9, z, w + 0.6, 1.4, 4.8, rot), c: new THREE.Color(r() > 0.4 ? "#8f969b" : "#7a4630") });
-      // banana clumps around the homestead
-      for (let c = 0; c < (lite ? 1 : 2); c++) {
+      const w = 5 + r() * 3.5;
+      const d = 3.8 + r() * 1.2;
+      walls.push({ m: mat4(x, y + 0.9, z, w, 2.8, d, rot), c: new THREE.Color(WALLS[Math.floor(r() * WALLS.length)]!) });
+      roofs.push({ m: mat4(x, y + 2.7, z, w + 0.6, 1.0, d * 1.25, rot), c: new THREE.Color(ROOFS[Math.floor(r() * ROOFS.length)]!).multiplyScalar(0.92 + r() * 0.16) });
+      // banana clumps round the homestead
+      for (let c = 0; c < bananaClumps; c++) {
         const ba = r() * Math.PI * 2;
         const bx = x + Math.cos(ba) * (6 + r() * 4);
         const bz = z + Math.sin(ba) * (6 + r() * 4);
+        if (near(bx, bz, 3)) continue;
         for (let k = 0; k < 3 + Math.floor(r() * 3); k++) {
           const px = bx + (r() - 0.5) * 2.4;
           const pz = bz + (r() - 0.5) * 2.4;
@@ -521,7 +551,44 @@ function Vegetation({ tier }: { tier: Tier }) {
           bananas.push({ m: mat4(px, terrainHeight(px, pz) - 0.1, pz, hh / 3.2, hh / 3.2, hh / 3.2, r() * 6), c: leaf("#6f9a3a", 0.1) });
         }
       }
+    };
+    for (const h of country.houses) house(h.x, h.z, h.rot, lite ? 1 : 2);
+    for (let i = 0; i < (lite ? 30 : 80); i++) {
+      const a = r() * Math.PI * 2;
+      const rad = 120 + GROW + r() * 330;
+      const x = Math.sin(a) * rad;
+      const z = Math.cos(a) * rad;
+      if (!outside(x, z) || near(x, z, 8) || (-z / rad > 0.8 && rad > 260)) continue;
+      house(x, z, r() * Math.PI, lite ? 1 : 2);
     }
+    // eucalyptus lining stretches of the roads, scrub and trees along the river banks
+    for (const line of country.roads)
+      for (let i = 1; i < line.length - 1; i += lite ? 4 : 2) {
+        if (r() > 0.45) continue;
+        const a = line[i]!;
+        const b = line[i + 1]!;
+        const tl = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+        const side = r() < 0.5 ? -1 : 1;
+        const x = a.x + (-(b.z - a.z) / tl) * 7 * side;
+        const z = a.z + ((b.x - a.x) / tl) * 7 * side;
+        if (outside(x, z) && !near(x, z, 4.5)) euca.push({ x, y: terrainHeight(x, z) - 0.05, z, rotY: r() * 6, s: 0.7 + r() * 0.3, sy: 1 + r() * 0.3 });
+      }
+    for (const v of country.rivers)
+      for (let i = 0; i < v.line.length - 1; i += lite ? 3 : 1) {
+        const a = v.line[i]!;
+        const b = v.line[i + 1]!;
+        const tl = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+        for (const side of [-1, 1]) {
+          if (r() > 0.55) continue;
+          const off = v.w * 0.6 + 2 + r() * 6;
+          const x = a.x + (-(b.z - a.z) / tl) * off * side;
+          const z = a.z + ((b.x - a.x) / tl) * off * side;
+          if (!outside(x, z) || near(x, z, 2.5)) continue;
+          const y = terrainHeight(x, z) - 0.05;
+          if (r() < 0.6) bushes.push({ x, y, z, rotY: r() * 6, s: 0.9 + r() * 0.7 });
+          else acacia.push({ x, y, z, rotY: r() * 6, s: 0.7 + r() * 0.4 });
+        }
+      }
     return { acacia, euca, bushes, rocks, boulders, bananas, walls, roofs };
   }), [lite]);
 
@@ -530,7 +597,8 @@ function Vegetation({ tier }: { tier: Tier }) {
       sessionMemo("landscape:veg-geos", () => ({
         banana: bananaGeometry(),
         box: new THREE.BoxGeometry(1, 1, 1),
-        roof: new THREE.CylinderGeometry(0.5, 0.5, 1, 3).rotateZ(Math.PI / 2).rotateX(0).scale(1, 1, 1),
+        // gabled roof: a triangular prism along x, ridge up, eaves at y = −0.5 (P2-WLD-11: was lying on its side)
+        roof: new THREE.CylinderGeometry(0.5, 0.5, 1, 3).rotateZ(Math.PI / 2).rotateX(-Math.PI / 2).scale(1, 4 / 3, 1 / 0.866).translate(0, -1 / 6, 0),
       })),
     [],
   );
@@ -692,7 +760,9 @@ function Mist({ tier }: { tier: Tier }) {
         .replace("#include <common>", "#include <common>\nuniform float uTime;\nuniform float uMorning;\nattribute vec3 aMist;\nvarying float vMist;")
         .replace(
           "#include <begin_vertex>",
-          "#include <begin_vertex>\ntransformed.x += sin(uTime * 0.03 + aMist.x) * aMist.y;\nvMist = min(1.0, aMist.z * (0.85 + 0.15 * sin(uTime * 0.1 + aMist.x * 1.7)) * (1.0 + 1.3 * uMorning));",
+          // (P2-WLD-11: a bank seen edge-on or from high above — the campus aerial view — fades out instead of showing as a
+          // white streak across the fields)
+          "#include <begin_vertex>\ntransformed.x += sin(uTime * 0.03 + aMist.x) * aMist.y;\nvMist = min(1.0, aMist.z * (0.85 + 0.15 * sin(uTime * 0.1 + aMist.x * 1.7)) * (1.0 + 1.3 * uMorning));\nvec3 gkV = normalize(cameraPosition - (modelMatrix * vec4(transformed, 1.0)).xyz);\nvMist *= smoothstep(0.15, 0.5, abs(dot(normalize(normal), gkV))) * (1.0 - smoothstep(0.22, 0.45, gkV.y));",
         );
       sh.fragmentShader = sh.fragmentShader
         .replace("#include <common>", "#include <common>\nvarying float vMist;")
@@ -712,6 +782,58 @@ function Mist({ tier }: { tier: Tier }) {
     mist.uTime.value = clock.elapsedTime;
   });
   return <mesh geometry={mist.geo} material={mist.mat} renderOrder={-1} />;
+}
+
+/** Both lakes in one mesh; `aLake` keeps each disc's own unit-radius coordinates (the shore fade needs them, and they
+ *  survive the outdoor static batching, which bakes transforms into the vertices). */
+function lakeGeometry(): THREE.BufferGeometry {
+  const parts = LAKES.map((l) => {
+    const g = new THREE.CircleGeometry(1, 64);
+    const p = g.getAttribute("position") as THREE.BufferAttribute;
+    const local = new Float32Array(p.count * 2);
+    for (let i = 0; i < p.count; i++) {
+      local[i * 2] = p.getX(i);
+      local[i * 2 + 1] = p.getY(i);
+    }
+    g.setAttribute("aLake", new THREE.BufferAttribute(local, 2));
+    g.deleteAttribute("uv");
+    g.scale(l.rx * 1.35, l.rz * 1.35, 1).rotateZ(l.rot).rotateX(-Math.PI / 2).translate(l.x, l.level, l.z);
+    return g;
+  });
+  const geo = mergeGeometries(parts, false)!;
+  parts.forEach((g) => g.dispose());
+  return geo;
+}
+
+/**
+ * Lake water (P2-WLD-11): deep blue-green in the middle, shallow olive-brown towards the shore, and an irregular,
+ * feathered edge that dissolves into the marsh fringe (no hard ellipse). The disc is unit radius in its own coordinates (aLake).
+ */
+function lakeMaterial(): THREE.MeshStandardMaterial {
+  const m = new THREE.MeshStandardMaterial({ color: "#2c5562", metalness: 0, roughness: 0.08, envMapIntensity: 0.9, transparent: true, depthWrite: false });
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", "#include <common>\nattribute vec2 aLake;\nvarying vec2 vGkL;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\n  vGkL = aLake;");
+    sh.fragmentShader = sh.fragmentShader
+      .replace(
+        "#include <common>",
+        `#include <common>
+varying vec2 vGkL;
+float gkLh(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+float gkLn(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(gkLh(i), gkLh(i + vec2(1.0, 0.0)), u.x), mix(gkLh(i + vec2(0.0, 1.0)), gkLh(i + vec2(1.0, 1.0)), u.x), u.y); }`,
+      )
+      .replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+  float gkD = length(vGkL) + (gkLn(vGkL * 7.0) - 0.5) * 0.14 + (gkLn(vGkL * 23.0) - 0.5) * 0.04;
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.11, 0.17, 0.14), smoothstep(0.55, 0.85, gkD));
+  diffuseColor.a *= 1.0 - smoothstep(0.7, 0.92, gkD);`,
+      );
+  };
+  m.customProgramCacheKey = () => "gk-lake";
+  return m;
 }
 
 /* ---------------- composition ---------------- */
@@ -765,19 +887,20 @@ export function Landscape({ tier }: { tier: Tier }) {
     };
     return { map: load("/assets/env/ground-grass.webp", true), normal: tier === "lite" ? null : load("/assets/env/ground-grass-n.webp", false) };
   }), [tier]);
-  const tint = useMemo(() => new THREE.Color("#ffffff").multiplyScalar(1.35), []);
+  const terrainMat = useMemo(
+    () =>
+      sessionMemo(`landscape:terrain-mat:${tier}`, () =>
+        terrainMaterial({ lite: tier === "lite", map: ground.map, normalMap: ground.normal, mask: countrysideMask(countryside(), tier === "lite") }),
+      ),
+    [tier, ground],
+  );
+  const lakeMat = useMemo(() => sessionMemo("landscape:lake-mat", () => lakeMaterial()), []);
+  const lakeGeo = useMemo(() => sessionMemo("landscape:lake-geo", () => lakeGeometry()), []);
   return (
     <group>
-      <mesh geometry={terrain} receiveShadow>
-        <meshStandardMaterial vertexColors map={ground.map} normalMap={ground.normal} normalScale={new THREE.Vector2(0.8, 0.8)} color={tint} roughness={1} />
-      </mesh>
+      <mesh geometry={terrain} material={terrainMat} receiveShadow />
       <mesh geometry={volcanoes.geo} material={volcanoMat} />
-      {LAKES.map((l) => (
-        <mesh key={l.name} position={[l.x, l.level, l.z]} rotation={[-Math.PI / 2, 0, l.rot]} scale={[l.rx * 1.35, l.rz * 1.35, 1]}>
-          <circleGeometry args={[1, 48]} />
-          <meshStandardMaterial color="#3a5f6e" metalness={0} roughness={0.06} envMapIntensity={1.5} />
-        </mesh>
-      ))}
+      <mesh geometry={lakeGeo} material={lakeMat} />
       {volcanoes.craters.map((c, i) => (
         <mesh key={i} position={c} rotation={[-Math.PI / 2, 0, 0]}>
           <circleGeometry args={[22, 24]} />

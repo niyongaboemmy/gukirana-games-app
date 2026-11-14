@@ -17,6 +17,7 @@ import {
   thatchTexture,
   woodTexture,
 } from "./textures";
+import { roofMembraneTexture } from "./roofs";
 import { BENCHES, FOUNTAIN_COURT, FOUNTAIN_RADIUS, PAVING_R, PLAZA_RADIUS, PORTALS, ringPoint, SPAWN } from "./layout";
 
 export type Tier = "lite" | "standard";
@@ -111,6 +112,8 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     // soft contact / ambient-occlusion decals under furniture (the only grounding on Lite)
     ao: new THREE.MeshBasicMaterial({ map: blobTexture(), color: "#000000", transparent: true, opacity: tier === "lite" ? 0.5 : 0.32, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
     concrete: std({ map: concreteTexture(), roughness: 0.85, color: "#e9e4da" }),
+    // flat-roof single-ply membrane (P2-WLD-11, world/roofs.ts)
+    roofMembrane: std({ map: roofMembraneTexture(), roughness: 0.8, color: "#e4e5e2" }),
     // Administrative Block: honed limestone cladding and dark bronze-anodised fins (matte)
     limestone: std({ map: concreteTexture(), roughness: 0.88, color: "#d8d0bf" }),
     bronze: std({ color: "#3f382f", roughness: 0.75, metalness: 0.2 }),
