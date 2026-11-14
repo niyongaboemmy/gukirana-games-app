@@ -32,7 +32,7 @@ export const hallOf = (v: View | Area | null): HallGame | null => (v && v.starts
 export function viewForPath(path: string): View | null {
   if (path === "/gate") return "gate";
   if (path === "/world") return "plaza";
-  const m = /^\/room\/(pool|ludo|igisoro|admin)\/?$/.exec(path);
+  const m = /^\/room\/(pool|ludo|igisoro|admin|arena)\/?$/.exec(path);
   return m ? (`hall:${m[1]}` as View) : null;
 }
 
@@ -162,7 +162,7 @@ export const stageNav: { push: (href: string) => void; replace: (href: string) =
 /* ---------------- shared frames: plaza door ↔ hall door ---------------- */
 
 /** Door line of each hall building in its plaza door frame (keep in sync with Plaza.tsx `Door` insets). */
-const DOOR_INSET: Record<HallGame, number> = { pool: doorInset("pool"), ludo: doorInset("ludo"), igisoro: doorInset("igisoro"), admin: doorInset("admin") };
+const DOOR_INSET: Record<HallGame, number> = { pool: doorInset("pool"), ludo: doorInset("ludo"), igisoro: doorInset("igisoro"), admin: doorInset("admin"), arena: doorInset("arena") };
 
 /**
  * The hall's door line IS the plaza door's line: a position keeps its lateral offset from the door centre, its

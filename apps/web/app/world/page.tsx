@@ -12,6 +12,7 @@ import { MatchmakingPanel } from "@/match/MatchmakingPanel";
 import { WorldControls } from "@/hud/WorldControls";
 import { WorldOverlays } from "@/world/GateExitPrompt";
 import { useStage } from "@/world/stage";
+import { ArenaDoorWatch } from "@/arena/ArenaDoorWatch";
 
 /**
  * The plaza. The 3D scene lives in the persistent stage (world/SceneHost in the root layout), which already shows
@@ -56,6 +57,7 @@ export default function WorldPage() {
     <div className="gk-hud-in">
       <WorldHud />
       <MatchmakingPanel />
+      <ArenaDoorWatch />
       {fromRoom && (
         <div role="status" className="gk-toast pointer-events-none fixed left-1/2 top-16 z-30 -translate-x-1/2 toast px-4 py-2 text-sm font-bold">
           Back in the plaza · walk to any lit door to enter a room

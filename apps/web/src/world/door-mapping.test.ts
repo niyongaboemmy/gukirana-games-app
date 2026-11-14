@@ -5,7 +5,7 @@ import { doorInset, DOOR_RING, PORTALS, portalTransform } from "./layout";
 
 /** The persistent-stage crossing maps the plaza door frame onto the hall door frame; it must follow the ring layout. */
 describe("plaza ↔ hall door mapping follows DOOR_RING / PORTALS", () => {
-  for (const game of ["pool", "ludo", "igisoro", "admin"] as const) {
+  for (const game of ["pool", "ludo", "igisoro", "admin", "arena"] as const) {
     it(`${game}: the door line maps onto the hall's entrance wall and back`, () => {
       const p = PORTALS.find((q) => q.id === game)!;
       const t = portalTransform(p);

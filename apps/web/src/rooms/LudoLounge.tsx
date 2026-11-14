@@ -168,7 +168,7 @@ const poufMat = (m: THREE.MeshStandardMaterial) => {
 
 /* ---------------- tables: oak tops, boards, tokens, dice, number blocks ---------------- */
 
-function LudoTables({ tables, status, lite }: { tables: Table[]; status: TableStatus[]; lite: boolean }) {
+export function LudoTables({ tables, status, lite }: { tables: Table[]; status: TableStatus[]; lite: boolean }) {
   const oak = usePbr("oak_veneer_01", [1, 1]);
   const board = useMemo(() => ludoTableBoard(), []);
   const dice = useMemo(() => diceAtlas(), []);

@@ -265,7 +265,7 @@ function boardCounts(ti: number, inProgress: boolean): number[] {
 
 /* ---------------- tables, boards, stools ---------------- */
 
-function IgisoroTables({ layout, status, lite }: { layout: HallLayout; status: Record<string, TableStatus>; lite: boolean }) {
+export function IgisoroTables({ layout, status, lite }: { layout: HallLayout; status: Record<string, TableStatus>; lite: boolean }) {
   const tables = layout.tables;
   const wood = usePbr("oak_veneer_01", [1, 0.5]);
   const woodB = usePbr("oak_veneer_01", [1.4, 0.7]);

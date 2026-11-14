@@ -7,6 +7,7 @@ import { PoolHall } from "./PoolHall";
 import { LudoLounge } from "./LudoLounge";
 import { IgisoroCourt } from "./IgisoroCourt";
 import { AdminBlock } from "./AdminBlock";
+import { TournamentArena } from "./TournamentArena";
 
 /**
  * Hall interior = the room (per-game interior: shell, furniture, lights), the glass entrance (auto sliding
@@ -24,6 +25,8 @@ export function RoomScene({ layout, lite }: { layout: HallLayout; lite: boolean 
         <PoolHall layout={layout} lite={lite} />
       ) : g === "ludo" ? (
         <LudoLounge layout={layout} lite={lite} />
+      ) : g === "arena" ? (
+        <TournamentArena layout={layout} lite={lite} />
       ) : g === "admin" ? (
         <AdminBlock layout={layout} lite={lite} />
       ) : (

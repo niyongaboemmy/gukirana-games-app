@@ -22,6 +22,11 @@ const HALL_ASSETS: Record<HallGame, { models: string[]; pbr: [PbrName, boolean][
     models: ["potted_plant_02", "potted_plant_04", "sofa_02", "modern_arm_chair_01"],
     pbr: [["white_plaster_02", true], ["oak_veneer_01", true], ["velour_velvet", false]],
   },
+  // Tournament Arena: procedural shell + the feature tables' materials (keep in sync with rooms/TournamentArena)
+  arena: {
+    models: ["potted_plant_02"],
+    pbr: [["oak_veneer_01", true], ["velour_velvet", false]],
+  },
   igisoro: {
     models: ["mid_century_lounge_chair", "potted_plant_02", "sofa_02", "wicker_basket_01"],
     pbr: [["bark_brown_02", true], ["clay_plaster", true], ["rough_wood", true], ["tatami_mat", true], ["oak_veneer_01", true]],
