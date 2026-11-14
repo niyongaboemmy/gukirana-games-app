@@ -54,7 +54,7 @@ export interface PortalDef {
   angleDeg: number;
   kind: IconKind;
   /** plot size on the ring: "hall" plots fit a ~36 × 28 m hall interior (winged building); "small" a pavilion;
-   *  "fight" the merged expansion plots 09 + 10 (Fight Games hall, P3-FGT-01) */
+   *  "fight" the merged expansion plots 07 + 08 (Fight Games hall, P3-FGT-01; east district since P2-WLD-12) */
   plot?: "hall" | "small" | "fight";
   /** door ring radius (default DOOR_RING, the plaza's inner ring); the Fight hall stands on EXPANSION_RING */
   ring?: number;
@@ -70,9 +70,10 @@ export const PORTALS: PortalDef[] = [
   // the +88° hall plot (reserved for a 36 × 28 m hall): the Administrative Block (P2-ADM-02)
   { id: "admin", label: "Administrative Block", sub: "Offices", color: "#C9A96B", href: ADMIN_BLOCK_ON ? "/room/admin" : null, angleDeg: 88, kind: "admin", plot: "hall" },
   { id: "soon-se", label: "Coming Soon", sub: "Esports", color: "#8A94A6", href: null, angleDeg: 144, kind: "soon" },
-  // Fight Games hall (P3-FGT-01): on the expansion ring (plots 09 + 10 merged, bearing 140°), reached on foot by the
-  // Fight walk (FIGHT_WALK below) from the plaza; door locked until NEXT_PUBLIC_FF_FIGHT=1
-  { id: "fight", label: "Fight Games", sub: "Boxing", color: "#C8322A", href: FIGHT_ON ? "/room/fight" : null, angleDeg: 140, kind: "fight", plot: "fight", ring: EXPANSION_RING },
+  // Fight Games hall (P3-FGT-01): on the expansion ring in the east district (plots 07 + 08 merged, bearing 80°: moved
+  // from 140°, beside the arrival gate, by the campus master plan P2-WLD-12), reached on foot by the north-east walk
+  // and its east fork (FIGHT_WALK below, part of world/campus.ts CAMPUS_WALKS); door locked until NEXT_PUBLIC_FF_FIGHT=1
+  { id: "fight", label: "Fight Games", sub: "Boxing", color: "#C8322A", href: FIGHT_ON ? "/room/fight" : null, angleDeg: 80, kind: "fight", plot: "fight", ring: EXPANSION_RING },
 ];
 
 /** Door ring of a portal (the plaza's inner ring unless the building stands further out). */
@@ -222,14 +223,15 @@ export function doorWorld(p: PortalDef, lx: number, lz: number) {
   return { x: t.x + lx * c + lz * s, z: t.z - lx * s + lz * c };
 }
 
-/* ---------------- the Fight walk (P3-FGT-01): plaza → outer promenade → Fight Games hall door ---------------- */
+/* ---------------- the Fight walk (P3-FGT-01, P2-WLD-12): plaza → north-east walk → east fork → Fight hall door ---------------- */
 
-/** bearing of the Fight hall door, and of the walk's radial leg (the gap between the help desk and the Esports plot) */
-export const FIGHT_ANGLE = 140;
-export const FIGHT_WALK_DEG = 133;
+/** bearing of the Fight hall door (east district), and of the north-east walk's plaza exit */
+export const FIGHT_ANGLE = 80;
+export const FIGHT_WALK_DEG = 68;
 /**
- * A paved footpath out of the plaza (the only walkable ground beyond the plaza edge): radially out at 133° between the
- * help desk pavilion and the Esports plot, along the outer promenade to 140°, then up to the Fight hall door.
+ * The way to the Fight hall over the campus walks (world/campus.ts CAMPUS_WALKS, which builds its north-east walk and
+ * east fork from these corners): out of the plaza at 68° between the Ludo Lounge and the Administrative Block, past
+ * the halls' corners, the fork to the outer promenade at 76°, along it to 80°, then up to the door.
  * Legs are straight segments with their half-width (m).
  */
 export const FIGHT_WALK: { a: { x: number; z: number }; b: { x: number; z: number }; hw: number }[] = (() => {
@@ -238,15 +240,9 @@ export const FIGHT_WALK: { a: { x: number; z: number }; b: { x: number; z: numbe
     const q = ringPoint(deg, r);
     return { x: q.x, z: q.z };
   };
-  const p0 = pt(FIGHT_WALK_DEG, PLAZA_RADIUS - 1.5);
-  const p1 = pt(FIGHT_WALK_DEG, pr);
-  const p2 = pt(FIGHT_ANGLE, pr);
-  const p3 = pt(FIGHT_ANGLE, EXPANSION_RING - 0.6);
-  return [
-    { a: p0, b: p1, hw: 1.4 },
-    { a: p1, b: p2, hw: 2.3 },
-    { a: p2, b: p3, hw: 2.3 },
-  ];
+  const p = [pt(FIGHT_WALK_DEG, PLAZA_RADIUS - 1.5), pt(68, 56), pt(63, 80), pt(76, pr), pt(FIGHT_ANGLE, pr), pt(FIGHT_ANGLE, EXPANSION_RING - 0.6)];
+  const hw = [1.5, 1.5, 1.5, 2.5, 2.3];
+  return hw.map((w, i) => ({ a: p[i]!, b: p[i + 1]!, hw: w }));
 })();
 /** the walk's corner points in walking order (plaza → door), for scripted walks / routes */
 export const FIGHT_WALK_POINTS = [FIGHT_WALK[0]!.a, ...FIGHT_WALK.map((l) => l.b)];

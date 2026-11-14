@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { BOXING_RING_COUNT, FEATURE_RINGS, RING_IDS } from "@gukirana/contracts";
 import { HALLS } from "@/rooms/layouts";
 import { inBuilding, PLOTS } from "@/world/footprints";
-import { EXPANSION_PLOTS, FIGHT_WALK, fightWalkDepth, fightWalkRoute, PORTALS, portalTransform, RING_ROAD, ringPoint } from "@/world/layout";
+import { EXPANSION_PLOTS, FIGHT_WALK, PLAZA_RADIUS, PORTALS, portalTransform, RING_ROAD } from "@/world/layout";
+import { campusWalkLength, campusWalkRoute, walkDepth } from "@/world/campus";
 import { BOXING_AISLES, BOXING_SIZE, FEATURE_STAGE, FIGHT_BUILDING, hallLz, LOBBY_TO_HALL_DZ, LOBBY_BACK_Z, ringAt, RINGS, ringSteps, SUBHALL_DOOR_X } from "./plan";
 
 /** world point of a door-frame local point of the Fight hall */
@@ -15,11 +16,10 @@ function world(lx: number, lz: number) {
 }
 
 describe("Fight Games site (P3-FGT-01 §4.1)", () => {
-  it("merges plots 09 + 10 into the Fight hall at 140° on the expansion ring", () => {
-    expect(EXPANSION_PLOTS.map((e) => e.id)).not.toContain("plot-09");
-    expect(EXPANSION_PLOTS.map((e) => e.id)).not.toContain("plot-10");
+  it("merges plots 07 + 08 into the Fight hall at 80° on the expansion ring (east district, P2-WLD-12)", () => {
+    for (const id of ["plot-07", "plot-08", "plot-09", "plot-10"]) expect(EXPANSION_PLOTS.map((e) => e.id)).not.toContain(id);
     const plot = PLOTS.find((p) => p.id === "fight")!;
-    expect(plot.angleDeg).toBe(140);
+    expect(plot.angleDeg).toBe(80);
     expect(plot.ring).toBe(108);
   });
 
@@ -72,12 +72,16 @@ describe("Fight Games site (P3-FGT-01 §4.1)", () => {
           expect(inBuilding(px, pz, 0.4), `walk at ${px.toFixed(1)},${pz.toFixed(1)}`).toBe(false);
         }
       }
+    // every leg is walkable ground of the campus walks, the door at the end of it
+    for (const l of FIGHT_WALK) for (const t of [0, 0.5, 1]) expect(walkDepth(l.a.x + (l.b.x - l.a.x) * t, l.a.z + (l.b.z - l.a.z) * t).depth).toBeGreaterThan(l.hw - 0.05);
     const door = portalTransform(fightPortal);
-    expect(fightWalkDepth(door.entryX, door.entryZ).depth).toBeGreaterThan(1);
-    const route = fightWalkRoute(FIGHT_WALK[0]!.a, { x: door.entryX, z: door.entryZ });
-    expect(route.length).toBe(FIGHT_WALK.length);
-    const start = ringPoint(133, 36);
-    expect(fightWalkDepth(start.x, start.z).depth).toBeGreaterThan(0);
+    expect(walkDepth(door.entryX, door.entryZ).depth).toBeGreaterThan(1);
+    // the routed walk from the plaza edge to the door: well within a minute at the normal pace (2.2 m/s)
+    const start = FIGHT_WALK[0]!.a;
+    expect(Math.hypot(start.x, start.z)).toBeLessThan(PLAZA_RADIUS);
+    const route = campusWalkRoute(start, { x: door.entryX, z: door.entryZ });
+    expect(route[route.length - 1]).toEqual({ x: door.entryX, z: door.entryZ });
+    expect(campusWalkLength(start, { x: door.entryX, z: door.entryZ }) / 2.2).toBeLessThan(60);
   });
 });
 

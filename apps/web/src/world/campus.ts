@@ -5,7 +5,7 @@ import {
   ENTRY_Z,
   EXPANSION_PLOTS,
   EXPANSION_RING,
-  FIGHT_WALK,
+  FIGHT_WALK_POINTS,
   OUTER_PROMENADE,
   PLAZA_RADIUS,
   PORTALS,
@@ -272,8 +272,9 @@ export const DISTRICT_WALKS: { id: WalkId; pts: P[]; hw: number; exit: boolean }
   [
     { id: "west", pts: [ringPoint(-110, EXIT_R), ringPoint(-115, 62), ringPoint(-115, PROMENADE_R)], hw: 1.5, exit: true },
     { id: "northWest", pts: [ringPoint(-64, EXIT_R), ringPoint(-64, 44), ringPoint(-72, 72), ringPoint(-52, PROMENADE_R)], hw: 1.5, exit: true },
-    { id: "northEast", pts: [ringPoint(68, EXIT_R), ringPoint(68, 56), ringPoint(63, 80), ringPoint(50, PROMENADE_R)], hw: 1.5, exit: true },
-    { id: "northEastFork", pts: [ringPoint(63, 80), ringPoint(76, PROMENADE_R)], hw: 1.5, exit: false },
+    // (the Fight walk's corners, layout.ts FIGHT_WALK: plaza exit, past the halls, the fork to the promenade)
+    { id: "northEast", pts: [FIGHT_WALK_POINTS[0]!, FIGHT_WALK_POINTS[1]!, FIGHT_WALK_POINTS[2]!, ringPoint(50, PROMENADE_R)], hw: 1.5, exit: true },
+    { id: "northEastFork", pts: [FIGHT_WALK_POINTS[2]!, FIGHT_WALK_POINTS[3]!], hw: 1.5, exit: false },
     { id: "east", pts: [ringPoint(108, EXIT_R), ringPoint(115, 62), ringPoint(115, PROMENADE_R)], hw: 1.5, exit: true },
   ] as const
 ).map((w) => ({ id: w.id, hw: w.hw, exit: w.exit, pts: w.pts.map((q) => ({ x: q.x, z: q.z })) }));
@@ -282,8 +283,6 @@ export interface WalkLeg {
   a: number;
   b: number;
   hw: number;
-  /** the Fight hall's own walk before its move (P2-WLD-12 phase 2) */
-  legacy?: boolean;
 }
 export interface WalkGraph {
   nodes: P[];
@@ -340,13 +339,6 @@ export const CAMPUS_WALKS: WalkGraph = (() => {
     const door = node({ x: q.x, z: q.z });
     legs.push({ a: at, b: door, hw: 2.3 });
     doors[d.id] = door;
-  }
-  // the Fight hall before its move to the east district (P2-WLD-12 phase 2): its own walk from the plaza
-  for (const d of WALK_DOORS.filter((q) => Math.abs(q.angleDeg) > PROMENADE_DEG)) {
-    const ids = [FIGHT_WALK[0]!.a, ...FIGHT_WALK.map((l) => l.b)].map(node);
-    exits.push(ids[0]!);
-    FIGHT_WALK.forEach((l, i) => legs.push({ a: ids[i]!, b: ids[i + 1]!, hw: l.hw, legacy: true }));
-    doors[d.id] = ids[ids.length - 1]!;
   }
   return { nodes, legs, exits, doors };
 })();

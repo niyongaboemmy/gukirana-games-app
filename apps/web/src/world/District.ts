@@ -27,8 +27,6 @@ import {
   WAYFINDING,
   wayfindingRows,
   FIGHT_ANGLE,
-  FIGHT_WALK,
-  onFightWalk,
   type PortalDef,
 } from "./layout";
 
@@ -767,20 +765,6 @@ function plaza(b: GeoBatch, tier: string) {
   for (const e of EXPANSION_PLOTS) {
     const m = ringPoint(e.angleDeg, (OUTER_PROMENADE.r1 + EXPANSION_RING) / 2 + 0.3);
     b.box("granite", 16, 0.02, EXPANSION_RING - OUTER_PROMENADE.r1 + 1.2, { p: [m.x, 0.007, m.z], r: [0, m.rotY, 0], tile: 4.8 });
-  }
-  // the Fight walk (P3-FGT-01): honed granite between basalt kerbs, from the plaza edge to the Fight hall forecourt
-  if (onFightWalk(FIGHT_WALK[0]!.a.x, FIGHT_WALK[0]!.a.z)) {
-    for (const l of FIGHT_WALK) {
-      const len = Math.hypot(l.b.x - l.a.x, l.b.z - l.a.z) + l.hw;
-      const rot = Math.atan2(l.b.x - l.a.x, l.b.z - l.a.z);
-      const c: [number, number, number] = [(l.a.x + l.b.x) / 2, 0.011, (l.a.z + l.b.z) / 2];
-      b.box("granite", l.hw * 2, 0.02, len, { p: c, r: [0, rot, 0], tile: 4.8 });
-      for (const s of [-1, 1]) {
-        const ox = Math.cos(rot) * s * (l.hw + 0.1);
-        const oz = -Math.sin(rot) * s * (l.hw + 0.1);
-        b.box("basalt", 0.2, 0.05, len - l.hw, { p: [c[0] + ox, 0.02, c[2] + oz], r: [0, rot, 0], tile: 1.2 });
-      }
-    }
   }
   {
     const m = ringPoint(FIGHT_ANGLE, (OUTER_PROMENADE.r1 + EXPANSION_RING) / 2 + 0.3);

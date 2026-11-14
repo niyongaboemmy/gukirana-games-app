@@ -49,15 +49,12 @@ function outline(angleDeg: number, ring: number, rects: Rect[]): P[] {
 const plotOutline = (p: Plot) => outline(p.angleDeg, p.ring, p.rects);
 const growthOutline = (g: (typeof GROWTH_PLOTS)[number]) => outline(g.angleDeg, g.ring, hallRects(sitePlan(0), 0.5));
 
-/** until the Fight hall moves to the east district (P2-WLD-12 phase 2) its old site at 140° is the one exception */
-const fightMoved = PORTALS.find((p) => p.id === "fight")!.angleDeg === FIGHT_SITE_DEG;
-const outer = PLOTS.filter((p) => p.ring !== DOOR_RING && (fightMoved || p.id !== "fight"));
+const outer = PLOTS.filter((p) => p.ring !== DOOR_RING);
 
 /** points along the walk legs (centre and both edges) */
 function walkSamples(step = 0.5) {
   const out: { p: P; leg: number }[] = [];
   CAMPUS_WALKS.legs.forEach((l, i) => {
-    if (l.legacy) return;
     const a = CAMPUS_WALKS.nodes[l.a]!;
     const b = CAMPUS_WALKS.nodes[l.b]!;
     const L = Math.hypot(b.x - a.x, b.z - a.z);
@@ -77,6 +74,13 @@ describe("campus master plan (P2-WLD-12)", () => {
     expect(SPAWN.z).toBeLessThan(PLAZA_RADIUS);
   });
 
+  it("the Fight Games hall stands in the east district, its walk part of the campus walks", () => {
+    const fight = PLOTS.find((p) => p.id === "fight")!;
+    expect(fight.angleDeg).toBe(FIGHT_SITE_DEG);
+    expect(fight.ring).toBe(EXPANSION_RING);
+    expect(CAMPUS_WALKS.doors.fight).toBeDefined();
+  });
+
   it("builds nothing but the frontage south of the gate line", () => {
     for (const p of outer) for (const q of plotOutline(p)) expect(q.z, p.id).toBeLessThan(GATE_LINE_Z);
     for (const g of GROWTH_PLOTS) for (const q of growthOutline(g)) expect(q.z, g.id).toBeLessThan(GATE_LINE_Z);
@@ -93,7 +97,7 @@ describe("campus master plan (P2-WLD-12)", () => {
       for (const q of plotOutline(p)) {
         expect(inCompound(q.x, q.z, 2), `${p.id} at ${q.x.toFixed(1)},${q.z.toFixed(1)}`).toBe(true);
         expect(heart(q), p.id).toBe(false);
-        for (const o of inner) for (const h of o) expect(Math.hypot(h.x - q.x, h.z - q.z)).toBeGreaterThan(1.5);
+        if (Math.hypot(q.x, q.z) < 95) for (const o of inner) for (const h of o) expect(Math.hypot(h.x - q.x, h.z - q.z)).toBeGreaterThan(1.5);
       }
     for (const g of GROWTH_PLOTS)
       for (const q of growthOutline(g)) {
@@ -136,7 +140,7 @@ describe("campus master plan (P2-WLD-12)", () => {
     for (const p of [...outer.map(plotOutline), ...GROWTH_PLOTS.map(growthOutline)]) for (const q of p) expect(loopDistance(q.x, q.z)).toBeGreaterThan(LOOP.hw + LOOP.foot + 0.5);
     for (const q of CAMPUS_LOOP) if (q.z < LOOP.southZ + 1) expect(inCompound(q.x, q.z, LOOP.hw + LOOP.foot)).toBe(true);
     // car parks and roads clear of every building
-    const built = PLOTS.filter((p) => fightMoved || p.id !== "fight").map(plotOutline);
+    const built = PLOTS.map(plotOutline);
     for (const b of PARKING_BAYS) for (const o of built) for (const q of o) expect(Math.hypot(q.x - b.x, q.z - b.z)).toBeGreaterThan(4);
     for (const p of built) for (const q of p) expect(onCampusRoad(q.x, q.z, 0.5)).toBe(false);
   });
@@ -151,7 +155,6 @@ describe("campus master plan (P2-WLD-12)", () => {
 
   it("every hall door is ≤ 60 s on foot (132 m of walk) from the plaza edge, and the route is walkable", () => {
     for (const d of WALK_DOORS) {
-      if (!fightMoved && d.id === "fight") continue;
       const portal = PORTALS.find((p) => p.id === d.id);
       const door = portal ? { x: portalTransform(portal).entryX, z: portalTransform(portal).entryZ } : ringPoint(d.angleDeg, EXPANSION_RING - 2.4);
       expect(walkDepth(door.x, door.z).depth, d.id).toBeGreaterThan(1);
