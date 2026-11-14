@@ -52,11 +52,14 @@ export class RoleGuard implements CanActivate {
     const token = typeof h === "string" && h.startsWith("Bearer ") ? h.slice(7) : null;
     if (!token) throw new UnauthorizedException("MISSING_TOKEN");
     let sub: string;
+    let iat: number | undefined;
     try {
-      sub = (await verifyAccessToken(token)).sub;
+      ({ sub, iat } = await verifyAccessToken(token));
     } catch {
       throw new UnauthorizedException("INVALID_TOKEN");
     }
+    // a token from before a staff "sign out everywhere" carries no staff powers either (P2-CON-02)
+    if ((await this.access.tokenRefusal(sub, iat)) === "SESSION_REVOKED") throw new UnauthorizedException({ code: "SESSION_REVOKED" });
     const need = this.reflector.getAllAndOverride<string[] | undefined>(ROLES_KEY, [
       ctx.getHandler(),
       ctx.getClass(),

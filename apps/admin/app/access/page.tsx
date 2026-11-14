@@ -96,7 +96,7 @@ export default function Access() {
     offices: [] as string[],
   });
   const [newOffice, setNewOffice] = useState({ id: "", name: "", description: "", sort: 100 });
-  const [grant, setGrant] = useState({ user: "", role: "" });
+  const [grant, setGrant] = useState({ user: "", role: "", reason: "" });
 
   useEffect(() => {
     try {
@@ -457,15 +457,26 @@ export default function Access() {
                     </option>
                   ))}
                 </select>
+                <input
+                  placeholder={grant.role === "super_admin" ? "Reason (required)" : "Reason (optional)"}
+                  value={grant.reason}
+                  maxLength={200}
+                  onChange={(e) => setGrant({ ...grant, reason: e.target.value })}
+                  style={{ ...input, flex: 1, minWidth: 180 }}
+                  aria-label="Reason"
+                />
                 <button
                   type="button"
                   style={btn}
-                  disabled={!grant.user.trim() || !grant.role}
-                  onClick={() =>
+                  disabled={!grant.user.trim() || !grant.role || (grant.role === "super_admin" && grant.reason.trim().length < 3)}
+                  onClick={() => {
+                    // P2-CON-02: a confirmation step; Super Admin changes carry a reason (3-200 characters)
+                    if (!window.confirm(`Give ${grant.user.trim()} the ${grant.role} role?`)) return;
+                    const reason = grant.reason.trim();
                     void act(`Granted ${grant.role} to ${grant.user}`, () =>
-                      call("/grant", { method: "POST", body: JSON.stringify(grant) }),
-                    )
-                  }
+                      call("/grant", { method: "POST", body: JSON.stringify({ user: grant.user, role: grant.role, ...(reason ? { reason } : {}) }) }),
+                    );
+                  }}
                 >
                   Grant
                 </button>
@@ -538,14 +549,21 @@ export default function Access() {
                                   fontWeight: 700,
                                   padding: 0,
                                 }}
-                                onClick={() =>
+                                onClick={() => {
+                                  // P2-CON-02: confirm with a reason (required for Super Admin)
+                                  const reason = window.prompt(
+                                    `Remove ${g.role} from ${u.username ?? u.id}? Reason${g.role === "super_admin" ? " (required)" : " (optional)"}:`,
+                                    "",
+                                  );
+                                  if (reason === null) return;
+                                  const r = reason.trim();
                                   void act(`Revoked ${g.role} from ${u.username ?? u.id}`, () =>
                                     call("/revoke", {
                                       method: "POST",
-                                      body: JSON.stringify({ user: u.id, role: g.role }),
+                                      body: JSON.stringify({ user: u.id, role: g.role, ...(r ? { reason: r } : {}) }),
                                     }),
-                                  )
-                                }
+                                  );
+                                }}
                               >
                                 ×
                               </button>

@@ -1,12 +1,13 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Activity, BellRing, Building2, Coins, KeyRound, LayoutDashboard, LogOut, MonitorSmartphone, Users, type LucideIcon } from "lucide-react";
-import type { ConsoleOverview, ConsoleSection } from "@gukirana/contracts";
+import { Activity, BellRing, Building2, Coins, Flag, KeyRound, LayoutDashboard, LogOut, MonitorSmartphone, Users, type LucideIcon } from "lucide-react";
+import { EXPORT_ROLES, type ConsoleOverview, type ConsoleSection } from "@gukirana/contracts";
 import { useSession } from "@/lib/session";
 import { useOffices } from "@/admin-block/office-client";
 import { consoleApi } from "./console-api";
 import { Buildings, Monitor, Overview, Visitors } from "./sections-live";
 import { Finance, People, Roles } from "./sections-people";
+import { Reports } from "./sections-reports";
 import { C } from "./strings";
 import "./console.css";
 
@@ -14,6 +15,7 @@ const ICONS: Record<ConsoleSection, LucideIcon> = {
   overview: LayoutDashboard,
   visitors: BellRing,
   users: Users,
+  reports: Flag,
   buildings: Building2,
   monitor: Activity,
   roles: KeyRound,
@@ -46,6 +48,10 @@ export function AdminConsole({ office, roles, sections, onLogOff, standalone = f
   const root = useRef<HTMLDivElement>(null);
   const main = useRef<HTMLElement>(null);
   const can = useCallback((s: string) => sections.includes(s as ConsoleSection), [sections]);
+  const isSuper = roles.includes("super_admin");
+  const canExport = EXPORT_ROLES.some((r) => roles.includes(r));
+  const [openReports, setOpenReports] = useState<number | null>(null);
+  const reportsBadge = openReports ?? overview?.users?.openReports ?? 0;
 
   const toast = useCallback((t: string) => {
     setToastText(t);
@@ -129,6 +135,7 @@ export function AdminConsole({ office, roles, sections, onLogOff, standalone = f
                 <Icon size={19} />
                 <span className="gkc-nav-label">{C.sections[s]}</span>
                 {s === "visitors" && myKnocks > 0 && <span className="gkc-badge">{myKnocks}</span>}
+                {s === "reports" && reportsBadge > 0 && <span className="gkc-badge">{reportsBadge}</span>}
               </button>
             );
           })}
@@ -141,10 +148,11 @@ export function AdminConsole({ office, roles, sections, onLogOff, standalone = f
           </div>
           {section === "overview" && <Overview data={overview} myKnocks={myKnocks} can={can} />}
           {section === "visitors" && <Visitors office={office} />}
-          {section === "users" && <People canStatus={can("users")} canRoles={can("roles")} toast={toast} me={me?.id ?? null} />}
+          {section === "users" && <People canStatus={can("users")} canRoles={can("roles")} canExport={canExport} isSuper={isSuper} toast={toast} me={me?.id ?? null} />}
+          {section === "reports" && <Reports canStatus={can("users")} isSuper={isSuper} toast={toast} me={me?.id ?? null} onCount={setOpenReports} />}
           {section === "buildings" && <Buildings canEdit={can("buildings")} toast={toast} />}
           {section === "monitor" && <Monitor toast={toast} />}
-          {section === "roles" && <Roles toast={toast} />}
+          {section === "roles" && <Roles toast={toast} me={me?.id ?? null} />}
           {section === "finance" && <Finance toast={toast} />}
         </main>
       </div>

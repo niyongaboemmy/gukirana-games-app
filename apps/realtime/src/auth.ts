@@ -8,6 +8,8 @@ export interface UserClaims {
   lvl: number;
   look?: string;
   bt?: string;
+  /** issued at (JWT seconds) */
+  iat?: number;
 }
 
 const key = () => new TextEncoder().encode(loadEnv().JWT_SECRET);

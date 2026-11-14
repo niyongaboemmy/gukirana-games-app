@@ -25,6 +25,7 @@ import { createLogger } from "@gukirana/observability";
 import { DB, type Db } from "../../common/db.module.js";
 import { newId } from "../../common/ids.js";
 import { ilikeContains } from "../../common/like.js";
+import { tokenRefusal } from "../../common/user-status.js";
 import { maskEmail, maskPhone, parseLoginId } from "../identity/phone.js";
 
 const log = createLogger("access");
@@ -140,6 +141,11 @@ export class AccessService implements OnModuleInit {
     if (!UUID.test(userId)) return false;
     const [u] = await this.db.select({ status: users.status }).from(users).where(eq(users.id, userId));
     return u?.status === "active";
+  }
+
+  /** a verified access token: refused because the account is inactive or its sessions were revoked (P2-CON-02) */
+  tokenRefusal(userId: string, iat: number | undefined) {
+    return tokenRefusal(this.db, userId, iat);
   }
 
   async hasRole(userId: string, role: string): Promise<boolean> {
@@ -367,20 +373,25 @@ export class AccessService implements OnModuleInit {
     return (await this.db.select().from(users).where(eq(users.username, s)))[0] ?? null;
   }
 
-  async grant(identifier: string, roleId: string, who: string) {
+  /**
+   * Grant a staff role (the reason, when given, is kept in the audit). A deleted or suspended account can't be given a
+   * role (it would hold no powers anyway, and a later reactivation must not surprise anyone).
+   */
+  async grant(identifier: string, roleId: string, who: string, reason?: string) {
     const u = await this.findUser(identifier);
     if (!u) throw new NotFoundException({ code: "USER_NOT_FOUND" });
     await this.requireRole(roleId);
+    if (u.status !== "active") throw new BadRequestException({ code: "ACCOUNT_NOT_ACTIVE" });
     const added = await this.db
       .insert(userRoles)
       .values({ userId: u.id, roleId, grantedBy: who.slice(0, 80) })
       .onConflictDoNothing()
       .returning();
-    if (added.length) await this.audit(who, "user.grant", `user:${u.id}`, `role=${roleId}`);
+    if (added.length) await this.audit(who, "user.grant", `user:${u.id}`, `role=${roleId}${reason ? ` (${reason})` : ""}`);
     return { userId: u.id, role: roleId, changed: added.length > 0 };
   }
 
-  async revoke(identifier: string, roleId: string, who: string) {
+  async revoke(identifier: string, roleId: string, who: string, reason?: string) {
     const u = await this.findUser(identifier);
     if (!u) throw new NotFoundException({ code: "USER_NOT_FOUND" });
     // the compound always keeps a super admin (GAP-007): nobody removes their own, and the last one stays
@@ -392,7 +403,7 @@ export class AccessService implements OnModuleInit {
       .delete(userRoles)
       .where(and(eq(userRoles.userId, u.id), eq(userRoles.roleId, roleId)))
       .returning();
-    if (gone.length) await this.audit(who, "user.revoke", `user:${u.id}`, `role=${roleId}`);
+    if (gone.length) await this.audit(who, "user.revoke", `user:${u.id}`, `role=${roleId}${reason ? ` (${reason})` : ""}`);
     return { userId: u.id, role: roleId, changed: gone.length > 0 };
   }
 

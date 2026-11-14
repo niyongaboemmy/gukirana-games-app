@@ -13,13 +13,14 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { z } from "zod";
-import { OfficeIdSchema, ReceptionRequestSchema, RoleIdSchema, type MyRoles, type OfficeSummary, type ReceptionReply } from "@gukirana/contracts";
+import { OfficeIdSchema, ReasonSchema, ReceptionRequestSchema, RoleIdSchema, type MyRoles, type OfficeSummary, type ReceptionReply } from "@gukirana/contracts";
 import { AuthGuard, CurrentUser, InternalGuard, type AccessClaims } from "../../common/auth.js";
 import { parse } from "../../common/zod.js";
 import { AccessService } from "./access.service.js";
 import { OccupancyStore } from "./occupancy.js";
 import { ReceptionService } from "./reception.service.js";
 import { Actor, RoleGuard } from "./role.guard.js";
+import { StaffLimits } from "./staff-limits.js";
 
 const Name = z.string().trim().min(1).max(60);
 const Desc = z.string().trim().max(300);
@@ -47,13 +48,18 @@ const OfficePatchSchema = z.object({
   sort: z.number().int().min(0).max(100_000).optional(),
 });
 /** user: id, username, email or phone */
-const GrantSchema = z.object({ user: z.string().trim().min(1).max(254), role: RoleIdSchema });
+const GrantSchema = z.object({ user: z.string().trim().min(1).max(254), role: RoleIdSchema, reason: ReasonSchema.optional() });
 const OccupancySchema = z.object({
   room: z.string().min(1).max(64),
   offices: z.record(OfficeIdSchema, z.number().int().min(0).max(1000)),
   /** visitors let in per office (P2-ADM-04, optional) */
   visitors: z.record(OfficeIdSchema, z.number().int().min(0).max(1000)).optional(),
 });
+
+/** granting or removing Super Admin (the highest authority) needs a written reason (P2-CON-02) */
+const superNeedsReason = (g: { role: string; reason?: string }) => {
+  if (g.role === "super_admin" && !g.reason) throw new BadRequestException({ code: "REASON_REQUIRED" });
+};
 
 /** Path params: validated with the contract slug schemas. */
 const slug = (schema: { safeParse(v: unknown): { success: boolean } }, v: string): string => {
@@ -97,7 +103,10 @@ export class AdminBlockController {
 @Controller("admin/access")
 @UseGuards(RoleGuard)
 export class AccessAdminController {
-  constructor(private readonly access: AccessService) {}
+  constructor(
+    private readonly access: AccessService,
+    private readonly limits: StaffLimits,
+  ) {}
 
   @Get("roles")
   roles() {
@@ -149,13 +158,17 @@ export class AccessAdminController {
   @HttpCode(200)
   grant(@Body() body: unknown, @Actor() who: string) {
     const g = parse(GrantSchema, body);
-    return this.access.grant(g.user, g.role, who);
+    superNeedsReason(g);
+    this.limits.hit(who, "mutate");
+    return this.access.grant(g.user, g.role, who, g.reason);
   }
   @Post("revoke")
   @HttpCode(200)
   revoke(@Body() body: unknown, @Actor() who: string) {
     const g = parse(GrantSchema, body);
-    return this.access.revoke(g.user, g.role, who);
+    superNeedsReason(g);
+    this.limits.hit(who, "mutate");
+    return this.access.revoke(g.user, g.role, who, g.reason);
   }
 
   @Get("audit")

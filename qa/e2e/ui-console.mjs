@@ -5,12 +5,12 @@ import { launch, openPage, loginContext, saveSession, VIEWPORTS, WEB, suite, sle
 
 const vp = process.argv[2] ?? "desktop";
 const { check, note, done } = suite(`ui-console-${vp}`);
-const NAMES = { overview: "Overview", visitors: "Visitors", users: "People", buildings: "Buildings", monitor: "Live monitor", roles: "Roles", finance: "Finance" };
+const NAMES = { overview: "Overview", visitors: "Visitors", users: "People", reports: "Reports", buildings: "Buildings", monitor: "Live monitor", roles: "Roles", finance: "Finance" };
 const EXPECT = {
-  super: ["overview", "visitors", "users", "buildings", "monitor", "roles", "finance"],
-  it: ["overview", "visitors", "users", "buildings", "monitor"],
+  super: ["overview", "visitors", "users", "reports", "buildings", "monitor", "roles", "finance"],
+  it: ["overview", "visitors", "users", "reports", "buildings", "monitor"],
   accountant: ["overview", "visitors", "finance"],
-  support: ["overview", "visitors", "users"],
+  support: ["overview", "visitors", "users", "reports"],
   events: ["overview", "visitors"],
 };
 const browser = await launch();
@@ -87,25 +87,39 @@ for (const [key, sections] of Object.entries(EXPECT)) {
     check("console.people open account drawer", opened && drawer);
     const dtxt = await bodyText(page);
     check("console.people drawer masks contacts", !/qa\.lv30@example\.test/.test(dtxt), dtxt.match(/qa[^\s|]*@example\.test/)?.[0] ?? "");
-    if (await clickText(page, /^suspend account$/i, { timeout: 3000 })) {
-      await clickText(page, /^confirm$/i, { timeout: 2000 });
+    // P2-CON-02: Suspend → duration + reason → Continue → a plain summary → Confirm
+    if (await clickText(page, /^suspend$/i, { timeout: 3000 })) {
+      await clickText(page, /^continue$/i, { timeout: 2000 });
       await sleep(600);
       const short = /3 characters or more/i.test(await bodyText(page));
       check("console.suspend needs a reason (UI)", short);
-      const reason = await page.$("#reason");
-      await reason?.type("QA UI suspend test", { delay: 10 });
+      await clickText(page, /^3 days$/i, { timeout: 2000 });
+      await (await page.$("#reason-suspend"))?.type("QA UI suspend test", { delay: 10 });
+      await clickText(page, /^continue$/i, { timeout: 2000 });
+      await sleep(400);
+      check("console.suspend shows a summary to confirm", /Suspend qa_lv30 for 3 days/i.test(await bodyText(page)));
       await clickText(page, /^confirm$/i, { timeout: 2000 });
       await sleep(1500);
       const st = (await api("/console/users?q=lv30", { headers: { "x-admin-token": ADMIN_TOKEN } })).json?.items?.[0]?.status;
       check("console.suspend via UI", st === "suspended", st);
-      await clickText(page, /^reactivate account$/i, { timeout: 3000 });
-      await (await page.$("#reason"))?.type("QA UI reactivate", { delay: 10 });
+      await clickText(page, /^reactivate$/i, { timeout: 3000 });
+      await (await page.$("#reason-reactivate"))?.type("QA UI reactivate", { delay: 10 });
+      await clickText(page, /^continue$/i, { timeout: 2000 });
       await clickText(page, /^confirm$/i, { timeout: 2000 });
       await sleep(1500);
       const st2 = (await api("/console/users?q=lv30", { headers: { "x-admin-token": ADMIN_TOKEN } })).json?.items?.[0]?.status;
       check("console.reactivate via UI", st2 === "active", st2);
+      await clickText(page, /^history$/i, { timeout: 2000 });
+      await sleep(500);
       const hist = await bodyText(page);
-      check("console.account history shows the actions", /QA UI suspend test/.test(hist), "");
+      check("console.account history shows the actions", /QA UI suspend test/.test(hist) && /QA UI reactivate/.test(hist), "");
+      // internal note (never shown to the player)
+      await clickText(page, /^notes/i, { timeout: 2000 });
+      await (await page.$("#note"))?.type("QA UI staff note", { delay: 5 });
+      await clickText(page, /^add note$/i, { timeout: 2000 });
+      await sleep(1000);
+      check("console.staff note saved", /QA UI staff note/.test(await bodyText(page)));
+      await shot(page, `console-account-${vp}`, { quality: 50 });
     } else check("console.suspend button", false);
     await page.keyboard.press("Escape");
     await sleep(400);

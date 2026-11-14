@@ -101,6 +101,8 @@ export class IdentityService {
     const refreshToken = randomBytes(32).toString("base64url");
     const refreshExpires = new Date(Date.now() + REFRESH_TTL_MS);
     await this.db.insert(refreshTokens).values({ id: newId(), userId, tokenHash: sha(refreshToken), device: device?.slice(0, 120), expiresAt: refreshExpires });
+    // "last seen" for the staff console (sign-in and every token refresh, about every 15 min while playing)
+    await this.db.update(users).set({ lastSeenAt: new Date() }).where(eq(users.id, userId));
     const accessToken = await signAccessToken({ sub: u.id, name: u.username ?? "", color: u.color, lvl: levelForXp(u.xp), look: lookOf(u), bt: u.bodyType });
     return { accessToken, refreshToken, refreshExpires };
   }

@@ -1,16 +1,14 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
-import { accessAudit, and, asc, count, desc, eq, gt, gte, inArray, or, refreshTokens, roles as rolesTable, userRoles, users } from "@gukirana/db";
-import { USER_STATUS_ROLES, sectionsFor, type ConsoleOverview, type ConsoleUser, type UserStatus } from "@gukirana/contracts";
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { accountSanctions, and, count, desc, eq, gt, gte, inArray, isNull, lt, ne, or, reports, roles as rolesTable, userRoles, users } from "@gukirana/db";
+import { EXPORT_MAX_ROWS, sectionsFor, type ConsoleOverview, type ConsoleUser, type UserSearch } from "@gukirana/contracts";
 import { DB, type Db } from "../../common/db.module.js";
-import { forgetUserStatus } from "../../common/user-status.js";
 import { ilikeContains } from "../../common/like.js";
-import { GamesService } from "../games/games.service.js";
 import { AccessService, SUPER_ADMIN as SUPER_ADMIN_ROLE } from "../admin-block/access.service.js";
 import { OccupancyStore } from "../admin-block/occupancy.js";
 import { EconomyService } from "../economy/economy.service.js";
 import { LedgerService } from "../ledger/ledger.service.js";
 import { userCoins, userStars } from "../ledger/accounts.js";
-import { levelForXp } from "../levels/xp.js";
+import { levelForXp, totalXpForLevel } from "../levels/xp.js";
 import { maskEmail, maskPhone } from "../identity/phone.js";
 import { BuildingsService } from "./buildings.service.js";
 import { PresenceStore } from "./presence.js";
@@ -36,8 +34,6 @@ export class ConsoleService {
     private readonly ledger: LedgerService,
     private readonly buildings: BuildingsService,
     private readonly presence: PresenceStore,
-    /** optional so unit tests can build the console without the games module */
-    @Optional() private readonly games?: GamesService,
   ) {}
 
   /** roles of the caller; the back-office token counts as super admin */
@@ -56,12 +52,13 @@ export class ConsoleService {
     const today = kigaliDayStart();
     let usersBlock: ConsoleOverview["users"] = null;
     if (sections.includes("users")) {
-      const [[t], [n], [s]] = await Promise.all([
-        this.db.select({ n: count() }).from(users),
+      const [[t], [n], [s], [r]] = await Promise.all([
+        this.db.select({ n: count() }).from(users).where(ne(users.status, "deleted")),
         this.db.select({ n: count() }).from(users).where(gte(users.createdAt, today)),
         this.db.select({ n: count() }).from(users).where(eq(users.status, "suspended")),
+        this.db.select({ n: count() }).from(reports).where(eq(reports.status, "open")),
       ]);
-      usersBlock = { total: Number(t?.n ?? 0), newToday: Number(n?.n ?? 0), suspended: Number(s?.n ?? 0) };
+      usersBlock = { total: Number(t?.n ?? 0), newToday: Number(n?.n ?? 0), suspended: Number(s?.n ?? 0), openReports: Number(r?.n ?? 0) };
     }
     let finance: ConsoleOverview["finance"] = null;
     if (sections.includes("finance")) {
@@ -116,48 +113,92 @@ export class ConsoleService {
     };
   }
 
-  async listUsers(q: string | undefined, status: string | undefined, page: number): Promise<{ items: ConsoleUser[]; page: number; more: boolean }> {
-    const term = q?.trim().slice(0, 60);
-    // the term is matched literally: "_" and "%" in usernames are characters, not wildcards (GAP-006)
-    const where = and(
+  /** the people-list filters as SQL (shared by the list and the CSV export) */
+  private searchWhere(f: UserSearch, now = Date.now()) {
+    const term = f.q?.trim().slice(0, 60);
+    const day = (d: string) => new Date(`${d}T00:00:00+02:00`); // Kigali day start
+    const seen = f.seen ?? 0;
+    const seenAt = new Date(now - Math.abs(seen) * 86_400_000);
+    return and(
+      // the term is matched literally: "_" and "%" in usernames are characters, not wildcards (GAP-006)
       term ? or(ilikeContains(users.username, term), ilikeContains(users.email, term), ilikeContains(users.phone, term), UUID.test(term) ? eq(users.id, term) : undefined) : undefined,
-      status === "active" || status === "suspended" ? eq(users.status, status) : undefined,
+      // deleted (anonymised) accounts only when asked for
+      f.status ? eq(users.status, f.status) : ne(users.status, "deleted"),
+      f.role ? inArray(users.id, this.db.select({ id: userRoles.userId }).from(userRoles).where(eq(userRoles.roleId, f.role))) : undefined,
+      f.minLevel ? gte(users.xp, totalXpForLevel(f.minLevel)) : undefined,
+      f.maxLevel ? lt(users.xp, totalXpForLevel(f.maxLevel + 1)) : undefined,
+      f.joinedFrom ? gte(users.createdAt, day(f.joinedFrom)) : undefined,
+      f.joinedTo ? lt(users.createdAt, new Date(day(f.joinedTo).getTime() + 86_400_000)) : undefined,
+      seen > 0 ? gte(users.lastSeenAt, seenAt) : seen < 0 ? or(isNull(users.lastSeenAt), lt(users.lastSeenAt, seenAt)) : undefined,
     );
-    const p = Math.max(0, Math.min(400, Math.floor(page) || 0));
+  }
+
+  private async rowsToConsole(rows: (typeof users.$inferSelect)[]): Promise<ConsoleUser[]> {
+    const ids = rows.map((u) => u.id);
+    const now = new Date();
+    const [grants, mutes] = ids.length
+      ? await Promise.all([
+          this.db.select().from(userRoles).where(inArray(userRoles.userId, ids)),
+          this.db
+            .select({ userId: accountSanctions.userId, endsAt: accountSanctions.endsAt })
+            .from(accountSanctions)
+            .where(and(inArray(accountSanctions.userId, ids), eq(accountSanctions.kind, "mute"), isNull(accountSanctions.liftedAt), gt(accountSanctions.endsAt, now))),
+        ])
+      : [[], []];
+    return rows.map((u) => ({
+      id: u.id,
+      username: u.username,
+      email: u.email ? maskEmail(u.email) : null,
+      phone: u.phone ? maskPhone(u.phone) : null,
+      level: levelForXp(u.xp),
+      status: u.status,
+      createdAt: u.createdAt.toISOString(),
+      roles: grants.filter((g) => g.userId === u.id).map((g) => g.roleId).sort(),
+      lastSeenAt: u.lastSeenAt?.toISOString() ?? null,
+      mutedUntil: mutes.find((m) => m.userId === u.id)?.endsAt?.toISOString() ?? null,
+    }));
+  }
+
+  /** People list: text search + filters (status, role, level range, joined dates, last seen), 25 a page */
+  async listUsers(f: UserSearch = {}): Promise<{ items: ConsoleUser[]; page: number; more: boolean }> {
+    const p = Math.max(0, Math.min(400, Math.floor(f.page ?? 0) || 0));
     const rows = await this.db
       .select()
       .from(users)
-      .where(where)
+      .where(this.searchWhere(f))
       .orderBy(desc(users.createdAt))
       .limit(PAGE + 1)
       .offset(p * PAGE);
-    const slice = rows.slice(0, PAGE);
-    const grants = slice.length ? await this.db.select().from(userRoles).where(inArray(userRoles.userId, slice.map((u) => u.id))) : [];
-    return {
-      page: p,
-      more: rows.length > PAGE,
-      items: slice.map((u) => ({
-        id: u.id,
-        username: u.username,
-        email: u.email ? maskEmail(u.email) : null,
-        phone: u.phone ? maskPhone(u.phone) : null,
-        level: levelForXp(u.xp),
-        status: u.status,
-        createdAt: u.createdAt.toISOString(),
-        roles: grants.filter((g) => g.userId === u.id).map((g) => g.roleId).sort(),
-      })),
-    };
+    return { page: p, more: rows.length > PAGE, items: await this.rowsToConsole(rows.slice(0, PAGE)) };
+  }
+
+  /**
+   * The filtered people list as CSV (contacts masked, at most EXPORT_MAX_ROWS rows). The caller audits and rate
+   * limits it. Cells that a spreadsheet would run as a formula are quoted with a leading apostrophe.
+   */
+  async exportUsers(f: UserSearch): Promise<{ csv: string; rows: number; truncated: boolean }> {
+    const rows = await this.db
+      .select()
+      .from(users)
+      .where(this.searchWhere(f))
+      .orderBy(desc(users.createdAt))
+      .limit(EXPORT_MAX_ROWS + 1);
+    const items = await this.rowsToConsole(rows.slice(0, EXPORT_MAX_ROWS));
+    const head = ["id", "username", "email", "phone", "level", "status", "roles", "joined", "last_seen", "muted_until"];
+    const lines = [head.join(","), ...items.map((u) => [u.id, u.username, u.email, u.phone, u.level, u.status, u.roles.join(" "), u.createdAt, u.lastSeenAt, u.mutedUntil].map(csvCell).join(","))];
+    return { csv: lines.join("\r\n") + "\r\n", rows: items.length, truncated: rows.length > EXPORT_MAX_ROWS };
   }
 
   async userDetail(id: string) {
     if (!UUID.test(id)) throw new BadRequestException({ code: "BAD_ID" });
     const [u] = await this.db.select().from(users).where(eq(users.id, id));
     if (!u) throw new NotFoundException({ code: "UNKNOWN_USER" });
-    const [grants, stars, coins, history] = await Promise.all([
+    const [grants, stars, coins, history, [rep]] = await Promise.all([
       this.db.select().from(userRoles).where(eq(userRoles.userId, id)),
       this.ledger.balance(userStars(id)),
       this.ledger.balance(userCoins(id)),
-      this.access.auditFor(`user:${id}`, 20),
+      this.access.auditFor(`user:${id}`, 30),
+      this.db.select({ n: count() }).from(reports).where(and(eq(reports.targetId, id), eq(reports.status, "open"))),
     ]);
     const names = await this.auditNames(history);
     return {
@@ -170,6 +211,11 @@ export class ConsoleService {
       status: u.status,
       kycTier: u.kycTier,
       createdAt: u.createdAt.toISOString(),
+      lastSeenAt: u.lastSeenAt?.toISOString() ?? null,
+      deletedAt: u.deletedAt?.toISOString() ?? null,
+      hasEmail: !!u.email,
+      hasPhone: !!u.phone,
+      openReports: Number(rep?.n ?? 0),
       roles: grants.map((g) => ({ role: g.roleId, grantedBy: g.grantedBy, grantedAt: g.grantedAt.toISOString() })),
       stars,
       coins,
@@ -179,50 +225,12 @@ export class ConsoleService {
       }),
     };
   }
+}
 
-  /** suspend / reactivate a player. Nobody changes their own status; only a super admin changes a super admin's. */
-  async setStatus(actor: string, id: string, status: UserStatus, reason: string) {
-    if (!UUID.test(id)) throw new BadRequestException({ code: "BAD_ID" });
-    const roles = await this.rolesOf(actor);
-    if (!USER_STATUS_ROLES.some((r) => roles.includes(r))) throw new ForbiddenException({ code: "ROLE_REQUIRED" });
-    if (actor === id) throw new BadRequestException({ code: "CANNOT_CHANGE_SELF" });
-    const [u] = await this.db.select({ id: users.id, status: users.status }).from(users).where(eq(users.id, id));
-    if (!u) throw new NotFoundException({ code: "UNKNOWN_USER" });
-    const target = (await this.access.access(id)).roles;
-    if (target.includes(SUPER_ADMIN_ROLE) && !roles.includes(SUPER_ADMIN_ROLE)) throw new ForbiddenException({ code: "SUPER_ADMIN_PROTECTED" });
-    if (u.status === status) return { id, status, changed: false };
-    // e.g. the back-office token suspending the only active super admin (GAP-007)
-    if (status === "suspended" && (await this.access.isLastActiveSuperAdmin(id))) throw new BadRequestException({ code: "LAST_SUPER_ADMIN" });
-    await this.db.update(users).set({ status }).where(eq(users.id, id));
-    forgetUserStatus(id); // AuthGuard reads the new status on the next request
-    // the audit row is also the suspension feed realtime polls to close the account's connections (GAP-001)
-    await this.access.record(actor, status === "suspended" ? "user.suspend" : "user.reactivate", `user:${id}`, reason);
-    if (status === "suspended") {
-      // end the session: no refresh, and nothing left staked against a suspended player (void → ledger refund)
-      await this.db.update(refreshTokens).set({ revoked: true }).where(and(eq(refreshTokens.userId, id), eq(refreshTokens.revoked, false)));
-      await this.games?.voidActiveFor(id);
-    }
-    return { id, status, changed: true };
-  }
-
-  /**
-   * Suspensions recorded after `since` (realtime → api, polled about once a second): realtime closes those accounts'
-   * world and match connections. Reads the audit trail, so it works across API restarts and instances; a 2 s overlap
-   * covers clock / commit ordering (the caller ignores ids it has already handled).
-   */
-  async suspensionsSince(since: Date | null, now = new Date()) {
-    const from = since ? new Date(Math.min(since.getTime(), now.getTime()) - 2000) : now;
-    const rows = since
-      ? await this.db
-          .select({ id: accessAudit.id, target: accessAudit.target, at: accessAudit.at })
-          .from(accessAudit)
-          .where(and(eq(accessAudit.action, "user.suspend"), gt(accessAudit.at, from)))
-          .orderBy(asc(accessAudit.at))
-          .limit(500)
-      : [];
-    return {
-      cursor: now.toISOString(),
-      events: rows.filter((r) => r.target.startsWith("user:")).map((r) => ({ id: r.id, userId: r.target.slice(5), at: r.at.toISOString() })),
-    };
-  }
+/** one CSV cell: quoted when needed, formula-looking text defused (CSV injection) */
+export function csvCell(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  let t = String(v);
+  if (/^[=+\-@\t\r]/.test(t)) t = `'${t}`;
+  return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
 }

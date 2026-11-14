@@ -3,7 +3,7 @@ import { jwtVerify, SignJWT } from "jose";
 import { timingSafeEqual } from "node:crypto";
 import { env } from "./env.js";
 import { DB, type Db } from "./db.module.js";
-import { isActiveUser } from "./user-status.js";
+import { tokenRefusal } from "./user-status.js";
 
 export interface AccessClaims {
   sub: string;
@@ -12,6 +12,8 @@ export interface AccessClaims {
   lvl: number;
   look?: string;
   bt?: string;
+  /** issued at (JWT seconds), set by SignJWT */
+  iat?: number;
 }
 
 const key = () => new TextEncoder().encode(env().JWT_SECRET);
@@ -56,7 +58,9 @@ export class AuthGuard implements CanActivate {
     } catch {
       throw new UnauthorizedException("INVALID_TOKEN");
     }
-    if (!(await isActiveUser(this.db, claims.sub))) throw new UnauthorizedException({ code: "ACCOUNT_INACTIVE" });
+    // suspended / deleted account, or a token from before a staff "sign out everywhere" (P2-CON-02)
+    const refused = await tokenRefusal(this.db, claims.sub, claims.iat);
+    if (refused) throw new UnauthorizedException({ code: refused });
     req.user = claims;
     return true;
   }

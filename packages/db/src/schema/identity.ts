@@ -14,8 +14,15 @@ export const users = pgTable("users", {
   look: text("look"),
   xp: integer("xp").notNull().default(0),
   kycTier: integer("kyc_tier").notNull().default(0),
+  /** active | suspended | deleted (deleted = anonymised; the row stays so the ledger keeps its owner) */
   status: text("status").notNull().default("active"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /** last sign-in or token refresh (about every 15 min while playing); for the console's "last seen" filter */
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  /** staff "sign out everywhere": access tokens issued before this moment are refused (P2-CON-02) */
+  sessionsRevokedAt: timestamp("sessions_revoked_at", { withTimezone: true }),
+  /** account deleted and personal data anonymised (P2-CON-02) */
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });
 
 export const otpCodes = pgTable("otp_codes", {

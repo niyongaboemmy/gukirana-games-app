@@ -46,6 +46,14 @@ const DM_REASONS: Record<string, string> = {
   UNAVAILABLE: "That person can't receive messages right now.",
   LOGIN_REQUIRED: "Sign in to send private messages.",
   RATE_LIMITED: "Slow down a little.",
+  MUTED: "You are muted for now, so you can't send messages.",
+};
+/** "until 18:30" / "until Tue 18:30" for a staff mute */
+const untilText = (t?: number) => {
+  if (!t) return "";
+  const d = new Date(t);
+  const sameDay = d.toDateString() === new Date().toDateString();
+  return ` until ${d.toLocaleString(undefined, sameDay ? { hour: "2-digit", minute: "2-digit" } : { weekday: "short", hour: "2-digit", minute: "2-digit" })}`;
 };
 
 /** Joins the plaza (default) or a game hall interior ({ name: "hall", game }). */
@@ -141,9 +149,19 @@ export async function connectPlaza(
       useWorld.getState().pushChat({ ...c, scope: c.scope ?? "room" });
       showBubble(c.id, c.text);
     });
-    room.onMessage("chat-warning", (m: { reason?: string }) =>
-      sysLine(m?.reason === "rate" ? "Slow down a little: too many messages." : "Message blocked: never pay anyone outside Gukirana. All games go through escrow."),
+    room.onMessage("chat-warning", (m: { reason?: string; until?: number }) =>
+      sysLine(
+        m?.reason === "rate"
+          ? "Slow down a little: too many messages."
+          : m?.reason === "muted"
+            ? `A staff member muted your chat${untilText(m.until)}. Others can't see your messages.`
+            : "Message blocked: never pay anyone outside Gukirana. All games go through escrow.",
+      ),
     );
+    // staff account actions (P2-CON-02): told to the player, nothing else changes on this device
+    room.onMessage("account-warning", (m: { reason?: string }) => notify(`Warning from Gukirana staff: ${m?.reason ?? ""}`.trim()));
+    room.onMessage("account-muted", (m: { until?: number }) => notify(`A staff member muted your chat${untilText(m?.until)}.`));
+    room.onMessage("account-unmuted", () => notify("Your chat is back on."));
     // private messages (chat requests first)
     room.onMessage("dm", (m: { mid: string; from: string; name: string; color: string; to: string; text: string; t: number; masked?: boolean; request?: boolean }) => {
       const you = useWorld.getState().you;

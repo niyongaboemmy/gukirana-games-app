@@ -112,16 +112,17 @@ const PII = /qa\.[a-z0-9]+@example\.test|\+2507\d{8}/;
 const SECTION_ENDPOINTS = {
   overview: ["GET", "/console/overview"],
   users: ["GET", "/console/users?q=qa_"],
+  reports: ["GET", "/console/reports"],
   buildings: ["PUT", "/console/buildings/igisoro", { open: true, message: "" }],
   monitor: ["GET", "/console/presence"],
   roles: ["GET", "/admin/access/roles"],
   finance: ["GET", "/console/finance"],
 };
 const EXPECT = {
-  super: ["overview", "visitors", "users", "buildings", "monitor", "roles", "finance"],
-  it: ["overview", "visitors", "users", "buildings", "monitor"],
+  super: ["overview", "visitors", "users", "reports", "buildings", "monitor", "roles", "finance"],
+  it: ["overview", "visitors", "users", "reports", "buildings", "monitor"],
   accountant: ["overview", "visitors", "finance"],
-  support: ["overview", "visitors", "users"],
+  support: ["overview", "visitors", "users", "reports"],
   events: ["overview", "visitors"],
 };
 for (const [k, sections] of Object.entries(EXPECT)) {
@@ -201,9 +202,36 @@ for (const [k, sections] of Object.entries(EXPECT)) {
   const rv = await api("/admin/access/revoke", { method: "POST", token: sa, body: { user: "qa_lv12", role: "support_agent" } });
   const lvMe2 = await api("/console/me", { token: lvTok });
   check("roles.revoke takes effect at once", lvMe2.status === 403, `revoke ${rv.status}, console/me ${lvMe2.status}`);
-  const selfRevoke = await api("/admin/access/revoke", { method: "POST", token: sa, body: { user: "qa_super", role: "super_admin" } });
+  const selfRevoke = await api("/admin/access/revoke", { method: "POST", token: sa, body: { user: "qa_super", role: "super_admin", reason: "QA self revoke" } });
   check("roles.super-cannot-revoke-own-super", selfRevoke.status >= 400, `${selfRevoke.status} ${JSON.stringify(selfRevoke.json)}`);
-  if (selfRevoke.status < 400) await api("/admin/access/grant", { method: "POST", headers: adm, body: { user: "qa_super", role: "super_admin" } });
+  if (selfRevoke.status < 400) await api("/admin/access/grant", { method: "POST", headers: adm, body: { user: "qa_super", role: "super_admin", reason: "QA restore" } });
+  const noReason = await api("/admin/access/grant", { method: "POST", token: sa, body: { user: "qa_lv12", role: "super_admin" } });
+  check("roles.super-grant-needs-reason", noReason.status === 400 && noReason.json?.code === "REASON_REQUIRED", `${noReason.status} ${noReason.json?.code}`);
+
+  // P2-CON-02 account management: sanctions with reasons + ends, notes, export (masked, role-gated), reports, sign-out
+  const mute = await api(`/console/users/${lv30.id}/sanctions`, { method: "POST", token: sup, body: { kind: "mute", reason: "QA: mute test", hours: 1 } });
+  check("console.mute.ok", mute.status === 200 && !!mute.json?.endsAt, `${mute.status} ${JSON.stringify(mute.json)}`);
+  const badMute = await api(`/console/users/${lv30.id}/sanctions`, { method: "POST", token: sup, body: { kind: "mute", reason: "QA", hours: 0 } });
+  check("console.mute.validated", badMute.status === 400 && badMute.json?.code === "VALIDATION_ERROR", `${badMute.status}`);
+  const mutedRow = (await api("/console/users?q=qa_lv30", { token: sup })).json?.items?.[0];
+  check("console.mute.listed", !!mutedRow?.mutedUntil, JSON.stringify(mutedRow?.mutedUntil));
+  const unmute = await api(`/console/users/${lv30.id}/lift`, { method: "POST", token: sup, body: { kind: "mute", reason: "QA: unmute" } });
+  check("console.unmute.ok", unmute.status === 200 && unmute.json?.changed === true, `${unmute.status}`);
+  const noteR = await api(`/console/users/${lv30.id}/notes`, { method: "POST", token: sup, body: { body: "QA: internal note" } });
+  const det2 = await api(`/console/users/${lv30.id}`, { token: sup });
+  check("console.notes + sanctions in detail", noteR.status === 201 && det2.json?.notes?.[0]?.body === "QA: internal note" && det2.json?.sanctions?.some((s) => s.kind === "mute"), `${noteR.status}`);
+  const exp = await api("/console/users/export?q=qa_", { token: sa });
+  check("console.export.masked", exp.status === 200 && /^id,username,email/.test(exp.json?.csv ?? "") && !PII.test(exp.json?.csv ?? ""), `${exp.status} rows=${exp.json?.rows}`);
+  const expSup = await api("/console/users/export", { token: sup });
+  check("console.export.support-refused", expSup.status === 403, `${expSup.status}`);
+  const filt = await api("/console/users?minLevel=20&maxLevel=40&q=qa_", { token: sup });
+  check("console.users.level-filter", filt.status === 200 && (filt.json?.items ?? []).every((u) => u.level >= 20 && u.level <= 40) && filt.json.items.some((u) => u.username === "qa_lv30"), `${filt.json?.items?.length}`);
+  const badFilt = await api("/console/users?minLevel=9&maxLevel=3", { token: sup });
+  check("console.users.bad-range.400", badFilt.status === 400, `${badFilt.status}`);
+  const reps = await api("/console/reports?status=open", { token: sup });
+  check("console.reports.list", reps.status === 200 && Array.isArray(reps.json?.items), `${reps.status}`);
+  const repAcc = await api("/console/reports", { token: await tok("accountant") });
+  check("console.reports.accountant-refused", repAcc.status === 403, `${repAcc.status}`);
 
   // overview hides what the role may not see
   const ovA = await api("/console/overview", { token: await tok("accountant") });
@@ -332,6 +360,15 @@ for (const [k, sections] of Object.entries(EXPECT)) {
 {
   const rec = await api("/admin/reports/reconciliation", { headers: adm });
   note("ledger.reconciliation after api suite", JSON.stringify(rec.json).slice(0, 400));
+}
+// ------------------------------------------------------------------ P2-CON-02 sign out everywhere (last: it ends qa_lv1's sessions)
+{
+  const lv1 = await signIn(email("lv1"));
+  const lv1Id = (await api("/console/users?q=qa_lv1", { headers: adm })).json?.items?.find((u) => u.username === "qa_lv1")?.id;
+  await new Promise((r) => setTimeout(r, 1100)); // the sign-out lands in a later second than the token
+  const so = await api(`/console/users/${lv1Id}/sign-out`, { method: "POST", headers: adm, body: { reason: "QA: sign out everywhere" } });
+  const lv1Me = await api("/me", { token: lv1.token });
+  check("console.sign-out ends sessions", so.status === 200 && so.json?.signedOut >= 1 && lv1Me.status === 401, `${so.status} ${JSON.stringify(so.json)} /me ${lv1Me.status} ${lv1Me.json?.message?.code ?? lv1Me.json?.code}`);
 }
 await sleep(10);
 done();

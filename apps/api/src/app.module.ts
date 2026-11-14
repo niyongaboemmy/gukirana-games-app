@@ -20,11 +20,13 @@ import { BuildingsPublicController, ConsoleController, PresenceInternalControlle
 import { ConsoleService } from "./modules/console/console.service.js";
 import { BuildingsService } from "./modules/console/buildings.service.js";
 import { PresenceStore } from "./modules/console/presence.js";
+import { ModerationService } from "./modules/console/moderation.service.js";
+import { ReportsService } from "./modules/console/reports.service.js";
 
 /** Modular monolith root (plan §3). */
 @Module({
   imports: [DbModule, LedgerModule, AdminBlockModule, ArenaModule],
   controllers: [HealthController, IdentityController, WalletController, GamesController, SocialController, EconomyPublicController, EconomyAdminController, ConsoleController, BuildingsPublicController, PresenceInternalController, SuspensionsInternalController, PlayersInternalController],
-  providers: [IdentityService, LevelsService, GamesService, SocialService, EconomyService, WalletService, ConsoleService, BuildingsService, PresenceStore, AuthGuard, InternalGuard, AdminGuard],
+  providers: [IdentityService, LevelsService, GamesService, SocialService, EconomyService, WalletService, ConsoleService, ModerationService, ReportsService, BuildingsService, PresenceStore, AuthGuard, InternalGuard, AdminGuard],
 })
 export class AppModule {}
