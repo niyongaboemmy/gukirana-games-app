@@ -14,7 +14,8 @@ import {
   type RingStatus,
 } from "@gukirana/contracts";
 import { useWorld } from "@/lib/world-store";
-import { setFightActions, type FightActions, fightLog } from "./actions";
+import { fightActions, setFightActions, type FightActions, fightLog } from "./actions";
+import { gameFightActions } from "./game/actions";
 import { useFightBridge } from "./bridge";
 
 /**
@@ -211,6 +212,7 @@ export function startFightMock() {
     leave: () => {
       log("leave")();
       const m = useFightBridge.getState().mine;
+      if (m?.mode === "practice") gameFightActions.leave();
       const you = me().sid;
       const held = Object.values(useFightBridge.getState().rings).find((r) => r && (r.red?.sid === you || r.blue?.sid === you));
       const id = m?.ring ?? held?.id;
@@ -220,9 +222,10 @@ export function startFightMock() {
     quick: (stake) => log("quick")(stake),
     quickCancel: () => log("quickCancel")(),
     practice: (ring, level) => {
+      // the real local practice engine (fight/game); the mock only marks the ring in its registry
       log("practice")(ring, level);
       set(ring, { status: "practice", red: { ...me(), corner: "red" }, round: 1, rounds: 3, score: { red: 0, blue: 0 } });
-      startMine(ring, "red", "practice", 0);
+      gameFightActions.practice(ring, level);
     },
     watch: (ring) => {
       log("watch")(ring);
@@ -245,7 +248,7 @@ export function startFightMock() {
       const snap = live ? mockSnapshot(b.watched.ring, tick) : null;
       patch.watched = { ring: b.watched.ring, snap, events: snap ? mockEvents(snap) : [] };
     }
-    if (b.mine && (b.rings[b.mine.ring]?.status === "fighting" || b.rings[b.mine.ring]?.status === "practice")) {
+    if (b.mine && b.mine.mode === "live" && b.rings[b.mine.ring]?.status === "fighting") {
       const r = b.rings[b.mine.ring]!;
       const ids: [string, string] = [r.red?.sid ?? "a", r.blue?.sid ?? `ai-${b.mine.ring}`];
       const snap = mockSnapshot(b.mine.ring, tick, ids);
@@ -255,7 +258,7 @@ export function startFightMock() {
     }
     if (Object.keys(patch).length) useFightBridge.setState(patch);
   }, 100);
-  if (process.env.NODE_ENV !== "production") Object.assign(window as unknown as Record<string, unknown>, { __gkFight: { bridge: useFightBridge, actions, log: fightLog, snapshot: mockSnapshot } });
+  if (process.env.NODE_ENV !== "production") Object.assign(window as unknown as Record<string, unknown>, { __gkFight: { bridge: useFightBridge, actions: fightActions, log: fightLog, snapshot: mockSnapshot } });
 }
 
 export function stopFightMock() {

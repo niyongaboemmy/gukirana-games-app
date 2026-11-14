@@ -52,3 +52,5 @@ export const walkQueue = { legs: [] as P[] };
  * pose comes from the fight). Session ids; RoomPlayer (you) and RemotePlayers hide these avatars while listed.
  */
 export const hiddenPeople = new Set<string>();
+/** your id in `hiddenPeople` before the hall room has given you a session id (offline / connecting) */
+export const SELF_ID = "self";

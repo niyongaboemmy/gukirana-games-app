@@ -9,6 +9,7 @@ import { usePhoneHud } from "@/hud/usePhoneHud";
 import type { HallLayout } from "@/rooms/layouts";
 import { useFightBridge } from "./bridge";
 import { RingPrompt } from "./RingPrompt";
+import { FightOverlay as GameFightOverlay } from "./game/FightOverlay";
 import { F } from "./strings";
 
 const glass = "glass rounded-card";
@@ -25,6 +26,7 @@ export function FightOverlay({ layout }: { layout: HallLayout }) {
   const phone = usePhoneHud();
   const mock = useFightBridge((s) => s.mock);
   const fighting = useFightBridge((s) => !!s.mine?.snap && s.mine.snap.phase !== "over");
+  const inRing = useFightBridge((s) => !!s.mine);
   const [hint, setHint] = useState(true);
   useEffect(() => {
     const t = setTimeout(() => setHint(false), 6000);
@@ -77,6 +79,7 @@ export function FightOverlay({ layout }: { layout: HallLayout }) {
         </div>
       )}
       {boxing && !nearExit && <RingPrompt />}
+      {boxing && inRing && <GameFightOverlay />}
     </div>
   );
 }

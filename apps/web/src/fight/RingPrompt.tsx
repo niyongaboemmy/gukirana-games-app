@@ -34,7 +34,7 @@ export function RingPrompt() {
   const [open, setOpen] = useState<"wait" | "practice" | null>(null);
   useEffect(() => setOpen(null), [near]);
   // a fight is on for me: the fight HUD (fight/game) takes the screen
-  if (mine?.snap && mine.snap.phase !== "over") return null;
+  if (mine) return null;
   if (!ring) return watched ? <WatchBar ring={watched} cam={watchCam} /> : null;
   const id = ring.id;
   const isMine = (ring.red && ring.red.sid === you) || (ring.blue && ring.blue.sid === you);

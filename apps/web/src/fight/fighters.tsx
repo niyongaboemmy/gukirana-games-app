@@ -6,7 +6,7 @@ import { clipFor, CORNER_COLORS, HIT_REACTION, TICK_HZ, type BoxingSnapshot, typ
 import { useWorld } from "@/lib/world-store";
 import { decodeLook, seededLook, type AvatarLook } from "@/world/outfits";
 import { lookOf, useProfile } from "@/lib/profile-store";
-import { hiddenPeople } from "@/rooms/hall-hooks";
+import { hiddenPeople, SELF_ID } from "@/rooms/hall-hooks";
 import { isOnScreen, useArea } from "@/world/stage";
 import { FighterAvatar, type FighterPose } from "./assets-shim";
 import { drainMyEvents, useFightBridge } from "./bridge";
@@ -56,6 +56,9 @@ export function FightersLayer({ lite }: { lite: boolean }) {
       if (st.red) now.add(st.red.sid);
       if (st.blue) now.add(st.blue.sid);
     }
+    // in my own fight (live or practice) this layer draws me too
+    const you = useWorld.getState().you ?? SELF_ID;
+    if (b.mine) now.add(you);
     for (const id of hidden.current) if (!now.has(id)) hiddenPeople.delete(id);
     for (const id of now) hiddenPeople.add(id);
     hidden.current = now;
@@ -83,7 +86,7 @@ export function FightersLayer({ lite }: { lite: boolean }) {
 
 /** a fighter's look: the person's own (hall player / me), else a seeded adult look */
 function useFighterLook(f: RingFighter | undefined, fallback: string): AvatarLook {
-  const you = useWorld((s) => s.you);
+  const you = useWorld((s) => s.you) ?? SELF_ID;
   const code = useWorld((s) => (f ? s.players[f.sid]?.look : undefined));
   const profile = useProfile();
   return useMemo(() => {
@@ -98,8 +101,12 @@ const _a = new THREE.Vector3();
 function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
   const place = RING_BY_ID[slot.ring]!;
   const entry = useFightBridge((s) => s.rings[slot.ring]);
-  const red = useFighterLook(entry?.red, `${slot.ring}-red`);
-  const blue = useFighterLook(entry?.blue, `${slot.ring}-blue`);
+  const myCorner = useFightBridge((s) => (slot.src === "mine" ? (s.mine?.corner ?? null) : null));
+  const you = useWorld((s) => s.you) ?? SELF_ID;
+  // my own fight: me in my corner (my look), the opponent from the registry (or the practice AI)
+  const fighterOf = (c: Corner): RingFighter | undefined => (myCorner === c ? { sid: you, name: "", corner: c } : entry?.[c]);
+  const red = useFighterLook(fighterOf("red"), `${slot.ring}-red`);
+  const blue = useFighterLook(fighterOf("blue"), `${slot.ring}-blue`);
   const g = [useRef<THREE.Group>(null), useRef<THREE.Group>(null)] as const;
   const poses = [useRef<FighterPose | null>(null), useRef<FighterPose | null>(null)] as const;
   const react = useRef<[{ clip: FighterPose["clip"]; at: number } | null, { clip: FighterPose["clip"]; at: number } | null]>([null, null]);
@@ -152,7 +159,7 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
       <group ref={g[0]}>
         <FighterAvatar look={red} corner="red" poseRef={poses[0]} lite={lite} />
       </group>
-      {(entry?.blue || entry?.status === "practice") && (
+      {(entry?.blue || entry?.status === "practice" || slot.src === "mine") && (
         <group ref={g[1]}>
           <FighterAvatar look={blue} corner="blue" poseRef={poses[1]} lite={lite} />
         </group>

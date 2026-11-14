@@ -21,6 +21,7 @@ import { FightCamera } from "./camera";
 import { RingCloseInfo } from "./ring-info";
 import "./hooks"; // registers the Boxing hall's hall hooks
 import { startFightMock } from "./mock";
+import { fightActions } from "./actions";
 
 /**
  * The Boxing hall interior (P3-FGT-01, plan §4.3–4.5): a matte, floodlit sports hall — polished-but-matte concrete,
@@ -34,7 +35,12 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
   useLayoutEffect(() => {
     scene.background = new THREE.Color("#0f0f11");
   }, [scene]);
-  useEffect(() => startFightMock(), []);
+  useEffect(() => {
+    startFightMock();
+    // dev QA handle (like window.__gkNav); the mock replaces it with its own
+    if (process.env.NODE_ENV !== "production" && !(window as unknown as { __gkFight?: unknown }).__gkFight)
+      Object.assign(window as unknown as Record<string, unknown>, { __gkFight: { bridge: useFightBridge, actions: fightActions, log: [] } });
+  }, []);
   const rings = useRingKitRings();
   const restKey = useFightBridge((st) => (st.watched?.snap?.phase === "rest" ? st.watched.ring : "") + (st.mine?.snap?.phase === "rest" ? st.mine.ring : ""));
   const features = useMemo(
@@ -242,11 +248,11 @@ function FeatureStage() {
 function RingPanels() {
   const ref = useRef<THREE.InstancedMesh>(null);
   const geo = useMemo(() => new THREE.BoxGeometry(1, 0.08, 1), []);
-  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: new THREE.Color("#fff6ea").multiplyScalar(1.15), toneMapped: false }), []);
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: new THREE.Color("#fff3e2").multiplyScalar(0.92), toneMapped: false }), []);
   useLayoutEffect(() => {
     const m = new THREE.Matrix4();
     RINGS.forEach((r, i) => {
-      const s = r.feature ? 3.6 : 2.6;
+      const s = r.feature ? 3.0 : 1.9;
       m.compose(new THREE.Vector3(r.x, r.feature ? 9.4 : 7.4, r.z), new THREE.Quaternion(), new THREE.Vector3(s, 1, s));
       ref.current!.setMatrixAt(i, m);
     });
