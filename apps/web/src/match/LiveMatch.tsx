@@ -21,6 +21,7 @@ import { DieIcon, PoolBallIcon, SeedsIcon } from "@/ui/game-icons";
 import { loadMe, refreshSession, useSession } from "@/lib/session";
 import { levelForXp } from "@/lib/profile-store";
 import { returnPath } from "@/lib/return-point";
+import { useMatch } from "@/lib/match-store";
 
 interface PlayerInfo {
   userId: string;
@@ -247,6 +248,8 @@ export function LiveMatch({ roomId }: { roomId: string }) {
         attach(r);
       } catch {
         joins.delete(roomId);
+        // never be sent back here again (a stale "match ready" for this room)
+        if (useMatch.getState().ready?.roomId === roomId) useMatch.setState({ ready: null });
         setError("This match is no longer available.");
       }
     })();

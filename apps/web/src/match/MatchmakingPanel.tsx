@@ -152,6 +152,9 @@ export function MatchmakingPanel() {
     if (!ready) return;
     rememberBeforeGame(useRoom.getState().seated);
     router.push(`/match/${ready.roomId}?game=${ready.game}&stake=${ready.stake}`);
+    // one-shot: once we are on the way to the match, forget it — otherwise coming back to the plaza / hall after the
+    // match (this panel mounts again) would send you straight back to a match that has ended
+    useMatch.setState({ ready: null });
   }, [ready, router]);
   useEffect(() => {
     if (!notice) return;
