@@ -184,6 +184,7 @@ if (readyA) {
 
 // a player suspended while connected: still in the room? can they still stake into a match?
 {
+  a.inbox.length = 0; // the free game above also sent pvp1 a match-ready: only count what happens from here
   const sus = await join("lv30");
   await sleep(400);
   const sid = (await api("/console/users?q=lv30", { headers: adm })).json?.items?.[0]?.id;
@@ -210,7 +211,7 @@ if (readyA) {
     await m1.leave().catch(() => undefined);
   }
   await api(`/console/users/${sid}/status`, { method: "POST", headers: adm, body: { status: "active", reason: "QA: restore" } });
-  await sus.room.leave().catch(() => undefined);
+  if (sus.room.connection.isOpen) await sus.room.leave().catch(() => undefined); // closed by the server: leaving again never resolves
 }
 
 // expiry (60 s)

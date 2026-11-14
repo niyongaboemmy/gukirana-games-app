@@ -85,7 +85,7 @@ check("office.chat reaches the office", !!sc, JSON.stringify(sc)?.slice(0, 120))
 check("office.chat does not leak outside", !oc, JSON.stringify(oc));
 outsider.room.send("chat", { text: "lobby chat probe", scope: "room" });
 const leakIn = await next(staff, "chat", { timeout: 1500, where: (m) => /lobby chat probe/.test(m.text) });
-note("office.lobby room chat heard inside the office", String(!!leakIn));
+check("office.lobby room chat not heard inside the office (FIX-A GAP-012)", !leakIn, String(!!leakIn));
 
 // a non-staff visitor cannot answer knocks
 outsider.room.send("office-enter", { office: OFFICE });
@@ -140,7 +140,7 @@ note("office.visitors admitted before full", String(admitted));
 // staff leaves → visitors? (the office closes when the last staff member leaves)
 staff.room.send("office-leave", { office: OFFICE });
 await sleep(1000);
-note("office.after staff left (visitor inbox)", visitor.inbox.slice(-4).map((m) => `${m.type}:${JSON.stringify(m.msg).slice(0, 80)}`).join(" | "));
+check("office.visitor told the officer left (FIX-A GAP-013)", visitor.inbox.some((m) => m.type === "office-officer-left" && m.msg?.graceMs > 0), visitor.inbox.slice(-4).map((m) => `${m.type}:${JSON.stringify(m.msg).slice(0, 80)}`).join(" | "));
 
 for (const p of [staff, visitor, outsider, guest, ...extra]) await p.room.leave().catch(() => undefined);
 done();
