@@ -1,0 +1,15 @@
+GAP-001 evidence (QA-01). Isolated QA stack (api :4300, realtime :2600), seeded accounts.
+qa/e2e/api.mjs run at 2026-11-14T02:37:29.549Z:
+PASS  console.suspend.reason-required  — 400
+PASS  console.suspend.ok  — 200 {"id":"5a14bb27-89c7-4e59-82db-03e7ebd1beb5","status":"suspended","changed":true}
+FAIL  console.suspend.existing-access-token-cut-off  — after suspend: /me 200, /wallet 200 (access token valid up to 15 min)
+PASS  console.suspend.blocks-new-sign-in  — 401
+PASS  console.reactivate.ok  — 200
+PASS  console.reactivate.can-sign-in  — 200
+FAIL  console.suspended-staff-refused  — suspended it_admin → /console/users 200
+
+qa/e2e/pvp.mjs run at 2026-11-14T02:10:25.292Z (reproduced in 2 runs):
+PASS  suspension.setup: lv30 suspended  — 200 {"id":"5a14bb27-89c7-4e59-82db-03e7ebd1beb5","status":"suspended","changed":true}
+FAIL  suspension.connected player is removed from the world  — still connected=true
+FAIL  suspension.suspended player can no longer chat  — chat delivered to others
+FAIL  suspension.suspended player cannot be staked into a match  — match created 45e62998-cc98-46b1-be9b-40deda1cf542; pvp1 stake locked 2625→2600

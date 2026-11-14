@@ -1,0 +1,272 @@
+{
+  "task": "QA-01",
+  "date": "2026-11-14",
+  "build": "worktree rebased on main 95a7a6d (Tournament Arena v2, P2-ARN-04)",
+  "environment": "isolated: web :3500 (next dev), api :4300, realtime :2600, admin :3501, scratch PGlite; Chrome headless new (ANGLE Metal)",
+  "counts": { "P0": 0, "P1": 2, "P2": 6, "P3": 10 },
+  "gaps": [
+    {
+      "id": "GAP-001",
+      "severity": "P1",
+      "area": "security",
+      "title": "Suspending a player does not end their session: API calls keep working, a connected player stays in the world, chats and can be staked into a match",
+      "steps": [
+        "Sign in as qa_lv30 (API token) and join the plaza (realtime).",
+        "As qa_support (or the admin token) POST /console/users/<qa_lv30>/status {status:'suspended', reason}.",
+        "With qa_lv30's existing access token call GET /me and GET /wallet.",
+        "From qa_lv30's open plaza connection send a room chat, then propose a 25-Star igisoro match to qa_pvp1 and let qa_pvp1 accept."
+      ],
+      "expected": "The suspension takes effect at once: API requests with the old access token are refused (401/403), the realtime connection is closed (or the player is walked out), chat and proposals are refused, and no stake can be locked for a suspended account.",
+      "actual": "/me and /wallet answer 200 for up to 15 minutes (access token lifetime); the realtime connection stays open indefinitely (it was authorised once at join); the chat is delivered; the match is created and 25 Stars are locked from qa_pvp1 into escrow against a suspended opponent. New sign-ins and token refreshes are correctly refused.",
+      "evidence": "docs/QA/evidence/GAP-001-suspended-player-keeps-access.txt",
+      "reproduced": "2 runs (api.mjs, pvp.mjs)",
+      "suspected": [
+        "apps/api/src/common/auth.ts AuthGuard.canActivate — verifies the JWT only, never users.status",
+        "apps/realtime/src/auth.ts verifyToken + apps/realtime/src/rooms/world-room.ts onAuth — JWT only, checked once at join",
+        "apps/api/src/modules/games/games.service.ts create() — no users.status check before stake_lock",
+        "apps/api/src/modules/console/console.service.ts setStatus() — does not revoke refresh tokens or notify realtime"
+      ],
+      "fix": "On suspend, revoke the user's refresh tokens and publish a 'user.suspended' event that realtime uses to close the user's sessions; have AuthGuard (cached ~30 s) and GamesService.create refuse non-active users."
+    },
+    {
+      "id": "GAP-002",
+      "severity": "P1",
+      "area": "security",
+      "title": "A suspended staff member keeps staff powers (console sections, staff endpoints) with their existing token",
+      "steps": [
+        "Sign in as qa_it (it_admin).",
+        "As qa_super suspend qa_it with a reason.",
+        "With qa_it's existing access token call GET /console/users?q=qa_ (or any RoleGuard endpoint)."
+      ],
+      "expected": "403/401: a suspended account has no staff rights, even before its access token expires.",
+      "actual": "200 — RoleGuard checks the roles in the DB on every request but not the account status, so a suspended it_admin can still list people, suspend others, close buildings for up to 15 minutes (and longer through an open office/console session).",
+      "evidence": "docs/QA/evidence/GAP-002-suspended-staff-keep-console.txt",
+      "reproduced": "2 runs (api.mjs)",
+      "suspected": [
+        "apps/api/src/modules/admin-block/role.guard.ts RoleGuard.canActivate",
+        "apps/api/src/modules/admin-block/access.service.ts access() — returns roles regardless of users.status",
+        "apps/realtime/src/social/office-access.ts accessOf — same data for office doors / answering knocks"
+      ],
+      "fix": "Make AccessService.access() return no roles for a non-active user (single place), so RoleGuard, the console and realtime office checks all follow."
+    },
+    {
+      "id": "GAP-003",
+      "severity": "P2",
+      "area": "gate",
+      "title": "Suspended account is told 'That doesn't look right. Check it and try again.' at the gate",
+      "steps": ["At /gate enter qa.suspended@example.test, send code, enter the dev code, Verify."],
+      "expected": "A clear message that the account is suspended and how to contact support (the API answers 401 ACCOUNT_INACTIVE).",
+      "actual": "The generic validation message, as if the code were mistyped (desktop and phone).",
+      "evidence": "ui-gate-desktop / ui-gate-phone: gate.suspended refused with a clear message (FAIL, 3 runs)",
+      "suspected": ["apps/web/src/world/gate/gate-store.ts GATE_MSG (no ACCOUNT_INACTIVE entry) + errMsg()"],
+      "fix": "Add ACCOUNT_INACTIVE to GATE_MSG with plain words ('This account is suspended. Contact support.') and an i18n key."
+    },
+    {
+      "id": "GAP-004",
+      "severity": "P2",
+      "area": "plaza",
+      "title": "At a closed building (console) or the arena door when barred, the player is stopped silently: no 'closed' / 'not allowed' message, doors look open",
+      "steps": [
+        "Close the Ludo Lounge from the console with the message 'QA closed: back at 18:00' (or sign in as qa_barred for the arena).",
+        "As qa_lv1 walk (click-to-walk) from the plaza to the Ludo door and into it."
+      ],
+      "expected": "The player is kept out AND sees 'Ludo Lounge is closed · back at 18:00' (WorldHud) / the arena 'You can't enter the arena' card (ArenaDoorWatch).",
+      "actual": "The player is kept out (correct) but stands at the glass doors with no message; the Interact button shows no closed label. Staff walk in correctly.",
+      "evidence": "ui-closed-desktop (2 runs), ui-buildings-desktop arena.barred message (2 runs); screenshot reproducible with node qa/e2e/ui-closed.mjs ($TMPDIR/gk-qa/shots/closed-door-player-desktop.jpg)",
+      "suspected": [
+        "apps/web/src/world/Player.tsx proximity block (~l.383-409): nearPortal depends on facing + INTERACT_RADIUS and the re-entry guard",
+        "apps/web/src/hud/WorldHud.tsx closedMsg / portal (l.89-101, 239)",
+        "apps/web/src/arena/ArenaDoorWatch.tsx `near` / `shut`"
+      ],
+      "fix": "Show the closed/denied card whenever a door refuses entry (from the refusal itself, not only from nearPortal), and keep it until the player walks away. Only click-to-walk approaches were tested."
+    },
+    {
+      "id": "GAP-005",
+      "severity": "P2",
+      "area": "pvp",
+      "title": "A player's responsible-play status is disclosed to the opponent (ON_A_BREAK / DAILY_LIMIT_REACHED)",
+      "steps": [
+        "qa_break (on a 7-day break) challenges qa_pvp1 for 25 Stars; qa_pvp1 accepts.",
+        "Or both join quick match pool/25."
+      ],
+      "expected": "The person on a break / over their limit learns why; the opponent only sees a neutral 'This match can't start'.",
+      "actual": "Both players receive proposal-closed / quickmatch error with reason ON_A_BREAK or DAILY_LIMIT_REACHED, revealing a self-exclusion or limit to a stranger.",
+      "evidence": "pvp.mjs limits.* (4 runs): opponent receives {status:'error', reason:'ON_A_BREAK'}",
+      "suspected": ["apps/realtime/src/rooms/world-room.ts proposal-respond catch (~l.473) and quickmatch-join catch (~l.492)"],
+      "fix": "Send the specific reason only to the affected player and a generic MATCH_UNAVAILABLE to the other; also check assertCanStake when the challenge is sent (see GAP-011)."
+    },
+    {
+      "id": "GAP-006",
+      "severity": "P2",
+      "area": "console",
+      "title": "Console People search cannot find usernames containing '_' (e.g. 'qa_lv30')",
+      "steps": ["In the console People section (or GET /console/users?q=qa_lv30) search 'qa_lv30'."],
+      "expected": "The player qa_lv30 is listed.",
+      "actual": "'No accounts match.' — the search strips '_' and '%' instead of escaping them, so it looks for 'qalv30'. Searching 'lv30' works.",
+      "evidence": "api.mjs console.search (2 runs), ui-console-desktop console.people search (2 runs)",
+      "suspected": [
+        "apps/api/src/modules/console/console.service.ts listUsers() l.87 `term.replace(/[%_\\\\]/g, \"\")`",
+        "apps/api/src/modules/admin-block/access.service.ts listUsers() (same pattern, back office /access)"
+      ],
+      "fix": "Escape LIKE wildcards (replace with '\\\\$&' and use ESCAPE '\\\\') instead of deleting them."
+    },
+    {
+      "id": "GAP-007",
+      "severity": "P2",
+      "area": "console",
+      "title": "A super admin can revoke their own super_admin role (the last one) — staff lock-out",
+      "steps": ["As qa_super (the only super admin) POST /admin/access/revoke {user:'qa_super', role:'super_admin'}."],
+      "expected": "Refused (CANNOT_CHANGE_SELF / LAST_SUPER_ADMIN), like the suspend protections.",
+      "actual": "200 changed:true — no super admin is left; recovery needs the admin token or the CLI.",
+      "evidence": "api.mjs roles.super-cannot-revoke-own-super (2 runs; the test re-grants the role with the admin token)",
+      "suspected": ["apps/api/src/modules/admin-block/access.service.ts revoke() (l.371)", "apps/api/src/modules/admin-block/admin-block.controller.ts POST admin/access/revoke"],
+      "fix": "Refuse revoking your own role and removing the last holder of super_admin."
+    },
+    {
+      "id": "GAP-008",
+      "severity": "P2",
+      "area": "performance",
+      "title": "Plaza and halls exceed the Standard tier budgets (DESIGN-SPEC §16.1: ≤150 draw calls, ≤300k triangles)",
+      "steps": ["node qa/e2e/ui-world.mjs desktop / phone — perf.* lines (WebGL draw calls counted per frame + __gkProbe.calls/.tris)."],
+      "expected": "Standard tier: ≤ 150 draw calls and ≤ 300k visible triangles (phones may cap at 30–45 fps).",
+      "actual": "Plaza 398 calls / 995k tris (desktop), 457 calls / 1.01M tris (phone viewport); Pool Hall 243 / 697k; Ludo 98 / 502k; Igisoro 141 / 403k; Arena 233 / 355k; Admin Block 92 / 110k (ok). 60 fps on the M-series GPU used, so the risk is real phones.",
+      "evidence": "ui-world-desktop, ui-world-phone, ui-buildings-desktop perf.* notes",
+      "suspected": ["apps/web/src/world/SceneCanvas.tsx (tier selection) and the plaza / hall scene builders (world/*, rooms/*): instancing / merging, LOD for crowds and props"],
+      "fix": "Verify the auto tier on a mid phone; merge static plaza meshes, instance repeated props and drop distant detail so the Standard tier meets §16.1."
+    },
+    {
+      "id": "GAP-009",
+      "severity": "P3",
+      "area": "console",
+      "title": "POST /console/users/<not-a-uuid>/status returns 500 (DrizzleQueryError) instead of 400/404",
+      "steps": ["POST /console/users/not-a-uuid/status with the admin token and a valid body."],
+      "expected": "400 BAD_ID or 404 UNKNOWN_USER.",
+      "actual": "500; the API log shows a failed query. GET /console/users/not-a-uuid correctly answers 400.",
+      "evidence": "api.mjs console.bad user id (status 500)",
+      "suspected": ["apps/api/src/modules/console/console.service.ts setStatus() — queries users.id with an invalid uuid", "console.controller.ts l.58-63"],
+      "fix": "Validate the id with the UUID check used by userDetail before querying."
+    },
+    {
+      "id": "GAP-010",
+      "severity": "P3",
+      "area": "gate",
+      "title": "Username rule differs between the wardrobe (3–16) and the API (2–16)",
+      "steps": ["Compare USERNAME_RE in the gate with ProfileSchema in the API."],
+      "expected": "One rule (contracts).",
+      "actual": "Web: /^[\\p{L}\\p{N}_.-]{3,16}$/u; API: {2,16}.",
+      "evidence": "apps/web/src/world/gate/gate-store.ts l.44/56 vs apps/api/src/modules/identity/identity.controller.ts ProfileSchema",
+      "suspected": ["apps/web/src/world/gate/gate-store.ts", "apps/api/src/modules/identity/identity.controller.ts"],
+      "fix": "Move the username schema to @gukirana/contracts and use it on both sides."
+    },
+    {
+      "id": "GAP-011",
+      "severity": "P3",
+      "area": "pvp",
+      "title": "Daily limit / break are only checked after the opponent accepts",
+      "steps": ["qa_limit (limit 100) challenges qa_pvp1 for 200 Stars; qa_pvp1 sees the challenge and accepts."],
+      "expected": "The challenge is refused when sent (the challenger can't offer a stake they may not play).",
+      "actual": "The opponent gets the challenge, accepts, and only then the match fails (see GAP-005 for the reason leak).",
+      "evidence": "pvp.mjs limits.refusal timing note",
+      "suspected": ["apps/realtime/src/rooms/world-room.ts propose handler (l.432)"],
+      "fix": "Ask the API (assertCanStake) before delivering a staked proposal or joining a staked quick-match queue."
+    },
+    {
+      "id": "GAP-012",
+      "severity": "P3",
+      "area": "admin-block",
+      "title": "Room-scope chat from the lobby is delivered to people inside closed offices",
+      "steps": ["qa_support inside Customer Support; qa_lv1 in the lobby sends a room chat."],
+      "expected": "To confirm with product: offices are closed rooms (voice is scoped); text room chat probably should not reach inside either.",
+      "actual": "The lobby room chat reaches the staff member inside; office-chat correctly stays inside.",
+      "evidence": "office.mjs office.lobby room chat heard inside the office = true (2 runs)",
+      "suspected": ["apps/realtime/src/rooms/world-room.ts chat handler (l.310) — no OfficeDesk.sameRoom filter for scope 'room'"],
+      "fix": "Apply desk.sameRoom to room/nearby chat in the admin hall, or document that lobby chat is heard everywhere."
+    },
+    {
+      "id": "GAP-013",
+      "severity": "P3",
+      "area": "admin-block",
+      "title": "Visitors stay inside an office after the last staff member leaves",
+      "steps": ["Let three visitors into Customer Support, then the staff member steps out."],
+      "expected": "To confirm with product: visitors are asked to leave (or the office shows them as waiting) when no staff is inside.",
+      "actual": "occupancy shows occupants 0, visitors 3; the visitors remain inside an unstaffed office.",
+      "evidence": "office.mjs office.after staff left note (2 runs)",
+      "suspected": ["apps/realtime/src/rooms/office-desk.ts leftOffice() (l.176)"],
+      "fix": "When the last staff member leaves, walk visitors out (or send them a notice) and close their conversation."
+    },
+    {
+      "id": "GAP-014",
+      "severity": "P3",
+      "area": "security",
+      "title": "Plaza movement is client-authoritative (no speed / teleport check)",
+      "steps": ["From a realtime client send 'move' with any x/z inside ±60 m."],
+      "expected": "Positions bounded by walking speed (proximity features — chat range, pair actions, office doors — rely on positions).",
+      "actual": "Any position is accepted and broadcast; a bot was placed next to a player instantly.",
+      "evidence": "ui-world people.* (bot positioned by 'move' messages)",
+      "suspected": ["apps/realtime/src/rooms/world-room.ts move handler (l.233)"],
+      "fix": "Clamp per-tick displacement to the run speed (+ tolerance) and log violations."
+    },
+    {
+      "id": "GAP-015",
+      "severity": "P3",
+      "area": "back-office",
+      "title": "Back office keeps a stale 'Could not load: 401' after a good token; favicon 404",
+      "steps": ["Open /access (or /arena) in apps/admin, enter a wrong token and Load, then the right token and Load."],
+      "expected": "The error disappears when the data loads; no 404 in the console.",
+      "actual": "'Could not load: {\"message\":\"Unauthorized\",\"statusCode\":401}' stays above the loaded data; GET /favicon.ico 404.",
+      "evidence": "ui-backoffice backoffice/access + /arena loads data (text includes the stale error); curl :3501/favicon.ico → 404",
+      "suspected": ["apps/admin/app/access/page.tsx, apps/admin/app/arena/page.tsx (error state not cleared on success)", "apps/admin/app (no icon)"],
+      "fix": "Clear the error at the start of each load; add app/icon.svg like apps/web."
+    },
+    {
+      "id": "GAP-016",
+      "severity": "P3",
+      "area": "console",
+      "title": "Console 'Recent staff actions' shows raw user ids and raw JSON details",
+      "steps": ["Open /console Overview as qa_super after a few staff actions."],
+      "expected": "Names (e.g. 'qa_it closed a building · Ludo Lounge').",
+      "actual": "'4c1818fe… closed a building · building:ar…' and '{\"open\":true}'.",
+      "evidence": "explore.mjs /console tablet (overview)",
+      "suspected": ["apps/web/src/console/sections-live.tsx l.69 shortWho(a.who)", "apps/api/src/modules/admin-block/access.service.ts auditLog() (no username join)"],
+      "fix": "Join usernames in auditLog and render details in words."
+    },
+    {
+      "id": "GAP-017",
+      "severity": "P3",
+      "area": "cross-cutting",
+      "title": "Light window theme: muted secondary text below 4.5:1",
+      "steps": ["Settings → Windows: Light; read the email line, the 'SETTINGS' label and the XP line."],
+      "expected": "WCAG AA 4.5:1 for text.",
+      "actual": "≈3.2:1 (grey on beige). Primary text and buttons are readable (verified on a screenshot); the automated contrast check also flags text on gradient buttons, which is a tool limitation.",
+      "evidence": "ui-world-desktop theme.light (3 runs; screenshot via QA_EVIDENCE)",
+      "suspected": ["apps/web/app/globals.css / packages/ui tokens for the light paper theme (muted text colour)"],
+      "fix": "Darken the muted text token in the light theme to reach 4.5:1."
+    },
+    {
+      "id": "GAP-018",
+      "severity": "P3",
+      "area": "cross-cutting",
+      "title": "UI strings not yet in @gukirana/i18n",
+      "steps": ["grep JSX text in apps/web/src and app."],
+      "expected": "i18n keys for all UI text (CLAUDE.md).",
+      "actual": "33 hard-coded JSX text nodes in 14 files plus module catalogues (gate-store GATE_MSG, admin-block/strings.ts, arena/strings.ts, console/strings.ts, wallet/strings.ts) marked 'to move to @gukirana/i18n'; games use t() with an English catalogue.",
+      "evidence": "grep -rhoE '>[A-Z][a-zA-Z ,.'!?]{3,}<' apps/web/src apps/web/app | wc -l → 33",
+      "suspected": ["apps/web/src/components/SettingsModal.tsx, GateFlow.tsx, social/*, rooms/RoomOverlay.tsx, console/*"],
+      "fix": "Move the catalogues into packages/i18n and replace literals with keys (count is informational)."
+    }
+  ],
+  "known_not_new": [
+    "Arena commentator mic uses P2P voice (max ~8 peers; LiveKit not wired)",
+    "Arena VIP voice scope is client-side only",
+    "Players can't sit at arena stage tables yet",
+    "Arena boards show no live match data",
+    "No scarf / flag wave; seat pads always down; Stand & cheer releases the seat"
+  ],
+  "test_tool_issues": [
+    "OTP limit (3 / 10 min) + rotating refresh cookies: running two QA scripts at once makes their session caches overwrite each other (stale cookie → the browser lands on the gate). Run scripts one at a time.",
+    "Igisoro practice: Esc did not open the menu in the scripted sequence after moves (2 runs) but did in isolation — unconfirmed, not reported.",
+    "Arena v2 seat finder: the scripted 'Find a seat → best free seat' did not reach a seat within 45 s after the v2 merge — script needs updating to the v2 flow; not reported as a product gap.",
+    "Admin block: officer computer prompt and lobby chairs need walking to exact spots; not automated (console reached via /console instead).",
+    "Contrast check counts gradient-backed buttons as low contrast (computed background is transparent)."
+  ]
+}

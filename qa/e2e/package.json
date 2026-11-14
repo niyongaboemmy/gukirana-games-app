@@ -1,0 +1,10 @@
+{
+  "name": "gukirana-qa-e2e",
+  "private": true,
+  "type": "module",
+  "description": "QA-01 end-to-end scripts. Not a workspace package; install once with: npm install --prefix qa/e2e",
+  "dependencies": {
+    "colyseus.js": "0.16.22",
+    "puppeteer-core": "24.10.0"
+  }
+}

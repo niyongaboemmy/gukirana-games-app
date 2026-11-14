@@ -1,0 +1,5 @@
+GAP-002 evidence (QA-01). qa_it (it_admin) suspended by qa_super through POST /console/users/:id/status; the it_admin's
+existing access token then calls GET /console/users?q=qa_ (RoleGuard).
+qa/e2e/api.mjs run at 2026-11-14T02:37:29.549Z (reproduced in 2 runs):
+FAIL  console.suspended-staff-refused  — suspended it_admin → /console/users 200
+FAIL  roles.super-cannot-revoke-own-super  — 200 {"userId":"8aba33d2-543a-40fe-95ce-2c99338376c0","role":"super_admin","changed":true}

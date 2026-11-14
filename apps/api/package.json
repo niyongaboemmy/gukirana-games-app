@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests",
-    "grant-role": "tsx src/scripts/grant-role.ts"
+    "grant-role": "tsx src/scripts/grant-role.ts",
+    "seed:qa": "tsx src/scripts/seed-qa.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
