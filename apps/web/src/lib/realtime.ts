@@ -56,6 +56,33 @@ const untilText = (t?: number) => {
   return ` until ${d.toLocaleString(undefined, sameDay ? { hour: "2-digit", minute: "2-digit" } : { weekday: "short", hour: "2-digit", minute: "2-digit" })}`;
 };
 
+/* ---- auto-reconnect: an unexpected drop (server restart, network loss) rejoins the same room by itself ---- */
+type JoinArgs = { profile: { name: string; color: string; level: number; token?: string | null; look?: string }; target: { name: "plaza" | "hall"; game?: string } };
+let lastJoin: JoinArgs | null = null;
+/** we want to be connected (cleared by leavePlaza and by deliberate removals) */
+let wanted = false;
+let retries = 0;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+/**
+ * Server-initiated removals that must stay final: 4001 suspended / signed out everywhere, 4003 removed (arena).
+ * (Not 4000: a server restarting closes everyone with 4000 "consented" too. Leaving on purpose goes through
+ * leavePlaza, which turns `wanted` off first, so a normal leave never reconnects.)
+ */
+const DELIBERATE = new Set([4001, 4003]);
+export const shouldReconnect = (code: number | undefined) => code === undefined || !DELIBERATE.has(code);
+function scheduleReconnect() {
+  if (!wanted || retryTimer || !lastJoin) return;
+  const delay = Math.min(10_000, 1000 * 2 ** retries);
+  retries++;
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    if (!wanted || room || connecting || !lastJoin) return;
+    // the access token may have been refreshed meanwhile
+    const token = useSession.getState().accessToken ?? lastJoin.profile.token;
+    void connectPlaza({ ...lastJoin.profile, token }, lastJoin.target);
+  }, delay);
+}
+
 /** Joins the plaza (default) or a game hall interior ({ name: "hall", game }). */
 export async function connectPlaza(
   profile: { name: string; color: string; level: number; token?: string | null; look?: string },
@@ -63,6 +90,8 @@ export async function connectPlaza(
 ): Promise<void> {
   if (room || connecting) return;
   connecting = true;
+  lastJoin = { profile, target };
+  wanted = true;
   const w = useWorld.getState();
   try {
     const client = new Client(realtimeUrl());
@@ -73,6 +102,7 @@ export async function connectPlaza(
     const options = { ...profile, look, blocks };
     room = await client.joinOrCreate(target.name, target.name === "hall" ? { ...options, game: target.game } : options);
     w.set({ connected: true });
+    retries = 0;
     const name = (id: string) => useWorld.getState().players[id]?.name ?? "Someone";
     room.onMessage("snapshot", (m: { you: string; players: RemotePlayer[] }) => {
       const players: Record<string, RemotePlayer> = {};
@@ -206,13 +236,17 @@ export async function connectPlaza(
     });
     // feature modules (e.g. admin-block/office-client) listen through `onRoomMessage`
     for (const type of extra.keys()) bindExtra(room, type);
-    room.onLeave(() => {
+    room.onLeave((code?: number) => {
       room = null;
       resetSocial();
       useWorld.setState({ connected: false, players: {}, seats: {} });
+      // a server restart / network drop: come back by yourself; a deliberate removal stays final
+      if (shouldReconnect(code)) scheduleReconnect();
+      else wanted = false;
     });
   } catch {
     useWorld.setState({ connected: false });
+    scheduleReconnect();
   } finally {
     connecting = false;
   }
@@ -252,6 +286,10 @@ function resetSocial() {
 }
 
 export function leavePlaza(): void {
+  wanted = false;
+  if (retryTimer) clearTimeout(retryTimer);
+  retryTimer = null;
+  retries = 0;
   hangUp();
   disableVoice();
   void room?.leave();
@@ -306,3 +344,7 @@ export const respondPair = (id: string, accept: boolean) => {
   room?.send("pair-respond", { id, accept });
   useSocial.setState({ pairInvite: null });
 };
+
+// QA hook (dev only): the connection / auto-reconnect state
+if (process.env.NODE_ENV !== "production" && typeof window !== "undefined")
+  (window as unknown as { __gkNet: unknown }).__gkNet = () => ({ wanted, retries, retrying: !!retryTimer, connecting, joined: !!room, hasJoinArgs: !!lastJoin });

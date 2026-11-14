@@ -87,7 +87,7 @@ export function ChatPanel() {
   // open: a sheet above the HUD layers (portal) — bottom-left above the joystick on tall screens, a full-height
   // side sheet on phones in landscape (typing replaces walking for a moment)
   return createPortal(
-    <div className="pointer-events-auto fixed bottom-[150px] left-[max(12px,env(safe-area-inset-left))] z-30 flex max-h-[46vh] w-[min(380px,46vw)] pcard !rounded-[20px] sm:bottom-40 [@media(max-height:430px)]:bottom-2 [@media(max-height:430px)]:top-2 [@media(max-height:430px)]:max-h-none [@media(max-height:430px)]:w-[min(360px,46vw)]">
+    <div className="pointer-events-auto !fixed bottom-[150px] left-[max(12px,env(safe-area-inset-left))] z-30 flex max-h-[46vh] w-[min(380px,46vw)] pcard !rounded-[20px] sm:bottom-40 [@media(max-height:430px)]:bottom-2 [@media(max-height:430px)]:top-2 [@media(max-height:430px)]:max-h-none [@media(max-height:430px)]:w-[min(360px,46vw)]">
       {/* tabs */}
       <div role="tablist" aria-label="Chat channels" className="relative flex items-center gap-1 border-b border-[var(--line)] p-2">
         {TABS.map((x) => (
