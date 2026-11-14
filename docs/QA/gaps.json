@@ -102,8 +102,12 @@
         "apps/web/src/hud/WorldHud.tsx closedMsg / portal (l.89-101, 239)",
         "apps/web/src/arena/ArenaDoorWatch.tsx `near` / `shut`"
       ],
-      "fix": "Show the closed/denied card whenever a door refuses entry (from the refusal itself, not only from nearPortal), and keep it until the player walks away. Only click-to-walk approaches were tested.",
-      "status": "open"
+      "fix": {
+        "team": "FIX-B",
+        "commit": "c63e1e5",
+        "retest": "ui-closed desktop 10/10, phone 10/10; arena barred: door shut + plain-words card"
+      },
+      "status": "fixed"
     },
     {
       "id": "GAP-005",
@@ -185,8 +189,12 @@
       "suspected": [
         "apps/web/src/world/SceneCanvas.tsx (tier selection) and the plaza / hall scene builders (world/*, rooms/*): instancing / merging, LOD for crowds and props"
       ],
-      "fix": "Verify the auto tier on a mid phone; merge static plaza meshes, instance repeated props and drop distant detail so the Standard tier meets §16.1.",
-      "status": "open"
+      "fix": {
+        "team": "FIX-B",
+        "commit": "91b5462, 9cc7f94, ef96132",
+        "retest": "all halls ≤150 calls on desktop; plaza 159–258 calls / ~415k tris and hall triangles 318–353k still over — follow-up: texture atlas for district/doors, lighter chair models"
+      },
+      "status": "partly fixed"
     },
     {
       "id": "GAP-009",
@@ -374,8 +382,12 @@
       "suspected": [
         "apps/web/app/globals.css / packages/ui tokens for the light paper theme (muted text colour)"
       ],
-      "fix": "Darken the muted text token in the light theme to reach 4.5:1.",
-      "status": "open"
+      "fix": {
+        "team": "FIX-B",
+        "commit": "c8dcb3f, c8f5ddc",
+        "retest": "settings light 0/29 low-contrast, dark 0/29"
+      },
+      "status": "fixed"
     },
     {
       "id": "GAP-018",
@@ -391,8 +403,24 @@
       "suspected": [
         "apps/web/src/components/SettingsModal.tsx, GateFlow.tsx, social/*, rooms/RoomOverlay.tsx, console/*"
       ],
-      "fix": "Move the catalogues into packages/i18n and replace literals with keys (count is informational).",
-      "status": "open"
+      "fix": {
+        "team": "FIX-B",
+        "commit": "c544d06",
+        "retest": "QA grep 0 hard-coded JSX strings (was 33); moving area files into @gukirana/i18n stays on the backlog"
+      },
+      "status": "fixed (area string files)"
+    },
+    {
+      "id": "GAP-019",
+      "severity": "P3",
+      "area": "halls",
+      "title": "Esc did not open the menu in Igisoro practice after moves (arrow key focused the top-bar Menu button)",
+      "status": "fixed",
+      "fix": {
+        "team": "FIX-B",
+        "commit": "c79710e",
+        "retest": "igisoro-esc.mjs: reproduced 3/3 before, 3/3 pass after"
+      }
     }
   ],
   "known_not_new": [
@@ -412,6 +440,6 @@
   "retest": {
     "date": "2026-11-14",
     "by": "coordinator",
-    "note": "FIX-A merged and verified (pnpm verify 67/67); FIX-B in progress"
+    "note": "FIX-A and FIX-B merged; pnpm verify 67/67; coordinator smoke test on dev servers (gate, plaza, Pool Hall) no page errors"
   }
 }

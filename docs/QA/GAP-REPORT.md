@@ -50,10 +50,13 @@ Top risks:
 | GAP-014 | fixed | FIX-A `92bd6be` | realtime movement tests (9 m/s, 8 m jump) |
 | GAP-015 | fixed | FIX-A `34ea846` | ui-backoffice 14/0, icon 200 |
 | GAP-016 | fixed | FIX-A `7440d44` | ui-console 49/0, readable audit |
-| GAP-004 | open — FIX-B in progress | | |
-| GAP-008 | open — FIX-B in progress | | |
-| GAP-017 | open — FIX-B in progress | | |
-| GAP-018 | open — FIX-B in progress | | |
+| GAP-004 | fixed | FIX-B `c63e1e5` | ui-closed desktop 10/10, phone 10/10; arena barred: door shut, plain-words card |
+| GAP-008 | **partly fixed** | FIX-B `91b5462` `9cc7f94` `ef96132` | halls ≤150 calls on desktop; plaza 159–258 calls / ~415k tris and hall triangles 318–353k still over budget (follow-up) |
+| GAP-017 | fixed | FIX-B `c8dcb3f` `c8f5ddc` | light 0/29, dark 0/29 low-contrast |
+| GAP-018 | fixed (area string files) | FIX-B `c544d06` | 0 hard-coded JSX strings (was 33); @gukirana/i18n migration on backlog |
+| GAP-019 | fixed (found during re-test) | FIX-B `c79710e` | Igisoro Esc after moves: 3/3 pass |
+
+**Result:** 18 of 19 gaps fixed and re-tested; GAP-008 is partly fixed (halls within the draw-call budget, plaza and triangle budgets still over). Not yet browser-verified: the visitor walk-out after the officer leaves (GAP-013; server events covered by office.mjs).
 
 ## Coverage matrix
 
