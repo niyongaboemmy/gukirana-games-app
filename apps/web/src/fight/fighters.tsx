@@ -24,7 +24,7 @@ import { RING_BY_ID, RINGS, type RingPlace } from "./plan";
 const FULL_R = 14;
 /** impostor fighters drawn right now (QA / perf readout) */
 export const impostorCount = { n: 0 };
-const LIVE = new Set(["fighting", "practice", "starting", "result"]);
+const LIVE = new Set(["fighting", "practice", "starting", "result", "waiting"]);
 
 interface Slot {
   ring: RingId;
@@ -123,14 +123,15 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
     const half = Math.min(snap.dist / 200, place.half - 0.8);
     const ax = Math.cos(th);
     const az = Math.sin(th);
-    const rest = snap.phase === "rest" || snap.phase === "intro" ? 1 : 0;
+    const waiting = b.rings[slot.ring]?.status === "waiting";
+    const rest = snap.phase === "rest" || snap.phase === "intro" || waiting ? 1 : 0;
     snap.fighters.forEach((f, i) => {
       const s = i === 0 ? -1 : 1;
       const grp = g[i]!.current;
       if (!grp) return;
-      // between rounds: back to the corners (red −x,+z / blue +x,−z), facing the centre
+      // between rounds (and waiting for an opponent): in the corners (red −x,−z / blue +x,+z), facing the centre
       const cx = rest ? s * (place.half - 1.0) : s * half * ax;
-      const cz = rest ? -s * (place.half - 1.0) : s * half * az;
+      const cz = rest ? s * (place.half - 1.0) : s * half * az;
       grp.position.set(place.x + cx, place.canvasY, place.z + cz);
       _a.set(place.x - grp.position.x, 0, place.z - grp.position.z);
       if (!rest) _a.set(-s * ax, 0, -s * az);
@@ -194,7 +195,7 @@ function loopAct(t: number) {
 }
 export function loopSnapshot(ring: RingId, ms: number, st: RingState | undefined): BoxingSnapshot {
   const tick = Math.floor((ms / 1000) * TICK_HZ);
-  const phase: BoxingSnapshot["phase"] = st?.status === "result" ? "over" : st?.status === "starting" ? "intro" : "round";
+  const phase: BoxingSnapshot["phase"] = st?.status === "result" ? "over" : st?.status === "starting" ? "intro" : st?.status === "waiting" ? "countdown" : "round";
   const f = (i: 0 | 1, corner: Corner) => {
     const a = phase === "round" ? loopAct(tick + i * 41) : { act: phase === "over" ? (i === 0 ? ("celebrate" as const) : ("dejected" as const)) : ("idle" as const), actT: tick % 60 };
     return { id: `${ring}-${corner}`, corner, act: a.act, actT: a.actT, stage: "none" as const, guard: true, stamina: 800, composure: 800, points: 0, knockdowns: 0, warnings: 0, connected: true };

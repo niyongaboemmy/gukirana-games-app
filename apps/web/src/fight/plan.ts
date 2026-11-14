@@ -63,9 +63,10 @@ export const BOXING_DOOR_LINE_Z = LOBBY_BACK_Z;
 export const BOXING_SIZE = { w: 93, d: 30, h: 11 };
 export const BOXING_DOOR = { x: SUBHALL_DOOR_X.boxing, w: 2.6 };
 /** standard ring: platform incl. apron (square), canvas height, rope zone half-size */
-export const RING = { platform: 4.9, canvasY: 0.9, inside: 4.3 };
-/** feature rings: bigger, on the raised stage */
-export const FEATURE_RING = { platform: 6.7, canvasY: 1.2 + 0.9, inside: 6.1, stage: 1.2 };
+export const RING = { platform: 4.9, canvasY: 0.8, inside: 4.3 };
+/** feature rings: the assets ring kit's mid-size pro ring (rooms/fight/ring-kit-core RING: 6.9 m platform, 0.8 m deck,
+ *  9.8 m spectator-rail square) on the raised 1.2 m stage */
+export const FEATURE_RING = { platform: 6.9, canvasY: 1.2 + 0.8, inside: 5.9, stage: 1.2, rail: 4.9 };
 export const RING_PITCH = { x: 6.2, z: 6.4 };
 /** wall margin, main aisle width (m) */
 const MARGIN = 1.0;
@@ -79,9 +80,9 @@ export const BLOCK_COLS_X = {
 };
 /** the feature zone between the main aisles (|x| < FEATURE_ZONE_HW) */
 export const FEATURE_ZONE_HW = BLOCK_COLS_X.east[0]! - RING.platform / 2 - MAIN_AISLE;
-export const FEATURE_Z: Record<(typeof FEATURE_RINGS)[number], number> = { R1: 4.4, R2: -6.2 };
+export const FEATURE_Z: Record<(typeof FEATURE_RINGS)[number], number> = { R1: 4.6, R2: -5.4 };
 /** the raised feature stage under R1 and R2 (x half-width, z range) */
-export const FEATURE_STAGE = { hw: FEATURE_RING.platform / 2 + 0.6, z0: FEATURE_Z.R1 + FEATURE_RING.platform / 2 + 0.6, z1: FEATURE_Z.R2 - FEATURE_RING.platform / 2 - 0.6 };
+export const FEATURE_STAGE = { hw: FEATURE_RING.rail + 0.3, z0: FEATURE_Z.R1 + FEATURE_RING.rail + 0.3, z1: FEATURE_Z.R2 - FEATURE_RING.rail - 0.3 };
 /** the four-sided screen over the feature zone */
 export const BIG_SCREEN = { x: 0, z: (FEATURE_Z.R1 + FEATURE_Z.R2) / 2, y: 8.2, w: 5.2, h: 2.9 };
 
@@ -89,7 +90,7 @@ export interface RingPlace {
   id: RingId;
   x: number;
   z: number;
-  /** rotation about Y; at 0 the red corner is local (−x, +z) (south-west, towards the door), blue (+x, −z) */
+  /** rotation about Y; at 0 the red corner is local (−x, −z), blue (+x, +z) (the ring kit's convention) */
   rotY: number;
   feature: boolean;
   /** half the platform size and the canvas height */
@@ -118,12 +119,12 @@ export const RINGS: RingPlace[] = (() => {
 })();
 export const RING_BY_ID: Partial<Record<RingId, RingPlace>> = Object.fromEntries(RINGS.map((r) => [r.id, r]));
 
-/** corner points of a ring in hall coordinates (red: local −x,+z; blue: local +x,−z), at the platform corner */
+/** corner points of a ring in hall coordinates (red: local −x,−z; blue: local +x,+z), at the platform corner */
 export function cornerPoint(r: RingPlace, corner: "red" | "blue", out = 0) {
   const s = corner === "red" ? -1 : 1;
   const k = r.half + out;
   const lx = s * k;
-  const lz = -s * k;
+  const lz = s * k;
   const c = Math.cos(r.rotY);
   const sn = Math.sin(r.rotY);
   return { x: r.x + lx * c + lz * sn, z: r.z - lx * sn + lz * c };

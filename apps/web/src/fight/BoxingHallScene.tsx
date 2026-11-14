@@ -8,10 +8,13 @@ import { atlasPlane, labelAtlas, type LabelAtlas } from "@/world/label-atlas";
 import { blobTexture, concreteTexture, woodTexture } from "@/world/textures";
 import { isOnScreen, useArea } from "@/world/stage";
 import type { HallLayout } from "@/rooms/layouts";
-import { BoxingRingKit, STATUS_LAMP } from "./assets-shim";
+import { FeatureRingKit, STATUS_LAMP } from "./assets-shim";
+import { TrainingRings } from "./training-rings";
+import { FEATURE_RING } from "./plan";
 import { BIG_SCREEN, BOXING_DOOR, BOXING_SIZE, FEATURE_STAGE, RINGS } from "./plan";
 import { useRingKitRings, useRingStatuses } from "./rings";
 import { drawBigScreen } from "./screen";
+import { useFightBridge } from "./bridge";
 import { F } from "./strings";
 import { FightersLayer } from "./fighters";
 import { FightCamera } from "./camera";
@@ -33,12 +36,18 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
   }, [scene]);
   useEffect(() => startFightMock(), []);
   const rings = useRingKitRings();
+  const restKey = useFightBridge((st) => (st.watched?.snap?.phase === "rest" ? st.watched.ring : "") + (st.mine?.snap?.phase === "rest" ? st.mine.ring : ""));
+  const features = useMemo(
+    () => rings.filter((r) => r.feature).map((r) => ({ ...r, number: Number(r.id.slice(1)), rest: restKey.includes(r.id + "") && restKey.length > 0 })),
+    [rings, restKey],
+  );
   return (
     <group>
       <HallLights lite={lite} />
       <Shell layout={layout} lite={lite} />
       <FeatureStage />
-      <BoxingRingKit rings={rings} lite={lite} />
+      <TrainingRings rings={rings.filter((r) => !r.feature)} lite={lite} />
+      <FeatureRingKit rings={features} y={FEATURE_RING.stage} lite={lite} />
       <RingPanels />
       <PlatformShadows />
       <NumberBoxes />
