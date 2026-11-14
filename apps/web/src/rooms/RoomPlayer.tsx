@@ -15,6 +15,7 @@ import { useWalletSheet } from "@/wallet/WalletSheet";
 import { clearHandoff, peekHandoff } from "@/world/stage";
 import type { HallLayout, Seat } from "./layouts";
 import { freeChair, tableAt } from "./table-status";
+import { SEAT_BACK, seatProfileFor, type SeatProfile } from "@/world/human/seat-profiles";
 import { hallHooks, walkQueue, type HallHooks } from "./hall-hooks";
 
 const SIT_ANIM = 13;
@@ -27,7 +28,14 @@ type SitStage = { id: string; t: number; phase: "walk" | "turn" | "lower" | "sea
 type StandStage = { t: number; fx: number; fz: number; tx: number; tz: number; chair: string };
 const INTRO_S = 1.9;
 const keys = new Set<string>();
-const qa: { teleport: ((x: number, z: number, yaw: number) => void) | null; cam: { p: [number, number, number]; l: [number, number, number] } | null } = { teleport: null, cam: null };
+const qa: {
+  teleport: ((x: number, z: number, yaw: number) => void) | null;
+  cam: { p: [number, number, number]; l: [number, number, number] } | null;
+  layout?: HallLayout;
+  sit?: (id: string) => void;
+  /** local-only seat (no server claim): office chairs for the seating screenshot review */
+  forceSeat?: (id: string) => void;
+} = { teleport: null, cam: null };
 onReleaseInput(() => keys.clear());
 
 /**
@@ -75,12 +83,15 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       intro.current = 0;
       insideOnce.current = true;
     };
+    qa.layout = layout;
+    qa.sit = sitDown;
+    qa.forceSeat = (id: string) => useRoom.getState().set({ seated: id, nearSeat: null });
     (window as unknown as { __gkRoomQA: typeof qa }).__gkRoomQA = qa;
     return () => {
       qa.teleport = null;
       qa.cam = null;
     };
-  }, []);
+  }, [layout]);
   // you just walked through the open door: it is open on the very first frame (whatever order the door sensor and
   // this controller run in, the wall clamp would otherwise snap you 0.2 m inwards)
   useLayoutEffect(() => {
@@ -128,6 +139,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   /** progress watchdog: if the walk out makes no headway for 3 s (someone blocking the aisle), the fail-safe fires early */
   const leaveProgress = useRef({ best: Infinity, at: 0 });
   const sitStage = useRef<SitStage | null>(null);
+  /** the chair you sit on: fits your seated pose to it (same profile everyone else sees you with) */
+  const seatProf = useRef<SeatProfile | null>(null);
   const standStage = useRef<StandStage | null>(null);
   /** after standing up, the chair you left is not offered again until you have moved away or 1.5 s passed */
   const leftChair = useRef<{ id: string; x: number; z: number; at: number } | null>(null);
@@ -406,6 +419,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     } else if (pick.req) planPick(pick.req);
     else if (pick.table) followPick();
     const seat = R.seated ? layout.seats.find((s) => s.id === R.seated) : undefined;
+    seatProf.current = seat ? seatProfileFor(layout.game, seat.id) : null;
     const frozen = !!hooks?.frozen?.();
     if (frozen) {
       // a full-screen window has the keyboard (the office computer): no walking, no standing up, until it closes
@@ -455,8 +469,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     const stand = standStage.current;
     if (seat) {
       // staged sit (≈1.3 s): to the stand point in front of the chair, turn to the table, lower onto the seat
-      const seatX = seat.x - Math.sin(seat.yaw) * 0.08;
-      const seatZ = seat.z - Math.cos(seat.yaw) * 0.08;
+      const seatX = seat.x - Math.sin(seat.yaw) * SEAT_BACK;
+      const seatZ = seat.z - Math.cos(seat.yaw) * SEAT_BACK;
       const standX = seat.x + Math.sin(seat.yaw) * (chairR + 0.13);
       const standZ = seat.z + Math.cos(seat.yaw) * (chairR + 0.13);
       let st = sitStage.current;
@@ -842,7 +856,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     <>
     <TargetMarker />
     <group ref={group}>
-      <Avatar look={look} name={profile.name} level={1} animRef={anim} shadows={tier !== "lite"} showTag={false} self holdWallet={walletOpen} />
+      <Avatar look={look} name={profile.name} level={1} animRef={anim} shadows={tier !== "lite"} showTag={false} self holdWallet={walletOpen} seatRef={seatProf} />
     </group>
     </>
   );

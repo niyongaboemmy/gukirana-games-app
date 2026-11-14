@@ -1,8 +1,10 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PLAZA_BENCH_CLUSTERS, PLAZA_BENCHES, PLAZA_SEATS } from "@gukirana/contracts";
 import { BENCHES, BENCH_CLUSTER_RADIUS, MID_ANGLES, PLAZA_RADIUS } from "@/world/layout";
 import { selfPose, useWorld, type RemotePlayer } from "@/lib/world-store";
-import { ghostOf, ghosts, pushPose, renderPose, stepGhosts, stepMotion, tracks } from "./motion";
+import { BOWL_SEATS } from "@/arena/bowl";
+import { SEAT_BACK } from "@/world/human/seat-profiles";
+import { anonymousSeat, ghostOf, ghosts, pushPose, renderPose, setHallSeats, stepGhosts, stepMotion, tracks } from "./motion";
 
 const player = (id: string, x = 0, z = 0): RemotePlayer => ({ id, name: id, color: "#3DA9FC", level: 1, x, z, yaw: 0, anim: 0 });
 
@@ -156,5 +158,42 @@ describe("remote motion", () => {
     const a = renderPose("a")!;
     const b = renderPose("b")!;
     expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeGreaterThan(0.5);
+  });
+});
+
+describe("arena bowl seats (the server lists them as taken, without names)", () => {
+  const A = BOWL_SEATS.find((s) => s.id === "B-3-5")!;
+  const B = BOWL_SEATS.find((s) => s.id === "B-3-6")!;
+  const origin = (s: { x: number; z: number; yaw: number }) => ({ x: s.x - Math.sin(s.yaw) * SEAT_BACK, z: s.z - Math.cos(s.yaw) * SEAT_BACK });
+  beforeEach(() => setHallSeats(BOWL_SEATS));
+  afterEach(() => setHallSeats([]));
+
+  it("someone sitting (anim 13) at a taken seat renders seated on it, with its id (seat fit), not standing in the row", () => {
+    const o = origin(A);
+    useWorld.setState({ players: { a: player("a") }, seats: { [A.id]: "taken", [B.id]: "taken" } });
+    pushPose("a", Math.round(o.x * 100), Math.round(o.z * 100), 0, 13, 1000);
+    for (let t = 0; t < 40; t++) stepMotion(0.05, 1000 + t * 50);
+    const p = renderPose("a")!;
+    expect(p.seated).toBe(true);
+    expect(p.anim).toBe(13);
+    expect(p.seatId).toBe(A.id);
+    expect(p.x).toBeCloseTo(o.x, 1);
+    expect(p.z).toBeCloseTo(o.z, 1);
+    expect(p.yaw).toBeCloseTo(A.yaw, 2);
+  });
+
+  it("standing next to a taken seat, or claiming to sit where no seat is taken, is not seated", () => {
+    const o = origin(A);
+    const ob = origin(B);
+    useWorld.setState({ players: { a: player("a"), b: player("b") }, seats: { [B.id]: "taken" } });
+    pushPose("a", Math.round(o.x * 100), Math.round(o.z * 100), 0, 13, 1000); // A is not taken
+    pushPose("b", Math.round(ob.x * 100), Math.round(ob.z * 100), 0, 0, 1000); // at B, but standing
+    for (let t = 0; t < 10; t++) stepMotion(0.05, 1000 + t * 50);
+    expect(renderPose("a")!.seated).toBe(false);
+    expect(renderPose("a")!.anim).toBe(0);
+    expect(renderPose("b")!.seated).toBe(false);
+    // the matched seat is the nearest taken one within reach
+    expect(anonymousSeat({ anim: 13, seatId: null }, ob.x + 0.1, ob.z, { [B.id]: "taken" })).toBe(B.id);
+    expect(anonymousSeat({ anim: 13, seatId: null }, ob.x + 1.5, ob.z, { [B.id]: "taken" })).toBeUndefined();
   });
 });

@@ -36,6 +36,7 @@ import { autoFollow, nav, onReleaseInput, pointerNav, steer, TargetMarker } from
 import { useVoice } from "@/voice/voice";
 import { useWalletSheet } from "@/wallet/WalletSheet";
 import { applyBenchSeat, benchBusy } from "@/social/bench";
+import { SEAT_PROFILES, type SeatProfile } from "./human/seat-profiles";
 import { applyPeople, lookTarget as personLook, nearSpot, people, SPOTS } from "@/social/people";
 import { useSocial } from "@/social/social-store";
 import { HUMAN_MODELS } from "./human/meta";
@@ -140,6 +141,8 @@ export function LocalPlayer({
   const lookAt = useRef<THREE.Vector3 | null>(null);
   const social = useRef({ listening: false, company: false });
   const seatCam = useRef(0);
+  /** the plaza bench you sit on (seat fit: feet planted on the paving) */
+  const seatProf = useRef<SeatProfile | null>(null);
   const spotScan = useRef(0);
   const you = useWorld((s) => s.you);
   const animSet = HUMAN_MODELS[look.bodyType]?.anim ?? "m";
@@ -318,6 +321,7 @@ export function LocalPlayer({
 
     // plaza benches: seated / sitting down / standing up overrides the pose (social/bench.ts)
     const onBench = applyBenchSeat(pos.current, facing, anim, animSet, dt);
+    seatProf.current = onBench ? SEAT_PROFILES.bench : null;
     // person-level behaviour: gestures turn to their target, contact actions, leaning / coffee, social facing
     if (!onBench && !inXR) applyPeople(pos.current, facing, anim, dt, manual.current, still.current);
 
@@ -383,6 +387,12 @@ export function LocalPlayer({
       camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * (d < L + 0.01 ? 14 : 8)));
       // aim only a little right of the head: the camera's own sideways offset then puts you left of centre
       camera.lookAt(pos.current.x + rx * 0.25, aimY, pos.current.z + rz * 0.25);
+    }
+    // dev QA: a fixed camera pose for screenshots (like rooms/RoomPlayer's __gkRoomQA.cam)
+    const qaCam = process.env.NODE_ENV !== "production" ? (window as unknown as { __gkPlazaCam?: { p: [number, number, number]; l: [number, number, number] } | null }).__gkPlazaCam : null;
+    if (qaCam) {
+      camera.position.set(...qaCam.p);
+      camera.lookAt(...qaCam.l);
     }
 
     // proximity: portals and players
@@ -470,6 +480,7 @@ export function LocalPlayer({
           rootMotion="clip"
           socialRef={social}
           footsteps
+          seatRef={seatProf}
         />
       </group>
     </>

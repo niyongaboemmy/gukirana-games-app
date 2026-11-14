@@ -13,6 +13,7 @@ import { selfPose, useWorld } from "@/lib/world-store";
 import { useVoice } from "@/voice/voice";
 import { ghosts, renderPose, setHallSeats, stepGhosts, stepMotion, tracks } from "./motion";
 import { SEATED_WORD } from "./actions";
+import { seatProfileFor, type SeatProfile } from "@/world/human/seat-profiles";
 import { hallLife } from "./people";
 import { useSocial } from "./social-store";
 
@@ -161,7 +162,7 @@ function TalkRing({ id }: { id: string }) {
   );
 }
 
-function RemoteAvatar({ id, tier, hall }: { id: string; tier: Tier; hall: boolean }) {
+function RemoteAvatar({ id, tier, hall, seatArea }: { id: string; tier: Tier; hall: boolean; seatArea?: string }) {
   const live = useWorld(
     useShallow((s) => {
       const p = s.players[id];
@@ -192,6 +193,8 @@ function RemoteAvatar({ id, tier, hall }: { id: string; tier: Tier; hall: boolea
   const seed = useMemo(() => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7), [id]);
   const glance = useRef({ next: 0, until: 0, at: "" });
   const bubbleLift = useRef<THREE.Group>(null);
+  /** the seat they sit on: same seat fit as their own view of themselves (world/human/seat-profiles) */
+  const seatProf = useRef<SeatProfile | null>(null);
   // seated people can't play the standing emote clips: show a short label instead ("waves")
   const [seatedEmote, setSeatedEmote] = useState("");
 
@@ -214,6 +217,7 @@ function RemoteAvatar({ id, tier, hall }: { id: string; tier: Tier; hall: boolea
     group.current.position.set(pose.x, remoteGround.fn?.(pose.x, pose.z) ?? 0, pose.z);
     group.current.rotation.y = pose.yaw;
     anim.current = pose.anim;
+    seatProf.current = pose.seated ? seatProfileFor(seatArea, pose.seatId) : null;
     fade.current = fadeOf(id);
     if (bubbleLift.current) bubbleLift.current.position.y += ((pose.seated ? -0.72 : 0) - bubbleLift.current.position.y) * 0.12;
     const t = tracks.get(id);
@@ -295,6 +299,7 @@ function RemoteAvatar({ id, tier, hall }: { id: string; tier: Tier; hall: boolea
         socialRef={social}
         fadeRef={fade}
         footsteps
+        seatRef={seatProf}
       />
       <TalkRing id={id} />
       <group ref={bubbleLift}>
@@ -339,9 +344,23 @@ function hallTables(seats: readonly SeatPose[]) {
 
 /**
  * Everyone else in the room (plaza and halls). Pass `hallSeats` inside a hall so seated people render exactly on
- * their chair; plaza bench places come from @gukirana/contracts.
+ * their chair (and `seatArea`, the hall game, so they fit it like the person sees themselves); plaza bench places
+ * come from @gukirana/contracts. `lifeTables` = the seats are game-table chairs (people stop by busy tables): not
+ * for the arena's bowl seats.
  */
-export function RemotePlayers({ tier = "standard", hallSeats, ground }: { tier?: Tier; hallSeats?: readonly SeatPose[]; ground?: (x: number, z: number) => number }) {
+export function RemotePlayers({
+  tier = "standard",
+  hallSeats,
+  seatArea,
+  lifeTables = true,
+  ground,
+}: {
+  tier?: Tier;
+  hallSeats?: readonly SeatPose[];
+  seatArea?: string;
+  lifeTables?: boolean;
+  ground?: (x: number, z: number) => number;
+}) {
   useEffect(() => {
     remoteGround.fn = ground ?? null;
     return () => void (remoteGround.fn = null);
@@ -360,7 +379,7 @@ export function RemotePlayers({ tier = "standard", hallSeats, ground }: { tier?:
     stepGhosts(Math.min(dt, 0.1));
     const gk = [...ghosts.keys()].join(",");
     if (gk !== ghostKey) setGhostKey(gk); // only when someone starts / finishes leaving
-    if (hallSeats) hallLife(hallTables(hallSeats));
+    if (hallSeats && lifeTables) hallLife(hallTables(hallSeats));
     budget.current += dt;
     if (budget.current < 0.5) return;
     budget.current = 0;
@@ -376,7 +395,7 @@ export function RemotePlayers({ tier = "standard", hallSeats, ground }: { tier?:
       {[...new Set([...ids.split(","), ...ghosts.keys()])]
         .filter(Boolean)
         .map((id) => (
-          <RemoteAvatar key={id} id={id} tier={tier} hall={!!hallSeats} />
+          <RemoteAvatar key={id} id={id} tier={tier} hall={!!hallSeats} seatArea={seatArea} />
         ))}
     </>
   );

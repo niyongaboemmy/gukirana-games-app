@@ -1,6 +1,7 @@
 "use client";
 import { isContactAction, PLAZA_SEATS, type SeatPose } from "@gukirana/contracts";
 import { selfPose, useWorld } from "@/lib/world-store";
+import { SEAT_BACK } from "@/world/human/seat-profiles";
 
 /**
  * Remote people's motion (P1-WLD-02): snapshot interpolation with a small adaptive delay, short extrapolation,
@@ -27,6 +28,8 @@ export interface Track {
   ox: number;
   oz: number;
   seated: boolean;
+  /** the seat they sit on (server seat map), for the seat fit (world/human/seat-profiles) */
+  seatId: string | null;
   /** seated blend 0..1 (walk up to the seat, then sit) */
   sit: number;
   emote: { id: number; until: number } | null;
@@ -82,7 +85,7 @@ export function trackOf(id: string): Track {
     const x = (p?.x ?? 0) / 100;
     const z = (p?.z ?? 0) / 100;
     const yaw = yawOf(p?.yaw ?? 0);
-    t = { snaps: [], anim: p?.anim ?? 0, interval: 100, last: 0, x, z, yaw, ox: 0, oz: 0, seated: false, sit: 0, emote: null, dist: 99, fade: 0, direct: 0 };
+    t = { snaps: [], anim: p?.anim ?? 0, interval: 100, last: 0, x, z, yaw, ox: 0, oz: 0, seated: false, seatId: null, sit: 0, emote: null, dist: 99, fade: 0, direct: 0 };
     tracks.set(id, t);
   }
   return t;
@@ -167,16 +170,43 @@ function sample(t: Track, now: number): { x: number; z: number; yaw: number } {
   return { x: b.x + ((b.x - a.x) / dt) * over, z: b.z + ((b.z - a.z) / dt) * over, yaw: b.yaw };
 }
 
-/** Seat transform for a seat id: plaza benches (shared list) or the current hall's chairs. */
-let hallSeats: readonly SeatPose[] = [];
+/** Seat transform for a seat id: plaza benches (shared list) or the current hall's chairs (arena: its bowl seats). */
+let hallSeats = new Map<string, SeatPose>();
 export function setHallSeats(seats: readonly SeatPose[]): void {
-  hallSeats = seats;
+  hallSeats = new Map(seats.map((s) => [s.id, s]));
 }
-const HALL_SEAT_BACK = 0.08; // same as the local controller: sit slightly back on the chair
 export function seatPose(id: string): SeatPose | undefined {
-  if (id.startsWith("b")) return PLAZA_SEATS.find((s) => s.id === id);
-  const s = hallSeats.find((h) => h.id === id);
-  return s && { id: s.id, x: s.x - Math.sin(s.yaw) * HALL_SEAT_BACK, z: s.z - Math.cos(s.yaw) * HALL_SEAT_BACK, yaw: s.yaw };
+  if (id.startsWith("b") && !hallSeats.has(id)) return PLAZA_SEATS.find((s) => s.id === id);
+  const s = hallSeats.get(id);
+  // same as the local controller: the seated origin sits slightly back on the chair
+  return s && { id: s.id, x: s.x - Math.sin(s.yaw) * SEAT_BACK, z: s.z - Math.cos(s.yaw) * SEAT_BACK, yaw: s.yaw };
+}
+
+/** Seats the server lists without naming who sits there (the arena bowl: holder "taken"). */
+export const ANONYMOUS_HOLDER = "taken";
+const SEAT_MATCH_R = 0.45;
+/**
+ * A person who reports sitting (anim 13) at one of those taken seats sits on it (P2-AVA-06): without this, everyone
+ * else seated in the arena rendered standing up inside the seat rows. Their own seat stays matched while it is still
+ * taken and they are still at it; otherwise the nearest taken seat within reach (only the few taken ones are scanned).
+ */
+export function anonymousSeat(t: Pick<Track, "anim" | "seatId">, x: number, z: number, seats: Record<string, string>): string | undefined {
+  if (t.anim !== 13) return undefined;
+  const at = (sid: string) => {
+    const s = seats[sid] === ANONYMOUS_HOLDER ? hallSeats.get(sid) : undefined;
+    return s ? Math.hypot(s.x - Math.sin(s.yaw) * SEAT_BACK - x, s.z - Math.cos(s.yaw) * SEAT_BACK - z) : Infinity;
+  };
+  if (t.seatId && at(t.seatId) < SEAT_MATCH_R) return t.seatId;
+  let best: string | undefined;
+  let bd = SEAT_MATCH_R;
+  for (const sid in seats) {
+    const d = at(sid);
+    if (d < bd) {
+      bd = d;
+      best = sid;
+    }
+  }
+  return best;
 }
 
 /**
@@ -191,12 +221,13 @@ export function stepMotion(dt: number, now = performance.now()): void {
   for (const id of Object.keys(w.players)) {
     const t = trackOf(id);
     const raw = sample(t, now);
-    const seatId = seatOf.get(id);
+    const seatId = seatOf.get(id) ?? anonymousSeat(t, raw.x, raw.z, w.seats);
     const pose = seatId ? seatPose(seatId) : undefined;
     const bench = !!seatId && seatId.startsWith("b");
     // just stood up from a bench: follow their own staged stand-up exactly for a moment (no interpolation glide)
     if (t.seated && !pose && t.snaps.length) t.direct = now + 1600;
     t.seated = !!pose;
+    t.seatId = pose ? seatId! : null;
     t.sit += ((pose ? 1 : 0) - t.sit) * Math.min(1, dt * 6);
     t.fade = Math.min(1, t.fade + dt / FADE_IN_S);
     if (pose) {
@@ -278,11 +309,11 @@ export function stepGhosts(dt: number, now = performance.now()): void {
 }
 
 /** Rendered pose (with separation) for an avatar group. */
-export function renderPose(id: string): { x: number; z: number; yaw: number; anim: number; seated: boolean } | null {
+export function renderPose(id: string): { x: number; z: number; yaw: number; anim: number; seated: boolean; seatId: string | null } | null {
   const t = tracks.get(id);
   if (!t) return null;
   const emote = t.emote && t.emote.until > Date.now() ? t.emote.id : 0;
   // seated comes from the server's seat map (authoritative); emotes from the sender's pose or the emote event
   const anim = t.seated ? 13 : t.anim === 13 ? 0 : t.anim >= 10 ? t.anim : emote && t.anim === 0 ? emote : t.anim;
-  return { x: t.x + t.ox, z: t.z + t.oz, yaw: t.yaw, anim, seated: t.seated };
+  return { x: t.x + t.ox, z: t.z + t.oz, yaw: t.yaw, anim, seated: t.seated, seatId: t.seatId };
 }

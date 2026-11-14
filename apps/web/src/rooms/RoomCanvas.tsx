@@ -8,8 +8,6 @@ import { leaveHall } from "@/world/stage";
 import type { HallLayout } from "./layouts";
 import { hallHooks } from "./hall-hooks";
 
-const NO_SEATS: never[] = [];
-
 /**
  * A hall inside the persistent stage (world/SceneCanvas). The interior (`HallInterior`) is mounted while the hall
  * is on screen OR warm (you walked up to its door), so it is compiled and uploaded before you step through; the
@@ -24,8 +22,9 @@ export function HallActors({ layout, tier }: { layout: HallLayout; tier: "lite" 
     <Suspense fallback={null}>
       {/* walking out through the door continues as the plaza step-out (world/stage.ts leaveHall) */}
       <RoomPlayer layout={layout} onExit={leaveHall} tier={tier} />
-      {/* halls on several levels (arena bowl): people stand on the rake; its 1,224 bowl seats are not hall tables */}
-      <RemotePlayers tier={tier} hallSeats={hallHooks[layout.game]?.ground ? NO_SEATS : layout.seats} ground={hallHooks[layout.game]?.ground} />
+      {/* seated people snap to their seat and fit it (seat profile per hall); halls on several levels (arena bowl):
+          people stand on the rake, and its 1,224 bowl seats are not game tables (no spectator "watch" life) */}
+      <RemotePlayers tier={tier} hallSeats={layout.seats} seatArea={layout.game} lifeTables={!hallHooks[layout.game]?.ground} ground={hallHooks[layout.game]?.ground} />
       <SocialLayer />
     </Suspense>
   );

@@ -113,7 +113,7 @@ export class HumanAnimator {
   private idleChoice: IdleChoice | null = null;
   private steps: FootStep[] = [];
   /** per-frame outputs for the avatar layer (props, procedural layers) */
-  readonly out = { phone: 0, cup: 0, seated: false, moveW: 0, sit: "none" as SitState, fidget: "" as string };
+  readonly out = { phone: 0, cup: 0, seated: false, moveW: 0, sit: "none" as SitState, fidget: "" as string, sitW: 0 };
 
   constructor(root: THREE.Object3D, clips: Map<ClipKey, THREE.AnimationClip>, set: "m" | "f", seed = 1) {
     this.root = root;
@@ -344,11 +344,19 @@ export class HumanAnimator {
     this.out.cup = w("drink");
     this.out.seated = seated;
     this.out.sit = this.sit;
+    // seated blend for the seat fit layer: follows the body down onto the seat / up off it (no pop at either end)
+    this.out.sitW = this.sit === "sit" ? 1 : this.sit === "down" ? this.prog("sitdown", T.down) : this.sit === "up" ? 1 - this.prog("standup", T.up) : 0;
     this.out.moveW = this.moveW;
     this.out.fidget = fidget?.clip ?? "";
   }
 
   private lastLw: [ClipKey, number][] | null = null;
+
+  /** eased progress (0…1) of a sit-down / stand-up transition between its trimmed start and its end */
+  private prog(k: "sitdown" | "standup", tm: { offset: number; done: number }) {
+    const x = THREE.MathUtils.clamp((this.time(k) - tm.offset) / Math.max(1e-3, tm.done - tm.offset), 0, 1);
+    return x * x * (3 - 2 * x);
+  }
 
   private time(k: ClipKey) {
     return this.actions.get(k)?.time ?? 0;

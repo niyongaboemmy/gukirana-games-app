@@ -13,6 +13,8 @@ import { clipsFor, HumanAnimator } from "./human/animator";
 import { aimBone, ProceduralLayer, type ArmBones } from "./human/procedural";
 import { footstep } from "./human/footsteps";
 import { seedOf } from "./human/life";
+import { SeatFit } from "./human/seat-fit";
+import type { SeatProfile } from "./human/seat-profiles";
 import { useVoice } from "@/voice/voice";
 import { useDeferredReady } from "./deferred";
 
@@ -63,6 +65,11 @@ export interface AvatarProps {
   fadeRef?: React.RefObject<number>;
   /** Play footstep sounds from the foot plants. */
   footsteps?: boolean;
+  /**
+   * The seat this person sits on (world/human/seat-profiles): fits the seated pose to it — buttocks on the cushion,
+   * feet planted, legs clear of the seat front / the row in front. null / absent = the mocap's 0.46 m bench.
+   */
+  seatRef?: React.RefObject<SeatProfile | null>;
 }
 
 const FONT = "/fonts/Baloo2.ttf";
@@ -159,7 +166,13 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
   const pelvis = bone("Bip01_Pelvis");
   const handL = bone("Bip01_L_Hand");
   let extras: THREE.Object3D[] = [];
-  if (head && pelvis && handL) extras = buildAttachments(look, { head: neutralFrame(head, root), pelvis: neutralFrame(pelvis, root), wristL: handL }, shadows);
+  // the body's skinned mesh (the one whose skeleton has the legs; eyes / lashes are skinned to the head only)
+  let body: THREE.SkinnedMesh | undefined;
+  root.traverse((o) => {
+    const m = o as THREE.SkinnedMesh;
+    if (!body && m.isSkinnedMesh && o.parent?.name !== "lod1" && m.skeleton.bones.some((b) => b.name === "Bip01_L_Calf")) body = m;
+  });
+  if (head && pelvis && handL) extras = buildAttachments(look, { head: neutralFrame(head, root), pelvis: neutralFrame(pelvis, root), wristL: handL, body }, shadows);
   const arms: ArmBones[] = [];
   for (const [k, side] of [
     ["R", 1],
@@ -298,7 +311,9 @@ function HumanBody({
   socialRef,
   fadeRef,
   footsteps,
+  seatRef,
 }: {
+  seatRef?: React.RefObject<SeatProfile | null>;
   holdPhone?: boolean;
   /** Hold your open wallet (the wallet sheet is open): same arm pose as the phone, a leather bifold in the hand. */
   holdWallet?: boolean;
@@ -326,6 +341,10 @@ function HumanBody({
   const inst = useMemo(() => buildInstance(model.scene, look, meta, shadows, keepClothes), [model.scene, key, meta, shadows, keepClothes]);
   const animator = useMemo(() => new HumanAnimator(inst.root, clipsFor(meta.anim, anims.animations, meta.hipY), meta.anim, seed), [inst, anims.animations, meta, seed]);
   const proc = useMemo(() => new ProceduralLayer({ root: inst.root, arms: inst.arms, spine: inst.spine, head: inst.head }), [inst]);
+  // (built before the first mixer update: it measures the standing foot heights in the bind pose)
+  const fit = useMemo(() => new SeatFit(inst.root, (n) => (inst.root.getObjectByName(n) as THREE.Bone | undefined) ?? null, inst.spine, inst.head), [inst]);
+  /** the seat being sat on / stood up from (kept through the stand-up after the seat itself is released) */
+  const seatLatch = useRef<SeatProfile | null>(null);
   useEffect(() => {
     animator.start();
     return () => {
@@ -431,6 +450,11 @@ function HumanBody({
       company: social?.company,
       rootMotion,
     });
+    // fit the seated pose to the actual seat (P2-AVA-06): on the cushion, feet planted, clear of seat fronts / rows
+    const seatNow = seatRef?.current ?? null;
+    if (seatNow) seatLatch.current = seatNow;
+    else if (animator.out.sit === "none") seatLatch.current = null;
+    fit.apply(animator.out.seated ? seatLatch.current : null, animator.out.sitW, dist < 30);
     // procedural hands (handshake, fist bump, hug, thumbs-up, pointing, chalk): close people only
     if (dist < 25) proc.update(step, anim);
 
@@ -609,6 +633,7 @@ export function Avatar({
   socialRef,
   fadeRef,
   footsteps = false,
+  seatRef,
 }: AvatarProps) {
   const blob = useMemo(() => blobTexture(), []);
   const talkingRef = useRef(false);
@@ -663,6 +688,7 @@ export function Avatar({
           socialRef={socialRef}
           fadeRef={fadeRef}
           footsteps={footsteps}
+          seatRef={seatRef}
         />
       </Suspense>
       <group ref={tags}>
