@@ -75,7 +75,7 @@ export class ConsoleController {
     const bid = parse(BuildingIdSchema, id);
     const b = parse(SetBuildingSchema, body);
     const r = await this.buildings.set(bid, b.open, b.message, who);
-    await this.access.record(who, b.open ? "building.open" : "building.close", bid, b.open ? null : b.message || null);
+    await this.access.record(who, b.open ? "building.open" : "building.close", `building:${bid}`, b.open ? null : b.message || null);
     return r;
   }
 

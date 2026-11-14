@@ -1,11 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Ban, Footprints, Gift, LogOut, Mic, MicOff, Palette, Shirt, Sparkles, Star, Trophy, UserRound, Vibrate, Volume2, VolumeX, type LucideIcon } from "lucide-react";
+import { Ban, Footprints, Gift, LogOut, Mic, MicOff, MonitorSmartphone, Palette, Shirt, Sparkles, Star, Trophy, UserRound, Vibrate, Volume2, VolumeX, type LucideIcon } from "lucide-react";
 import { PaperCard } from "@/ui/PaperCard";
+import { STAFF_ROLES } from "@gukirana/contracts";
+import { openConsole } from "@/console/console-store";
 import { setPaperTheme, usePaperTheme } from "@/ui/paper-theme";
 import { useGamePrefs } from "@/games/feedback";
-import { claimDailyStars, logout, useSession } from "@/lib/session";
+import { api, claimDailyStars, logout, useSession } from "@/lib/session";
 import { totalXpForLevel, useProfile } from "@/lib/profile-store";
 import { useWorld } from "@/lib/world-store";
 import { disableVoice, enableVoice, useVoice } from "@/voice/voice";
@@ -36,6 +38,13 @@ export function SettingsModal({ onClose, onEditAvatar }: { onClose: () => void; 
   const [daily, setDaily] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [shown, setShown] = useState(false);
+  // staff see a shortcut to the admin console (roles checked again by the server)
+  const [staff, setStaff] = useState(false);
+  useEffect(() => {
+    void api<{ roles: string[] }>("/me/roles")
+      .then((r) => setStaff(r.roles.some((x) => (STAFF_ROLES as readonly string[]).includes(x))))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setShown(true));
@@ -168,6 +177,19 @@ export function SettingsModal({ onClose, onEditAvatar }: { onClose: () => void; 
                 ))}
               </div>
             </>
+          )}
+
+          {staff && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                openConsole({ office: null });
+              }}
+              className="pbtn pbtn-primary mt-4 w-full"
+            >
+              <MonitorSmartphone size={18} /> Staff console
+            </button>
           )}
 
           {/* actions */}

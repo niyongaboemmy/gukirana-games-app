@@ -7,6 +7,7 @@ import { RotateGuard } from "@/hud/RotateGuard";
 import { MatchmakingPanel } from "@/match/MatchmakingPanel";
 import { RoomOverlay } from "@/rooms/RoomOverlay";
 import { AdminBlockOverlay } from "@/admin-block/AdminBlockOverlay";
+import { ConsoleLauncher } from "@/console/ConsoleLauncher";
 import { HALLS, isHallGame } from "@/rooms/layouts";
 import { useRoom } from "@/rooms/room-store";
 import { levelForXp, useProfile } from "@/lib/profile-store";
@@ -47,6 +48,7 @@ export default function RoomPage() {
       <MatchmakingPanel />
       <WorldControls />
       {game === "admin" ? <AdminBlockOverlay layout={layout} /> : <RoomOverlay layout={layout} />}
+      {game === "admin" && <ConsoleLauncher />}
       <RotateGuard />
     </div>
   );

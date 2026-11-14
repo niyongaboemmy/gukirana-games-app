@@ -16,6 +16,7 @@ import { GAME_COLORS, LED_BOOST, worldMaterials, type Tier } from "./materials";
 import { arenaScreenTexture, posterTexture } from "./textures";
 import { FountainWater } from "./Fountain";
 import { DoorBadge, Vestibule } from "./Vestibule";
+import { closedFor, useBuildings, watchBuildings } from "./buildings";
 
 const FONT = "/fonts/Baloo2.ttf";
 
@@ -67,6 +68,8 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
   const { x, z, rotY } = portalTransform(def);
   const ring = useRef<THREE.MeshBasicMaterial>(null);
   const soon = def.kind === "soon";
+  // closed by staff (admin console): the doors stay shut for players
+  const closed = useBuildings((s) => closedFor(def.id, s) !== null);
   const inset = doorInset(def.kind);
   const ledColor = useMemo(() => new THREE.Color(def.color).multiplyScalar(LED_BOOST[tier]), [def.color, tier]);
   const hoarding = worldMaterials(tier)["hoarding"];
@@ -89,7 +92,7 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
         <Vestibule def={def} inset={inset} tier={tier} />
       )}
       {badge && <DoorBadge def={def} y={badge[0]} z={badge[1]} />}
-      {!soon && <AutoDoors def={def} inset={inset} tier={tier} locked={!def.href} />}
+      {!soon && <AutoDoors def={def} inset={inset} tier={tier} locked={!def.href || closed} />}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, DOOR_RING - (DOOR_RING - 2.4) + 0.2]}>
         <ringGeometry args={[0.85, 1.1, 48]} />
         <meshBasicMaterial ref={ring} color={ledColor} transparent opacity={0.5} toneMapped={false} depthWrite={false} />
@@ -513,6 +516,7 @@ function ServiceSign() {
 }
 
 export function Plaza({ nearPortal, tier = "standard" }: { nearPortal: string | null; tier?: Tier }) {
+  useEffect(() => watchBuildings(), []);
   return (
     <group>
       <Lighting tier={tier} />

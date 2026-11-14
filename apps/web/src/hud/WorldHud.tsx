@@ -1,4 +1,5 @@
 "use client";
+import { closedFor, useBuildings } from "@/world/buildings";
 import { useWalletSheet, WalletSheet } from "@/wallet/WalletSheet";
 import { PlayReminder } from "@/wallet/WalletExtras";
 import dynamic from "next/dynamic";
@@ -10,7 +11,7 @@ import { nav } from "@/world/navigation";
 import { useWorld } from "@/lib/world-store";
 import { levelForXp, totalXpForLevel, useProfile } from "@/lib/profile-store";
 import { xrStore } from "@/world/xr-store";
-import { Armchair, DoorOpen, Ellipsis, Glasses, Hand, Loader2, MessageCircle, Settings, Shirt, Smile, Star, UserRound, Users, Zap, type LucideIcon } from "lucide-react";
+import { Armchair, DoorClosed, DoorOpen, Ellipsis, Glasses, Hand, Loader2, MessageCircle, Settings, Shirt, Smile, Star, UserRound, Users, Zap, type LucideIcon } from "lucide-react";
 // modals load on first open (not on the critical path of the first frame)
 const AvatarCreator = dynamic(() => import("@/components/AvatarCreator").then((m) => m.AvatarCreator), { ssr: false });
 const SettingsModal = dynamic(() => import("@/components/SettingsModal").then((m) => m.SettingsModal), { ssr: false });
@@ -84,6 +85,8 @@ export function WorldHud() {
   const authed = useSession((s) => s.status === "authenticated");
   const quickWaiting = useMatch((s) => s.quick.status === "waiting");
   const portal = PORTALS.find((p) => p.id === nearPortal);
+  // a building closed by staff: the door stays shut, the prompt shows why
+  const closedMsg = useBuildings((s) => closedFor(portal?.id, s));
   useGlassTier();
   const setChatOpen = (v: boolean | ((o: boolean) => boolean)) => useSocial.setState((s) => ({ chatOpen: typeof v === "function" ? v(s.chatOpen) : v }));
 
@@ -93,8 +96,9 @@ export function WorldHud() {
 
   // E / the big button: door → bench place (stand up when seated) → the person in front of you (person menu)
   // the context action the main button will perform (shown above it, like a game's action prompt)
-  const actionLabel = portal?.href ? "Enter" : seatedOnBench ? "Stand" : benchSeat ? "Sit" : other ? "Talk" : null;
+  const actionLabel = portal?.href && closedMsg === null ? "Enter" : seatedOnBench ? "Stand" : benchSeat ? "Sit" : other ? "Talk" : null;
   const interact = () => {
+    if (portal?.href && closedMsg !== null) return;
     if (portal?.href) {
       // walk on in through the real door: crossing its line hands you to the (pre-warmed) hall mid-stride,
       // exactly like walking in by hand (world/stage.ts enterHall)
@@ -232,7 +236,11 @@ export function WorldHud() {
           <button type="button" onClick={interact} className={PROMPT_BTN}>
             <KeyHint />
             {portal ? (
-              portal.href ? `Enter ${portal.label}` : `${portal.label} · ${portal.sub}`
+              portal.href && closedMsg !== null ? (
+                <>
+                  <DoorClosed size={20} /> {portal.label} is closed{closedMsg ? ` · ${closedMsg}` : ""}
+                </>
+              ) : portal.href ? `Enter ${portal.label}` : `${portal.label} · ${portal.sub}`
             ) : seatedOnBench ? (
               "Stand up"
             ) : benchSeat ? (

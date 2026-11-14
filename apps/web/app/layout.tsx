@@ -5,6 +5,7 @@ import "./paper.css";
 import { PAPER_THEME_SCRIPT } from "@/ui/paper-theme";
 import { SessionBoot } from "@/auth/SessionBoot";
 import { DoorTransition } from "@/world/doorway";
+import { ConsoleLayer } from "@/console/ConsoleLayer";
 import { SceneHost } from "@/world/SceneHost";
 
 // UI type (docs/UI-DESIGN-SYSTEM.md, SIL OFL 1.1, self-hosted by next/font at build time): Chakra Petch for display
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SceneHost />
         {children}
         <DoorTransition />
+        <ConsoleLayer />
       </body>
     </html>
   );

@@ -123,7 +123,7 @@ export class ConsoleService {
       this.db.select().from(userRoles).where(eq(userRoles.userId, id)),
       this.ledger.balance(userStars(id)),
       this.ledger.balance(userCoins(id)),
-      this.access.auditFor(id, 20),
+      this.access.auditFor(`user:${id}`, 20),
     ]);
     return {
       id: u.id,
@@ -153,7 +153,7 @@ export class ConsoleService {
     if (target.includes(SUPER_ADMIN_ROLE) && !roles.includes(SUPER_ADMIN_ROLE)) throw new ForbiddenException({ code: "SUPER_ADMIN_PROTECTED" });
     if (u.status === status) return { id, status, changed: false };
     await this.db.update(users).set({ status }).where(eq(users.id, id));
-    await this.access.record(actor, status === "suspended" ? "user.suspend" : "user.reactivate", id, reason);
+    await this.access.record(actor, status === "suspended" ? "user.suspend" : "user.reactivate", `user:${id}`, reason);
     return { id, status, changed: true };
   }
 }
