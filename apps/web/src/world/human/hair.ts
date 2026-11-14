@@ -604,8 +604,9 @@ function addBall(
     for (let j = 0; j < hs; j++)
       for (let i = 0; i < ws; i++) {
         const a = base + j * (ws + 1) + i;
-        B.tri(a, a + ws + 1, a + 1);
-        B.tri(a + 1, a + ws + 1, a + ws + 2);
+        // outward winding (front faces outside: the ball is lit on the side facing the light)
+        B.tri(a, a + 1, a + ws + 1);
+        B.tri(a + 1, a + ws + 2, a + ws + 1);
       }
   });
 }
@@ -835,8 +836,9 @@ function addStrands(
     for (let k = 0; k < pts.length - 1; k++)
       for (let j = 0; j < radial; j++) {
         const a = base + k * (radial + 1) + j;
-        B.tri(a, a + radial + 1, a + 1);
-        B.tri(a + 1, a + radial + 1, a + radial + 2);
+        // outward winding: inside-out tubes showed their far, back-lit halves (pale braids in sunlight)
+        B.tri(a, a + 1, a + radial + 1);
+        B.tri(a + 1, a + radial + 2, a + radial + 1);
       }
     // cap the tip
     const tip = pts[pts.length - 1]!;
@@ -847,7 +849,7 @@ function addStrands(
       h,
     ]);
     const last = base + (pts.length - 1) * (radial + 1);
-    for (let j = 0; j < radial; j++) B.tri(last + j, ti, last + j + 1);
+    for (let j = 0; j < radial; j++) B.tri(last + j, last + j + 1, ti);
   });
 }
 
@@ -1192,10 +1194,10 @@ export function makeHairMaterial(
         .replace("#include <lights_physical_fragment>", HAIR_SPEC)
         .replace(
           "#include <lights_fragment_end>",
-          "#include <lights_fragment_end>\n reflectedLight.indirectSpecular *= 0.35;",
+          "#include <lights_fragment_end>\n reflectedLight.indirectSpecular *= 0.08; reflectedLight.directSpecular *= 0.6;",
         );
   };
-  m.customProgramCacheKey = () => "gk-hair-3";
+  m.customProgramCacheKey = () => "gk-hair-4";
   return m;
 }
 
