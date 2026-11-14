@@ -98,7 +98,8 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     // honed granite slabs, albedo ≈ 0.35, with world-space grime / foot-traffic wear
     paving: pavingMaterial(),
     // flush sawn-basalt band under the wayfinding LEDs, granite + brass spawn medallion
-    basalt: std({ map: concreteTexture(), color: "#4a4844", roughness: 0.72 }),
+    // (P2-WLD-09: a softer charcoal — the many kerb lines read as calm joints, not black stripes across the plaza)
+    basalt: std({ map: concreteTexture(), color: "#605d57", roughness: 0.78 }),
     granite: std({ map: concreteTexture(), color: "#a8a196", roughness: 0.7 }),
     windowGlimpse: new THREE.MeshBasicMaterial({ map: hallGlimpseTexture("igisoro"), color: new THREE.Color("#ffffff").multiplyScalar(tier === "lite" ? 0.5 : 0.62) }),
     basinFloor: std({ map: concreteTexture(), color: "#6d6a64", roughness: 0.9 }),

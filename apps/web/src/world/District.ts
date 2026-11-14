@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { GeoBatch } from "./geo";
 import { LAMPS } from "./obstacles";
 import { RING_PLANTERS } from "./beds";
+import { activityProps } from "./activity-props";
+import { NOTICE_BOARD, WATER_POINT } from "./activities";
 import { ARENA, FOOTPRINTS, igisoroHall, inBuilding, LUDO_DIE, PLOTS, sitePlan, toLocal, WING_HW, wingedHall } from "./footprints";
 import {
   BENCHES,
@@ -609,7 +611,7 @@ function plaza(b: GeoBatch, tier: string) {
     [20.6, 20.8, "basalt"],
     [PAVING_R, PAVING_R + 0.8, "lava"],
   ] as const)
-    b.add(k, flat(new THREE.RingGeometry(r0, r1, ringSeg, 1)), { p: [0, 0.004, 0], tile: 1.2 });
+    b.add(k, flat(new THREE.RingGeometry(r0, r1, ringSeg, 1)), { p: [0, 0.007, 0], tile: 1.2 }); // (≥ 4 mm over the granite: no z-fighting from the gate)
   // promenades: from the fountain court to every door, a 3.6 m walk edged by two flush basalt strips, with a slim
   // LED line in each game's colour down the middle (§6.2)
   for (const p of PORTALS) {
@@ -625,8 +627,8 @@ function plaza(b: GeoBatch, tier: string) {
   }
   // spawn medallion: flush granite disc with a 15 mm brass inlay ring
   b.add("granite", flat(new THREE.CircleGeometry(1.1, 48)), { p: [SPAWN.x, 0.005, SPAWN.z], tile: 2.4 });
-  b.add("brass", flat(new THREE.RingGeometry(1.1, 1.115, 96)), { p: [SPAWN.x, 0.006, SPAWN.z] });
-  b.add("brass", flat(new THREE.RingGeometry(0.42, 0.435, 64)), { p: [SPAWN.x, 0.006, SPAWN.z] });
+  b.add("brass", flat(new THREE.RingGeometry(1.1, 1.115, 96)), { p: [SPAWN.x, 0.009, SPAWN.z] });
+  b.add("brass", flat(new THREE.RingGeometry(0.42, 0.435, 64)), { p: [SPAWN.x, 0.009, SPAWN.z] });
 
   // fountain: open basalt basin (outer + inner wall, lighter floor), white coping; Agaseke sculpture on a plinth.
   // The water surface, jets and splashes are animated (Fountain.tsx).
@@ -707,6 +709,10 @@ function plaza(b: GeoBatch, tier: string) {
     });
     ao(b, w.x, w.z, 1.8, 0.8, w.rotY);
   }
+  // plaza activities (P2-WLD-09): notice board, drinking water point, volcano viewpoint lectern
+  activityProps(b);
+  ao(b, NOTICE_BOARD.x, NOTICE_BOARD.z, NOTICE_BOARD.w + 1, 1.0, NOTICE_BOARD.rotY);
+  ao(b, WATER_POINT.x, WATER_POINT.z, 1.0, 1.0);
   // perimeter: low black lava-rock walls between the buildings (typical Musanze dry-stone walls) + road ring
   // (3.6 m wall stones every STEP degrees; kept clear of the doors, the buildings and the entry gate's own walls)
   const STEP = (3.6 / PERIMETER_R) * (180 / Math.PI);

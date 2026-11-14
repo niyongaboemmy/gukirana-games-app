@@ -8,6 +8,8 @@ import { isOnScreen, useArea } from "./stage";
 import { DOOR_RING, PORTALS, ringPoint } from "./layout";
 import { ADMIN_FLAGPOLES, ADMIN_FLAG_Z } from "./District";
 import type { Tier } from "./materials";
+import { useGamePrefs } from "@/games/feedback";
+import { kigaliHour } from "./activities";
 
 /*
  * Plaza life that isn't geometry: wind-blown flags on the arena flagpoles and a quiet, synthesized soundscape
@@ -31,8 +33,24 @@ function noiseBuffer(ctx: AudioContext, seconds: number, seed: number) {
   return buf;
 }
 
-type Bed = { master: GainNode; fountain: GainNode; wind: GainNode; windFilter: BiquadFilterNode };
+/**
+ * Levels (P2-WLD-09 calmer mix): the whole bed sits on one ambience bus (AMBIENCE) well under the UI sounds (UI
+ * chimes peak at ~0.08–0.12, the bed at ~0.02–0.03), the fountain falls off steeply with distance, nothing is a
+ * short audible loop (noise buffers of 7–10 s, different lengths per layer, slowly modulated), and the bed follows
+ * the player's "Game sounds" setting (Settings), fading out when it is off.
+ */
+const AMBIENCE = 0.8;
+const soundOn = () => useGamePrefs.getState().sound;
+
+type Bed = { master: GainNode; fountain: GainNode; babble: GainNode; wind: GainNode; windFilter: BiquadFilterNode };
 let bed: Bed | null = null;
+
+function loopNoise(ctx: AudioContext, seconds: number, seed: number) {
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuffer(ctx, seconds, seed);
+  src.loop = true;
+  return src;
+}
 
 function ensureBed(): Bed | null {
   if (bed) return bed;
@@ -42,95 +60,107 @@ function ensureBed(): Bed | null {
   master.gain.value = 0;
   master.connect(ctx.destination);
 
-  // fountain: broadband splash noise, band-limited like falling water
-  const fSrc = ctx.createBufferSource();
-  fSrc.buffer = noiseBuffer(ctx, 3, 11);
-  fSrc.loop = true;
-  // soft, rounded water: no harsh hiss (cut the highs, keep a gentle mid "babble")
-  const fHp = ctx.createBiquadFilter();
-  fHp.type = "highpass";
-  fHp.frequency.value = 280;
-  const fLp = ctx.createBiquadFilter();
-  fLp.type = "lowpass";
-  fLp.frequency.value = 1500;
-  fLp.Q.value = 0.4;
+  // fountain, two soft layers (no hiss): a low wash of falling water and a quieter mid "babble"
+  const fSrc = loopNoise(ctx, 7.3, 11);
+  const wash = ctx.createBiquadFilter();
+  wash.type = "bandpass";
+  wash.frequency.value = 420;
+  wash.Q.value = 0.55;
   const fountain = ctx.createGain();
   fountain.gain.value = 0;
-  fSrc.connect(fHp).connect(fLp).connect(fountain).connect(master);
+  fSrc.connect(wash).connect(fountain).connect(master);
   fSrc.start();
+  const bSrc = loopNoise(ctx, 8.9, 17);
+  const bab = ctx.createBiquadFilter();
+  bab.type = "bandpass";
+  bab.frequency.value = 1050;
+  bab.Q.value = 0.9;
+  const babbleLp = ctx.createBiquadFilter();
+  babbleLp.type = "lowpass";
+  babbleLp.frequency.value = 1900;
+  const babble = ctx.createGain();
+  babble.gain.value = 0;
+  bSrc.connect(bab).connect(babbleLp).connect(babble).connect(master);
+  bSrc.start();
 
   // highland breeze: low rumble whose brightness drifts slowly
-  const wSrc = ctx.createBufferSource();
-  wSrc.buffer = noiseBuffer(ctx, 4, 29);
-  wSrc.loop = true;
+  const wSrc = loopNoise(ctx, 9.7, 29);
   const windFilter = ctx.createBiquadFilter();
   windFilter.type = "lowpass";
-  windFilter.frequency.value = 380;
-  windFilter.Q.value = 0.6;
+  windFilter.frequency.value = 320;
+  windFilter.Q.value = 0.5;
   const wind = ctx.createGain();
-  wind.gain.value = 0.05;
+  wind.gain.value = 0.02;
   wSrc.connect(windFilter).connect(wind).connect(master);
   wSrc.start();
 
-  master.gain.setTargetAtTime(1, ctx.currentTime, 1.5); // fade in gently
-  bed = { master, fountain, wind, windFilter };
+  bed = { master, fountain, babble, wind, windFilter };
   return bed;
 }
 
-/** One short bird call: a few quick falling chirps (a sunbird-like twitter), far away and quiet. */
+/** One distant bird call: a few soft falling notes (a sunbird-like twitter), far away, softened by the air. */
 function birdCall(rnd: () => number) {
   const ctx = uiAudio();
   if (!ctx || !bed) return;
   const t0 = ctx.currentTime + 0.05;
-  const notes = 2 + Math.floor(rnd() * 4);
-  const base = 2600 + rnd() * 1800;
+  const notes = 2 + Math.floor(rnd() * 3);
+  const base = 2100 + rnd() * 1300;
   const pan = ctx.createStereoPanner();
   pan.pan.value = rnd() * 1.6 - 0.8;
-  pan.connect(bed.master);
+  const air = ctx.createBiquadFilter(); // distance: the highs go first
+  air.type = "lowpass";
+  air.frequency.value = 3800;
+  pan.connect(air).connect(bed.master);
+  const peak = 0.006 + rnd() * 0.004;
   for (let i = 0; i < notes; i++) {
-    const t = t0 + i * (0.09 + rnd() * 0.05);
+    const t = t0 + i * (0.1 + rnd() * 0.06);
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = "sine";
-    o.frequency.setValueAtTime(base * (1.15 - i * 0.04), t);
-    o.frequency.exponentialRampToValueAtTime(base * 0.78, t + 0.07);
+    o.frequency.setValueAtTime(base * (1.12 - i * 0.04), t);
+    o.frequency.exponentialRampToValueAtTime(base * 0.8, t + 0.08);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.018, t + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
     o.connect(g).connect(pan);
     o.start(t);
-    o.stop(t + 0.1);
+    o.stop(t + 0.12);
   }
 }
 
-/** One water droplet landing in the basin: a soft rounded "plip" (pitch drops as the bubble closes). */
+/** One water droplet landing in the basin: a soft, low rounded "plip". */
 function droplet(rnd: () => number, level: number) {
   const ctx = uiAudio();
-  if (!ctx || !bed || level < 0.002) return;
+  if (!ctx || !bed || level < 0.0015) return;
   const t = ctx.currentTime + 0.01;
-  const f0 = 700 + rnd() * 900;
+  const f0 = 520 + rnd() * 560;
   const o = ctx.createOscillator();
   o.type = "sine";
   o.frequency.setValueAtTime(f0, t);
-  o.frequency.exponentialRampToValueAtTime(f0 * (1.6 + rnd() * 0.5), t + 0.045); // rising "plip" of a small drop
+  o.frequency.exponentialRampToValueAtTime(f0 * (1.4 + rnd() * 0.3), t + 0.05);
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(level * (0.5 + rnd() * 0.5), t + 0.006);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09 + rnd() * 0.05);
+  g.gain.exponentialRampToValueAtTime(level * (0.5 + rnd() * 0.5), t + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.1 + rnd() * 0.05);
   const pan = ctx.createStereoPanner();
-  pan.pan.value = rnd() * 1.2 - 0.6;
+  pan.pan.value = rnd() * 1.0 - 0.5;
   o.connect(g).connect(pan).connect(bed.master);
   o.start(t);
-  o.stop(t + 0.16);
+  o.stop(t + 0.17);
+}
+
+/** Level for a one-shot plaza sound at (x, z): distance falloff from the listener, 0 when muted / off screen. */
+function oneShotLevel(x: number, z: number, peak: number, k: number) {
+  if (!soundOn() || !isOnScreen("outdoor")) return 0; // the plaza is kept warm while you are in a hall: silent there
+  const dist = Math.hypot(selfPose.x - x, selfPose.z - z);
+  return (peak * AMBIENCE) / (1 + dist * k);
 }
 
 /** A plaza sensor door sliding open/closed, attenuated by distance from the listener. */
 export function plazaDoorSound(x: number, z: number, opening: boolean) {
   const ctx = uiAudio();
-  if (!ctx || !isOnScreen("outdoor")) return; // the plaza is kept warm while you are in a hall: silent there
-  const dist = Math.hypot(selfPose.x - x, selfPose.z - z);
-  const vol = 0.06 / (1 + dist * 0.35);
-  if (vol < 0.004) return;
+  const vol = ctx ? oneShotLevel(x, z, 0.04, 0.35) : 0;
+  if (!ctx || vol < 0.003) return;
   const len = 0.8;
   const src = ctx.createBufferSource();
   src.buffer = noiseBuffer(ctx, len, opening ? 5 : 9);
@@ -149,13 +179,40 @@ export function plazaDoorSound(x: number, z: number, opening: boolean) {
   src.stop(t + len);
 }
 
-/** Drives the soundscape from the listener's position: fountain loud near the basin, breeze always, birds now and then. */
+/** Pigeons taking off (world/PlazaActivities): a soft flutter of wingbeats, by distance. */
+export function birdFlutter(x: number, z: number) {
+  const ctx = uiAudio();
+  const vol = ctx ? oneShotLevel(x, z, 0.035, 0.3) : 0;
+  if (!ctx || vol < 0.003) return;
+  const len = 1.1;
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuffer(ctx, len, 41);
+  const f = ctx.createBiquadFilter();
+  f.type = "bandpass";
+  f.frequency.value = 900;
+  f.Q.value = 0.7;
+  const g = ctx.createGain();
+  const t = ctx.currentTime;
+  // ~16 wingbeats a second, fading as the flock climbs away
+  g.gain.setValueAtTime(0.0001, t);
+  for (let i = 0; i < 16; i++) {
+    const at = t + i * 0.065;
+    const v = vol * (1 - i / 17);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, v), at + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0002, at + 0.05);
+  }
+  src.connect(f).connect(g).connect(ctx.destination);
+  src.start(t);
+  src.stop(t + len);
+}
+
+/** Drives the soundscape from the listener's position: fountain near the basin, breeze always, distant birds. */
 function Soundscape() {
   const rnd = useMemo(() => lcg(77), []);
   const nextBird = useRef(0);
   const nextDrop = useRef(0);
   const area = useArea();
-  const muted = useRef(false);
+  const level = useRef(-1);
   useEffect(
     () => () => {
       // leaving the plaza (into a hall, signing out): fade the bed out
@@ -166,33 +223,43 @@ function Soundscape() {
     [],
   );
   useFrame(({ clock }) => {
+    // the plaza stays mounted (warm) while you are in a hall: its soundscape fades out there and back in on return;
+    // "Game sounds" off (Settings) fades it out too
+    const here = isOnScreen(area);
+    const on = here && soundOn();
+    if (!on && !bed) return;
     const b = ensureBed();
     const ctx = uiAudio();
     if (!b || !ctx) return;
-    const t = clock.elapsedTime;
-    // the plaza stays mounted (warm) while you are in a hall: its soundscape fades out there and back in on return
-    const here = isOnScreen(area);
-    if (here === muted.current) {
-      muted.current = !here;
-      b.master.gain.setTargetAtTime(here ? 1 : 0, ctx.currentTime, here ? 0.6 : 0.3);
+    const target = on ? AMBIENCE : 0;
+    if (target !== level.current) {
+      level.current = target;
+      b.master.gain.setTargetAtTime(target, ctx.currentTime, on ? 1.2 : 0.3);
     }
-    if (!here) return;
+    if (!on) return;
+    const t = clock.elapsedTime;
     const d = Math.hypot(selfPose.x, selfPose.z); // fountain at the plaza centre
-    // near the basin it is a calm murmur (not a roar); it fades out within ~20 m
-    const near = 1 / (1 + Math.max(0, d - 3) * 0.45);
-    b.fountain.gain.setTargetAtTime(0.022 * near, ctx.currentTime, 0.4);
-    // a few soft droplets per second close by, fewer and fainter further away
-    if (near > 0.15 && t > nextDrop.current) {
-      droplet(rnd, 0.012 * near);
-      nextDrop.current = t + 0.12 + rnd() * (0.5 / near);
+    // a calm murmur at the basin, falling off steeply: about a quarter at 10 m, nearly gone by 25 m
+    const q = Math.max(0, d - 4) / 5;
+    const near = 1 / (1 + q * q);
+    // slow swell (the jets are not a machine): two slow sines on the level
+    const sw = 1 + 0.12 * Math.sin(t * 0.37) + 0.06 * Math.sin(t * 0.91 + 0.8);
+    b.fountain.gain.setTargetAtTime(0.02 * near * sw, ctx.currentTime, 0.5);
+    b.babble.gain.setTargetAtTime(0.008 * near * (2 - sw), ctx.currentTime, 0.5);
+    // a few soft droplets close by only
+    if (near > 0.3 && t > nextDrop.current) {
+      droplet(rnd, 0.007 * near);
+      nextDrop.current = t + 0.25 + rnd() * (0.9 / near);
     }
     // gusts: two slow sines → loudness and brightness drift
-    const gust = 0.5 + 0.3 * Math.sin(t * 0.21) + 0.2 * Math.sin(t * 0.53 + 1.3);
-    b.wind.gain.setTargetAtTime(0.03 + gust * 0.04, ctx.currentTime, 0.8);
-    b.windFilter.frequency.setTargetAtTime(260 + gust * 320, ctx.currentTime, 0.8);
+    const gust = 0.5 + 0.3 * Math.sin(t * 0.13) + 0.2 * Math.sin(t * 0.37 + 1.3);
+    b.wind.gain.setTargetAtTime(0.018 + gust * 0.022, ctx.currentTime, 1.2);
+    b.windFilter.frequency.setTargetAtTime(220 + gust * 260, ctx.currentTime, 1.2);
+    // distant birds: now and then, a little more often in the early morning (Kigali time)
     if (t > nextBird.current) {
       if (nextBird.current > 0) birdCall(rnd);
-      nextBird.current = t + 6 + rnd() * 14;
+      const morning = kigaliHour(Date.now()) < 9 ? 0.6 : 1;
+      nextBird.current = t + (9 + rnd() * 16) * morning;
     }
   });
   return null;

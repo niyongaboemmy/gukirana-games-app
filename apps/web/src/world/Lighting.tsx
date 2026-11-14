@@ -18,6 +18,8 @@ const SUN_AZ = (104 * Math.PI) / 180;
 const SUN_EL = (17 * Math.PI) / 180;
 export const SUN_DIR = new THREE.Vector3(Math.cos(SUN_EL) * Math.sin(SUN_AZ), Math.sin(SUN_EL), -Math.cos(SUN_EL) * Math.cos(SUN_AZ));
 export const FOG_COLOR = "#c4d2dc";
+/** Clear-day fog density (the morning mist thickens it: world/PlazaActivities MorningMist). */
+export const fogDensity = (tier: Tier) => (tier === "lite" ? 0.0012 : 0.00085);
 
 function SkyDome() {
   const sun = useMemo(() => SUN_DIR.clone().multiplyScalar(400), []);
@@ -72,7 +74,7 @@ export function Lighting({ tier }: { tier: Tier }) {
   return (
     <>
       <SkyDome />
-      <fogExp2 attach="fog" args={[FOG_COLOR, tier === "lite" ? 0.0012 : 0.00085]} />
+      <fogExp2 attach="fog" args={[FOG_COLOR, fogDensity(tier)]} />
       <hemisphereLight args={["#c9def0", "#4a5236", 0.45]} />
       <Sun tier={tier} />
       <Environment frames={1} near={1} far={3000} resolution={tier === "lite" ? 32 : 128} environmentIntensity={0.55}>

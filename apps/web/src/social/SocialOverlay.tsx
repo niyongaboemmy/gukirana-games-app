@@ -10,6 +10,7 @@ import { tracks } from "./motion";
 import { PersonMenu } from "./PersonMenu";
 import { useSocial } from "./social-store";
 import { PairInvitePrompt, PairPendingChip, SpotPrompt } from "./ActionPrompts";
+import { PlazaActivityCards } from "@/world/PlazaCards";
 import { SO } from "./strings";
 
 /**
@@ -169,6 +170,7 @@ export function SocialOverlay() {
         <Notices />
         <SpotPrompt />
       </div>
+      <PlazaActivityCards />
       <PeopleSheet />
       <PersonMenu />
     </div>,

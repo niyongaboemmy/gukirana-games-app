@@ -1,6 +1,8 @@
 "use client";
 import { showDoorNotice, useDoorNotice, useDoorRefusal } from "@/world/door-access";
-import { W } from "@/world/strings";
+import { PA, W } from "@/world/strings";
+import { people, SPOTS } from "@/social/people";
+import { startSpot, usePlazaUi } from "@/world/PlazaCards";
 import { PaperCard } from "@/ui/PaperCard";
 import { useWalletSheet, WalletSheet } from "@/wallet/WalletSheet";
 import { PlayReminder } from "@/wallet/WalletExtras";
@@ -105,7 +107,15 @@ export function WorldHud() {
 
   // E / the big button: door → bench place (stand up when seated) → the person in front of you (person menu)
   // the context action the main button will perform (shown above it, like a game's action prompt)
-  const actionLabel = shut ? W.closedAction : portal?.href ? W.enterAction : seatedOnBench ? "Stand" : benchSeat ? "Sit" : other ? "Talk" : null;
+  const spotIdx = useSocial((s) => s.nearSpot);
+  const spot = spotIdx != null && !inHall ? SPOTS[spotIdx] : undefined;
+  const actionLabel = shut ? W.closedAction : portal?.href ? W.enterAction : seatedOnBench ? "Stand" : benchSeat ? "Sit" : other ? "Talk" : spot && spot.kind !== "lean" ? PA.action[spot.kind] : null; // (lamp posts: the top prompt is enough)
+  // the long control hint line is for the first minute; after that a short reminder (less text over the scene)
+  const [hintShort, setHintShort] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setHintShort(true), 60_000);
+    return () => clearTimeout(t);
+  }, []);
   const interact = () => {
     // a shut door: E / Interact explains again instead of walking into the glass
     if (shut) return showDoorNotice();
@@ -120,7 +130,9 @@ export function WorldHud() {
     }
     if (seatedOnBench) return standFromBench();
     if (benchSeat && !portal) return sitNearest();
-    if (other) useSocial.setState({ menu: other.id });
+    if (other) return void useSocial.setState({ menu: other.id });
+    // a plaza place (café, notice board, water point, viewpoint, lamp post): P2-WLD-09
+    if (spot && !people.move && !usePlazaUi.getState().card) startSpot(spot);
   };
 
   useEffect(() => {
@@ -307,7 +319,7 @@ export function WorldHud() {
             )}
             <RoundButton compact icon={quickWaiting ? Loader2 : Ellipsis} label="More actions" active={more} onPress={() => setMore((v) => !v)} />
           </div>
-          <RoundButton compact icon={shut ? DoorClosed : portal ? DoorOpen : benchSeat || seatedOnBench ? Armchair : Hand} label="Interact" big action={actionLabel} active={!!(portal || shut || other || benchSeat || seatedOnBench)} onPress={interact} />
+          <RoundButton compact icon={shut ? DoorClosed : portal ? DoorOpen : benchSeat || seatedOnBench ? Armchair : Hand} label="Interact" big action={actionLabel} active={!!(portal || shut || other || benchSeat || seatedOnBench || spot)} onPress={interact} />
         </div>
       ) : (
       <div className="absolute bottom-[max(14px,env(safe-area-inset-bottom))] right-[max(14px,env(safe-area-inset-right))] flex items-end gap-3">
@@ -323,13 +335,13 @@ export function WorldHud() {
           )}
           <RoundButton icon={Smile} label="Emote" keycap="G" active={emotesOpen} onPress={() => setEmotesOpen((v) => !v)} />
         </div>
-        <RoundButton icon={shut ? DoorClosed : portal ? DoorOpen : benchSeat || seatedOnBench ? Armchair : Hand} label="Interact" big keycap="E" action={actionLabel} active={!!(portal || shut || other || benchSeat || seatedOnBench)} onPress={interact} />
+        <RoundButton icon={shut ? DoorClosed : portal ? DoorOpen : benchSeat || seatedOnBench ? Armchair : Hand} label="Interact" big keycap="E" action={actionLabel} active={!!(portal || shut || other || benchSeat || seatedOnBench || spot)} onPress={interact} />
       </div>
       )}
 
       {/* desktop hint */}
       <p className="scene-text absolute bottom-3 left-1/2 hidden -translate-x-1/2 text-xs font-medium text-white/85 [@media(pointer:fine)]:block">
-        W/S walk · A/D turn · click the ground to walk there · click a person for options · drag to look · Shift run · E interact · T chat · hold V to talk
+        {hintShort ? W.hintShort : W.hintFull}
       </p>
       <SocialOverlay />
     </div>

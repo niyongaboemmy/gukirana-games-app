@@ -9,6 +9,7 @@ import { seedOf } from "@/world/human/life";
 import { actionById } from "./actions";
 import { useSocial } from "./social-store";
 import { selfContact } from "./motion";
+import { ACTIVITY_HOLD_MS, ACTIVITY_SPOTS, CAFE_FRONT_R, PLAZA_ACTIVITIES_ON } from "@/world/activities";
 
 /**
  * The local person's actions (P1-WLD-02 / P1-COM-04): gestures that first turn towards the person they are for,
@@ -117,7 +118,8 @@ export function onPairStart(m: { id: string; kind: PairKind; a: { id: string; x:
 // ------------------------------------------------------------------ context places
 
 export interface Spot {
-  kind: "lean" | "coffee";
+  /** lean on a post / glass, a drink at the café, a drink of water, read the notice board, photo of the volcanoes */
+  kind: "lean" | "coffee" | "water" | "board" | "photo";
   x: number;
   z: number;
   yaw: number;
@@ -132,12 +134,17 @@ export const SPOTS: Spot[] = (() => {
     out.push({ kind: "lean", x: l.x + ux * 0.33, z: l.z + uz * 0.33, yaw: Math.atan2(ux, uz) });
   }
   const a = (SERVICE_ANGLE * Math.PI) / 180;
-  const c = ringPoint(SERVICE_ANGLE, 27.62);
   const along = { x: Math.cos(a), z: Math.sin(a) };
-  for (const s of [-3, 3]) out.push({ kind: "lean", x: c.x + along.x * s, z: c.z + along.z * s, yaw: -a });
-  const cafe = ringPoint(SERVICE_ANGLE, 26.9);
-  // coffee from the café window, then stand by it facing the plaza (people-watching, Whyte)
+  // coffee at the café front, then stand by it facing the plaza (people-watching, Whyte). (P2-WLD-09: the café
+  // spots sat at r ≈ 27 m from the first, smaller plaza — 13 m out in the open in front of today's café; the two
+  // "café glass" lean places there leaned on thin air and are gone: the lamp posts flanking the café remain.)
+  const cafe = ringPoint(SERVICE_ANGLE, CAFE_FRONT_R);
   out.push({ kind: "coffee", x: cafe.x + along.x * 0.6, z: cafe.z + along.z * 0.6, yaw: -a });
+  // plaza activities (P2-WLD-09): water point, notice board, volcano viewpoint
+  if (PLAZA_ACTIVITIES_ON) {
+    const A = ACTIVITY_SPOTS;
+    out.push({ kind: "water", ...A.water }, { kind: "board", ...A.board }, { kind: "photo", ...A.photo });
+  }
   return out;
 })();
 
@@ -155,17 +162,26 @@ export function nearSpot(x: number, z: number): Spot | null {
   return hit;
 }
 
+/** The action played on arrival at each kind of place, and for how long (0 = until you walk away). */
+const SPOT_ACT: Record<Spot["kind"], { act: number; hold: number }> = {
+  lean: { act: ACT.lean, hold: 0 },
+  coffee: { act: ACT.coffee, hold: ACTIVITY_HOLD_MS.coffee },
+  water: { act: ACT.coffee, hold: ACTIVITY_HOLD_MS.water }, // a cup filled at the tap, a few sips
+  board: { act: ACT.watch, hold: ACTIVITY_HOLD_MS.board }, // standing reading the board
+  photo: { act: ACT.photo, hold: ACTIVITY_HOLD_MS.photo },
+};
+
 /** Walk to a place and do its action there (lean: until you walk away; coffee: drink, facing the counter). */
 export function goToSpot(s: Spot): void {
   const d = Math.hypot(s.x - selfPose.x, s.z - selfPose.z);
   stopAction();
   people.move = {
     from: { x: selfPose.x, z: selfPose.z, yaw: selfPose.yaw },
-    to: { x: s.x, z: s.z, yaw: s.kind === "coffee" ? s.yaw : s.yaw },
+    to: { x: s.x, z: s.z, yaw: s.yaw },
     t0: performance.now(),
     ms: Math.max(450, (d / 1.15) * 1000 + 350),
-    then: s.kind === "lean" ? ACT.lean : ACT.coffee,
-    holdMs: 0,
+    then: SPOT_ACT[s.kind].act,
+    holdMs: SPOT_ACT[s.kind].hold,
   };
 }
 
