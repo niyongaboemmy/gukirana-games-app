@@ -5,7 +5,7 @@ import { Billboard, Text, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { blobTexture } from "./textures";
-import { encodeLook, type AvatarLook } from "./outfits";
+import { encodeLook, itemById, type AvatarLook } from "./outfits";
 import { ANIM_SETS, HUMAN_MODELS, type HumanModelId, type HumanModelMeta } from "./human/meta";
 import { makeHairCardMaterial, makeLookMaterial, type LookUniforms } from "./human/materials";
 import { faceFrameOf, FaceRig } from "./human/face-rig";
@@ -16,7 +16,8 @@ import { aimBone, ProceduralLayer, type ArmBones } from "./human/procedural";
 import { footstep } from "./human/footsteps";
 import { seedOf } from "./human/life";
 import { SeatFit } from "./human/seat-fit";
-import type { SeatProfile } from "./human/seat-profiles";
+import { SEAT_PROFILES, type SeatProfile } from "./human/seat-profiles";
+import { HandRestLayer, SKIRT_LAP } from "./human/hand-rest";
 import type { SeatActivity } from "./human/activity";
 import { SeatedLayer } from "./human/seated-layer";
 import { useVoice } from "@/voice/voice";
@@ -399,6 +400,13 @@ function HumanBody({
   const proc = useMemo(() => new ProceduralLayer({ root: inst.root, arms: inst.arms, spine: inst.spine, head: inst.head }), [inst]);
   // (built before the first mixer update: it measures the standing foot heights in the bind pose)
   const fit = useMemo(() => new SeatFit(inst.root, (n) => (inst.root.getObjectByName(n) as THREE.Bone | undefined) ?? null, inst.spine, inst.head), [inst]);
+  // seated hands rest on the thighs / in the lap / on armrests, measured on this body (P2-AVA-09; bind pose too)
+  // (a skirt / long wrap, world/human/attachments.ts, drapes over the lap: the hands rest on the cloth, not under it)
+  const lapCloth = itemById(look.outfit.bottom)?.kind;
+  const handRest = useMemo(
+    () => new HandRestLayer(inst.root, inst.arms, (n) => (inst.root.getObjectByName(n) as THREE.Bone | undefined) ?? null, seed, lapCloth === "skirt" || lapCloth === "longwrap" ? SKIRT_LAP : 0),
+    [inst, seed, lapCloth],
+  );
   // seated activities at the table (P2-HAL-10): same deterministic schedule on every screen
   const seatedL = useMemo(() => new SeatedLayer(inst.root, inst.arms, inst.spine, inst.head, seed), [inst, seed]);
   // face proportions (bind pose) + blinking / eye life (P2-AVA-07); `inst` is rebuilt whenever the look changes
@@ -534,6 +542,8 @@ function HumanBody({
     // what they do at the table (lean in, hands on it, typing, moving a counter …): people up close only
     // (only with a seat fit: it re-places the body every frame, the activity's slide along the seat adds to that)
     const act = animator.out.seated && seatLatch.current ? (activityRef?.current ?? null) : null;
+    // hands at rest (thighs / lap / armrests) unless a prop is in them; a table activity then takes over from it
+    if (dist < 22) handRest.apply(animator.out.seated ? (seatLatch.current ?? SEAT_PROFILES.bench) : null, animator.out.sitW, 1 - Math.max(animator.out.phone, animator.out.cup), 1 - animator.out.phone);
     if (dist < 22) seatedL.apply(act, animator.out.sitW, step, Date.now(), animator.out.fidget === "sitlook", attendRef?.current ?? 0);
     // procedural hands (handshake, fist bump, hug, thumbs-up, pointing, chalk): close people only
     if (dist < 25) proc.update(step, anim);

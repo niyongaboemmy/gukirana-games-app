@@ -31,6 +31,26 @@ export type SeatKind =
   | "stadium" // arena bowl seat over a raked row (legroom ends at the step)
   | "vip"; // arena VIP box seat (wider, flat floor)
 
+/** Where a seated hand rests when no table activity needs it (P2-AVA-09, world/human/hand-rest.ts). */
+export type HandRest = "thigh" | "lap" | "armrest";
+
+/** Rest choices [right hand, left hand] a person may pick (by seed) on a seat without arms. */
+const NO_ARMS: readonly (readonly [HandRest, HandRest])[] = [
+  ["thigh", "thigh"],
+  ["thigh", "thigh"],
+  ["thigh", "thigh"],
+  ["lap", "lap"],
+  ["thigh", "lap"],
+];
+/** … and on a chair with armrests. */
+const ARMS: readonly (readonly [HandRest, HandRest])[] = [
+  ["armrest", "armrest"],
+  ["armrest", "thigh"],
+  ["thigh", "armrest"],
+  ["thigh", "thigh"],
+  ["lap", "lap"],
+];
+
 export interface SeatProfile {
   /** seat surface the buttocks rest on, above the floor under the seat (m) */
   seatH: number;
@@ -42,33 +62,42 @@ export interface SeatProfile {
   legroom: number;
   /** ankles at least this far in front of the hips (m): raises the knees over a deep seat's front lip; 0 = as animated */
   footFwd: number;
+  /** hand rests a person may use here, [right, left] (picked per person by seed) */
+  hands: readonly (readonly [HandRest, HandRest])[];
+  /** the armrests (avatar frame): half-width to their centre line, top height above the floor, where a wrist rests along them */
+  armrest?: { x: number; y: number; z: number };
 }
 
 export const SEAT_PROFILES: Record<SeatKind, SeatProfile> = {
-  bench: { seatH: 0.46, hipFwd: 0, lean: 0, legroom: 0.8, footFwd: 0 },
+  bench: { seatH: 0.46, hipFwd: 0, lean: 0, legroom: 0.8, footFwd: 0, hands: NO_ARMS },
   // bucket shell: cushion 0.36–0.40 under the hips rising to a 0.49 m front lip 0.55 m ahead; back reclined ~45°.
   // Sit well back in the bucket, knees up over the lip, feet forward, leaning back into it.
-  lounge: { seatH: 0.42, hipFwd: 0.1, lean: 0.2, legroom: 0.85, footFwd: 0.5 },
+  // armrests: mid_century_lounge_chair ×0.95, arm tops 0.67 m high at ±0.44 m, front ends 0.37 m ahead of the chair centre
+  lounge: { seatH: 0.42, hipFwd: 0.1, lean: 0.2, legroom: 0.85, footFwd: 0.5, hands: ARMS, armrest: { x: 0.44, y: 0.665, z: 0.3 } },
   // cushion 0.49 m, back 0.19 m behind the origin
-  armchairLudo: { seatH: 0.48, hipFwd: 0.02, lean: 0.05, legroom: 0.8, footFwd: 0 },
+  // armrests: modern_arm_chair_01 ×0.9, tops 0.665 m high at ±0.32 m, front ends 0.31 m ahead of the chair centre
+  armchairLudo: { seatH: 0.48, hipFwd: 0.02, lean: 0.05, legroom: 0.8, footFwd: 0, hands: ARMS, armrest: { x: 0.32, y: 0.665, z: 0.28 } },
   // drum cushion 0.444 m (soft): the stool's centre is the seat point, so slide onto its middle
-  stool: { seatH: 0.43, hipFwd: 0.05, lean: 0, legroom: 0.7, footFwd: 0 },
+  stool: { seatH: 0.43, hipFwd: 0.05, lean: 0, legroom: 0.7, footFwd: 0, hands: NO_ARMS },
   // seat 0.45 m, deep: back cushion 0.32 m behind the origin, front 0.33 m ahead
-  sofa: { seatH: 0.43, hipFwd: -0.04, lean: 0.17, legroom: 0.9, footFwd: 0 },
+  sofa: { seatH: 0.43, hipFwd: -0.04, lean: 0.17, legroom: 0.9, footFwd: 0, hands: NO_ARMS },
   // cushion 0.54 m
-  armchair: { seatH: 0.53, hipFwd: 0.02, lean: 0.05, legroom: 0.9, footFwd: 0 },
+  // armrests: modern_arm_chair_01 ×1.0, tops 0.74 m high at ±0.355 m
+  armchair: { seatH: 0.53, hipFwd: 0.02, lean: 0.05, legroom: 0.9, footFwd: 0, hands: ARMS, armrest: { x: 0.355, y: 0.739, z: 0.3 } },
   // pad 0.48 m, back pad 0.18 m behind the origin
-  waitBench: { seatH: 0.47, hipFwd: 0.01, lean: 0, legroom: 0.8, footFwd: 0 },
+  waitBench: { seatH: 0.47, hipFwd: 0.01, lean: 0, legroom: 0.8, footFwd: 0, hands: NO_ARMS },
   // fabric seat 0.51 m, back plate 0.125 m behind the origin
-  task: { seatH: 0.5, hipFwd: 0.06, lean: 0, legroom: 0.7, footFwd: 0 },
+  task: { seatH: 0.5, hipFwd: 0.06, lean: 0, legroom: 0.7, footFwd: 0, hands: NO_ARMS },
   // seat 0.495 m, back 0.13 m behind the origin
-  visitor: { seatH: 0.49, hipFwd: 0.06, lean: 0, legroom: 0.7, footFwd: 0 },
+  visitor: { seatH: 0.49, hipFwd: 0.06, lean: 0, legroom: 0.7, footFwd: 0, hands: NO_ARMS },
   // pad 0.4775 m; the tread ends 0.61 m ahead of the origin (then the step down to the row in front). The back pad's
   // front face is 0.108 m behind the origin at hip height: slide 5 cm forward so the buttocks / lower back rest
   // against it instead of passing through it (P2-HAL-11: from behind the shirt showed under the back pad)
-  stadium: { seatH: 0.47, hipFwd: 0.05, lean: 0, legroom: 0.46, footFwd: 0 },
+  // armrests (seatGeometry): tops 0.6375 m at ±0.245 m, from 0.16 m behind to 0.18 m ahead of the origin
+  stadium: { seatH: 0.47, hipFwd: 0.05, lean: 0, legroom: 0.46, footFwd: 0, hands: ARMS, armrest: { x: 0.245, y: 0.6375, z: 0.12 } },
   // pad 0.497 m (seat scaled ×1.04 high, ×1.12 deep: back pad 0.13 m behind the origin), flat box floor
-  vip: { seatH: 0.49, hipFwd: 0.03, lean: 0.04, legroom: 0.6, footFwd: 0 },
+  // VIP seat ×1.22 wide, ×1.04 high, ×1.12 deep: armrests 0.663 m high at ±0.3 m
+  vip: { seatH: 0.49, hipFwd: 0.03, lean: 0.04, legroom: 0.6, footFwd: 0, hands: ARMS, armrest: { x: 0.3, y: 0.663, z: 0.13 } },
 };
 
 /**
