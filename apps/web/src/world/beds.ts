@@ -1,6 +1,7 @@
-import { DOOR_RING, onFightWalk, ENTRY_Z, EXPANSION_PLOTS, FOUNTAIN_COURT, GATE_CLEAR_DEG, MID_ANGLES, OUTER_PROMENADE, PERIMETER_R, PLANTERS, PLAZA_RADIUS, PROMENADE_BEDS, RING_ANGLES, ringPoint } from "./layout";
+import { DOOR_RING, ENTRY_Z, EXPANSION_PLOTS, FOUNTAIN_COURT, GATE_CLEAR_DEG, MID_ANGLES, OUTER_PROMENADE, PERIMETER_R, PLANTERS, PLAZA_RADIUS, PROMENADE_BEDS, RING_ANGLES, ringPoint } from "./layout";
 import { GATE_Z } from "./gate/Gate";
 import { inBuilding } from "./footprints";
+import { CAMPUS_WALKS, GATE_LINE_Z, nearCampusWalk, onCampusRoad } from "./campus";
 
 /**
  * Landscape design of the compound (no trees inside the compound — "modern, international" brief):
@@ -52,20 +53,27 @@ const DOOR_CLEAR = (4.4 / PLAZA_RADIUS) * (180 / Math.PI);
 const EDGE = { r0: PLAZA_RADIUS - 1.1, r1: PLAZA_RADIUS - 0.05 };
 export const PLAZA_ARCS: ArcBed[] = (() => {
   const keep = RING_ANGLES;
-  const arcs: ArcBed[] = [];
-  for (let i = 0; i < keep.length - 1; i++) {
-    const arc = { cx: 0, cz: 0, ...EDGE, a0: keep[i]! + DOOR_CLEAR, a1: keep[i + 1]! - DOOR_CLEAR, h: 0.42 };
-    // the Fight walk leaves the plaza here (P3-FGT-01): this edge bed stays out of its way
-    const midA = (arc.a0 + arc.a1) / 2;
-    const pm = ringPoint(midA, EDGE.r0);
-    if (onFightWalk(pm.x, pm.z, 1.5)) continue;
-    arcs.push(arc);
-  }
+  const spans: [number, number][] = [];
+  for (let i = 0; i < keep.length - 1; i++) spans.push([keep[i]! + DOOR_CLEAR, keep[i + 1]! - DOOR_CLEAR]);
   // south-east / south-west: up to the gate approach
   const last = keep[keep.length - 1]!;
-  arcs.push({ cx: 0, cz: 0, ...EDGE, a0: last + DOOR_CLEAR, a1: GATE_CLEAR_DEG, h: 0.42 });
-  arcs.push({ cx: 0, cz: 0, ...EDGE, a0: -GATE_CLEAR_DEG, a1: keep[0]! - DOOR_CLEAR, h: 0.42 });
-  return arcs;
+  spans.push([last + DOOR_CLEAR, GATE_CLEAR_DEG], [-GATE_CLEAR_DEG, keep[0]! - DOOR_CLEAR]);
+  // the campus walks leave the plaza through these beds (P2-WLD-12): each bed is cut open around a walk exit
+  const cuts = CAMPUS_WALKS.exits.map((i) => {
+    const n = CAMPUS_WALKS.nodes[i]!;
+    return (Math.atan2(n.x, -n.z) * 180) / Math.PI;
+  });
+  const gap = (2.7 / EDGE.r0) * (180 / Math.PI);
+  let open = spans;
+  for (const c of cuts)
+    open = open.flatMap(([a0, a1]): [number, number][] => {
+      if (c + gap <= a0 || c - gap >= a1) return [[a0, a1]];
+      return [
+        [a0, c - gap],
+        [c + gap, a1],
+      ];
+    });
+  return open.filter(([a0, a1]) => a1 - a0 > 2).map(([a0, a1]) => ({ cx: 0, cz: 0, ...EDGE, a0, a1, h: 0.42 }));
 })();
 
 /** Linear beds along the avenue from the plaza gate to the ring road, hedged on the walkway side. */
@@ -104,7 +112,8 @@ export const LAWN_BEDS: RectBed[] = (() => {
       const c = Math.cos(b.rot);
       const s = Math.sin(b.rot);
       const pts = [-1, 0, 1].flatMap((u) => [-1, 1].map((v) => ({ x: b.x + u * b.hw * c + v * b.hd * s, z: b.z - u * b.hw * s + v * b.hd * c })));
-      if (pts.some((p) => inBuilding(p.x, p.z, 1.5) || onFightWalk(p.x, p.z, 1.2))) continue;
+      // (P2-WLD-12: clear of the walks and roads, and nothing south of the gate line)
+      if (pts.some((p) => inBuilding(p.x, p.z, 1.5) || nearCampusWalk(p.x, p.z, 1.2) || onCampusRoad(p.x, p.z, 1) || p.z > GATE_LINE_Z - 1)) continue;
       out.push(b);
     }
   });
@@ -115,7 +124,7 @@ export const LAWN_BEDS: RectBed[] = (() => {
     const a = (deg * Math.PI) / 180;
     const rad = OUTER_PROMENADE.r1 + 2.4;
     const b: RectBed = { x: Math.sin(a) * rad, z: -Math.cos(a) * rad, hw: 6.5, hd: 1.1, rot: -a, h: 0.4, hedge: true };
-    if (!inBuilding(b.x, b.z, 2) && !onFightWalk(b.x, b.z, 8)) out.push(b);
+    if (!inBuilding(b.x, b.z, 2) && !nearCampusWalk(b.x, b.z, 0.6)) out.push(b);
   }
   return out;
 })();

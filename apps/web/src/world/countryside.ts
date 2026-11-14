@@ -6,8 +6,8 @@ import { rng } from "./textures";
  * Lake Ruhondo, and roadside villages (imidugudu). Pure, seeded data plus one small mask texture the terrain shader
  * samples (world/Landscape.tsx): R = road, G = water (core) / riverbank (soft), B = swept-earth house compounds.
  *
- * Everything here starts at `startR` (the edge of the campus lawn) and only looks outwards, so it does not depend
- * on where the campus buildings, gate or ring road stand inside it.
+ * Everything here starts at the campus edge (`outside`, the compound plus its frontage: world/campus.ts) and only
+ * looks outwards, so it does not depend on where the campus buildings stand inside it.
  */
 
 export interface Pt {
@@ -58,29 +58,53 @@ export interface Countryside {
   houses: { x: number; z: number; rot: number; k: number }[];
 }
 
+/** The public road along the campus frontage (world/campus.ts PUBLIC_ROAD): country roads meet it as junctions. */
+export interface FrontRoad {
+  /** centre line z, kerb lines */
+  mid: number;
+  z0: number;
+  z1: number;
+  x0: number;
+  x1: number;
+}
+
 /**
  * Roads wander out from the campus edge (gentle seeded random walks that turn away from water), plus one long
  * country road across the southern hills; the river curls round the west and south, a stream runs into the lake.
+ *
+ * `outside(x, z)`: how far (m) a point lies outside the campus (≤ 0 inside; world/campus.ts campusOutside): the
+ * compound with its south frontage up to the public road. Two of the roads start as junctions on the public road
+ * (laterite meeting the asphalt); no road ever enters the campus or runs along the public road.
  */
-export function buildCountryside(startR: number, isWater: (x: number, z: number) => boolean, lakeCentre: Pt): Countryside {
+export function buildCountryside(outside: (x: number, z: number) => number, isWater: (x: number, z: number) => boolean, lakeCentre: Pt, front: FrontRoad): Countryside {
   const r = rng(911);
   const roads: Pt[][] = [];
-  for (const [deg, len] of [
-    [196, 34],
-    [248, 30],
-    [52, 26],
-    [-62, 22],
-  ] as const) {
-    let p = polar(deg, startR + 1);
-    let head = (deg * Math.PI) / 180;
+  /** where a road out of the campus starts: on the campus edge along the bearing */
+  const edgeAt = (deg: number): Pt => {
+    for (let rad = 60; rad < MASK_HALF; rad += 1) {
+      const q = polar(deg, rad);
+      if (outside(q.x, q.z) > 1) return q;
+    }
+    return polar(deg, MASK_HALF - 40);
+  };
+  const nearFront = (q: Pt) => Math.abs(q.z - front.mid) < (front.z1 - front.z0) / 2 + 14;
+  for (const s of [
+    // junctions on the public road (south kerb), heading off into the southern hills
+    { p: { x: -64, z: front.z1 + 0.4 }, deg: 196, len: 34 },
+    { p: { x: -262, z: front.z1 + 0.4 }, deg: 214, len: 30 },
+    // tracks from the campus edge out to the north-east and north-west farms
+    { p: edgeAt(52), deg: 52, len: 26 },
+    { p: edgeAt(-62), deg: -62, len: 22 },
+  ]) {
+    let p = s.p;
+    let head = (s.deg * Math.PI) / 180;
     const pts: Pt[] = [p];
-    for (let i = 0; i < len; i++) {
+    for (let i = 0; i < s.len; i++) {
       let ok = false;
       for (let tries = 0; tries < 6 && !ok; tries++) {
         const h = head + (r() - 0.5) * 0.5 + (tries ? (tries % 2 ? 1 : -1) * 0.45 * tries : 0);
         const q = { x: p.x + Math.sin(h) * 22, z: p.z - Math.cos(h) * 22 };
-        const rq = Math.hypot(q.x, q.z);
-        if (isWater(q.x, q.z) || rq < startR + 8 * Math.min(i, 3)) continue;
+        if (isWater(q.x, q.z) || outside(q.x, q.z) < 8 * Math.min(i + 1, 3) || nearFront(q)) continue;
         // drift back towards "outwards" so a road never curls round into the campus
         const out = Math.atan2(q.x, -q.z);
         head = h + Math.atan2(Math.sin(out - h), Math.cos(out - h)) * 0.12;
@@ -131,7 +155,8 @@ export function buildCountryside(startR: number, isWater: (x: number, z: number)
   const houses: Countryside["houses"] = [];
   const clear = (x: number, z: number) =>
     !isWater(x, z) &&
-    Math.hypot(x, z) > startR + 25 &&
+    outside(x, z) > 25 &&
+    Math.abs(z - front.mid) > 12 &&
     roads.every((l) => polyDist(x, z, l) > 6.5) &&
     rivers.every((v) => polyDist(x, z, v.line) > v.w + 8) &&
     houses.every((h) => Math.hypot(h.x - x, h.z - z) > 8.5);
@@ -158,6 +183,18 @@ export function buildCountryside(startR: number, isWater: (x: number, z: number)
       }
     }
   }
+  // a few houses along the public road (facing it), beyond the campus and across the road from it, never in
+  // front of the gate (the arrival view and the bus stop stay open)
+  for (const side of [-1, 1])
+    for (const dir of [-1, 1]) {
+      let x = dir * (45 + r() * 20);
+      while (Math.abs(x) < 470) {
+        // north of the road only beyond the campus
+        const z = side > 0 ? front.z1 + 10 + r() * 5 : front.z0 - 10 - r() * 5;
+        if ((side > 0 || Math.abs(x) > 200) && outside(x, z) > 5 && clear(x, z)) houses.push({ x, z, rot: Math.PI / 2 + (r() - 0.5) * 0.16, k: r() });
+        x += dir * (14 + r() * (Math.abs(x) < 200 ? 46 : 26));
+      }
+    }
   return { roads, rivers, houses };
 }
 

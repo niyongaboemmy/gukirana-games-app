@@ -5,6 +5,7 @@ import { BENCHES, ENTRY_Z, FOUNTAIN_RADIUS, INNER_PORTALS, PLAZA_RADIUS, PORTALS
 import { LAWN_BEDS, PLAZA_ARCS, RING_PLANTERS } from "./beds";
 import { GATE_Z } from "./gate/Gate";
 import { LAMPS, planRoute, PLAZA_OBSTACLES, resolve } from "./obstacles";
+import { GROWTH_PLOTS } from "./campus";
 
 type P = { x: number; z: number };
 
@@ -80,8 +81,9 @@ describe("campus layout (P1-WLD-03)", () => {
   }, 30000);
 
   it("offers at least 6 reserved hall plots beyond the current halls, all inside the ring road", () => {
+    // (P2-WLD-12: the plots beside the gate went; growth band B in the north brings the capacity back)
     const sites = PLOTS.filter((p) => p.type === "site");
-    expect(sites.length).toBeGreaterThanOrEqual(6 + 1);
+    expect(sites.length + GROWTH_PLOTS.length).toBeGreaterThanOrEqual(6 + 1);
     for (const p of sites) for (const o of outline(p).flat()) expect(Math.hypot(o.x, o.z)).toBeLessThan(RING_ROAD.r0 - 2);
   });
 

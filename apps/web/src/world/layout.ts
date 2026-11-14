@@ -24,8 +24,12 @@ export const PERIMETER_R = PLAZA_RADIUS + 6;
  */
 export const OUTER_PROMENADE = { r0: 100, r1: 105 } as const;
 export const EXPANSION_RING = 108;
-/** Ring road around the whole compound and the flat lawn edge beyond it, where the farmland begins. */
-export const RING_ROAD = { r0: 158, r1: 165 } as const;
+/**
+ * The campus loop road's arc (world/campus.ts CAMPUS_LOOP: the 6 m loop that replaced the full ring road, P2-WLD-12;
+ * the old name stays for the code that keeps buildings inside it) and the compound's arc round the sides, where the
+ * farmland begins (campus.ts COMPOUND: the boundary wall's south line, the north arc grown over growth band B).
+ */
+export const RING_ROAD = { r0: 159, r1: 165 } as const;
 export const COMPOUND_R = 172;
 /** Plaza entry gate (same structure as the arrival gate) on the avenue axis; players arrive just inside it. */
 export const ENTRY_Z = PLAZA_RADIUS + 3.5;
@@ -89,8 +93,10 @@ export const EXPANSION_PLOTS: { id: string; n: number; angleDeg: number }[] = [-
     n: i + 1,
     angleDeg,
   }))
-  // plots 09 (125°) + 10 (155°) are merged into the Fight Games hall site at 140° (P3-FGT-01, plan D7)
-  .filter((e) => e.n !== 9 && e.n !== 10);
+  // campus master plan (P2-WLD-12): only plots north of ±115° are kept (those beside and behind the arrival gate
+  // are dropped, nothing is built south of the gate line); 07 + 08 are merged into the Fight Games hall's site in the
+  // east district (09 + 10 were its first site). Capacity comes back in growth band B (campus.ts GROWTH_PLOTS).
+  .filter((e) => Math.abs(e.angleDeg) <= 115 && e.n !== 7 && e.n !== 8);
 
 /** Every plot on the door ring (doors + the service pavilion), sorted by bearing. */
 export const RING_ANGLES: number[] = [...PORTALS.filter((p) => !p.ring).map((p) => p.angleDeg), SERVICE_ANGLE].sort((a, b) => a - b);

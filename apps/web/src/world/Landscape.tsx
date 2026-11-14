@@ -10,6 +10,7 @@ import { Flowers } from "./Flowers";
 import { sessionMemo } from "./session-cache";
 import { BitmapTextureLoader } from "./bitmap-texture";
 import { COMPOUND_R } from "./layout";
+import { campusOutside, PUBLIC_ROAD, roadY } from "./campus";
 import { mistUniform } from "./activities";
 import { buildCountryside, countrysideMask, polyDist, type Countryside } from "./countryside";
 import { terrainMaterial } from "./terrain-shader";
@@ -97,23 +98,33 @@ const TERRACE = 2.2;
 /** Height of the farmland terrain (metres). Flat district up to the compound edge, hills beyond; low plain towards the volcanoes. */
 export function terrainHeight(x: number, z: number): number {
   const r = Math.hypot(x, z);
-  // keep the arrival gate forecourt (south, on the avenue axis) flat
-  const gateZone = 1 - smooth(22, 46, Math.hypot(x * 1.4, z - 100 - GROW));
-  const ramp = smooth(88 + GROW, 175 + GROW, r) * (1 - gateZone);
-  if (ramp <= 0) return -0.06;
-  const north = smooth(0.15, 0.7, -z / Math.max(r, 1));
-  const amp = lerp(30, 6, north);
-  let h = fbm(x * 0.0055 + 7, z * 0.0055 - 3) * amp + fbm(x * 0.022, z * 0.022, 2) * 5;
-  h += smooth(500, 1100, r) * (1 - north) * 40; // far southern ridges close the horizon
-  const t = h / TERRACE;
-  const terr = (Math.floor(t) + smooth(0.72, 1, t - Math.floor(t))) * TERRACE;
-  h = lerp(h, terr, 0.62 * (1 - smooth(380, 620, r))) * ramp;
+  // flat inside the campus (compound + frontage, world/campus.ts), hills beyond; the public road keeps its own
+  // gentle profile through the hills (roadCorridor)
+  const ramp = smooth(0, 87, campusOutside(x, z, 1));
+  const road = roadCorridor(z);
+  if (ramp <= 0 && road >= 1) return -0.06;
+  let h = 0;
+  if (ramp > 0) {
+    const north = smooth(0.15, 0.7, -z / Math.max(r, 1));
+    const amp = lerp(30, 6, north);
+    h = fbm(x * 0.0055 + 7, z * 0.0055 - 3) * amp + fbm(x * 0.022, z * 0.022, 2) * 5;
+    h += smooth(500, 1100, r) * (1 - north) * 40; // far southern ridges close the horizon
+    const t = h / TERRACE;
+    const terr = (Math.floor(t) + smooth(0.72, 1, t - Math.floor(t))) * TERRACE;
+    h = lerp(h, terr, 0.62 * (1 - smooth(380, 620, r))) * ramp;
+  }
+  h = lerp(roadY(x), h, road);
   for (const l of LAKES) {
     const d = lakeDist(l, x, z);
     if (d < 1.4) h = lerp(l.level - 5, Math.max(h, l.level + 1.5), smooth(0.92, 1.4, d));
   }
   return h - 0.06;
 }
+
+/** 0 on the public road and its cuttings (the terrain takes the road's profile), 1 from 26 m off its centre line. */
+const roadCorridor = (z: number) => smooth(7, 26, Math.abs(z - PUBLIC_ROAD.mid));
+/** 0 on the road's grass verges (no field colour or detail there), 1 beyond. */
+const roadVerge = (z: number) => smooth(5.5, 8, Math.abs(z - PUBLIC_ROAD.mid));
 
 const FIELD_COLORS = ["#5f9d3c", "#86ad45", "#3f7b35", "#6e9f46", "#9cb455", "#4f8a3a", "#6b4b33", "#a39a52"].map((c) => new THREE.Color(c));
 
@@ -162,8 +173,9 @@ function plotColor(x: number, z: number, out: THREE.Color) {
 
 function terrainColor(x: number, z: number, h: number, out: THREE.Color) {
   const r = Math.hypot(x, z);
+  const edge = campusOutside(x, z);
   _lawn.set("#5b9442").lerp(_c2.set("#73a650"), fbm(x * 0.05, z * 0.05, 2));
-  if (r < COMPOUND_R) {
+  if (edge <= 0) {
     out.copy(_lawn);
     return;
   }
@@ -186,13 +198,13 @@ function terrainColor(x: number, z: number, h: number, out: THREE.Color) {
   if (f > 0.7 && r < 600) out.multiplyScalar(lerp(0.78, 1, smooth(380, 600, r))); // terrace riser shadow line
   out.lerp(_c2.set("#3e6b30"), 0.25 * fbm(x * 0.03, z * 0.03, 2));
   // the compound lawn runs out softly into the farmland (no hard seam behind the gate)
-  out.lerp(_lawn, 1 - smooth(COMPOUND_R, COMPOUND_R + 30, r));
+  out.lerp(_lawn, 1 - smooth(0, 30, edge) * roadVerge(z));
 }
 
 /** How much of the shader's field / terrace detail a terrain vertex gets: 0 on the campus lawn and the lake shores,
  *  1 out in the farmland (Landscape terrain material). */
 function farmWeight(x: number, z: number, h: number): number {
-  let w = smooth(COMPOUND_R, COMPOUND_R + 30, Math.hypot(x, z));
+  let w = smooth(0, 30, campusOutside(x, z)) * roadVerge(z);
   for (const l of LAKES) {
     const d = lakeDist(l, x, z);
     if (d < 1.6) w *= h < l.level + 0.6 ? 0 : smooth(1.2, 1.6, d);
@@ -466,7 +478,7 @@ function inLake(x: number, z: number) {
 
 /** Roads, rivers and villages round the campus (seeded, built once per session). */
 const countryside = (): Countryside =>
-  sessionMemo("landscape:countryside", () => buildCountryside(COMPOUND_R + 4, (x, z) => LAKES.some((l) => lakeDist(l, x, z) < 1.25), { x: LAKES[0]!.x, z: LAKES[0]!.z }));
+  sessionMemo("landscape:countryside", () => buildCountryside((x, z) => campusOutside(x, z) - 4, (x, z) => LAKES.some((l) => lakeDist(l, x, z) < 1.25), { x: LAKES[0]!.x, z: LAKES[0]!.z }, PUBLIC_ROAD));
 
 function Vegetation({ tier }: { tier: Tier }) {
   const lite = tier === "lite";
@@ -484,14 +496,13 @@ function Vegetation({ tier }: { tier: Tier }) {
     const leaf = (base: string, v = 0.12) => new THREE.Color(base).offsetHSL((r() - 0.5) * 0.03, (r() - 0.5) * v, (r() - 0.5) * v);
     /** the compound (plaza, lawns, avenue, gates, ring road) is a designed garden: no trees, no wild scrub */
     const outside = (x: number, z: number) => {
-      const r0 = Math.hypot(x, z);
-      if (r0 < COMPOUND_R + 2) return false;
-      if (Math.abs(x) < 26 && z > 60 && z < 125 + GROW) return false; // avenue, arrival gate and its forecourt
+      if (campusOutside(x, z) < 2) return false; // the compound and its frontage (world/campus.ts)
       return !inLake(x, z);
     };
     const country = countryside();
     /** on (or within `m` m of) a road or the river water */
     const near = (x: number, z: number, m: number) =>
+      Math.abs(z - PUBLIC_ROAD.mid) < 7 + m ||
       country.roads.some((l) => polyDist(x, z, l) < 3 + m) || country.rivers.some((v) => polyDist(x, z, v.line) < v.w / 2 + m);
     // scattered acacias on the farmland hills, scrub and lava boulders between the fields
     for (let i = 0; i < (lite ? 40 : 110); i++) {

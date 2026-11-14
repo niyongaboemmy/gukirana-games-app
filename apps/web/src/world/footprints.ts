@@ -61,7 +61,7 @@ export const ARENA = (() => {
   return { cz: -(rz + 6), rx, rz, wall: 20 };
 })();
 
-const hallRects = (h: ReturnType<typeof wingedPlan>, front = 1.6): Rect[] => [
+export const hallRects = (h: ReturnType<typeof wingedPlan>, front = 1.6): Rect[] => [
   { x0: -WING_HW, x1: WING_HW, z0: front, z1: -h.wing },
   { x0: h.x0 - 0.2, x1: h.x1 + 0.2, z0: -h.wing, z1: h.z1 - 0.2 },
 ];
