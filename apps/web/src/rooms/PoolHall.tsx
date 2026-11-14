@@ -127,7 +127,7 @@ const POCKETS: [number, number][] = [
   [1.27, 0.635],
 ];
 
-function PoolTables({ tables, lite }: { tables: Table[]; lite: boolean }) {
+export function PoolTables({ tables, lite }: { tables: Table[]; lite: boolean }) {
   const h = tables[0]!.h;
   const oak = usePbr("oak_veneer_01", [2, 1]);
   const velour = usePbr("velour_velvet", [10, 5], { map: false });

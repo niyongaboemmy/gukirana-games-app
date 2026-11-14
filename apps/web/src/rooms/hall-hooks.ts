@@ -15,6 +15,19 @@ export interface HallHooks {
   route?: (from: P, to: P) => P[];
   /** a tap on the floor at `p`: the point to walk to (e.g. the door front of an office you may not enter) */
   tap?: (p: P) => P;
+  /* --- halls on several levels (Tournament Arena, P2-ARN-03) --- */
+  /** height of the walking surface (stairs, raked rows, sunken floor); 0 everywhere when absent */
+  ground?: (x: number, z: number) => number;
+  /** may you stand here? A step onto a non-walkable spot slides along the edge or is refused */
+  walkable?: (x: number, z: number) => boolean;
+  /** chair footprint radius (seat rows: small, so the stair aisles between them stay walkable) */
+  chairR?: number;
+  /** where you step to after standing up from `seat` (e.g. back to the stair aisle of a seat row) */
+  standSpot?: (seatId: string) => P | null;
+  /** release the chair on the server (default: the hall `stand` message) */
+  stand?: () => void;
+  /** last word on the follow camera (keep it inside the bowl, above the rake) */
+  camClamp?: (cam: { x: number; y: number; z: number }) => void;
 }
 export const hallHooks: Partial<Record<HallGame, HallHooks>> = {};
 

@@ -16,6 +16,7 @@ import { GAME_COLORS, LED_BOOST, worldMaterials, type Tier } from "./materials";
 import { arenaScreenTexture, posterTexture } from "./textures";
 import { FountainWater } from "./Fountain";
 import { DoorBadge, Vestibule } from "./Vestibule";
+import { arenaGate } from "@/arena/flags";
 
 const FONT = "/fonts/Baloo2.ttf";
 
@@ -163,6 +164,9 @@ function AutoDoors({ def, inset, tier, locked = false }: { def: PortalDef; inset
         }
       }
     }
+    // Tournament Arena: the doors open only while the arena status says you may come in (arena/ArenaDoorWatch);
+    // someone walking out of it is always let out
+    if (near && def.kind === "arena" && !arenaGate.canEnter && (doorHold[def.id] ?? 0) <= performance.now()) near = false;
     if (near !== wasNear.current) {
       wasNear.current = near;
       plazaDoorSound(entryX, entryZ, near);

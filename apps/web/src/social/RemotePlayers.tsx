@@ -202,7 +202,7 @@ function RemoteAvatar({ id, tier, hall }: { id: string; tier: Tier; hall: boolea
       const g = ghosts.get(id);
       if (g && group.current) {
         const moving = g.vx !== 0 || g.vz !== 0;
-        group.current.position.set(g.x, 0, g.z);
+        group.current.position.set(g.x, remoteGround.fn?.(g.x, g.z) ?? 0, g.z);
         group.current.rotation.y = moving ? Math.atan2(g.vx, g.vz) : g.yaw;
         anim.current = moving ? 1 : 0;
         fade.current = g.fade;
@@ -211,7 +211,7 @@ function RemoteAvatar({ id, tier, hall }: { id: string; tier: Tier; hall: boolea
       return;
     }
     if (!group.current) return;
-    group.current.position.set(pose.x, 0, pose.z);
+    group.current.position.set(pose.x, remoteGround.fn?.(pose.x, pose.z) ?? 0, pose.z);
     group.current.rotation.y = pose.yaw;
     anim.current = pose.anim;
     fade.current = fadeOf(id);
@@ -316,6 +316,9 @@ function nearOther(id: string, x: number, z: number): boolean {
   return false;
 }
 
+/** height of the walking surface for remote people (halls on several levels: the Tournament Arena bowl) */
+const remoteGround: { fn: ((x: number, z: number) => number) | null } = { fn: null };
+
 const TABLE_OF = /^t(\d+)s/;
 /** Hall tables from the chair list (`t{table}s{chair}`): centre of each table's chairs, busy when someone sits. */
 function hallTables(seats: readonly SeatPose[]) {
@@ -338,7 +341,11 @@ function hallTables(seats: readonly SeatPose[]) {
  * Everyone else in the room (plaza and halls). Pass `hallSeats` inside a hall so seated people render exactly on
  * their chair; plaza bench places come from @gukirana/contracts.
  */
-export function RemotePlayers({ tier = "standard", hallSeats }: { tier?: Tier; hallSeats?: readonly SeatPose[] }) {
+export function RemotePlayers({ tier = "standard", hallSeats, ground }: { tier?: Tier; hallSeats?: readonly SeatPose[]; ground?: (x: number, z: number) => number }) {
+  useEffect(() => {
+    remoteGround.fn = ground ?? null;
+    return () => void (remoteGround.fn = null);
+  }, [ground]);
   const ids = useWorld((s) => Object.keys(s.players).join(","));
   // people who just left (ghosts) stay in the list until their fade has finished: same component, no remount
   const [ghostKey, setGhostKey] = useState("");

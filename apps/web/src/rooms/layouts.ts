@@ -1,7 +1,8 @@
 /** Hall interiors (metres, DESIGN-SPEC §6.1/§6.4). Room spans x ∈ [-W/2, W/2], z ∈ [-D/2, D/2]; entrance door on the south wall (+z). */
 import { ADMIN_COLLIDERS, ADMIN_COLOR, ADMIN_SIZE, ADMIN_WALLS } from "@/admin-block/plan";
+import { ARENA_COLLIDERS, ARENA_COLOR, ARENA_SIZE, BOWL_SEATS } from "@/arena/bowl";
 
-export type HallGame = "pool" | "ludo" | "igisoro" | "admin";
+export type HallGame = "pool" | "ludo" | "igisoro" | "admin" | "arena";
 
 export interface Table {
   id: string;
@@ -260,8 +261,23 @@ export const HALLS: Record<HallGame, HallLayout> = {
     aisles: [0],
     walls: ADMIN_WALLS,
   }),
+  // Tournament Arena (P2-ARN-03): a round bowl, not a table hall. Its 1,224 seats are the contract's bowl seats
+  // (arena/bowl.ts, ids from ARENA_BOWL); walking, levels and routes come from the arena's hall hooks (arena/hooks.ts).
+  arena: {
+    game: "arena",
+    title: "Tournament Arena",
+    subtitle: "Bowl · 1,224 seats · feature stage",
+    color: ARENA_COLOR,
+    size: { ...ARENA_SIZE },
+    door: { x: 0, w: 2.6 },
+    spawn: { x: 0, z: ARENA_SIZE.d / 2 - 2.4 },
+    tables: [],
+    seats: BOWL_SEATS.map(({ id, table, x, z, yaw }) => ({ id, table, x, z, yaw })),
+    colliders: ARENA_COLLIDERS,
+    aisles: [0],
+  },
 };
 
-export const isHallGame = (g: string): g is HallGame => g === "pool" || g === "ludo" || g === "igisoro" || g === "admin";
+export const isHallGame = (g: string): g is HallGame => g === "pool" || g === "ludo" || g === "igisoro" || g === "admin" || g === "arena";
 /** halls with game tables (seats claimed through the realtime server) */
-export const isGameHall = (g: string): g is Exclude<HallGame, "admin"> => g === "pool" || g === "ludo" || g === "igisoro";
+export const isGameHall = (g: string): g is Exclude<HallGame, "admin" | "arena"> => g === "pool" || g === "ludo" || g === "igisoro";

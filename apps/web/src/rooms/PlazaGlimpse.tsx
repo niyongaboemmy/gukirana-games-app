@@ -72,12 +72,15 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
 
     // Tournament Arena: basalt plinth, glazed concourse, white drum and the shallow dome (ARENA is in the arena
     // door's frame: the door stands on the ring due north, so the drum centre is DOOR_RING + |cz| north of the fountain)
+    // (not from inside the arena itself: its own drum would stand over its lobby)
     const az = ringPoint(0, DOOR_RING).z + ARENA.cz;
     const ell = (rx: number, rz: number) => [rx, 1, rz] as [number, number, number];
+    if (layout.game !== "arena") {
     add("arenaStone", new THREE.CylinderGeometry(1, 1, 1.2, seg, 1, true), 0, 0.6, az, 0, ell(ARENA.rx + 0.4, ARENA.rz + 0.4));
     add("arenaGlass", new THREE.CylinderGeometry(1, 1, 6, seg, 1, true), 0, 4.2, az, 0, ell(ARENA.rx - 0.3, ARENA.rz - 0.3));
     add("arenaWhite", new THREE.CylinderGeometry(1, 1, ARENA.wall - 7.1, seg, 1, false), 0, 7.1 + (ARENA.wall - 7.1) / 2, az, 0, ell(ARENA.rx + 0.2, ARENA.rz + 0.2));
     add("arenaRoof", new THREE.SphereGeometry(1, seg, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0, ARENA.wall + 0.2, az, 0, [ARENA.rx + 0.45, 5.5, ARENA.rz + 0.45]);
+    }
 
     // neighbouring buildings on the door ring, from the plaza's own footprints (local frame: door at the origin,
     // facade towards the fountain = +z, volume towards -z); this hall itself is where you stand

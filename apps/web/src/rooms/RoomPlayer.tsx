@@ -127,7 +127,13 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   const walls = useMemo(() => layout.walls ?? [], [layout]);
   const hooks = hallHooks[layout.game];
   /** chairs / stools are solid too (round footprint at the seat, sized per hall's furniture) */
-  const chairR = layout.game === "pool" ? 0.42 : layout.game === "ludo" ? 0.38 : 0.28;
+  const chairR = hooks?.chairR ?? (layout.game === "pool" ? 0.42 : layout.game === "ludo" ? 0.38 : 0.28);
+  /** release the chair (the hall's own message when it has one) */
+  const releaseSeat = () => (hooks?.stand ?? standUp)();
+  /** smoothed height of the walking surface under you (halls on several levels) */
+  const groundY = useRef<number | null>(null);
+  /** where you stood before this frame's step (the walkable check slides back from here) */
+  const walkFrom = useRef({ x: 0, z: 0 }).current;
 
   // re-take the same chair once the hall connection is up (server confirms the seat)
   useEffect(() => {
@@ -352,7 +358,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       nav.goal = null; // the leave route is re-planned every frame; no click-to-walk detours fighting it
       nav.progress.detours = 2;
       if (R.seated) {
-        standUp();
+        releaseSeat();
         R.set({ seated: null });
       }
       insideOnce.current = true;
@@ -375,7 +381,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       // seated and tapped another table: stand up and go there (tapping your own table does nothing)
       const mine = layout.seats.find((x) => x.id === R.seated)?.table;
       if (pick.req && pick.req !== mine) {
-        standUp();
+        releaseSeat();
         R.set({ seated: null });
       } else if (pick.req || pick.table) clearPick();
     } else if (pick.req) planPick(pick.req);
@@ -385,14 +391,15 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     const wantsToWalk = keys.has("KeyW") || keys.has("ArrowUp") || keys.has("KeyS") || keys.has("ArrowDown") || Math.hypot(W.input.x, W.input.y) > 0.3 || !!nav.target;
     if (seat && wantsToWalk) {
       // walking (keys / joystick / click) while seated = stand up; turning keys don't
-      standUp();
+      releaseSeat();
       R.set({ seated: null });
     }
 
     // stood up (or the server refused the chair): rise in place, then step out to a free spot
     if (!seat && sitStage.current) {
       const wasDown = sitStage.current.phase === "lower" || sitStage.current.phase === "seated";
-      const from = wasDown ? layout.seats.find((x) => x.id === sitStage.current!.id) : undefined;
+      // (halls with a stand spot, e.g. arena seat rows: always step back out to it, even from half way along the row)
+      const from = wasDown || hooks?.standSpot ? layout.seats.find((x) => x.id === sitStage.current!.id) : undefined;
       sitStage.current = null;
       if (from) {
         const fwdX = Math.sin(from.yaw);
@@ -407,7 +414,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
           [from.x - fwdZ * (out + 0.2), from.z + fwdX * (out + 0.2)],
           [from.x - fwdX * (out + 0.25), from.z - fwdZ * (out + 0.25)],
         ];
-        const [tx, tz] = cands.find(([x, z]) => isFree(x, z)) ?? cands[0]!;
+        const spot = hooks?.standSpot?.(from.id);
+        const [tx, tz] = spot ? [spot.x, spot.z] : (cands.find(([x, z]) => isFree(x, z)) ?? cands[0]!);
         standStage.current = { t: 0, fx: pos.current.x, fz: pos.current.z, tx, tz, chair: from.id };
         leftChair.current = { id: from.id, x: tx, z: tz, at: performance.now() };
         camBlendUntil.current = performance.now() + 800;
@@ -553,6 +561,19 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       }
     }
 
+    if (hooks?.walkable && !seat && !stand && !hooks.walkable(pos.current.x, pos.current.z) && hooks.walkable(walkFrom.x, walkFrom.z)) {
+      // levels with stairs and seat rows: slide along the edge of the walkable space, never onto the rows
+      if (hooks.walkable(pos.current.x, walkFrom.z)) pos.current.z = walkFrom.z;
+      else if (hooks.walkable(walkFrom.x, pos.current.z)) pos.current.x = walkFrom.x;
+      else pos.current.set(walkFrom.x, 0, walkFrom.z);
+    }
+    walkFrom.x = pos.current.x;
+    walkFrom.z = pos.current.z;
+    if (hooks?.ground) {
+      const gy = seat ? hooks.ground(seat.x, seat.z) : hooks.ground(pos.current.x, pos.current.z);
+      groundY.current = groundY.current == null ? gy : groundY.current + (gy - groundY.current) * Math.min(1, dt * 14);
+      pos.current.y = groundY.current;
+    } else pos.current.y = 0;
     if (group.current) {
       group.current.position.copy(pos.current);
       group.current.rotation.y = facing.current;
@@ -675,6 +696,18 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     cx = THREE.MathUtils.clamp(cx, -w / 2 + 0.3, w / 2 - 0.3);
     cz = THREE.MathUtils.clamp(cz, -d / 2 + 0.3, d / 2 - 0.35); // camera always inside the hall
     cy = Math.min(cy, layout.size.h - 0.3);
+    if (hooks?.ground) {
+      // halls on several levels: the whole rig rides on the surface you stand on, never below the rake behind you
+      const gy = pos.current.y;
+      cy += gy;
+      target.y += gy;
+      cy = Math.max(cy, hooks.ground(cx, cz) + 0.9);
+      const c = { x: cx, y: cy, z: cz };
+      hooks.camClamp?.(c);
+      cx = c.x;
+      cy = c.y;
+      cz = c.z;
+    }
     const phNow = useDoorway.getState().phase;
     const doorsShut = phNow === "closed"; // hidden behind the frozen frame: snap, so the first visible frame is final
     if (!snapped.current || doorsShut) camera.position.set(cx, cy, cz);

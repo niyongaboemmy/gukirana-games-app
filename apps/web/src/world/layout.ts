@@ -2,6 +2,7 @@ import { PLAZA_BENCH_CLUSTERS, PLAZA_BENCH_COURT, PLAZA_BENCHES } from "@gukiran
 import type { PortalId } from "@/lib/world-store";
 import type { IconKind } from "./textures";
 import { ADMIN_BLOCK_ON } from "@/admin-block/flags";
+import { ARENA_ON } from "@/arena/flags";
 
 /**
  * Gukirana Arena District layout in metres (DESIGN-SPEC §6.1–6.2, docs/WORLD-ARENA-DESIGN.md §5).
@@ -56,7 +57,7 @@ export const PORTALS: PortalDef[] = [
   { id: "soon-left", label: "Coming Soon", sub: "Draughts", color: "#8A94A6", href: null, angleDeg: -122, kind: "soon" },
   { id: "igisoro", label: "Igisoro Court", sub: "Strategy", color: "#27AE60", href: "/room/igisoro", angleDeg: -88, kind: "igisoro", plot: "hall" },
   { id: "pool", label: "Pool Hall", sub: "8-Ball", color: "#2F80ED", href: "/room/pool", angleDeg: -44, kind: "pool", plot: "hall" },
-  { id: "arena", label: "Tournament Arena", sub: "Tournaments", color: "#9B51E0", href: null, angleDeg: 0, kind: "arena" },
+  { id: "arena", label: "Tournament Arena", sub: "Tournaments", color: "#9B51E0", href: ARENA_ON ? "/room/arena" : null, angleDeg: 0, kind: "arena" },
   { id: "ludo", label: "Ludo Lounge", sub: "Dice & tactics", color: "#FF8A1F", href: "/room/ludo", angleDeg: 44, kind: "ludo", plot: "hall" },
   // the +88° hall plot (reserved for a 36 × 28 m hall): the Administrative Block (P2-ADM-02)
   { id: "admin", label: "Administrative Block", sub: "Offices", color: "#C9A96B", href: ADMIN_BLOCK_ON ? "/room/admin" : null, angleDeg: 88, kind: "admin", plot: "hall" },
