@@ -95,18 +95,32 @@ export function Clouds({ tier }: { tier: Tier }) {
   }, [tier]);
   const mats = useMemo(
     () =>
-      [0, 1, 2].map(
-        (k) =>
-          new THREE.MeshBasicMaterial({
-            map: cumulusTexture(500 + k),
-            transparent: true,
-            depthWrite: false,
-            fog: false,
-            toneMapped: false,
-            color: "#f4f6f8",
-            opacity: 0.62,
-          }),
-      ),
+      [0, 1, 2].map((k) => {
+        const m = new THREE.MeshBasicMaterial({
+          map: cumulusTexture(500 + k),
+          transparent: true,
+          depthWrite: false,
+          fog: false,
+          toneMapped: false,
+          color: "#f4f6f8",
+          opacity: 0.62,
+        });
+        // (P2-WLD-11) a billboard seen edge-on — from the campus aerial view, high above it — fades out instead of
+        // showing as a white streak across the valley
+        m.onBeforeCompile = (sh) => {
+          sh.vertexShader = sh.vertexShader
+            .replace("#include <common>", "#include <common>\nvarying float vGkEdge;")
+            .replace(
+              "#include <begin_vertex>",
+              "#include <begin_vertex>\n  vGkEdge = smoothstep(0.15, 0.5, abs(dot(normalize(mat3(modelMatrix) * normal), normalize(cameraPosition - (modelMatrix * vec4(transformed, 1.0)).xyz))));",
+            );
+          sh.fragmentShader = sh.fragmentShader
+            .replace("#include <common>", "#include <common>\nvarying float vGkEdge;")
+            .replace("#include <color_fragment>", "#include <color_fragment>\n  diffuseColor.a *= vGkEdge;");
+        };
+        m.customProgramCacheKey = () => "gk-cloud-edge";
+        return m;
+      }),
     [],
   );
   useEffect(

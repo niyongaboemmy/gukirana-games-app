@@ -31,9 +31,12 @@ function SkyDome() {
 const look = new THREE.Vector3();
 function Sun({ tier }: { tier: Tier }) {
   const light = useRef<THREE.DirectionalLight>(null);
-  const { camera, scene } = useThree();
+  const { camera, scene, gl } = useThree();
   const size = 46;
   const map = 2048;
+  const frame = useRef(0);
+  // (the aerial view's throttled shadow map, below, hands auto-updates back when the sun unmounts)
+  useEffect(() => () => void (gl.shadowMap.autoUpdate = true), [gl]);
   useEffect(() => {
     const l = light.current;
     if (!l) return;
@@ -70,6 +73,13 @@ function Sun({ tier }: { tier: Tier }) {
     const cx = Math.round(fx / texel) * texel;
     const cz = Math.round(fz / texel) * texel;
     const reach = 120 + half;
+    // high up, people and props are a few pixels: the campus shadow map (≈ 70 shadow-pass draws) is re-rendered
+    // when the shadow frame moves and otherwise every 6th frame, instead of every frame (P2-WLD-11)
+    const moved = l.target.position.x !== cx || l.target.position.z !== cz;
+    if (h > 60) {
+      gl.shadowMap.autoUpdate = false;
+      if (moved || ++frame.current % 6 === 0) gl.shadowMap.needsUpdate = true;
+    } else if (!gl.shadowMap.autoUpdate) gl.shadowMap.autoUpdate = true;
     l.target.position.set(cx, 0, cz);
     l.position.set(cx + SUN_DIR.x * reach, SUN_DIR.y * reach, cz + SUN_DIR.z * reach);
   });
