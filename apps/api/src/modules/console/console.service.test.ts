@@ -52,7 +52,9 @@ afterAll(() => close());
 
 describe("console sections", () => {
   it("grants sections by role", () => {
-    expect(sectionsFor(["super_admin"])).toEqual(["overview", "visitors", "users", "reports", "buildings", "monitor", "roles", "finance"]);
+    expect(sectionsFor(["super_admin"])).toEqual(["overview", "visitors", "users", "reports", "buildings", "monitor", "roles", "finance", "games"]);
+    expect(sectionsFor(["it_admin"])).toContain("games");
+    expect(sectionsFor(["support_agent", "accountant", "event_manager"])).not.toContain("games");
     expect(sectionsFor(["accountant"])).toEqual(["overview", "visitors", "finance"]);
     expect(sectionsFor(["support_agent"])).toEqual(["overview", "visitors", "users", "reports"]);
     expect(sectionsFor([])).toEqual([]);

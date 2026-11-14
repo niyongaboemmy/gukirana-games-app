@@ -90,7 +90,7 @@ export function describeAudit(r: AuditRowIn, names: AuditNames): AuditWords {
     const n = r.who.slice("admin-token:".length);
     whoName = !n || n === "back-office" ? "Back office" : `Back office (${n})`;
   } else if (UUID.test(r.who)) whoName = person(names, r.who);
-  else if (SYSTEM.has(r.who)) whoName = "System";
+  else if (SYSTEM.has(r.who) || r.who.startsWith("system:")) whoName = "System";
   else whoName = r.who;
 
   const [kind, ...rest] = r.target.split(":");
@@ -101,6 +101,8 @@ export function describeAudit(r: AuditRowIn, names: AuditNames): AuditWords {
   else if (kind === "office" && id) targetName = names.offices.get(id) ?? id;
   else if (kind === "role" && id) targetName = names.roles.get(id) ?? id;
   else if (kind === "arena") targetName = "Tournament Arena";
+  else if (kind === "game" && id) targetName = ({ igisoro: "Igisoro", ludo: "Ludo", pool: "8-Ball Pool" } as Record<string, string>)[id] ?? id;
+  else if (kind === "match" && id) targetName = `Match ${id.slice(0, 8)}`;
   else if (r.target === "admin-block") targetName = "Administrative Block";
   else targetName = r.target;
 

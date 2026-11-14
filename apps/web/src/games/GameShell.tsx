@@ -47,6 +47,7 @@ export function GameShell({
   onLeave,
   live = false,
   menuExtras,
+  leaveNote,
 }: {
   game: GameId;
   mode?: string;
@@ -62,6 +63,8 @@ export function GameShell({
   children: React.ReactNode;
   footer?: React.ReactNode;
   menuExtras?: (close: () => void) => React.ReactNode;
+  /** live matches: exactly what leaving does now (forfeit or cancel, stake, rating), docs/GAME-EXIT-RULES.md */
+  leaveNote?: string;
 }) {
   useGameInput();
   const [menu, setMenu] = useState(false);
@@ -181,7 +184,7 @@ export function GameShell({
       )}
       {leaving && (
         <Modal onClose={() => setLeaving(false)} label={t("game.leaveTitle")} title={t("game.leaveTitle")} icon={LogOut}>
-          <p className="text-sm text-on-glass-muted">{pot > 0 ? t("game.leaveStake", { stake: pot / 2 }) : live ? t("game.leaveLive") : t("game.leavePractice")}</p>
+          <p className="text-sm text-on-glass-muted">{leaveNote ?? (pot > 0 ? t("game.leaveStake", { stake: pot / 2 }) : live ? t("game.leaveLive") : t("game.leavePractice"))}</p>
           <div className="mt-4 flex gap-2">
             <button type="button" data-autofocus onClick={() => (setLeaving(false), setMenu(false))} className="btn-secondary min-h-12 flex-1 rounded-control font-semibold">
               {t("game.stay")}

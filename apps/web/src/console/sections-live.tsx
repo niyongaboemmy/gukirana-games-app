@@ -30,6 +30,8 @@ const ACTIONS: Record<string, string> = {
   "report.dismiss": "dismissed a report",
   "building.open": "opened a building",
   "building.close": "closed a building",
+  "game.settings": "changed a game's rules",
+  "match.void": "voided a stale match (refund)",
   grant: "granted a role",
   revoke: "removed a role",
   "user.grant": "granted a role",

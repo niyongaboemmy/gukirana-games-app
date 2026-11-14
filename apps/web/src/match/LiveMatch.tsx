@@ -22,6 +22,7 @@ import { loadMe, refreshSession, useSession } from "@/lib/session";
 import { levelForXp } from "@/lib/profile-store";
 import { returnPath } from "@/lib/return-point";
 import { useMatch } from "@/lib/match-store";
+import { useGameOffer } from "@/lib/games-offer";
 
 interface PlayerInfo {
   userId: string;
@@ -37,16 +38,38 @@ interface Init {
   players: PlayerInfo[];
   commit: string;
   matchId: string;
+  /** the rules this match runs with (the game's settings when it was created) */
+  rules?: { turnSeconds: number; reconnectSeconds: number; maxTimeouts: number };
+  /** someone has made a move (before that, leaving cancels the match) */
+  started?: boolean;
 }
 interface Result {
   ranks: Record<string, number>;
   reason: string;
+  /** why: RESIGN | DISCONNECT | TIMEOUTS (forfeit) or the void cause (NO_SHOW, BOTH_DISCONNECTED, …) */
+  cause?: string;
+  loser?: string;
+  /** the API couldn't be reached: the stale-escrow sweep refunds the stakes */
+  pending?: boolean;
   seedReveal: string;
   settlement: { xp?: Record<string, number>; ratings?: Record<string, number> } | null;
 }
 
-const TURN_MS = 30_000;
+const TURN_S = 30;
 const RECONNECT_WINDOW_S = 60;
+const MAX_TIMEOUTS = 3;
+
+/** the result screen's one-line summary for every way a live match ends (docs/GAME-EXIT-RULES.md) */
+function exitSummary(r: Result, won: boolean, draw: boolean, rules: { reconnectSeconds: number; maxTimeouts: number }): string {
+  const key = (k: string) => k as Parameters<typeof t>[0];
+  if (r.reason === "void") {
+    if (r.pending) return t("exit.pending");
+    return r.cause ? t(key(`exit.void${r.cause}`)) : t("exit.void");
+  }
+  if (r.reason === "forfeit" && r.cause) return t(key(`exit.forfeit${won ? "Won" : "Lost"}${r.cause}`), { secs: rules.reconnectSeconds, max: rules.maxTimeouts });
+  if (r.reason === "forfeit") return won ? "Your opponent forfeited." : "You forfeited the match.";
+  return draw ? "Draw: stakes returned." : won ? "Settled by the server: the pot is yours." : "Well played. Rematch?";
+}
 
 /** One connection per room, shared across React re-mounts (StrictMode) and released with a short delay. */
 const joins = new Map<string, Promise<Room>>();
@@ -120,6 +143,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
   const [turn, setTurn] = useState<string | null>(null);
   const [deadline, setDeadline] = useState(0);
   const [result, setResult] = useState<Result | null>(null);
+  const [started, setStarted] = useState(false);
   const resultRef = useRef<Result | null>(null);
   resultRef.current = result;
   const [error, setError] = useState<string | null>(null);
@@ -162,9 +186,13 @@ export function LiveMatch({ roomId }: { roomId: string }) {
       saveToken(roomId, r);
       // QA hook (dev, or NEXT_PUBLIC_GK_QA=1): simulate a dropped connection (abnormal close, not a resign)
       if (process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_GK_QA === "1") (window as unknown as { __gkMatch: unknown }).__gkMatch = { drop: () => r.connection.close(4010) };
-      r.onMessage("init", (m: Init) => setInit(m));
-      r.onMessage("state", async (m: { state: unknown; turn: string | null; deadline: number }) => {
+      r.onMessage("init", (m: Init) => {
+        setInit(m);
+        if (m.started) setStarted(true);
+      });
+      r.onMessage("state", async (m: { state: unknown; turn: string | null; deadline: number; started?: boolean }) => {
         setTurn(m.turn);
+        if (m.started) setStarted(true);
         setDeadline(m.deadline);
         setRolling(false);
         const s = m.state as IgisoroState & LudoState;
@@ -184,7 +212,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
         setError(`Move rejected: ${m.reason}`);
       });
       r.onMessage("presence", (m: { userId: string; connected: boolean }) => setOffline((o) => (m.connected ? (o?.userId === m.userId ? null : o) : { userId: m.userId, since: Date.now() })));
-      r.onMessage("timeout", (m: { userId: string; strikes: number }) => say(`Time out (${m.strikes}/3)`, "bad"));
+      r.onMessage("timeout", (m: { userId: string; strikes: number; max?: number }) => say(t("exit.timeout", { n: m.strikes, max: m.max ?? MAX_TIMEOUTS }), "bad"));
       r.onMessage("emote", () => undefined);
       r.onMessage("draw-offer", (m: { from: string }) => setDrawIn(m.from));
       r.onMessage("draw-declined", () => {
@@ -196,6 +224,8 @@ export function LiveMatch({ roomId }: { roomId: string }) {
         setResult(m);
         dropToken(roomId);
         void loadMe();
+        // friendly games left / Stars changed: the next challenge sheet shows the new numbers
+        void useGameOffer.getState().load(true);
       });
       // a dropped connection (network, sleep): reconnect with the token inside the server's 60 s window
       r.onLeave((code) => {
@@ -219,7 +249,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
             }
           }
           setReconnecting(false);
-          setError("Connection lost. This match is no longer available.");
+          setError(t("exit.gone"));
         })();
       });
       r.send("sync");
@@ -252,7 +282,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
         joins.delete(roomId);
         // never be sent back here again (a stale "match ready" for this room)
         if (useMatch.getState().ready?.roomId === roomId) useMatch.setState({ ready: null });
-        setError("This match is no longer available.");
+        setError(t("exit.gone"));
       }
     })();
     return () => {
@@ -382,7 +412,11 @@ export function LiveMatch({ roomId }: { roomId: string }) {
     footer = d.lastShot ? <p className="text-center text-xs text-on-glass-muted sm:text-sm">{d.lastShot.message}</p> : null;
   }
 
-  const offSecs = offline ? Math.max(0, RECONNECT_WINDOW_S - Math.floor((now - offline.since) / 1000)) : 0;
+  const rules = { turnSeconds: init?.rules?.turnSeconds ?? TURN_S, reconnectSeconds: init?.rules?.reconnectSeconds ?? RECONNECT_WINDOW_S, maxTimeouts: init?.rules?.maxTimeouts ?? MAX_TIMEOUTS };
+  const offSecs = offline ? Math.max(0, rules.reconnectSeconds - Math.floor((now - offline.since) / 1000)) : 0;
+  const oppName = opp[0]?.name ?? "Your opponent";
+  // the Leave confirmation states the consequence right now (before the first move: a free cancel)
+  const leaveNote = !state || !started ? t("exit.beforeStart") : stake > 0 ? t("exit.forfeitStake", { name: oppName, pot: stake * 2, stake }) : t("exit.forfeitFriendly", { name: oppName });
   const status_ = (
     <div className="flex flex-wrap items-center justify-center gap-x-3 text-xs font-semibold">
       {!turn && !result && <span className="text-on-glass-muted">{t("game.starting")}</span>}
@@ -403,7 +437,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
     // while a pool shot replays, the shooter still holds the turn on screen
     active: !!p && (game === "pool" && poolBefore ? poolBefore.players[poolBefore.turn] === p.userId : turn === p.userId) && !result,
     deadline: deadline || undefined,
-    turnMs: TURN_MS,
+    turnMs: rules.turnSeconds * 1000,
     offline: !!p && !result && offline?.userId === p.userId,
     detail: mine ? detailMe : p ? detailOpp[p.userId] : null,
   });
@@ -417,6 +451,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
       pot={stake * 2}
       live
       mode={t("game.live")}
+      leaveNote={`${leaveNote} ${t("exit.disconnectNote", { secs: rules.reconnectSeconds })}`}
       onLeave={() => {
         void room.current?.leave(true); // explicit resign
         joins.delete(roomId);
@@ -480,19 +515,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
           draw={draw}
           starsDelta={starsDelta}
           xp={result.settlement?.xp?.[myId] ?? 0}
-          summary={
-            result.reason === "forfeit"
-              ? won
-                ? "Your opponent forfeited."
-                : "You forfeited the match."
-              : result.reason === "void"
-                ? "Match voided: stakes refunded."
-                : draw
-                  ? "Draw: stakes returned."
-                  : won
-                    ? "Settled by the server: the pot is yours."
-                    : "Well played. Rematch?"
-          }
+          summary={exitSummary(result, won, draw, rules)}
           onRematch={() => router.push(returnPath())}
         />
       )}

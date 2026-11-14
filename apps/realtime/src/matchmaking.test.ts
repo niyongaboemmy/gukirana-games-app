@@ -35,6 +35,8 @@ describe("quick match queue", () => {
     expect(isGame("pool") && isGame("ludo") && isGame("igisoro")).toBe(true);
     expect(isGame("chess")).toBe(false);
     expect(isStake(25) && isStake(0)).toBe(true);
-    expect(isStake(30) || isStake("25")).toBe(false);
+    // well-formed only: which stakes a game allows is the API's per-game settings (STAKE_NOT_ALLOWED)
+    expect(isStake(30)).toBe(true);
+    expect(isStake("25") || isStake(-5) || isStake(2.5) || isStake(20_000)).toBe(false);
   });
 });

@@ -4,6 +4,10 @@ Scope: 8-Ball Pool, Ludo and Igisoro, in practice (`apps/web/src/games/*`) and i
 (`apps/web/src/match/LiveMatch.tsx` + `apps/realtime/src/rooms/match-room.ts`). Both modes run the same engine
 packages (`packages/games/{pool,ludo,igisoro}`), so every rule fix and test below covers both.
 
+How a live match ends in every case (leave, disconnect, timeouts, no-show, server error, suspension) and the
+per-game rules staff can edit (friendly games per day, stakes, timers) are in [GAME-EXIT-RULES.md](GAME-EXIT-RULES.md)
+(P1-GAME-06).
+
 ## 1. Rules and scoring
 
 | Game | Rule (SRS) | Status | Proof |

@@ -17,7 +17,9 @@ import { keyFromSeed, verifyResult, type SignedMatchResult } from "@gukirana/sig
 const settled: SignedMatchResult[] = [];
 const voided: string[] = [];
 vi.mock("../api-client.js", () => ({
+  ApiError: class ApiError extends Error {},
   api: {
+    heartbeat: vi.fn(async () => ({ inactive: [] })),
     createMatch: vi.fn(),
     submitResult: vi.fn(async (r: SignedMatchResult) => {
       settled.push(r);
@@ -157,10 +159,12 @@ describe("match room", () => {
     await b.room.leave(true);
   });
 
-  it("resign is a forfeit with a signed result", async () => {
-    const { roomId, matchId } = await create("pool");
+  it("resign (after the first move) is a forfeit with a signed result", async () => {
+    const { roomId, matchId } = await create("igisoro");
     const a = await join(roomId, A);
     const b = await join(roomId, B);
+    await wait(150);
+    a.room.send("intent", { pit: 0 });
     await wait(150);
     b.room.send("resign");
     await wait(300);

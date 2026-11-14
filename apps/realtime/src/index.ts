@@ -4,7 +4,7 @@ import { WebSocketTransport } from "@colyseus/ws-transport";
 import { loadEnv } from "@gukirana/config";
 import { createLogger } from "@gukirana/observability";
 import { WorldRoom } from "./rooms/world-room.js";
-import { MatchRoom } from "./rooms/match-room.js";
+import { MatchRoom, startMatchHeartbeat } from "./rooms/match-room.js";
 import { startSuspensionWatch } from "./social/accounts.js";
 
 const env = loadEnv();
@@ -28,4 +28,6 @@ gameServer.define("match", MatchRoom);
 await gameServer.listen(env.REALTIME_PORT);
 // suspended accounts: their world + match connections are closed within about a second (GAP-001)
 startSuspensionWatch();
+// live matches are reported to the API every ~20 s: anything not reported is voided + refunded (stale escrow sweep)
+startMatchHeartbeat();
 logger.info({ port: env.REALTIME_PORT }, "realtime listening");

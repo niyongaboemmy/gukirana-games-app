@@ -4,7 +4,8 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Check, Loader2, Star, Swords, X, Zap } from "lucide-react";
 import { useWorld } from "@/lib/world-store";
-import { GAME_LABEL, STAKES, useMatch, type GameId } from "@/lib/match-store";
+import { GAME_LABEL, reasonText, useMatch, type GameId } from "@/lib/match-store";
+import { choicesFor, useGameOffer } from "@/lib/games-offer";
 import { PaperCard } from "@/ui/PaperCard";
 import { propose, quickMatchJoin, quickMatchLeave, respondProposal } from "@/lib/realtime";
 import { useSession } from "@/lib/session";
@@ -15,6 +16,7 @@ import { useSocial } from "@/social/social-store";
 import { promptWrap } from "@/hud/Prompt";
 import { QUICK_MATCH_EVENT } from "@/hud/usePhoneHud";
 import { M } from "./strings";
+import { defaultStake, StakeChips, stakeNote, useStakeChoices } from "./StakeChips";
 
 const GAMES: { id: GameId; icon: typeof DieIcon; color: string }[] = [
   { id: "igisoro", icon: SeedsIcon, color: "#27AE60" },
@@ -36,10 +38,11 @@ const glass = "glass rounded-card";
 
 function GameStakePicker({ onConfirm, confirmLabel, onCancel, initialGame = "igisoro" }: { onConfirm: (g: GameId, s: number) => void; confirmLabel: string; onCancel: () => void; initialGame?: GameId }) {
   const [game, setGame] = useState<GameId>(initialGame);
-  const stars = useSession((s) => s.me?.stars ?? 0);
-  // default to 25 Stars, or the biggest stake the player can afford (a disabled default could not be sent)
-  const [stake, setStake] = useState(() => [...STAKES].reverse().find((s) => s <= Math.min(25, stars)) ?? 0);
-  const affordable = stake <= stars;
+  // the game's stakes from the server (allowed, affordable with the fee, limits); Friendly when nothing else is open
+  const { choices } = useStakeChoices(game);
+  const [stake, setStake] = useState(() => defaultStake(choices));
+  const picked = choices.find((c) => c.stake === stake);
+  const playable = !!picked?.ok;
   return (
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-3 gap-2">
@@ -52,18 +55,12 @@ function GameStakePicker({ onConfirm, confirmLabel, onCancel, initialGame = "igi
       </div>
       <div>
         <p className="plabel mb-1.5">{M.stakeEach}</p>
-        <div className="flex flex-wrap gap-1.5">
-          {STAKES.map((s) => (
-            <button key={s} type="button" disabled={s > stars} onClick={() => setStake(s)} className={`ptab num min-h-10! flex-none! rounded-full! px-3.5! text-sm! disabled:opacity-30 ${stake === s ? "is-on" : ""}`}>
-              {s === 0 ? "Friendly" : <>{s} <Star size={12} className="fill-current" /></>}
-            </button>
-          ))}
-        </div>
-        <p className="pmuted mt-2 text-xs">{stake > 0 ? `Winner gets ${stake * 2} Stars. Stakes are held in escrow by the server.` : "No stake: just for fun and rating."}</p>
+        <StakeChips game={game} value={stake} onChange={setStake} />
+        <p className="pmuted mt-2 text-xs">{stakeNote(picked)}</p>
       </div>
       <div className="flex gap-2">
         <button type="button" onClick={onCancel} className="pbtn pbtn-secondary flex-1">{M.cancel}</button>
-        <button type="button" disabled={!affordable} onClick={() => onConfirm(game, stake)} className="pbtn pbtn-primary flex-1">{confirmLabel}</button>
+        <button type="button" disabled={!playable} onClick={() => onConfirm(game, stake)} className="pbtn pbtn-primary flex-1">{confirmLabel}</button>
       </div>
     </div>
   );
@@ -72,6 +69,12 @@ function GameStakePicker({ onConfirm, confirmLabel, onCancel, initialGame = "igi
 function IncomingCard({ p }: { p: ReturnType<typeof useMatch.getState>["incoming"][number] }) {
   const left = useCountdown(p.expires);
   const g = GAMES.find((x) => x.id === p.game)!;
+  // can I take this one? (Stars for the stake, friendly games left, not in another match) — same reasons as the server
+  const offer = useGameOffer((s) => s.offer);
+  const stars = useSession((s) => s.me?.stars ?? 0);
+  useEffect(() => void useGameOffer.getState().load(true), [p.id]);
+  const mine = choicesFor(offer, p.game, stars, [p.stake]).find((c) => c.stake === p.stake);
+  const blocked = offer && mine && !mine.ok ? reasonText(mine.reason, { game: p.game, limit: mine.limit }) : null;
   return (
     <div className="pcard pcard-sm pointer-events-auto w-[min(380px,92vw)] p-3">
       <div className="relative flex items-center gap-3">
@@ -81,9 +84,10 @@ function IncomingCard({ p }: { p: ReturnType<typeof useMatch.getState>["incoming
           <p className="pmuted flex items-center gap-1 text-sm">{GAME_LABEL[p.game]} · {p.stake ? <>{p.stake} <Star size={12} className="fill-current" /> each</> : "Friendly"} · {left}s</p>
         </div>
       </div>
+      {blocked && <p className="pnote relative mt-2 text-xs! font-semibold" role="status"><span><b>{M.cantAccept}:</b> {blocked}</span></p>}
       <div className="relative mt-3 flex gap-2">
         <button type="button" onClick={() => respondProposal(p.id, false)} className="pbtn pbtn-secondary min-h-11! flex-1"><X size={16} /> Decline</button>
-        <button type="button" onClick={() => respondProposal(p.id, true)} className="pbtn pbtn-success min-h-11! flex-1"><Check size={16} /> Accept</button>
+        <button type="button" disabled={!!blocked} onClick={() => respondProposal(p.id, true)} className="pbtn pbtn-success min-h-11! flex-1 disabled:opacity-40"><Check size={16} /> Accept</button>
       </div>
     </div>
   );

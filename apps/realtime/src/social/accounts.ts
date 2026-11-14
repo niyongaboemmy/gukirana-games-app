@@ -1,4 +1,5 @@
 import { createLogger } from "@gukirana/observability";
+import { isPersonalRefusal, TABLE_REFUSALS } from "@gukirana/contracts";
 import { api, type Eligibility, type SuspensionFeed } from "../api-client.js";
 import { forgetAccess } from "./office-access.js";
 import { forgetArenaAccess } from "./arena-access.js";
@@ -29,10 +30,10 @@ type Close = () => void;
 /** a message to one tracked session (warnings, mutes) */
 type Notify = (type: string, msg: Record<string, unknown>) => void;
 type FeedSource = (since: string | null) => Promise<SuspensionFeed>;
-type EligibilitySource = (userId: string, stake: number) => Promise<Eligibility>;
+type EligibilitySource = (userId: string, stake: number, game?: string) => Promise<Eligibility>;
 
 let feedSource: FeedSource = (since) => api.suspensions(since);
-let eligibilitySource: EligibilitySource = (u, s) => api.eligibility(u, s);
+let eligibilitySource: EligibilitySource = (u, s, g) => api.eligibility(u, s, g);
 
 const sessions = new Map<string, Set<Close>>();
 const notifiers = new Map<Close, Notify>();
@@ -165,10 +166,13 @@ export function startSuspensionWatch(): () => void {
   return () => clearInterval(t);
 }
 
-/** May `userId` be put into a match at `stake`? (fail-open on API errors; the API re-checks at match creation) */
-export async function eligibilityOf(userId: string, stake = 0): Promise<Eligibility> {
+/**
+ * May `userId` be put into a match at `stake` (in `game`, when given: game open, allowed stake, friendly games left)?
+ * Fail-open on API errors; the API re-checks at match creation.
+ */
+export async function eligibilityOf(userId: string, stake = 0, game?: string): Promise<Eligibility> {
   try {
-    return await eligibilitySource(userId, stake);
+    return await eligibilitySource(userId, stake, game);
   } catch {
     return { ok: true };
   }
@@ -176,7 +180,7 @@ export async function eligibilityOf(userId: string, stake = 0): Promise<Eligibil
 
 /** Reasons that keep a player out of a match / the world (anything else, e.g. an unknown id, is left to the API). */
 export const isRefusal = (e: Eligibility): e is Eligibility & { reason: string } =>
-  !e.ok && !!e.reason && ["ACCOUNT_INACTIVE", "ON_A_BREAK", "DAILY_LIMIT_REACHED", "INSUFFICIENT_FUNDS"].includes(e.reason);
+  !e.ok && !!e.reason && (isPersonalRefusal(e.reason) || (TABLE_REFUSALS as readonly string[]).includes(e.reason));
 
 /** test hooks */
 export function setAccountSources(s: { feed?: FeedSource; eligibility?: EligibilitySource }): void {

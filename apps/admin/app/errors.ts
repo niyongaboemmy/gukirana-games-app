@@ -17,6 +17,8 @@ const WORDS: Record<string, string> = {
   ACCOUNT_NOT_ACTIVE: "That account is suspended or deleted, so it can't be given a role.",
   RATE_LIMITED: "Too many changes in a short time. Wait a minute and try again.",
   BAD_ID: "That id doesn't look right.",
+  INVALID_SETTINGS: "Some values are outside the allowed range. Check the numbers and stakes.",
+  SETTINGS_CHANGED: "Someone else saved this game a moment ago. Load again and retry.",
 };
 
 type Body = { code?: string; status?: number; statusCode?: number; message?: unknown };

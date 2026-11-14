@@ -6,6 +6,9 @@ import type {
   ConsoleReport,
   ConsoleSection,
   ConsoleUser,
+  GameId,
+  GameSettings,
+  GameSettingsRow,
   PresenceTotals,
   ReportStatus,
   Sanction,
@@ -110,6 +113,9 @@ export const consoleApi = {
   presence: () => api<PresenceTotals>("/console/presence"),
   audit: (q: string) => api<AuditRow[]>(`/console/audit?limit=150&q=${encodeURIComponent(q)}`),
   finance: (days: number) => api<FinanceReport>(`/console/finance?days=${days}`),
+  games: () => api<GameSettingsRow[]>("/console/games"),
+  gameHistory: (game: GameId) => api<GameSettingsRow[]>(`/console/games/${game}/history`),
+  setGame: (game: GameId, settings: GameSettings, reason: string) => api<GameSettingsRow>(`/console/games/${game}`, { method: "PUT", ...json({ settings, reason }) }),
   roles: () => api<RoleRow[]>("/admin/access/roles"),
   grant: (user: string, role: string, reason?: string) => post<{ changed: boolean }>("/admin/access/grant", { user, role, ...(reason ? { reason } : {}) }),
   revoke: (user: string, role: string, reason?: string) => post<{ changed: boolean }>("/admin/access/revoke", { user, role, ...(reason ? { reason } : {}) }),
@@ -154,6 +160,8 @@ export function errText(e: unknown): string {
     SESSION_REVOKED: "You were signed out. Please sign in again.",
     VALIDATION_ERROR: "Please check the fields: something is missing or too long.",
     VALIDATION: "Please check the fields: something is missing or too long.",
+    INVALID_SETTINGS: "Some values are outside the allowed range. Check the numbers and stakes.",
+    SETTINGS_CHANGED: "Someone else saved this game a moment ago. Reload and try again.",
   };
   return map[code] ?? "Something went wrong. Please try again.";
 }

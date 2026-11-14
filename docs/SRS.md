@@ -272,9 +272,10 @@ Priority key: **M** = Must (MVP), **S** = Should (MVP+ / Phase 2), **C** = Could
 | FR-GS-01 | Server-authoritative game state. The client only sends **intents** (shot vector, chosen token, chosen pit). | M |
 | FR-GS-02 | Real-time transport: **WebTransport** (HTTP/3, QUIC) with **WebSocket fallback**. | M |
 | FR-GS-03 | **Reconnection**: a player who disconnects has a grace window (default 60 s, configurable per game) to rejoin with full state restore. | M |
-| FR-GS-04 | Disconnect policy: grace window expires → turn timeouts → forfeit per game rules. Mass outage on our side → **match voided and stakes refunded**. | M |
+| FR-GS-04 | Disconnect policy: grace window expires → turn timeouts → forfeit per game rules. Mass outage on our side → **match voided and stakes refunded**. Every exit case (leave, disconnect, timeouts, no-show, both gone, server error, suspension, stale escrow) is specified in [GAME-EXIT-RULES.md](GAME-EXIT-RULES.md). | M |
 | FR-GS-05 | In-game quick chat (preset phrases + emojis) and mute. Free text and voice during matches follow the rules in §8.4.5. | M |
-| FR-GS-06 | Resign / forfeit with confirmation. | M |
+| FR-GS-06 | Resign / forfeit with confirmation. The confirmation states the consequence (forfeit with stake and rating, or a free cancel before the first move). | M |
+| FR-GS-11 | Per-game live-match rules (open / paused, **friendly games per player per day**, allowed stakes, turn / reconnect / join times, timeouts before forfeit, longest match), versioned and audited, edited by staff (console Games section, back office); new matches only. Practice vs AI is unlimited. | M |
 | FR-GS-07 | Full **replay** recorded (event log) for disputes, review and sharing. | M |
 | FR-GS-08 | Spectator mode for friends and tournament finals (with a delay to stop ghosting). | S |
 | FR-GS-09 | Haptic feedback (Vibration API), sound, reduced-motion mode. | M |
