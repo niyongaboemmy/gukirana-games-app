@@ -149,6 +149,7 @@ export class ConsoleService {
 
   /** suspend / reactivate a player. Nobody changes their own status; only a super admin changes a super admin's. */
   async setStatus(actor: string, id: string, status: UserStatus, reason: string) {
+    if (!UUID.test(id)) throw new BadRequestException({ code: "BAD_ID" });
     const roles = await this.rolesOf(actor);
     if (!USER_STATUS_ROLES.some((r) => roles.includes(r))) throw new ForbiddenException({ code: "ROLE_REQUIRED" });
     if (actor === id) throw new BadRequestException({ code: "CANNOT_CHANGE_SELF" });

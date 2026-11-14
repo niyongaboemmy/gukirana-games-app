@@ -9,6 +9,7 @@ import {
 } from "@gukirana/contracts";
 import { InternalGuard } from "../../common/auth.js";
 import { parse } from "../../common/zod.js";
+import { uuidParam } from "../../common/ids.js";
 import { AccessService } from "../admin-block/access.service.js";
 import { Actor, RequireRole, RoleGuard } from "../admin-block/role.guard.js";
 import { EconomyService } from "../economy/economy.service.js";
@@ -52,13 +53,14 @@ export class ConsoleController {
   @Get("users/:id")
   @RequireRole(...SECTION_ROLES.users)
   user(@Param("id") id: string) {
-    return this.console.userDetail(id);
+    return this.console.userDetail(uuidParam(id));
   }
 
   @Post("users/:id/status")
   @HttpCode(200)
   @RequireRole(...SECTION_ROLES.users)
   setStatus(@Param("id") id: string, @Body() body: unknown, @Actor() who: string) {
+    uuidParam(id);
     const b = parse(SetUserStatusSchema, body);
     return this.console.setStatus(who, id, b.status, b.reason);
   }

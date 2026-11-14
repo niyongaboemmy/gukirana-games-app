@@ -1,8 +1,9 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { z } from "zod";
 import type { SignedMatchResult } from "@gukirana/signing";
 import { InternalGuard } from "../../common/auth.js";
 import { parse } from "../../common/zod.js";
+import { uuidParam } from "../../common/ids.js";
 import { GamesService } from "./games.service.js";
 
 const CreateSchema = z.object({
@@ -37,17 +38,16 @@ export class GamesController {
   @Post(":id/result")
   @HttpCode(200)
   result(@Param("id") id: string, @Body() body: unknown) {
-    return this.games.settle(id, parse(ResultSchema, body) as SignedMatchResult);
+    return this.games.settle(uuidParam(id), parse(ResultSchema, body) as SignedMatchResult);
   }
 
   @Post(":id/void")
   @HttpCode(200)
   void(@Param("id") id: string) {
-    return this.games.void(id);
+    return this.games.void(uuidParam(id));
   }
 }
 
-const UUID = z.string().uuid();
 const StakeQuery = z.coerce.number().int().min(0).max(10_000);
 
 /** realtime → api: may this player be put into a match at this stake (pre-check for challenges / quick match)? */
@@ -58,7 +58,6 @@ export class PlayersInternalController {
 
   @Get(":id/eligibility")
   eligibility(@Param("id") id: string, @Query("stake") stake?: string) {
-    if (!UUID.safeParse(id).success) throw new BadRequestException({ code: "BAD_ID" });
-    return this.games.eligibility(id, parse(StakeQuery, stake ?? 0));
+    return this.games.eligibility(uuidParam(id), parse(StakeQuery, stake ?? 0));
   }
 }

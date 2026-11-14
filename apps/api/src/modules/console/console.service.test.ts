@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { ExecutionContext } from "@nestjs/common";
+import { BadRequestException, type ExecutionContext } from "@nestjs/common";
+import { uuidParam } from "../../common/ids.js";
 import { Reflector } from "@nestjs/core";
 import { createDatabase, eq, refreshTokens, users, type Database } from "@gukirana/db";
 import { AuthGuard, signAccessToken } from "../../common/auth.js";
@@ -87,6 +88,10 @@ describe("users", () => {
     await expect(svc.setStatus(support, boss, "suspended", "test")).rejects.toMatchObject({ response: { code: "SUPER_ADMIN_PROTECTED" } });
     await expect(svc.setStatus(boss, boss, "suspended", "test")).rejects.toMatchObject({ response: { code: "CANNOT_CHANGE_SELF" } });
     await expect(svc.setStatus(accountant, player, "suspended", "test")).rejects.toMatchObject({ response: { code: "ROLE_REQUIRED" } });
+    // a bad id is a 400, not a database error (GAP-009)
+    await expect(svc.setStatus(support, "not-a-uuid", "suspended", "test")).rejects.toMatchObject({ status: 400, response: { code: "BAD_ID" } });
+    expect(() => uuidParam("1; drop table users")).toThrow(BadRequestException);
+    expect(uuidParam(player)).toBe(player);
     // the back office can't suspend the only active super admin either (GAP-007)
     await expect(svc.setStatus("admin-token:ops", boss, "suspended", "test")).rejects.toMatchObject({ response: { code: "LAST_SUPER_ADMIN" } });
   });
