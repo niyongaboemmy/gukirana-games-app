@@ -213,7 +213,14 @@ export function groundPoint(clientX: number, clientY: number, el: HTMLElement, c
 }
 
 /** Pointer helper: distinguishes a click/tap (walk there) from a drag (look around). */
-export function pointerNav(el: HTMLElement, camera: () => THREE.Camera, onDrag: (dx: number, dy: number) => void, clamp?: (p: { x: number; z: number }) => { x: number; z: number } | null) {
+export function pointerNav(
+  el: HTMLElement,
+  camera: () => THREE.Camera,
+  onDrag: (dx: number, dy: number) => void,
+  clamp?: (p: { x: number; z: number }) => { x: number; z: number } | null,
+  /** halls on several levels: hit the real walking surfaces along the tap ray (else the y = 0 plane) */
+  pick?: () => ((r: THREE.Ray) => { x: number; z: number } | null) | undefined,
+) {
   let down: { x: number; y: number; t: number; lx: number; ly: number; moved: boolean } | null = null;
   const pd = (e: PointerEvent) => {
     if (e.button > 0 && e.pointerType === "mouse" && e.button !== 2) return;
@@ -231,7 +238,14 @@ export function pointerNav(el: HTMLElement, camera: () => THREE.Camera, onDrag: 
   };
   const pu = (e: PointerEvent) => {
     if (down && !down.moved && performance.now() - down.t < 400) {
-      const p = groundPoint(e.clientX, e.clientY, el, camera());
+      const picker = pick?.();
+      let p: { x: number; z: number } | null = null;
+      if (picker) {
+        const r = el.getBoundingClientRect();
+        ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera());
+        p = picker(ray.ray);
+      }
+      p ??= groundPoint(e.clientX, e.clientY, el, camera());
       if (p) {
         nav.target = clamp ? clamp(p) : p;
         nav.goal = null;

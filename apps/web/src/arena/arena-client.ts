@@ -1,12 +1,13 @@
 "use client";
 import { create } from "zustand";
-import { ArenaEvt, ArenaMsg, ArenaStatusSchema, arenaSeatZone, isValidArenaSeat, type ArenaDenial, type ArenaStatus } from "@gukirana/contracts";
+import { ARENA_STAFF_ROLES, ArenaEvt, ArenaMsg, ArenaStatusSchema, arenaSeatZone, isValidArenaSeat, type ArenaDenial, type ArenaStatus } from "@gukirana/contracts";
 import { api, ApiError, useSession } from "@/lib/session";
 import { onRoomMessage, roomSend } from "@/lib/realtime";
 import { useRoom } from "@/rooms/room-store";
 import { useWorld } from "@/lib/world-store";
 import { arenaGate } from "./flags";
 import { mockClaim, mockForced, mockStatus } from "./arena-mock";
+import { announcementFor, REACTION_IDS } from "./venue";
 
 /**
  * Tournament Arena client (P2-ARN-03): the door / pass / seat flow, mirroring the server's checks so the person gets
@@ -35,6 +36,14 @@ interface ArenaState {
   removed: "ARENA_CLOSED" | "BARRED" | null;
   /** the event card is open */
   cardOpen: boolean;
+  /** P2-ARN-04: I hold an arena staff role (super_admin / event_manager): floor, commentator desk */
+  staff: boolean;
+  /** session id of the staff member on air at the commentator desk (arena-wide voice) */
+  onAir: string | null;
+  /** the latest PA announcement (shown on the boards and as a toast) */
+  announce: { text: string; at: number } | null;
+  /** times (ms) of crowd reactions heard recently (real emotes from people here, incl. mine) */
+  reactions: number[];
   set: (p: Partial<Omit<ArenaState, "set">>) => void;
 }
 export const useArena = create<ArenaState>()((set) => ({
@@ -47,6 +56,10 @@ export const useArena = create<ArenaState>()((set) => ({
   pending: null,
   removed: null,
   cardOpen: false,
+  staff: false,
+  onAir: null,
+  announce: null,
+  reactions: [],
   set,
 }));
 
@@ -60,7 +73,44 @@ const missing = (e: unknown) => (e instanceof ApiError && e.status === 404) || e
 function apply(st: ArenaStatus, mock: boolean) {
   arenaGate.canEnter = st.canEnter;
   arenaGate.checkedAt = performance.now();
-  useArena.setState({ status: st, mock, loading: false });
+  const prev = useArena.getState().status;
+  const text = announcementFor(prev, st);
+  useArena.setState({ status: st, mock, loading: false, ...(text ? { announce: { text, at: Date.now() } } : {}) });
+}
+
+/** Post a PA announcement (boards + toast + chime). */
+export const announce = (text: string) => useArena.setState({ announce: { text, at: Date.now() } });
+
+/** GET /me/roles: arena staff (floor, commentator desk). Signed out / offline: not staff. */
+export async function loadArenaRoles(): Promise<void> {
+  if (useSession.getState().status !== "authenticated") return void useArena.setState({ staff: false });
+  try {
+    const r = await api<{ roles?: string[] }>("/me/roles");
+    useArena.setState({ staff: (r.roles ?? []).some((x) => (ARENA_STAFF_ROLES as readonly string[]).includes(x)) });
+  } catch {
+    useArena.setState({ staff: false });
+  }
+}
+
+/** DELETE /arena/events/:id/pass — give the pass back. */
+export async function returnPass(eventId: string): Promise<void> {
+  try {
+    if (!useArena.getState().mock) await api(`/arena/events/${encodeURIComponent(eventId)}/pass`, { method: "DELETE" });
+  } catch {
+    /* already gone */
+  }
+  if (useRoom.getState().seated) standFromSeat();
+  void fetchArenaStatus();
+}
+
+/** Staff at the commentator desk: go on air / off air (the server checks the role). */
+export const setMic = (on: boolean) => roomSend(ArenaMsg.mic, { on });
+
+/** count a crowd reaction (mine, or someone's here) for the crowd-noise swell */
+export function noteReaction(now = Date.now()) {
+  const r = useArena.getState().reactions.filter((t) => now - t < 6000);
+  r.push(now);
+  useArena.setState({ reactions: r.slice(-60) });
 }
 
 let inflight: Promise<ArenaStatus | null> | null = null;
@@ -133,7 +183,7 @@ export function seatDenial(seat: string): ArenaDenial | null {
   return null;
 }
 /** May I walk onto the competition floor (participants and staff: a floor pass)? */
-export const floorAllowed = () => useArena.getState().status?.pass?.zone === "floor";
+export const floorAllowed = () => useArena.getState().status?.pass?.zone === "floor" || useArena.getState().staff;
 
 let answerTimer: ReturnType<typeof setTimeout> | null = null;
 /** Ask the server for a seat (you are standing in its aisle). */
@@ -192,6 +242,11 @@ export function bindArenaRealtime() {
     w.set({ seats: next });
   });
   onRoomMessage<{ eventId: string; status: string }>(ArenaEvt.event, () => void fetchArenaStatus());
+  onRoomMessage<{ sid: string | null }>(ArenaEvt.onAir, (m) => useArena.setState({ onAir: m?.sid ?? null }));
+  // crowd reactions: real emotes from people in this room (cheer / clap / wave …)
+  onRoomMessage<{ id: string; emote: number }>("emote", (m) => {
+    if (REACTION_IDS.includes(m?.emote)) noteReaction();
+  });
   onRoomMessage<{ concourse: number; seats: number }>(ArenaEvt.occupancy, (o) => {
     const st = useArena.getState().status;
     if (st) useArena.setState({ status: { ...st, occupancy: o } });

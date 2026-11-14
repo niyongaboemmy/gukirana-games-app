@@ -215,6 +215,7 @@ export class WorldRoom extends Room {
       this.onMessage(ArenaMsg.zone, (client, raw: unknown) => void arena.onZone(client.sessionId, raw));
       this.onMessage(ArenaMsg.sit, (client, raw: { seat?: unknown }) => void arena.onSit(client.sessionId, raw));
       this.onMessage(ArenaMsg.stand, (client) => arena.onStand(client.sessionId));
+      this.onMessage(ArenaMsg.mic, (client, raw: { on?: unknown }) => arena.onMic(client.sessionId, raw));
       this.clock.setInterval(() => void arena.sync(), arenaConfig.statePollMs);
       this.clock.setInterval(() => arena.report(), arenaConfig.reportMs);
     }

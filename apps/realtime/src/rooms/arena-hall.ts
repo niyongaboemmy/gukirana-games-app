@@ -42,6 +42,8 @@ export class ArenaHall {
   private eventKey: string | null = null; // `${id}:${status}`
   private eventId: string | null = null;
   private reportQueued = false;
+  /** commentator desk: the staff member on air (arena-wide voice), P2-ARN-04 */
+  private onAir: string | null = null;
 
   constructor(private readonly host: ArenaHost) {}
 
@@ -74,11 +76,16 @@ export class ArenaHall {
     const s = await arenaState();
     if (!this.noteEvent(s) && s.current) this.host.send(sid, ArenaEvt.event, { eventId: s.current.id, status: s.current.status });
     this.host.send(sid, ArenaEvt.seats, { taken: [...this.seatBy.keys()] });
+    this.host.send(sid, ArenaEvt.onAir, { sid: this.onAir });
     this.changed();
   }
 
   left(sid: string): void {
     const hadSeat = this.free(sid);
+    if (this.onAir === sid) {
+      this.onAir = null;
+      this.host.broadcast(ArenaEvt.onAir, { sid: null });
+    }
     this.zone.delete(sid);
     this.staff.delete(sid);
     this.removed.delete(sid);
@@ -175,6 +182,21 @@ export class ArenaHall {
       this.seatsChanged();
       this.changed();
     }
+  }
+
+  /** The commentator desk mic: staff only, one voice at a time; releasing is always allowed for the holder. */
+  onMic(sid: string, raw: { on?: unknown } | undefined): void {
+    if (!this.allowed(sid, "zone")) return;
+    const on = raw?.on === true;
+    if (on) {
+      if (!this.staff.has(sid)) return this.deny(sid, "zone", "ROLE_REQUIRED");
+      if (this.onAir === sid) return;
+      this.onAir = sid; // a second staff member takes over the desk
+    } else {
+      if (this.onAir !== sid) return;
+      this.onAir = null;
+    }
+    this.host.broadcast(ArenaEvt.onAir, { sid: this.onAir });
   }
 
   // ---------------------------------------------------------------- state poll

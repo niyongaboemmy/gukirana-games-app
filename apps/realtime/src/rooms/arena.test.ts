@@ -247,4 +247,20 @@ describe("Tournament Arena zones and seats", () => {
     expect(p.of(ArenaEvt.zoneOk)).toHaveLength(0);
     expect(p.of(ArenaEvt.denied)).toHaveLength(0);
   });
+
+  it("commentator desk mic: staff only, one voice at a time, released when they leave (P2-ARN-04)", async () => {
+    const fan = await person({});
+    const boss = await person({ roles: ["event_manager"] });
+    await until(() => fan.of(ArenaEvt.onAir).length > 0);
+    expect(fan.last(ArenaEvt.onAir)).toEqual({ sid: null });
+    fan.room.send(ArenaMsg.mic, { on: true });
+    await until(() => fan.last(ArenaEvt.denied)?.reason === "ROLE_REQUIRED");
+    boss.room.send(ArenaMsg.mic, { on: true });
+    await until(() => fan.last(ArenaEvt.onAir)?.sid === boss.room.sessionId);
+    fan.room.send(ArenaMsg.mic, { on: false }); // not the holder: ignored
+    await wait(100);
+    expect(fan.last(ArenaEvt.onAir)?.sid).toBe(boss.room.sessionId);
+    await boss.room.leave();
+    await until(() => fan.last(ArenaEvt.onAir)?.sid === null);
+  });
 });

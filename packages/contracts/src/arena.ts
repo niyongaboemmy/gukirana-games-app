@@ -125,6 +125,8 @@ export const ArenaMsg = {
   /** ask for a specific seat id (see seat ids below) */
   sit: "arena-sit", // { seat }
   stand: "arena-stand", // {}
+  /** P2-ARN-04: staff take / release the commentator desk mic (arena-wide voice) */
+  mic: "arena-mic", // { on: boolean }
 } as const;
 
 /** server → client */
@@ -139,6 +141,8 @@ export const ArenaEvt = {
   removed: "arena-removed", // { reason: "ARENA_CLOSED" | "BARRED" }
   /** P2-ARN-02 addition: taken bowl seats in this room (on join and on every change) */
   seats: "arena-seats", // { taken: string[] }
+  /** P2-ARN-04: who is on air at the commentator desk (session id, or null) — on join and on every change */
+  onAir: "arena-onair", // { sid: string | null }
 } as const;
 
 export const ArenaZoneMsgSchema = z.object({ zone: z.enum(["seats", "vip", "floor"]) });

@@ -1,33 +1,106 @@
 "use client";
+import * as THREE from "three";
+import { create } from "zustand";
 import { nav } from "@/world/navigation";
+import { cameraState } from "@/world/Player";
 import { selfPose } from "@/lib/world-store";
 import { hallHooks, walkQueue } from "@/rooms/hall-hooks";
 import { useRoom } from "@/rooms/room-store";
 import { arenaStand, floorAllowed, requestSeat, seatDenial, useArena } from "./arena-client";
-import { aisleSpot, bowlSeat, groundAt, VIP, LOBBY, OUTER_R, PORTAL_HW, routeBetween, snapWalkable, walkable } from "./bowl";
+import { bowlSeat, CONCOURSE, groundAt, LOBBY, OUTER_R, PORTAL_HW, RESTROOM, routeBetween, seatFront, snapWalkable, STAGE, VIP, walkable, type WalkOpts } from "./bowl";
+import { nearestSpot, PHOTO_SPOT, seatArrival, type Spot } from "./venue";
 
 /**
- * The arena's extensions of the generic hall controller (rooms/RoomPlayer via rooms/hall-hooks): walking on several
- * levels (raked rows, stair aisles, the sunken floor), the walkable space, routes along the concourse, seat rows
- * left along the row back to the aisle, and a follow camera that stays inside the bowl. Registered when this module
- * loads (rooms/TournamentArena imports it), before the arena's controller mounts.
+ * The arena's extensions of the generic hall controller (rooms/RoomPlayer via rooms/hall-hooks) and the venue's
+ * interaction state (P2-ARN-03 / P2-ARN-04): walking on several levels (raked rows and their legroom, stepped stair
+ * aisles, the top walkway, gantry, boxes, the sunken floor for participants), taps that hit the real bowl surfaces,
+ * routes along the concourse, seats taken from the row in front of them, a follow camera that stays in the bowl, and
+ * the scripted moments (restroom visit, photo pose, the players' walk-on).
  */
+
+/* ---------------- venue state (HUD ↔ scene) ---------------- */
+
+export type Panel = "kiosk" | "board" | "concession" | "desk" | "tunnel" | "finder" | null;
+interface VenueState {
+  /** the interaction in reach (one prompt at a time) */
+  near: Spot | null;
+  /** the open window */
+  panel: Panel;
+  /** concession side chosen (snack / drink) */
+  counter: "snack" | "drink";
+  /** a restroom visit in progress (−1 west, 1 east) and its phase */
+  restroom: { side: -1 | 1; phase: "to" | "in" | "out"; at: number } | null;
+  /** photo mode: the camera faces you with the bowl behind; `hideHud` hides every control */
+  photo: boolean;
+  hideHud: boolean;
+  /** carrying a drink / snack (cosmetic, free) */
+  treat: { item: string; until: number } | null;
+  /** participants: the walk-on spotlight is on until this time */
+  walkOn: number;
+  set: (p: Partial<Omit<VenueState, "set">>) => void;
+}
+export const useVenue = create<VenueState>()((set) => ({
+  near: null,
+  panel: null,
+  counter: "drink",
+  restroom: null,
+  photo: false,
+  hideHud: false,
+  treat: null,
+  walkOn: 0,
+  set,
+}));
+
+/* ---------------- tap picking against the real bowl geometry ---------------- */
+
+/** meshes a tap may land on (treads, legroom, aisles, concourse, lobby, floor, gantry, box floors, seats) */
+export const pickables: THREE.Object3D[] = [];
+const caster = new THREE.Raycaster();
+function pick(ray: THREE.Ray) {
+  if (!pickables.length) return null;
+  caster.ray.copy(ray);
+  caster.far = 80;
+  const hits = caster.intersectObjects(pickables, false);
+  const opts = walkOpts();
+  for (const h of hits) {
+    // a walking surface faces up; a seat counts as its row
+    const up = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld).y : 1;
+    if (up < 0.5 && !(h.object as THREE.InstancedMesh).isInstancedMesh) continue;
+    const p = { x: h.point.x, z: h.point.z };
+    return walkable(p.x, p.z, opts) ? p : snapWalkable(p, opts.floor);
+  }
+  return null;
+}
+
+/* ---------------- hall hooks ---------------- */
+
+const walkOpts = (): WalkOpts => ({ floor: floorAllowed(), restroom: useVenue.getState().restroom?.side ?? 0 });
+
 hallHooks.arena = {
   ground: groundAt,
-  walkable: (x, z) => walkable(x, z, floorAllowed()),
-  chairR: 0.18,
+  walkable: (x, z) => walkable(x, z, walkOpts()),
+  chairR: 0.14,
   route: routeBetween,
   tap: (p) => snapWalkable(p, floorAllowed()),
+  pick,
   standSpot: (id) => {
     const s = bowlSeat(id);
-    return s ? aisleSpot(s) : null;
+    return s ? seatFront(s) : null;
   },
   stand: arenaStand,
+  // a seat is offered from the legroom right in front of it (or within reach on a VIP box floor)
+  seatOk: (id) => {
+    const s = bowlSeat(id);
+    if (!s) return false;
+    const f = seatFront(s);
+    return Math.hypot(selfPose.x - f.x, selfPose.z - f.z) < (s.table.startsWith("V") ? 0.9 : 0.62);
+  },
+  face: () => (useVenue.getState().photo ? PHOTO_SPOT.yaw : null),
   camClamp: (c) => {
     const r = Math.hypot(c.x, c.z);
     const inLobby = selfPose.z > 0 && Math.hypot(selfPose.x, selfPose.z) > OUTER_R;
     if (inLobby) {
-      // in the lobby: stay out of the drum wall (except through the entry portal)
+      // in the lobby: stay out of the drum wall (except through the entry portal); never into a restroom (privacy)
       if (r < OUTER_R + 0.35 && Math.abs(c.x) > PORTAL_HW - 0.4) {
         const k = (OUTER_R + 0.35) / Math.max(r, 1e-3);
         c.x *= k;
@@ -40,14 +113,18 @@ hallHooks.arena = {
       c.x *= k;
       c.z *= k;
     }
-    // inside a VIP box the camera stays below its roof
+    // inside a VIP box the camera stays below its roof; on the floor it stays above the floor
     if (!inLobby && r > VIP.front && groundAt(c.x, c.z) === VIP.floorY) c.y = Math.min(c.y, VIP.floorY + 2.8);
-    // and always below the space-frame roof
-    c.y = Math.min(c.y, 14.4);
+    // seated / standing on the rake: never inside the rows behind (comfortable eye line, no clipping)
+    c.y = Math.max(c.y, groundAt(c.x, c.z) + 1.15);
+    // and always below the ceiling
+    c.y = Math.min(c.y, 13.8);
   },
 };
 
-/** Walk to a seat: along the concourse and down / up its stair aisle; the seat request goes out on arrival. */
+/* ---------------- seats ---------------- */
+
+/** Walk to a seat: along the concourse, down / up the stair aisle and along the row to the seat's front. */
 export function goToSeat(id: string) {
   const s = bowlSeat(id);
   if (!s) return;
@@ -57,22 +134,100 @@ export function goToSeat(id: string) {
     arenaStand();
     useRoom.getState().set({ seated: null });
   }
-  const spot = aisleSpot(s);
-  const legs = routeBetween({ x: selfPose.x, z: selfPose.z }, spot);
-  nav.goal = null;
-  nav.target = legs[0] ?? spot;
-  nav.progress = { best: Infinity, since: performance.now(), detours: 0 };
-  walkQueue.legs = legs.slice(1);
+  const front = seatFront(s);
+  walkTo(front);
   useArena.setState({ walkingTo: id, denied: null, pending: null });
 }
 
-/** Per frame while the arena is on screen: arrive at the aisle → ask for the seat; manual walking cancels. */
-export function updateSeatWalk() {
-  const id = useArena.getState().walkingTo;
-  if (!id) return;
-  const s = bowlSeat(id);
-  if (!s) return void useArena.setState({ walkingTo: null });
-  const spot = aisleSpot(s);
-  if (Math.hypot(selfPose.x - spot.x, selfPose.z - spot.z) < 0.7) return requestSeat(id);
-  if (!nav.target && !walkQueue.legs.length) useArena.setState({ walkingTo: null }); // taken over by hand / blocked
+/** Scripted walk along the venue's routes. */
+export function walkTo(p: { x: number; z: number }) {
+  const legs = routeBetween({ x: selfPose.x, z: selfPose.z }, p);
+  nav.goal = null;
+  nav.target = legs[0] ?? p;
+  nav.progress = { best: Infinity, since: performance.now(), detours: 0 };
+  walkQueue.legs = legs.slice(1);
+}
+
+/** ask for the seat now (E on the prompt, arrival): always sends, whatever the walk state */
+export function takeSeat(id: string) {
+  nav.target = null;
+  walkQueue.legs = [];
+  useArena.setState({ walkingTo: null });
+  requestSeat(id);
+}
+
+/* ---------------- per frame ---------------- */
+
+let lastNear: string | null = null;
+let photoArrived = false;
+/** Per frame while the arena is on screen: seat arrival, the interaction in reach, scripted moments. */
+export function updateVenue() {
+  const a = useArena.getState();
+  const v = useVenue.getState();
+  const walking = !!nav.target || walkQueue.legs.length > 0;
+  if (a.walkingTo) {
+    const r = seatArrival(a.walkingTo, selfPose, walking);
+    if (r === "ask") takeSeat(a.walkingTo);
+    else if (r === "cancel") useArena.setState({ walkingTo: null });
+  }
+  // the interaction in reach (not while seated, walking to a seat, or in a scripted moment)
+  const seated = !!useRoom.getState().seated;
+  const near = seated || a.walkingTo || v.restroom || v.photo ? null : nearestSpot(selfPose.x, selfPose.z, { staff: a.staff });
+  if ((near?.id ?? null) !== lastNear) {
+    lastNear = near?.id ?? null;
+    v.set({ near });
+  }
+  // restroom visit: in through the door, a short pause out of sight, back out to the lobby
+  const rr = v.restroom;
+  if (rr) {
+    const now = performance.now();
+    const doorX = rr.side * (LOBBY.hw - 0.9);
+    if (rr.phase === "to" && !walking) {
+      nav.target = { x: rr.side * (LOBBY.hw + RESTROOM.depth / 2), z: (RESTROOM.z0 + RESTROOM.z1) / 2 };
+      walkQueue.legs = [];
+      v.set({ restroom: { ...rr, phase: "in", at: now } });
+    } else if (rr.phase === "in" && now - rr.at > 4500) {
+      nav.target = { x: doorX, z: RESTROOM.doorZ };
+      nav.progress = { best: Infinity, since: now, detours: 0 };
+      v.set({ restroom: { ...rr, phase: "out", at: now } });
+    } else if (rr.phase === "out" && (!walking || now - rr.at > 6000)) v.set({ restroom: null });
+  }
+  if (v.treat && v.treat.until < Date.now()) v.set({ treat: null });
+  if (v.photo) {
+    // photo mode ends when you walk away from the spot (after having arrived)
+    const d = Math.hypot(selfPose.x - PHOTO_SPOT.x, selfPose.z - PHOTO_SPOT.z);
+    if (d < 0.6) photoArrived = true;
+    else if (photoArrived && d > 1.6) endPhoto();
+  } else photoArrived = false;
+}
+
+/** Restroom: walk to the door; it opens, in, a short pause (camera stays in the lobby), out again. */
+export function visitRestroom(side: -1 | 1) {
+  walkTo({ x: side * (LOBBY.hw - 0.75), z: RESTROOM.doorZ });
+  // the last leg goes through the open door
+  useVenue.getState().set({ restroom: { side, phase: "to", at: performance.now() }, panel: null });
+}
+
+/** Photo spot: walk there, turn to the camera, the camera swings round in front (bowl behind you). */
+export function startPhoto() {
+  walkTo({ x: PHOTO_SPOT.x, z: PHOTO_SPOT.z });
+  useVenue.getState().set({ photo: true, panel: null });
+  cameraState.yaw = PHOTO_SPOT.yaw;
+  cameraState.pitch = 0.16;
+  cameraState.distance = 3.4;
+  nav.lastManualCam = performance.now() + 1e9; // hold the framing (no auto-follow) until photo mode ends
+}
+export function endPhoto() {
+  nav.lastManualCam = performance.now();
+  useVenue.getState().set({ photo: false, hideHud: false });
+}
+
+/** Participants: down the players' tunnel onto the stage, with the walk-on spotlight. */
+export function walkOnStage() {
+  walkTo({ x: 0, z: STAGE.z - STAGE.hd + 0.6 });
+  useVenue.getState().set({ walkOn: performance.now() + 14000, panel: null });
+}
+/** Up to the media gantry viewpoint. */
+export function climbGantry() {
+  walkTo({ x: 0, z: -(CONCOURSE.r1 + 2.2) });
 }

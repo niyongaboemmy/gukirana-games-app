@@ -407,7 +407,7 @@ function HallArea({ game, tier }: { game: HallGame; tier: "lite" | "standard" })
 /* ---------------- per-frame compositing: one root scene, the active area visible, its camera drives the view ---------------- */
 
 /** cheap read-only counters for QA scripts (frames drawn, view, area readiness, person pose, GPU resources) */
-const probe = { frames: 0, view: null as string | null, ready: false, self: selfPose, doors: doorOpen, programs: 0, textures: 0, geometries: 0, marks: {} as Record<string, number>, cam: null as THREE.Camera | null, dt: 0 };
+const probe = { calls: 0, tris: 0, frames: 0, view: null as string | null, ready: false, self: selfPose, doors: doorOpen, programs: 0, textures: 0, geometries: 0, marks: {} as Record<string, number>, cam: null as THREE.Camera | null, dt: 0 };
 /** first-time milestones (ms since navigation start) for boot timing */
 function mark(k: string) {
   probe.marks[k] ??= Math.round(performance.now());
@@ -424,6 +424,11 @@ function Compositor() {
   const rootCam = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const steady = useRef(0);
   useFrame((_, dt) => {
+    // draw calls / triangles of the whole previous frame (scene + post passes), for QA (renderer.info.render)
+    probe.calls = gl.info.render.calls;
+    probe.tris = gl.info.render.triangles;
+    gl.info.autoReset = false;
+    gl.info.reset();
     for (const run of warmDraws.splice(0)) run();
     const st = useStage.getState();
     const area = st.view ? areaOf(st.view) : null;

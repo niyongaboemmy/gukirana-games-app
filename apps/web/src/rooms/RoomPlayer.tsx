@@ -27,6 +27,7 @@ type SitStage = { id: string; t: number; phase: "walk" | "turn" | "lower" | "sea
 type StandStage = { t: number; fx: number; fz: number; tx: number; tz: number; chair: string };
 const INTRO_S = 1.9;
 const keys = new Set<string>();
+const qa: { teleport: ((x: number, z: number, yaw: number) => void) | null; cam: { p: [number, number, number]; l: [number, number, number] } | null } = { teleport: null, cam: null };
 onReleaseInput(() => keys.clear());
 
 /**
@@ -65,6 +66,21 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   // maps the plaza door frame onto this door); otherwise (reload, deep link) just inside the open doors
   const [hand] = useState(() => (typeof window !== "undefined" ? peekHandoff(`hall:${layout.game}`) : null));
   useEffect(() => clearHandoff(`hall:${layout.game}`), [layout.game]);
+  // dev QA (like window.__gkNav): place the person / pin the camera for screenshot tours
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_GK_QA !== "1") return;
+    qa.teleport = (x: number, z: number, yaw: number) => {
+      pos.current.set(x, 0, z);
+      facing.current = yaw;
+      intro.current = 0;
+      insideOnce.current = true;
+    };
+    (window as unknown as { __gkRoomQA: typeof qa }).__gkRoomQA = qa;
+    return () => {
+      qa.teleport = null;
+      qa.cam = null;
+    };
+  }, []);
   // you just walked through the open door: it is open on the very first frame (whatever order the door sensor and
   // this controller run in, the wall clamp would otherwise snap you 0.2 m inwards)
   useLayoutEffect(() => {
@@ -184,6 +200,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
         walkQueue.legs = legs.slice(1);
         return legs[0] ?? q;
       },
+      () => hallHooks[layout.game]?.pick,
     );
     const wheel = (e: WheelEvent) => (cameraState.distance = THREE.MathUtils.clamp(cameraState.distance + e.deltaY * 0.006, 2.2, 12));
     el.addEventListener("wheel", wheel, { passive: true });
@@ -508,6 +525,9 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       pos.current.z += s.dz;
       facing.current = s.facing;
       if (s.mode === "keys" || s.mode === "joy") walkQueue.legs = []; // manual input takes over
+      // a heading the hall asks for while you stand still (e.g. facing the camera at a photo spot)
+      const faceTo = !s.moving && !nav.target ? hooks?.face?.() : null;
+      if (faceTo != null) facing.current += wrapA(faceTo - facing.current) * Math.min(1, dt * 6);
       autoFollow(cameraState, s, dt);
       if (s.moving) anim.current = run || s.speed > 2.6 ? 2 : 1;
       else {
@@ -725,6 +745,11 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     if (!snapped.current || doorsShut || performance.now() >= camBlendUntil.current) lookPt.copy(target);
     else lookPt.lerp(target, 1 - Math.exp(-dt * 4));
     camera.lookAt(lookPt);
+    if (qa.cam) {
+      // dev QA: a fixed camera pose for screenshots
+      camera.position.set(...qa.cam.p);
+      camera.lookAt(...qa.cam.l);
+    }
 
     // nearest free chair / nearest signed-in player
     let nearSeat: string | null = null;

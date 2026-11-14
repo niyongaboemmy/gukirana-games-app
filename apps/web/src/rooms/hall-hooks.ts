@@ -1,3 +1,4 @@
+import type * as THREE from "three";
 import type { HallGame, Rect } from "./layouts";
 
 /**
@@ -30,6 +31,10 @@ export interface HallHooks {
   camClamp?: (cam: { x: number; y: number; z: number }) => void;
   /** may this chair be offered to you right now ("Sit down" prompt)? (the server has the final say) */
   seatOk?: (id: string) => boolean;
+  /** a tap: the walking-surface point hit by the view ray (stairs, rows, tiers), null = use the floor plane */
+  pick?: (ray: THREE.Ray) => P | null;
+  /** turn to this heading while standing still (e.g. facing the camera at a photo spot); null = free */
+  face?: () => number | null;
   /** movement input is suspended (a full-screen window has the keyboard, e.g. the office computer) */
   frozen?: () => boolean;
 }
