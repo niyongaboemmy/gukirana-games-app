@@ -10,6 +10,7 @@ import { Plaza } from "./Plaza";
 import { Effects } from "./Lighting";
 import { Avatar, preloadHumans } from "./Avatar";
 import { Gate } from "./gate/Gate";
+import { Frontage } from "./Frontage";
 import { GateActors } from "./gate/GateCanvas";
 import { PlazaActors, pickTier } from "./WorldCanvas";
 import { xrStore } from "./xr-store";
@@ -392,6 +393,8 @@ function OutdoorArea({ tier }: { tier: "lite" | "standard" }) {
         <Plaza nearPortal={view === "plaza" ? nearPortal : null} tier={tier} />
         {/* the arrival gate at the south end of the avenue (sign-in, sign-out) */}
         <Gate tier={tier} inXR={inXR} />
+        {/* the campus frontage and roads (P2-WLD-12): boundary wall, forecourt, car parks, public road, loop road */}
+        <Frontage tier={tier} />
       </StaticMerge>
       <ProxyAvatar tier={tier} />
       {view === "plaza" && <CampusLabels />}

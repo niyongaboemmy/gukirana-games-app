@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { nearCampusWalk, PROMENADE_DEG } from "./campus";
 import { GeoBatch } from "./geo";
 import { roofKit, roofMembrane } from "./roofs";
 import { LAMPS } from "./obstacles";
@@ -16,7 +17,6 @@ import {
   PAVING_R,
   PERIMETER_R,
   PORTALS,
-  RING_ROAD,
   ringPoint,
   SPAWN,
   TOTEMS,
@@ -754,12 +754,15 @@ function plaza(b: GeoBatch, tier: string) {
     const p = ringPoint(deg + STEP / 2, PERIMETER_R);
     const gate = p.z > ENTRY_Z - 6 && Math.abs(p.x) < 17.5; // the entry gate has its own perimeter walls
     // the Fight walk leaves the plaza through a gap in the wall (P3-FGT-01)
-    if (near || gate || builder(deg) || onFightWalk(p.x, p.z, 2.2)) continue;
+    if (near || gate || builder(deg) || nearCampusWalk(p.x, p.z, 2.2)) continue;
     b.box("lava", 3.6, 0.8, 0.6, { p: [p.x, 0.4, p.z], r: [0, p.rotY, 0], tile: 1.2 });
   }
   // expansion district: the outer promenade ring (honed granite between basalt kerbs), served by the main avenue
-  b.add("granite", flat(new THREE.RingGeometry(OUTER_PROMENADE.r0, OUTER_PROMENADE.r1, 240, 1)), { p: [0, 0.008, 0], tile: 4.8 });
-  for (const r of [OUTER_PROMENADE.r0, OUTER_PROMENADE.r1]) b.add("basalt", flat(new THREE.RingGeometry(r - 0.1, r + 0.1, 240, 1)), { p: [0, 0.012, 0], tile: 1.2 });
+  // (P2-WLD-12: kept only north of the gate line, bearings ±PROMENADE_DEG; ring angle θ = 90° − bearing)
+  const t0 = ((90 - PROMENADE_DEG) * Math.PI) / 180;
+  const tl = (2 * PROMENADE_DEG * Math.PI) / 180;
+  b.add("granite", flat(new THREE.RingGeometry(OUTER_PROMENADE.r0, OUTER_PROMENADE.r1, 160, 1, t0, tl)), { p: [0, 0.008, 0], tile: 4.8 });
+  for (const r of [OUTER_PROMENADE.r0, OUTER_PROMENADE.r1]) b.add("basalt", flat(new THREE.RingGeometry(r - 0.1, r + 0.1, 160, 1, t0, tl)), { p: [0, 0.012, 0], tile: 1.2 });
   // a forecourt in front of every expansion plot
   for (const e of EXPANSION_PLOTS) {
     const m = ringPoint(e.angleDeg, (OUTER_PROMENADE.r1 + EXPANSION_RING) / 2 + 0.3);
@@ -783,12 +786,11 @@ function plaza(b: GeoBatch, tier: string) {
     const m = ringPoint(FIGHT_ANGLE, (OUTER_PROMENADE.r1 + EXPANSION_RING) / 2 + 0.3);
     b.box("granite", 34, 0.02, EXPANSION_RING - OUTER_PROMENADE.r1 + 1.2, { p: [m.x, 0.007, m.z], r: [0, m.rotY, 0], tile: 4.8 });
   }
-  const mid = (RING_ROAD.r0 + RING_ROAD.r1) / 2;
-  b.add("asphalt", flat(new THREE.RingGeometry(RING_ROAD.r0, RING_ROAD.r1, 200, 1)), { p: [0, 0.01, 0], tile: 3 });
-  b.add("white", flat(new THREE.RingGeometry(mid - 0.08, mid + 0.08, 200, 1)), { p: [0, 0.02, 0] });
-  // approach avenue from the south (spawn side) to the road
+  // the 16.5 m avenue from the plaza entry gate to the arrival gate (P2-WLD-12: it ends there; the ring road gave way
+  // to the campus loop road and the frontage, world/CampusRoads.tsx and Frontage.tsx)
   const a0 = PAVING_R - 1;
-  b.box("paving", 8, 0.02, RING_ROAD.r0 - a0, { p: [0, 0.0, (a0 + RING_ROAD.r0) / 2], tile: 4.8 });
+  const a1 = ENTRY_Z + 16.5 - 4;
+  b.box("paving", 8, 0.02, a1 - a0, { p: [0, 0.0, (a0 + a1) / 2], tile: 4.8 });
 }
 
 export function buildDistrict(tier: string): Map<string, THREE.BufferGeometry> {

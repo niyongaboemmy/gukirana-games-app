@@ -10,7 +10,8 @@ import { useGate } from "./gate-store";
 import { VirtualKeyboard } from "./VirtualKeyboard";
 import { Avatar } from "../Avatar";
 import { DEFAULT_LOOK } from "../outfits";
-import { ENTRY_Z, RING_ROAD } from "../layout";
+import { ENTRY_Z } from "../layout";
+import { FORECOURT } from "../campus";
 
 /**
  * Arrival gate on the southern avenue: basalt pylons, a timber-soffit canopy, five turnstile lanes, a guard booth,
@@ -47,7 +48,8 @@ export function buildGate(tier: Tier, Z: number = GATE_Z, variant: "arrival" | "
     const seg = tier === "lite" ? 48 : 96;
     b.add("paving", flat(new THREE.CircleGeometry(19, seg, Math.PI, Math.PI)), { p: [0, 0.018, Z], tile: 4 });
     b.add("lava", flat(new THREE.RingGeometry(19, 19.6, seg, 1, Math.PI, Math.PI)), { p: [0, 0.022, Z], tile: 1.2 });
-    const road = RING_ROAD.r0 + 0.5;
+    // (P2-WLD-12: the link now ends at the drop-off kerb on the campus boundary, world/Frontage.tsx)
+    const road = FORECOURT.layby.z0;
     if (road > Z + 18.8) b.box("paving", 8, 0.02, road - (Z + 18.8), { p: [0, 0.012, (road + Z + 18.8) / 2], tile: 4 });
     b.box("paving", 18.8, 0.02, 8.2, { p: [0, 0.015, Z - 4.1], tile: 4 });
   }

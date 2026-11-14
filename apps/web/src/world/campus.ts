@@ -1,4 +1,5 @@
 import { FIGHT_ON } from "@/fight/flags";
+import { inBuilding } from "./footprints";
 import {
   COMPOUND_R,
   ENTRY_Z,
@@ -8,6 +9,7 @@ import {
   OUTER_PROMENADE,
   PLAZA_RADIUS,
   PORTALS,
+  portalTransform,
   RING_ROAD,
   ringPoint,
 } from "./layout";
@@ -505,3 +507,129 @@ export function onCampusRoad(x: number, z: number, margin = 0): boolean {
   if (Math.abs(x - SERVICE_GATE.x) < SERVICE_GATE.hw + margin && z > LOOP.southZ && z < PUBLIC_ROAD.z0 + margin) return true;
   return false;
 }
+
+/* ---------------------------------------------------------------- road furniture ---------------------------------------------------------------- */
+
+/** A street light: base position, facing (local +z, the arm, points over the road), base height. */
+export interface Lamp {
+  x: number;
+  z: number;
+  y: number;
+  rotY: number;
+}
+/** Street lights: every 30 m along the public road's north footpath, about every 32 m along the loop's inner footpath
+ *  (the car parks are lit from their planter islands). */
+export const STREET_LIGHTS: Lamp[] = (() => {
+  const out: Lamp[] = [];
+  for (let x = -315; x <= 315; x += 30) if (Math.abs(x) > 6) out.push({ x, z: PUBLIC_ROAD.z0 + 0.55, y: roadY(x), rotY: 0 });
+  let acc = 10;
+  for (let i = 0; i < CAMPUS_LOOP.length - 1; i++) {
+    const a = CAMPUS_LOOP[i]!;
+    const b = CAMPUS_LOOP[i + 1]!;
+    const L = Math.hypot(b.x - a.x, b.z - a.z);
+    acc += L;
+    if (acc < 32) continue;
+    acc = 0;
+    const tx = (b.x - a.x) / L;
+    const tz = (b.z - a.z) / L;
+    // the side towards the campus centre (inner footpath)
+    let nx = -tz;
+    let nz = tx;
+    if (nx * -a.x + nz * -a.z < 0) {
+      nx = -nx;
+      nz = -nz;
+    }
+    const off = LOOP.hw + LOOP.foot - 0.45;
+    const x = a.x + nx * off;
+    const z = a.z + nz * off;
+    if (Math.abs(x) > PARKING.x0 - 3 && Math.abs(x) < PARKING.x1 + 3 && z > PARKING.rows[0].z0 - 3) continue;
+    if (Math.abs(Math.abs(x) - SERVICE_GATE.x) < 6 && z > LOOP.southZ) continue;
+    if (z > FORECOURT.barrierZ - 3) continue;
+    out.push({ x, z, y: 0, rotY: Math.atan2(-nx, -nz) });
+  }
+  // car parks: a light in every second planter island
+  PARKING_BAYS.filter((b) => b.tree).forEach((b, i) => {
+    if (i % 2 === 0) out.push({ x: b.x + 0.9, z: b.z + (b.rotY ? 1.8 : -1.8), y: 0, rotY: b.rotY ? 0 : Math.PI });
+  });
+  return out;
+})();
+
+/** Bollards along the drop-off kerb (gaps for the pedestrian gate and the link roads). */
+export const BOLLARDS: P[] = (() => {
+  const out: P[] = [];
+  for (let x = -22.6; x <= 22.61; x += 1.6) if (Math.abs(x) > FORECOURT.walk.hw + 0.3) out.push({ x, z: FORECOURT.layby.z0 - 0.35 });
+  return out;
+})();
+
+/** A hash in [0, 1) of an integer (deterministic choices: no Math.random in the world). */
+export const hash01 = (i: number, salt = 0) => {
+  let h = Math.imul(i ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(salt + 1, 0xc2b2ae35);
+  h = Math.imul(h ^ (h >>> 13), 0x27d4eb2d);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+};
+
+/* ---------------------------------------------------------------- wayfinding ---------------------------------------------------------------- */
+
+/** A wayfinding totem at a walk junction: district, and the nearest doors with walking distance (m) and time (s). */
+export interface WalkTotem {
+  x: number;
+  z: number;
+  rotY: number;
+  district: District["id"] | "plaza";
+  rows: { id: string; m: number; s: number }[];
+}
+const WALK_PACE = 2.2;
+/** door entry point of a walk door (portal entry or the site gate) */
+export function walkDoorPoint(id: string): P {
+  const portal = PORTALS.find((p) => p.id === id);
+  if (portal) {
+    const t = portalTransform(portal);
+    return { x: t.entryX, z: t.entryZ };
+  }
+  const e = EXPANSION_PLOTS.find((q) => q.id === id)!;
+  const q = ringPoint(e.angleDeg, EXPANSION_RING - 2.4);
+  return { x: q.x, z: q.z };
+}
+/**
+ * Totems at every junction of the walks with the plaza edge and with the outer promenade (plan §3.3): beside the
+ * walk, clear of buildings, facing back along it; each lists the three nearest doors by walking distance.
+ */
+export const WALK_TOTEMS: WalkTotem[] = (() => {
+  const out: WalkTotem[] = [];
+  const rowsFrom = (p: P) =>
+    WALK_DOORS.filter((d) => Math.abs(d.angleDeg) <= PROMENADE_DEG)
+      .map((d) => {
+        const m = campusWalkLength(p, walkDoorPoint(d.id));
+        return { id: d.id, m: Math.round(m / 5) * 5, s: Math.round(m / WALK_PACE / 5) * 5 };
+      })
+      .sort((a, b) => a.m - b.m)
+      .slice(0, 3);
+  const place = (at: P, dir: P, hw: number, district: WalkTotem["district"]) => {
+    for (const side of [1, -1]) {
+      const x = at.x - dir.z * side * (hw + 0.9);
+      const z = at.z + dir.x * side * (hw + 0.9);
+      if (inBuilding(x, z, 0.8) || walkDepth(x, z).depth > -0.3) continue;
+      out.push({ x, z, rotY: Math.atan2(-dir.x, -dir.z), district, rows: rowsFrom(at) });
+      return;
+    }
+  };
+  for (const w of DISTRICT_WALKS) {
+    if (!w.exit) continue;
+    const a = w.pts[0]!;
+    const b = w.pts[1]!;
+    const L = Math.hypot(b.x - a.x, b.z - a.z);
+    const dir = { x: (b.x - a.x) / L, z: (b.z - a.z) / L };
+    const k = (PLAZA_RADIUS + 4.5 - EXIT_R) / L;
+    place({ x: a.x + (b.x - a.x) * k, z: a.z + (b.z - a.z) * k }, dir, w.hw, districtOf((Math.atan2(b.x, -b.z) * 180) / Math.PI) ?? "plaza");
+  }
+  for (const w of DISTRICT_WALKS) {
+    const end = w.pts[w.pts.length - 1]!;
+    if (Math.abs(Math.hypot(end.x, end.z) - PROMENADE_R) > 0.1) continue;
+    const r = Math.hypot(end.x, end.z);
+    // on the outer edge of the promenade, facing the walk that arrives
+    const q = { x: (end.x / r) * (OUTER_PROMENADE.r1 + 1.0), z: (end.z / r) * (OUTER_PROMENADE.r1 + 1.0) };
+    if (inBuilding(q.x, q.z, 0.8) || walkDepth(q.x, q.z).depth > -0.3) continue;
+    out.push({ x: q.x, z: q.z, rotY: Math.atan2(-end.x, -end.z), district: districtOf((Math.atan2(end.x, -end.z) * 180) / Math.PI) ?? "view", rows: rowsFrom(end) });
+  }
+  return out;
+})();
