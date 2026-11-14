@@ -8,13 +8,13 @@ Licence policy: CC0 or permissive (MIT / CC-BY with attribution) only. Not allow
 redistributing the raw asset (Mixamo downloads, Ready Player Me, MetaHuman, paid-store assets) or anything with an
 unclear licence.
 
-## Characters — `apps/web/public/assets/characters/` (payload 4.50 MB + 1.22 MB lazy life clips)
+## Characters — `apps/web/public/assets/characters/` (payload 4.55 MB + 1.22 MB lazy life clips)
 
 | File | Source asset | Author | Licence |
 | --- | --- | --- | --- |
 | `masculine.glb` (559 KB) | `Assets/Avatars/Adults/Male_Adult_12` | Microsoft Rocketbox Avatar Library (Microsoft Research) | MIT |
 | `feminine.glb` (768 KB) | `Assets/Avatars/Professions/Business_Female_01` | Microsoft Rocketbox Avatar Library | MIT |
-| `neutral.glb` (528 KB) | `Assets/Avatars/Adults/Male_Adult_17` | Microsoft Rocketbox Avatar Library | MIT |
+| `neutral.glb` (575 KB) | `Assets/Avatars/Adults/Male_Adult_17` | Microsoft Rocketbox Avatar Library | MIT |
 | `guard.glb` (689 KB) | `Assets/Avatars/Professions/Security_Male_01` (non-player gate staff) | Microsoft Rocketbox Avatar Library | MIT |
 | `anim-m.glb` (983 KB) | `Assets/Animations/all_animations_max_motextr_*/m_*.max.fbx` (12 clips, below) | Microsoft Rocketbox Avatar Library | MIT |
 | `anim-f.glb` (969 KB) | `Assets/Animations/all_animations_max_motextr_*/f_*.max.fbx` (12 clips, below) | Microsoft Rocketbox Avatar Library | MIT |
@@ -52,14 +52,16 @@ meshes, skins and the guard are unchanged.
    map was nearly flat, which made the faces read as smooth plastic masks).
 2. The original specular map (512 px) is stored in the alpha channel of the recolour mask (lossless WebP): skin
    roughness follows the real oil distribution (soft sheen on forehead / nose, matte cheeks).
-3. `neutral` only: the baked goatee, moustache and stubble of `Male_Adult_17` were removed from the albedo (skin
-   field rebuilt from the surrounding skin, pore detail from the forehead) and from the normal / specular maps; the
-   beard texels of the recolour mask are skin again. Clean-shaven is now really clean; facial hair is only what the
-   player chooses (drawn in the head shader).
+3. `neutral` only: the baked goatee, moustache and stubble of `Male_Adult_17` were removed from the albedo, normal
+   and specular maps over the whole lower face. The skin colour is rebuilt from the skin between the hairs, with
+   the dense cores filled from their surroundings (no halo). It takes the clean cheeks' hue and most of their
+   brightness, shading slightly towards the neck. Pores come from clean forehead skin, matched to the cheeks'
+   amplitude. The beard texels of the recolour mask are skin again. Clean-shaven is now really clean; facial hair
+   is only what the player chooses (drawn in the head shader).
 4. Packed back into the existing glbs (images replaced, binary chunk re-packed; meshopt geometry untouched).
-   Added payload: +0.44 MB.
+   Added payload: +0.49 MB.
 
-Scripts (Python + numpy / Pillow, Node): `clean_neutral.py`, `build_textures.py`, `repack.mjs`; kept with the task
+Scripts (Python + numpy / Pillow, Node): `clean_neutral.py` + `clean_neutral2.py`, `build_textures.py`, `repack.mjs`; kept with the task
 notes, not in the repo. At load time the head geometry is also smoothed and tessellated (see
 `apps/web/src/world/human/head-geometry.ts`); no new geometry files are shipped.
 

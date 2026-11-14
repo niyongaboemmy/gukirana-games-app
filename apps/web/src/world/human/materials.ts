@@ -67,7 +67,7 @@ export interface LookUniforms {
  */
 export const FACIAL_HAIR_PARAMS: Record<FaceLook["facialHair"], [number, number, number, number, number, number]> = {
   none: [0, 0, 0, 0, 0, 0],
-  stubble: [0.9, 0.85, 0.9, 0.46, 0, 0],
+  stubble: [0.9, 0.7, 0.72, 0.46, 0, 0],
   moustache: [0, 1, 0, 0.92, 0, 0],
   goatee: [0, 0.95, 1, 0.9, 0, 0],
   chinstrap: [0, 0, 0, 0.88, 1, 0],
@@ -283,12 +283,26 @@ if (uFaceOn > 0.5) {
   float aFar = smoothstep(0.0, 0.85, dens) * 0.74;
   float beardA = mix(aFar, aNear * 0.9, fine) * (0.85 + 0.15 * clump);
   // the skin under a beard / stubble is darker (follicles, shadow between hairs): stubble reads mostly as this
-  // (stubble: a cool shadow of the hair under the skin, strongest on light skin)
-  float shade = smoothstep(0.0, 0.75, cover) * patchy * mix(0.4, 0.2, smoothstep(0.45, 0.9, uFH.w)) * step(0.001, uFH.w);
-  gkCol = mix(gkCol, gkCol * mix(vec3(0.8, 0.82, 0.86), vec3(1.0), smoothstep(0.6, 0.9, uFH.w)), shade * 1.6);
+  // (stubble: a slight shadow of the hair under the skin)
+  float shade = smoothstep(0.0, 0.75, cover) * patchy * mix(0.22, 0.2, smoothstep(0.45, 0.9, uFH.w)) * step(0.001, uFH.w);
+  gkCol = mix(gkCol, gkCol * vec3(0.93, 0.94, 0.96), shade * (1.0 - smoothstep(0.6, 0.9, uFH.w)));
   gkCol *= 1.0 - shade * (0.75 + 0.25 * clump);
   vec3 hairC = max(uHair * 1.6, vec3(0.016, 0.012, 0.0105)) * (0.7 + 0.6 * clump) * (0.75 + 0.5 * sv);
   gkCol = mix(gkCol, hairC, clamp(beardA, 0.0, 0.9));
+  // stubble: short hairs growing out of follicles (a jittered ~1.5 mm grid along the growth direction), each a
+  // short dark dash; below a pixel they fade into their mean darkening
+  float stub = (1.0 - smoothstep(0.55, 0.75, uFH.w)) * step(0.001, uFH.w);
+  if (stub > 0.0) {
+    vec2 fc = gp * 44.0;
+    vec2 fid = floor(fc);
+    vec2 fo = vec2(gkHash(fid + 1.3), gkHash(fid + 7.9)) - 0.5;
+    vec2 fr = fract(fc) - 0.5 - fo * 0.55;
+    float hairDot = (1.0 - smoothstep(0.1, 0.24, length(vec2(fr.x, fr.y * 0.5)))) * step(gkHash(fid + 3.1), 0.45 + 0.5 * cover * patchy);
+    float fAA = clamp(1.4 - fw * 44.0 * 1.6, 0.0, 1.0) * det;
+    float stubA = mix(0.1 * cover * patchy, hairDot * 0.8 * smoothstep(0.05, 0.4, cover), fAA) * stub;
+    gkCol = mix(gkCol, hairC * 0.9, stubA);
+    gkH += hairDot * fAA * stub * cover * 0.5;
+  }
   gkBeardW = clamp(dens * 1.4, 0.0, 1.0);
   gkH += gkBeardW * (sv - 0.5) * 1.8 * fine;
   // ---- brows: optionally clear the base brow, then paint the chosen shape as strands in the hair colour
