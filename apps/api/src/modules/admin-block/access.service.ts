@@ -426,6 +426,21 @@ export class AccessService implements OnModuleInit {
     if (missing.length) throw new BadRequestException({ code: "UNKNOWN_OFFICE", offices: missing });
   }
 
+  /** audit entries about one target (user id, office, building), newest first */
+  async auditFor(target: string, limit = 20) {
+    return this.db
+      .select()
+      .from(accessAudit)
+      .where(eq(accessAudit.target, target))
+      .orderBy(desc(accessAudit.at))
+      .limit(Math.max(1, Math.min(100, limit)));
+  }
+
+  /** write an audit entry from another staff module (console: user status, buildings) */
+  async record(who: string, action: string, target: string, detail: string | null = null) {
+    await this.audit(who, action, target, detail);
+  }
+
   private async audit(who: string, action: string, target: string, detail: string | null) {
     await this.db
       .insert(accessAudit)

@@ -27,6 +27,7 @@ import {
   WorldMoveSchema,
   type HallId,
 } from "@gukirana/contracts";
+import { api } from "../api-client.js";
 import { filterChat, sanitizeName } from "../chat-filter.js";
 import { verifyToken, type UserClaims } from "../auth.js";
 import { isGame, isStake, quickMatch, startMatch, type GameId } from "../matchmaking.js";
@@ -264,6 +265,8 @@ export class WorldRoom extends Room {
 
     // ---- movement: stored here, sent to each viewer in one batched message per tick (social/interest.ts)
     this.clock.setInterval(() => this.onTick(), TICK_MS);
+    // ---- staff console live monitor: people here, reported every 15 s and shortly after joins / leaves
+    this.clock.setInterval(() => this.reportPresence(), 15_000);
 
     // ---- Administrative Block (hall "admin"): closed offices — role holders walk in, everyone else knocks
     if (this.hallGame === "admin") {
@@ -639,6 +642,21 @@ export class WorldRoom extends Room {
     if (this.hallGame === "admin") for (const [office, occupants] of Object.entries(this.offices.snapshot())) client.send(OfficeEvt.occupancy, { office, occupants });
     this.sendVisible(client.sessionId, "joined", player);
     if (this.arena) await this.arena.joined(client.sessionId);
+    this.presenceSoon();
+  }
+
+  private presenceTimer: { clear(): void } | null = null;
+  /** debounced presence report (a burst of joins sends one report) */
+  private presenceSoon(): void {
+    if (this.presenceTimer) return;
+    this.presenceTimer = this.clock.setTimeout(() => {
+      this.presenceTimer = null;
+      this.reportPresence();
+    }, 2000);
+  }
+  private reportPresence(): void {
+    const all = [...this.players.values()];
+    void api.reportPresence(this.roomId, this.hallGame ? `hall:${this.hallGame}` : "plaza", all.length, all.filter((p) => p.verified).length);
   }
 
   override onLeave(client: Client): void {
@@ -664,9 +682,11 @@ export class WorldRoom extends Room {
     const office = this.offices.leave(sid);
     if (office) this.leftOffice(office);
     this.arena?.left(sid);
+    this.presenceSoon();
   }
 
   override onDispose(): void {
+    void api.reportPresence(this.roomId, this.hallGame ? `hall:${this.hallGame}` : "plaza", 0, 0);
     if (this.hallGame === "admin") reportOccupancy(this.roomId, {});
     if (this.arena) this.arena.report();
   }

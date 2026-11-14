@@ -39,6 +39,10 @@ export const api = {
   voidMatch: (matchId: string) => call<{ status: string }>(`/internal/matches/${matchId}/void`, {}),
   /** Administrative Block: roles + enterable offices (cached briefly by social/office-access.ts) */
   access: (userId: string) => get<UserAccess>(`/internal/access/${encodeURIComponent(userId)}`),
+  /** people in one world room, for the staff console's live monitor (P2-CON-01); best effort */
+  reportPresence: async (room: string, area: string, count: number, signedIn: number) => {
+    await fetch(`${env.API_INTERNAL_URL}/internal/presence`, { method: "POST", headers, body: JSON.stringify({ room, area, count, signedIn }), signal: AbortSignal.timeout(3000) }).catch(() => undefined);
+  },
   /** staff per office in one admin-block room (the API sums rooms for the reception directory) */
   reportOccupancy: async (room: string, offices: Record<string, number>) => {
     const r = await fetch(`${env.API_INTERNAL_URL}/internal/admin-block/occupancy`, { method: "POST", headers, body: JSON.stringify({ room, offices }), signal: AbortSignal.timeout(3000) });

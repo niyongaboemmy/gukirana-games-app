@@ -16,11 +16,15 @@ import { EconomyService } from "./modules/economy/economy.service.js";
 import { WalletService } from "./modules/wallet/wallet.service.js";
 import { AdminBlockModule } from "./modules/admin-block/admin-block.module.js";
 import { ArenaModule } from "./modules/arena/arena.module.js";
+import { BuildingsPublicController, ConsoleController, PresenceInternalController } from "./modules/console/console.controller.js";
+import { ConsoleService } from "./modules/console/console.service.js";
+import { BuildingsService } from "./modules/console/buildings.service.js";
+import { PresenceStore } from "./modules/console/presence.js";
 
 /** Modular monolith root (plan §3). */
 @Module({
   imports: [DbModule, LedgerModule, AdminBlockModule, ArenaModule],
-  controllers: [HealthController, IdentityController, WalletController, GamesController, SocialController, EconomyPublicController, EconomyAdminController],
-  providers: [IdentityService, LevelsService, GamesService, SocialService, EconomyService, WalletService, AuthGuard, InternalGuard, AdminGuard],
+  controllers: [HealthController, IdentityController, WalletController, GamesController, SocialController, EconomyPublicController, EconomyAdminController, ConsoleController, BuildingsPublicController, PresenceInternalController],
+  providers: [IdentityService, LevelsService, GamesService, SocialService, EconomyService, WalletService, ConsoleService, BuildingsService, PresenceStore, AuthGuard, InternalGuard, AdminGuard],
 })
 export class AppModule {}

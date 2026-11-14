@@ -13,6 +13,6 @@ import { RoleGuard } from "./role.guard.js";
 @Module({
   controllers: [AdminBlockController, AccessAdminController, AccessInternalController],
   providers: [AccessService, OccupancyStore, RoleGuard, AuthGuard, InternalGuard],
-  exports: [AccessService],
+  exports: [AccessService, OccupancyStore, RoleGuard],
 })
 export class AdminBlockModule {}

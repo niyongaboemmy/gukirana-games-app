@@ -38,3 +38,4 @@ export type Proposal = z.infer<typeof ProposalSchema>;
 export * from "./social.js";
 export * from "./offices.js";
 export * from "./arena.js";
+export * from "./console.js";
