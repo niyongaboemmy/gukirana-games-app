@@ -22,7 +22,7 @@ import {
   WorldMoveSchema,
   type HallId,
 } from "@gukirana/contracts";
-import { api } from "../api-client.js";
+import { api, ApiError } from "../api-client.js";
 import { filterChat, sanitizeName } from "../chat-filter.js";
 import { verifyToken, type UserClaims } from "../auth.js";
 import { isGame, isStake, quickMatch, startMatch, type GameId } from "../matchmaking.js";
@@ -36,7 +36,7 @@ import { PairRegistry } from "../social/pairs.js";
 import { OfficeDesk } from "./office-desk.js";
 import { ArenaHall } from "./arena-hall.js";
 import { arenaConfig } from "../social/arena-access.js";
-import { eligibilityOf, trackAccount } from "../social/accounts.js";
+import { eligibilityOf, isRefusal, trackAccount } from "../social/accounts.js";
 
 export interface WorldPlayer {
   id: string;
@@ -66,6 +66,18 @@ interface Proposal {
 const COLOR = /^#[0-9a-f]{6}$/i;
 const LOOK = /^[\w.:;,|#=-]{0,300}$/;
 const PROPOSAL_TTL = 60_000;
+/**
+ * Reasons about one player's own account or limits (responsible play, Stars, suspension). Only that player is told;
+ * the other side of the challenge / quick match gets OPPONENT_CANT_PLAY ("They can't play right now", GAP-005).
+ */
+const PERSONAL_REASONS = new Set(["ACCOUNT_INACTIVE", "ON_A_BREAK", "DAILY_LIMIT_REACHED", "INSUFFICIENT_FUNDS"]);
+export const OPPONENT_CANT_PLAY = "OPPONENT_CANT_PLAY";
+/** the reason a failed match start is shown to `viewer` (account id) */
+export function reasonFor(e: unknown, viewer: string): string {
+  const reason = e instanceof Error ? e.message : String(e);
+  if (!PERSONAL_REASONS.has(reason)) return reason;
+  return e instanceof ApiError && e.userId === viewer ? reason : OPPONENT_CANT_PLAY;
+}
 /** A plaza bench place is freed when its holder walks this far away from it (m). */
 const SEAT_LEAVE_M = 2.5;
 
@@ -448,13 +460,22 @@ export class WorldRoom extends Room {
     });
 
     // ---- proposals (walk up → challenge → accept → table)
-    this.onMessage("propose", (client, raw: { to?: unknown; game?: unknown; stake?: unknown }) => {
+    this.onMessage("propose", async (client, raw: { to?: unknown; game?: unknown; stake?: unknown }) => {
       const me = this.users.get(client.sessionId);
       const target = typeof raw?.to === "string" ? this.client(raw.to) : undefined;
       if (!me) return client.send("proposal-failed", { reason: "LOGIN_REQUIRED" });
-      if (!target || target.sessionId === client.sessionId || !this.users.get(target.sessionId) || !this.sees(client.sessionId, target.sessionId))
+      const them = target && this.users.get(target.sessionId);
+      if (!target || !them || target.sessionId === client.sessionId || !this.sees(client.sessionId, target.sessionId))
         return client.send("proposal-failed", { reason: "PLAYER_UNAVAILABLE" });
       if (!isGame(raw.game) || !isStake(raw.stake)) return client.send("proposal-failed", { reason: "INVALID_PROPOSAL" });
+      // checked when the challenge is made, not only after the other player accepts (GAP-011); the API checks again
+      // when the match is created. The challenger hears their own reason, never the other player's (GAP-005).
+      const [mine, theirs] = await Promise.all([eligibilityOf(me.sub, raw.stake), eligibilityOf(them.sub, raw.stake)]);
+      if (isRefusal(mine)) return client.send("proposal-failed", { reason: mine.reason });
+      if (isRefusal(theirs)) return client.send("proposal-failed", { reason: OPPONENT_CANT_PLAY });
+      // either of them may have left (or been suspended) meanwhile
+      if (!this.users.has(client.sessionId) || !this.users.has(target.sessionId) || !this.client(target.sessionId) || !this.sees(client.sessionId, target.sessionId))
+        return client.send("proposal-failed", { reason: "PLAYER_UNAVAILABLE" });
       const open = [...this.proposals.values()].filter((p) => p.from === client.sessionId);
       if (open.length >= 3) return client.send("proposal-failed", { reason: "TOO_MANY_OPEN" });
       const id = `p${++this.seq}`;
@@ -490,7 +511,9 @@ export class WorldRoom extends Room {
         const m = await startMatch(p.game, p.stake, [a.sub, b.sub]);
         for (const c of [fromClient, client]) c.send("match-ready", { ...m, game: p.game, stake: p.stake });
       } catch (e) {
-        for (const c of [fromClient, client]) c.send("proposal-closed", { id: p.id, reason: String((e as Error).message) });
+        // the precise reason only to the player it is about (GAP-005)
+        fromClient.send("proposal-closed", { id: p.id, reason: reasonFor(e, a.sub) });
+        client.send("proposal-closed", { id: p.id, reason: reasonFor(e, b.sub) });
       }
     });
 
@@ -501,7 +524,12 @@ export class WorldRoom extends Room {
       if (!isGame(raw?.game) || !isStake(raw?.stake)) return client.send("quickmatch", { status: "error", reason: "INVALID" });
       const game = raw.game;
       const stake = raw.stake;
-      const other = quickMatch.join(game, stake, { userId: me.sub, since: Date.now(), notify: (e, p) => client.send(e, p) });
+      // checked before queueing (GAP-011): a player who can't stake this never waits, nor gets paired with someone
+      const mine = await eligibilityOf(me.sub, stake);
+      if (isRefusal(mine)) return client.send("quickmatch", { status: "error", reason: mine.reason });
+      if (!this.users.has(client.sessionId)) return; // left / suspended meanwhile
+      const ticket = { userId: me.sub, since: Date.now(), notify: (e: string, p: unknown) => client.send(e, p) };
+      const other = quickMatch.join(game, stake, ticket);
       if (!other) return client.send("quickmatch", { status: "waiting", game, stake });
       try {
         const m = await startMatch(game, stake, [other.userId, me.sub]);
@@ -509,9 +537,18 @@ export class WorldRoom extends Room {
         other.notify("match-ready", payload);
         client.send("match-ready", payload);
       } catch (e) {
-        const reason = String((e as Error).message);
-        other.notify("quickmatch", { status: "error", reason });
-        client.send("quickmatch", { status: "error", reason });
+        const about = e instanceof ApiError ? e.userId : undefined;
+        // the player it is about hears why; the other one goes back to the front of the queue, told nothing private
+        if (about === me.sub && PERSONAL_REASONS.has((e as Error).message)) {
+          client.send("quickmatch", { status: "error", reason: reasonFor(e, me.sub) });
+          if (!quickMatch.join(game, stake, other)) other.notify("quickmatch", { status: "waiting", game, stake });
+        } else if (about === other.userId && PERSONAL_REASONS.has((e as Error).message)) {
+          other.notify("quickmatch", { status: "error", reason: reasonFor(e, other.userId) });
+          if (!quickMatch.join(game, stake, ticket)) client.send("quickmatch", { status: "waiting", game, stake });
+        } else {
+          other.notify("quickmatch", { status: "error", reason: reasonFor(e, other.userId) });
+          client.send("quickmatch", { status: "error", reason: reasonFor(e, me.sub) });
+        }
       }
     });
     this.onMessage("quickmatch-leave", (client) => {

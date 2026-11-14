@@ -149,25 +149,29 @@ if (readyA) {
   const lim = await join("limit");
   const brk = await join("break");
   await sleep(400);
+  // FIX-A (GAP-011): limits / breaks are checked when the challenge is made; (GAP-005) only the player concerned
+  // hears the precise reason, the other side hears OPPONENT_CANT_PLAY.
   lim.room.send("propose", { to: a.sid, game: "igisoro", stake: 200 });
-  const pl = await next(a, "proposal");
-  a.room.send("proposal-respond", { id: pl?.id, accept: true });
-  const cl = await next(lim, "proposal-closed", { timeout: 8000 });
+  const cl = await next(lim, "proposal-failed", { timeout: 8000 });
   check("limits.daily stake limit enforced", cl?.reason === "DAILY_LIMIT_REACHED", JSON.stringify(cl));
+  check("limits.refused when the challenge is made (opponent not bothered)", !(await next(a, "proposal", { timeout: 1000 })));
   brk.room.send("propose", { to: a.sid, game: "igisoro", stake: 25 });
-  const pb = await next(a, "proposal");
-  a.room.send("proposal-respond", { id: pb?.id, accept: true });
-  const cb = await next(brk, "proposal-closed", { timeout: 8000 });
+  const cb = await next(brk, "proposal-failed", { timeout: 8000 });
   check("limits.self-exclusion blocks staked games", cb?.reason === "ON_A_BREAK", JSON.stringify(cb));
-  // the challenge is only refused after the opponent accepts: note the UX
-  note("limits.refusal timing", "limit/break are checked only when the opponent accepts (API createMatch), not when the challenge is sent");
+  a.room.send("propose", { to: brk.sid, game: "igisoro", stake: 25 });
+  const ca = await next(a, "proposal-failed", { timeout: 8000 });
+  check("limits.challenger told only 'they can't play right now'", ca?.reason === "OPPONENT_CANT_PLAY", JSON.stringify(ca));
+  a.room.send("propose", { to: lim.sid, game: "igisoro", stake: 200 });
+  const cal = await next(a, "proposal-failed", { timeout: 8000 });
+  check("limits.limit not disclosed to the challenger", cal?.reason === "OPPONENT_CANT_PLAY", JSON.stringify(cal));
   brk.room.send("quickmatch-join", { game: "pool", stake: 25 });
-  await sleep(300);
-  b.room.send("quickmatch-join", { game: "pool", stake: 25 });
   const qbErr = await next(brk, "quickmatch", { where: (m) => m.status === "error", timeout: 8000 });
   check("limits.break player cannot quick-match staked", qbErr?.reason === "ON_A_BREAK", JSON.stringify(qbErr));
-  const bbErr = await next(b, "quickmatch", { where: (m) => m.status === "error", timeout: 3000 });
-  note("limits.opponent sees", JSON.stringify(bbErr));
+  b.room.send("quickmatch-join", { game: "pool", stake: 25 });
+  const bw = await next(b, "quickmatch", { timeout: 3000 });
+  check("limits.opponent never paired with / told about the break", bw?.status === "waiting" && !JSON.stringify(b.inbox).includes("ON_A_BREAK"), JSON.stringify(bw));
+  b.room.send("quickmatch-leave");
+  await next(b, "quickmatch", { where: (m) => m.status === "idle", timeout: 3000 });
   // free games remain allowed on a break
   brk.room.send("propose", { to: a.sid, game: "igisoro", stake: 0 });
   const pf = await next(a, "proposal");

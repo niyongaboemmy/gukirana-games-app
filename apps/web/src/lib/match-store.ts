@@ -31,5 +31,11 @@ const REASONS: Record<string, string> = {
   DECLINED: "Challenge declined.",
   EXPIRED: "Challenge expired.",
   PLAYER_LEFT: "The other player left.",
+  // about your own account / limits (only ever sent to you)
+  ON_A_BREAK: "You're on a break, so staked games are paused. Free games are still on.",
+  DAILY_LIMIT_REACHED: "That stake is over your daily limit. Try a smaller stake or a free game.",
+  ACCOUNT_INACTIVE: "This account is suspended. Contact support.",
+  // about the other player (never says why)
+  OPPONENT_CANT_PLAY: "They can't play right now.",
 };
 export const reasonText = (r?: string) => (r && REASONS[r]) || "Something went wrong. Try again.";

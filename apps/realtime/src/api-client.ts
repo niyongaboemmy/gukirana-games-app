@@ -19,8 +19,13 @@ export class ApiError extends Error {
 
 async function call<T>(path: string, body: unknown): Promise<T> {
   const r = await fetch(`${env.API_INTERNAL_URL}${path}`, { method: "POST", headers, body: JSON.stringify(body) });
-  const json = (await r.json().catch(() => ({}))) as T & { message?: { code?: string; userId?: string }; code?: string; userId?: string };
-  if (!r.ok) throw new ApiError(json?.message?.code ?? json?.code ?? `API_${r.status}`, json?.message?.userId ?? json?.userId);
+  type Body = { code?: string; userId?: string; ownerType?: string; ownerId?: string };
+  const json = (await r.json().catch(() => ({}))) as T & Body & { message?: Body };
+  if (!r.ok) {
+    const b: Body = json?.message && typeof json.message === "object" ? json.message : json;
+    // the ledger's INSUFFICIENT_FUNDS names the account owner instead of `userId`
+    throw new ApiError(b?.code ?? `API_${r.status}`, b?.userId ?? (b?.ownerType === "user" ? b.ownerId : undefined));
+  }
   return json;
 }
 
