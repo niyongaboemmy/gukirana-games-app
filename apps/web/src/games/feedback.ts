@@ -3,35 +3,94 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { uiAudio } from "@/lib/audio";
 
-/** Game-screen preferences (per device): sounds, vibration, auto-move, aim guide, AI level, seen tips. */
-interface GamePrefs {
+/** Animation speed on this screen only (never changes rules or server timers). */
+export type AnimSpeed = "relaxed" | "normal" | "fast";
+/** Practice AI category: Easy, Medium, Hard, Expert (engine bot levels 1, 2, 3, 5). */
+export type AiLevel = 1 | 2 | 3 | 5;
+export type AimGuide = "short" | "medium" | "long";
+
+/**
+ * Game-screen preferences (per device). Everything here is presentation or practice-only: in live matches the AI level
+ * and the long aim guide do not apply, and timers come from the server.
+ */
+export interface GamePrefsData {
   sound: boolean;
   haptics: boolean;
+  /** play the only legal move by itself */
   autoMove: boolean;
-  fullGuide: boolean;
-  aiLevel: 1 | 3 | 5;
+  /** practice aim guide length (live matches always use the short guide, the same for both players) */
+  aimGuide: AimGuide;
+  aiLevel: AiLevel;
+  speed: AnimSpeed;
+  /** jump straight to the result of every move */
+  skipAnim: boolean;
+  /** tap a token / pit once to preview, again to play (mouse hover counts as the first tap) */
+  confirmMove: boolean;
+  /** legal-move glow, landing previews, capture warnings */
+  hints: boolean;
+  /** mirror the layout: your panel and the pool controls on the left */
+  leftHanded: boolean;
+  /** colour-blind friendly palette + shapes on tokens, yards and balls */
+  colorBlind: boolean;
   seen: Record<string, boolean>;
-  set: (p: Partial<Omit<GamePrefs, "set" | "markSeen">>) => void;
+}
+interface GamePrefs extends GamePrefsData {
+  set: (p: Partial<Omit<GamePrefsData, "seen">>) => void;
   markSeen: (game: string) => void;
+}
+
+export const DEFAULT_PREFS: GamePrefsData = {
+  sound: true,
+  haptics: true,
+  autoMove: true,
+  aimGuide: "long",
+  aiLevel: 2,
+  speed: "normal",
+  skipAnim: false,
+  confirmMove: true,
+  hints: true,
+  leftHanded: false,
+  colorBlind: false,
+  seen: {},
+};
+
+/** v0 stored `fullGuide` and AI levels 1 / 3 / 5 (Easy / Normal / Hard). */
+export function migratePrefs(old: unknown, version: number): GamePrefsData {
+  const o = (old ?? {}) as Partial<GamePrefsData> & { fullGuide?: boolean; aiLevel?: number };
+  const out: GamePrefsData = { ...DEFAULT_PREFS, ...o } as GamePrefsData;
+  if (version < 1) {
+    out.aimGuide = o.fullGuide === false ? "short" : "long";
+    out.aiLevel = o.aiLevel === 1 ? 1 : o.aiLevel === 5 ? 3 : 2;
+  }
+  if (![1, 2, 3, 5].includes(out.aiLevel)) out.aiLevel = 2;
+  delete (out as { fullGuide?: boolean }).fullGuide;
+  return out;
 }
 
 export const useGamePrefs = create<GamePrefs>()(
   persist(
     (set) => ({
-      sound: true,
-      haptics: true,
-      autoMove: true,
-      fullGuide: true,
-      aiLevel: 3,
-      seen: {},
+      ...DEFAULT_PREFS,
       set: (p) => set(p),
       markSeen: (game) => set((s) => ({ seen: { ...s.seen, [game]: true } })),
     }),
-    { name: "gk-game-prefs" },
+    { name: "gk-game-prefs", version: 1, migrate: (old, v) => migratePrefs(old, v) as GamePrefs },
   ),
 );
 
-export const reducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+/** Duration multiplier for game animations: Relaxed 1.5×, Normal 1×, Fast 0.55×, skipped (or reduced motion) 0. */
+export function animScale(p: Pick<GamePrefsData, "speed" | "skipAnim"> = useGamePrefs.getState()): number {
+  if (p.skipAnim || reducedMotion()) return 0;
+  return p.speed === "relaxed" ? 1.5 : p.speed === "fast" ? 0.55 : 1;
+}
+/** Reactive animation scale for components. */
+export function useAnimScale(): number {
+  const speed = useGamePrefs((s) => s.speed);
+  const skip = useGamePrefs((s) => s.skipAnim);
+  return animScale({ speed, skipAnim: skip });
+}
+
+export const reducedMotion = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 /** Short vibration on phones (ignored where unsupported, or when the player turned it off). */
 export function haptic(pattern: number | number[]) {

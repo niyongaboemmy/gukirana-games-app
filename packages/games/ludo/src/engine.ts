@@ -137,6 +137,25 @@ export function moveToken(state: LudoState, token: number): LudoState {
   return s;
 }
 
+/** Race score for the finishing order: tokens home first, then squares travelled (a token in base counts 0). */
+export const raceScore = (p: LudoPlayer) => p.tokens.reduce((a, t) => a + (t === HOME ? 1000 : t < 0 ? 0 : t + 1), 0);
+
+/**
+ * Ranks when the game ends (the first player home wins). The others are placed by how far their race went
+ * (tokens home, then squares travelled); equal races share a place. Two players: winner 1, loser 2.
+ */
+export function finishingOrder(s: LudoState): Record<string, number> {
+  const ranks: Record<string, number> = {};
+  const rest = s.players.filter((p) => p.id !== s.winner).sort((a, b) => raceScore(b) - raceScore(a));
+  if (s.winner) ranks[s.winner] = 1;
+  const base = s.winner ? 2 : 1;
+  rest.forEach((p, i) => {
+    const prev = rest[i - 1];
+    ranks[p.id] = prev && raceScore(prev) === raceScore(p) ? ranks[prev.id]! : base + i;
+  });
+  return ranks;
+}
+
 export const ludoModule: GameModule<LudoState, LudoIntent, Record<string, never>> = {
   meta: {
     id: "ludo",
@@ -168,11 +187,7 @@ export const ludoModule: GameModule<LudoState, LudoIntent, Record<string, never>
   },
   currentTurn: (s) => (s.winner ? null : s.players[s.turn]!.id),
   isTerminal: (s) => s.winner !== null,
-  result(s): MatchResult {
-    const ranks: Record<string, number> = {};
-    s.players.forEach((p) => (ranks[p.id] = p.id === s.winner ? 1 : 2));
-    return { ranks, reason: "normal" };
-  },
+  result: (s): MatchResult => ({ ranks: finishingOrder(s), reason: "normal" }),
   viewFor: (s) => s,
   hash: (s) => stableStringify({ p: s.players.map((p) => p.tokens), t: s.turn, ph: s.phase, d: s.dice, r: s.rolls }),
 };

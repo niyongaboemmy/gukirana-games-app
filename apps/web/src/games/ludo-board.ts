@@ -58,4 +58,23 @@ export function tokenCell(seat: number, progress: number, token: number): RC {
 }
 
 export const SEAT_COLORS = ["#E53935", "#43A047", "#FDD835", "#1E88E5"];
+/** Colour-blind friendly seat colours (Okabe–Ito: vermillion, bluish green, yellow, blue), same seat order. */
+export const SEAT_COLORS_CB = ["#D55E00", "#009E73", "#F0E442", "#0072B2"];
 export const SEAT_NAMES = ["Red", "Green", "Yellow", "Blue"];
+export const seatColors = (colorBlind: boolean) => (colorBlind ? SEAT_COLORS_CB : SEAT_COLORS);
+
+export type Side = "top" | "right" | "bottom" | "left";
+/** Side of the centre square a cell of the cross lies on. */
+export const sideOfCell = ([r, c]: RC): Side => (c < 6 ? "left" : c > 8 ? "right" : r < 6 ? "top" : r > 8 ? "bottom" : c < 7 ? "left" : c > 7 ? "right" : r < 7 ? "top" : "bottom");
+/**
+ * Which side of the centre square each seat's home column enters from (derived from HOME_COLUMN, so the centre
+ * triangles can never drift from the columns): the triangle on that side is the seat's home.
+ */
+export const CENTRE_SIDE: Side[] = HOME_COLUMN.map((col) => sideOfCell(col[col.length - 1]!));
+/** Centre triangle polygons (percent of the centre square) for clip-path. */
+export const TRIANGLE_CLIP: Record<Side, string> = {
+  top: "polygon(0 0, 100% 0, 50% 50%)",
+  right: "polygon(100% 0, 100% 100%, 50% 50%)",
+  bottom: "polygon(0 100%, 100% 100%, 50% 50%)",
+  left: "polygon(0 0, 0 100%, 50% 50%)",
+};

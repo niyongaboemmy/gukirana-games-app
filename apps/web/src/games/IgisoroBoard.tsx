@@ -1,8 +1,9 @@
 "use client";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { playIgisoro, type IgisoroState } from "@gukirana/igisoro";
-import { haptic, reducedMotion, sfx } from "./feedback";
+import { animScale, haptic, sfx, useGamePrefs } from "./feedback";
 import { shouldAutoFocus } from "./input";
+import { SKIN, SowingHand } from "./hands";
 import { t } from "./i18n";
 
 type Side = 0 | 1;
@@ -12,6 +13,11 @@ export interface SowPreview {
   captures: Cell[];
   gain: number;
 }
+/** What the hand is doing on the current animation step. */
+export type HandStep = { id: number; kind: "pickup" | "sow" | "capture"; owner: Side; cell: Cell } | null;
+
+/** Base time per sown seed at Normal speed (scaled by the speed setting; 0 = skip). */
+export const SOW_MS = 170;
 
 /** Rows from the viewer's side: opponent outer, opponent inner, my inner, my outer (engine facing rules). */
 export function rowsFor(me: Side): Cell[][] {
@@ -38,85 +44,126 @@ export function previewMove(s: IgisoroState, pit: number): SowPreview {
   return { end, captures, gain: sum(next, me) - sum(s, me) };
 }
 
-function Seeds({ n }: { n: number }) {
-  const shown = Math.min(n, 12);
+/** Seed spots inside a pit (percent): a golden-angle heap with a fixed per-seed wobble, so piles look natural and never move. */
+const SPOTS = Array.from({ length: 16 }, (_, i) => {
+  const a = i * 2.39996 + 0.7;
+  const r = i === 0 ? 0 : 9 + Math.sqrt(i / 15) * 21;
+  const wob = ((i * 37) % 11) - 5; // deterministic jitter (no Math.random)
+  return { x: 50 + Math.cos(a) * r + wob * 0.35, y: 50 + Math.sin(a) * r * 0.92 - wob * 0.25, rot: (i * 47) % 180, dark: i % 3 === 0 };
+});
+
+const Seeds = memo(function Seeds({ n, drop }: { n: number; drop: number }) {
+  const shown = Math.min(n, 16);
   return (
-    <div className="pointer-events-none absolute inset-[18%] flex flex-wrap content-center items-center justify-center gap-[2px]">
-      {Array.from({ length: shown }, (_, i) => (
-        <span key={i} className="block size-[22%] rounded-full shadow-[inset_-1px_-2px_2px_rgba(0,0,0,.45)]" style={{ background: `radial-gradient(circle at 35% 30%, #f3e3c3, ${i % 3 ? "#8a5a2b" : "#6e4420"})` }} />
-      ))}
+    <div className="pointer-events-none absolute inset-[12%]">
+      {Array.from({ length: shown }, (_, i) => {
+        const s = SPOTS[i]!;
+        const fresh = drop > 0 && i === shown - 1;
+        return (
+          <span
+            key={fresh ? `d${drop}` : i}
+            className={`absolute block h-[22%] w-[17%] rounded-[50%] shadow-[inset_-1px_-2px_2px_rgba(0,0,0,.45),0_1px_1px_rgba(0,0,0,.4)] ${fresh ? "gk-seed-new" : ""}`}
+            style={{ left: `${s.x - 8.5}%`, top: `${s.y - 11}%`, rotate: `${s.rot}deg`, background: `radial-gradient(circle at 35% 30%, #f3e3c3, ${s.dark ? "#6e4420" : "#8a5a2b"})` }}
+          />
+        );
+      })}
     </div>
   );
-}
+});
 
-/** Replays sowing events pit by pit (DESIGN-SPEC §11.4): the hand travels with its seed count, captures flash. */
-export function useSowAnimation(speed: number) {
+/**
+ * Replays the engine's sowing events pit by pit (DESIGN-SPEC §11.4): the mover's hand scoops the pit, drops one seed
+ * per pit (each seed falls and settles), and sweeps both captured pits before sowing the catch on. The event log
+ * replays to exactly the engine's board (tested in the igisoro package). Speed follows the game settings.
+ */
+export function useSowAnimation() {
   const [view, setView] = useState<[number[], number[]] | null>(null);
   const [hl, setHl] = useState<Cell | null>(null);
   const [hand, setHand] = useState(0);
+  const [step, setStep] = useState<HandStep>(null);
   const [captured, setCaptured] = useState<Cell[]>([]);
   const [lastCapture, setLastCapture] = useState<{ id: number; seeds: number } | null>(null);
   const [animating, setAnimating] = useState(false);
-  const speedRef = useRef(speed);
-  speedRef.current = speed;
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
 
   const animate = useCallback(
     (from: IgisoroState, next: IgisoroState) =>
       new Promise<void>((resolve) => {
         const ev = next.lastEvents;
-        if (reducedMotion() || speedRef.current <= 0) {
-          const cap = ev.filter((e) => e.kind === "capture").reduce((a, e) => a + (e.kind === "capture" ? e.seeds : 0), 0);
+        const base = SOW_MS * animScale();
+        if (base <= 0) {
+          const cap = ev.reduce((a, e) => a + (e.kind === "capture" ? e.seeds : 0), 0);
           if (cap) setLastCapture({ id: Date.now(), seeds: cap });
           resolve();
           return;
+        }
+        // expand captures into one scoop per pit
+        type Step = { kind: "pickup" | "sow" | "capture"; owner: Side; cell: Cell; seeds?: number; total?: number };
+        const steps: Step[] = [];
+        for (const e of ev) {
+          if (e.kind === "pickup") steps.push({ kind: "pickup", owner: e.player, cell: { side: e.player, idx: e.pit }, seeds: e.seeds });
+          else if (e.kind === "sow") steps.push({ kind: "sow", owner: e.player, cell: { side: e.player, idx: e.pit } });
+          else e.pits.forEach((p, k) => steps.push({ kind: "capture", owner: (1 - e.from) as Side, cell: { side: e.from, idx: p }, total: k === e.pits.length - 1 ? e.seeds : undefined }));
         }
         setAnimating(true);
         const pits: [number[], number[]] = [[...from.pits[0]], [...from.pits[1]]];
         let i = 0;
         let inHand = 0;
+        // long relay chains (a hundred+ steps) speed up so a move never plays for more than ~6 s at Normal
+        const pace = Math.min(1, 55 / Math.max(1, steps.length));
         const tick = () => {
-          const e = ev[i++];
-          if (!e) {
+          const st = steps[i];
+          const id = ++i;
+          if (!st) {
             setView(null);
             setHl(null);
             setHand(0);
+            setStep(null);
             setCaptured([]);
             setAnimating(false);
             resolve();
             return;
           }
-          let wait = speedRef.current;
-          if (e.kind === "pickup") {
-            pits[e.player][e.pit] = 0;
-            inHand = e.seeds;
-            setHl({ side: e.player, idx: e.pit });
-            wait = speedRef.current * 1.6;
-          } else if (e.kind === "sow") {
-            pits[e.player][e.pit]! += 1;
+          let wait = base;
+          if (st.kind === "pickup") {
+            pits[st.cell.side][st.cell.idx] = 0;
+            inHand = st.seeds!;
+            wait = base * 1.7;
+          } else if (st.kind === "sow") {
+            pits[st.cell.side][st.cell.idx]! += 1;
             inHand = Math.max(0, inHand - 1);
-            setHl({ side: e.player, idx: e.pit });
             sfx.seed();
           } else {
-            const cells = e.pits.map((p) => ({ side: e.from, idx: p }));
-            for (const p of e.pits) pits[e.from][p] = 0;
-            inHand = e.seeds;
-            setCaptured(cells);
-            setHl(cells[0]!);
-            setLastCapture({ id: Date.now(), seeds: e.seeds });
-            sfx.capture();
-            haptic([30, 40, 60]);
-            wait = speedRef.current * 5;
+            inHand += pits[st.cell.side][st.cell.idx]!;
+            pits[st.cell.side][st.cell.idx] = 0;
+            setCaptured((c) => [...c, st.cell]);
+            if (st.total !== undefined) {
+              setLastCapture({ id: Date.now(), seeds: st.total });
+              sfx.capture();
+              haptic([30, 40, 60]);
+            }
+            wait = base * 2.6;
           }
+          setHl(st.cell);
+          setStep({ id, kind: st.kind, owner: st.owner, cell: st.cell });
           setHand(inHand);
           setView([[...pits[0]], [...pits[1]]]);
-          // long relay chains (a hundred+ steps) speed up so a move never plays for more than ~6 s
-          setTimeout(tick, wait * Math.min(1, 50 / ev.length));
+          timer.current = setTimeout(tick, wait * pace);
         };
         tick();
       }),
     [],
   );
-  return { view, hl, hand, captured, lastCapture, animating, animate };
+  return { view, hl, hand, step, captured, lastCapture, animating, animate };
+}
+
+/** Touch with "tap twice to confirm": the first tap previews, the second plays (mouse hover is the first "tap"). */
+export function useConfirmTap(): boolean {
+  const confirm = useGamePrefs((s) => s.confirmMove);
+  const [coarse, setCoarse] = useState(false);
+  useEffect(() => setCoarse(window.matchMedia("(pointer: coarse)").matches), []);
+  return confirm && coarse;
 }
 
 export function IgisoroBoard({
@@ -125,6 +172,7 @@ export function IgisoroBoard({
   legal,
   hl,
   hand = 0,
+  step = null,
   captured = [],
   preview = null,
   selected,
@@ -137,6 +185,7 @@ export function IgisoroBoard({
   legal: number[];
   hl: Cell | null;
   hand?: number;
+  step?: HandStep;
   captured?: Cell[];
   preview?: SowPreview | null;
   selected: number | null;
@@ -145,17 +194,19 @@ export function IgisoroBoard({
   onPick: (pit: number) => void;
 }) {
   const board = useRef<HTMLDivElement>(null);
+  const hints = useGamePrefs((s) => s.hints);
   const [handPos, setHandPos] = useState<{ x: number; y: number } | null>(null);
   const same = (a: Cell | null | undefined, b: Cell) => !!a && a.side === b.side && a.idx === b.idx;
+  const stepMs = SOW_MS * animScale();
 
-  // the travelling hand follows the highlighted pit
+  // the hand follows the highlighted pit (pit centre, in % of the board)
   useLayoutEffect(() => {
     if (!hl || !board.current) return setHandPos(null);
     const el = board.current.querySelector<HTMLElement>(`[data-pit="${hl.side}-${hl.idx}"]`);
     if (!el) return;
     const b = board.current.getBoundingClientRect();
     const r = el.getBoundingClientRect();
-    setHandPos({ x: ((r.left + r.width / 2 - b.left) / b.width) * 100, y: ((r.top - b.top) / b.height) * 100 });
+    setHandPos({ x: ((r.left + r.width / 2 - b.left) / b.width) * 100, y: ((r.top + r.height / 2 - b.top) / b.height) * 100 });
   }, [hl]);
 
   // your move: the first legal pit takes focus (arrows move between pits, Enter plays)
@@ -167,6 +218,7 @@ export function IgisoroBoard({
     if (shouldAutoFocus()) board.current?.querySelector<HTMLButtonElement>(`[data-pit="${me}-${legal[0]}"]`)?.focus({ preventScroll: true });
   }, [autoFocus, legalKey, me]);
 
+  const oppHand = !!step && step.owner !== me;
   return (
     <div className="absolute inset-0 grid place-items-center @container-size">
       <div
@@ -188,8 +240,8 @@ export function IgisoroBoard({
                 const isHl = same(hl, cell);
                 const isSel = cell.side === me && selected === cell.idx;
                 const isCap = captured.some((c) => same(c, cell));
-                const isEnd = !!preview && same(preview.end, cell);
-                const willCap = !!preview && preview.captures.some((c) => same(c, cell));
+                const isEnd = hints && !!preview && same(preview.end, cell);
+                const willCap = hints && !!preview && preview.captures.some((c) => same(c, cell));
                 const ring = isCap
                   ? undefined
                   : isHl
@@ -200,9 +252,10 @@ export function IgisoroBoard({
                         ? "0 0 0 3px #ef4444, inset 0 4px 10px rgba(0,0,0,.6)"
                         : isEnd
                           ? "0 0 0 3px rgba(255,255,255,.9), inset 0 4px 10px rgba(0,0,0,.6)"
-                          : isLegal
+                          : isLegal && hints
                             ? "0 0 0 2px rgba(124,255,170,.7), inset 0 4px 10px rgba(0,0,0,.6)"
                             : "inset 0 4px 10px rgba(0,0,0,.6)";
+                const drop = step && step.kind === "sow" && same(step.cell, cell) ? step.id : 0;
                 return (
                   <button
                     key={`${cell.side}-${cell.idx}`}
@@ -214,11 +267,11 @@ export function IgisoroBoard({
                     // keyboard / remote / pad focus previews; a touch tap must not (tap = preview, second tap = play)
                     onFocus={() => isLegal && document.documentElement.dataset.input === "key" && onHover?.(cell.idx)}
                     onClick={() => onPick(cell.idx)}
-                    className={`relative aspect-square w-[92%] max-h-full self-center justify-self-center rounded-full transition-all duration-150 ${isLegal ? "cursor-pointer hover:scale-105" : "cursor-default"} ${isCap ? "gk-captured" : ""}`}
-                    style={{ background: "radial-gradient(circle at 50% 40%, #3b2410 0%, #5a3818 60%, #7a4c22 100%)", boxShadow: ring }}
-                    aria-label={`${cell.side === me ? "Your" : "Opponent"} pit with ${n} seeds${isLegal ? ", playable" : ""}${willCap ? ", would be captured" : ""}`}
+                    className={`relative aspect-square w-[92%] max-h-full self-center justify-self-center rounded-full transition-[transform,box-shadow] duration-150 ${isLegal ? "cursor-pointer hover:scale-105" : "cursor-default"} ${isCap ? "gk-captured" : ""}`}
+                    style={{ background: "radial-gradient(circle at 50% 40%, #3b2410 0%, #5a3818 60%, #7a4c22 100%)", boxShadow: ring, ["--gk-seed" as string]: `${Math.round(stepMs * 1.4)}ms` }}
+                    aria-label={`${t(cell.side === me ? "igisoro.yourPit" : "igisoro.oppPit", { n })}${isLegal ? ", playable" : ""}${willCap ? ", would be captured" : ""}`}
                   >
-                    <Seeds n={n} />
+                    <Seeds n={n} drop={drop} />
                     <span className="num absolute -right-0.5 -top-0.5 grid min-w-5 place-items-center rounded-full bg-black/75 px-1 text-[0.625rem] font-bold tabular-nums text-white sm:text-xs">{n}</span>
                   </button>
                 );
@@ -226,13 +279,19 @@ export function IgisoroBoard({
             </div>,
           ])}
         </div>
-        {/* the sowing hand: a seed and the count still in hand, gliding pit to pit */}
-        {handPos && hand > 0 && (
-          <div aria-hidden className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full transition-[left,top] duration-100 ease-out" style={{ left: `${handPos.x}%`, top: `${handPos.y}%` }}>
-            <div className="num flex items-center gap-1 rounded-full bg-black/80 px-2 py-0.5 text-xs font-bold text-white shadow-lg ring-1 ring-[#FFC83D]/70">
-              <span className="block size-2.5 rounded-full" style={{ background: "radial-gradient(circle at 35% 30%, #f3e3c3, #8a5a2b)" }} />
-              {hand}
+        {/* the sowing hand (yours from the bottom, the opponent's from the top) with the seeds it still holds */}
+        {handPos && step && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute z-20 w-[11%] transition-[left,top] ease-out"
+            style={{ left: `${handPos.x}%`, top: `${handPos.y}%`, transitionDuration: `${Math.round(stepMs * 0.8)}ms` }}
+          >
+            <div key={step.kind === "sow" ? "sow" : step.id} className={`gk-hand ${oppHand ? "gk-opp" : ""} ${step.kind !== "sow" ? "gk-grab" : ""} absolute left-0 top-0 w-full`} style={{ ["--gk-grab" as string]: `${Math.round(stepMs * 1.5)}ms` }}>
+              <SowingHand skin={oppHand ? SKIN.opp : SKIN.me} seeds={hand} className="w-full drop-shadow-[0_6px_8px_rgba(0,0,0,.45)]" />
             </div>
+            {hand > 0 && (
+              <span className={`num absolute left-1/2 grid min-w-6 -translate-x-1/2 place-items-center rounded-full bg-black/80 px-1.5 text-xs font-bold text-white ring-1 ring-[#FFC83D]/70 ${oppHand ? "-top-[5.2em]" : "top-[3.4em]"}`}>{hand}</span>
+            )}
           </div>
         )}
       </div>

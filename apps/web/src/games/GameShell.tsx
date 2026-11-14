@@ -2,9 +2,10 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { returnLabel, returnPath } from "@/lib/return-point";
-import { Bot, CircleHelp, Handshake, LogOut, Menu, Pause, Play, ShieldCheck, Star, Trophy, User, Volume2, VolumeX, type LucideIcon } from "lucide-react";
+import { Bot, CircleHelp, Handshake, LogOut, Menu, Pause, Play, ShieldCheck, SlidersHorizontal, Star, Trophy, User, Volume2, VolumeX, type LucideIcon } from "lucide-react";
 import { PaperCard } from "@/ui/PaperCard";
 import { haptic, sfx, useGamePrefs } from "./feedback";
+import { GameSettings, PrefSwitch } from "./GameSettings";
 import { useGameInput } from "./input";
 import { t, type GameKey } from "./i18n";
 import "./games.css";
@@ -68,6 +69,8 @@ export function GameShell({
   const [fairOpen, setFairOpen] = useState(false);
   const seen = useGamePrefs((s) => s.seen[game]);
   const [help, setHelp] = useState(false);
+  const [settings, setSettings] = useState(false);
+  const leftHanded = useGamePrefs((s) => s.leftHanded);
   const sound = useGamePrefs((s) => s.sound);
   const setPrefs = useGamePrefs((s) => s.set);
   // first visit: the How to play card (dismissible, remembered per device); waits for the persisted prefs
@@ -134,6 +137,9 @@ export function GameShell({
           <button type="button" onClick={() => setPrefs({ sound: !sound })} className="icon-button grid size-10 place-items-center rounded-full" aria-label={`${t("game.sound")}: ${sound ? t("game.on") : t("game.off")}`} aria-pressed={sound}>
             {sound ? <Volume2 size={18} /> : <VolumeX size={18} />}
           </button>
+          <button type="button" onClick={() => setSettings(true)} className="icon-button grid size-10 place-items-center rounded-full" aria-label={t("game.settings")}>
+            <SlidersHorizontal size={18} />
+          </button>
           <button type="button" onClick={() => setHelp(true)} className="icon-button grid size-10 place-items-center rounded-full" aria-label={t("game.howToPlay")}>
             <CircleHelp size={18} />
           </button>
@@ -142,11 +148,11 @@ export function GameShell({
 
       {/* landscape: you | board | opponents.  portrait: opponents / board / you (thumb zone) */}
       <main className="grid min-h-0 flex-1 grid-cols-[minmax(6rem,11rem)_1fr_minmax(6rem,11rem)] gap-2 px-[max(0.5rem,env(safe-area-inset-left))] pb-2 phone:grid-cols-[minmax(4.75rem,7rem)_1fr_minmax(4.75rem,7rem)] phone:gap-1.5 phone:pb-1 portrait:flex portrait:flex-col portrait:gap-2">
-        <div className="min-h-0 portrait:order-3">
+        <div className={`min-h-0 portrait:order-3 ${leftHanded ? "order-3" : ""}`}>
           <PlayerPanel p={you} label="You" />
         </div>
-        <section className="relative grid min-h-0 min-w-0 place-items-center portrait:order-2 portrait:flex-1">{children}</section>
-        <div className="flex min-h-0 flex-col gap-2 overflow-y-auto portrait:order-1 portrait:flex-row portrait:overflow-x-auto portrait:overflow-y-visible">
+        <section className="relative order-2 grid min-h-0 min-w-0 place-items-center portrait:order-2 portrait:flex-1">{children}</section>
+        <div className={`flex min-h-0 flex-col gap-2 overflow-y-auto portrait:order-1 portrait:flex-row portrait:overflow-x-auto portrait:overflow-y-visible ${leftHanded ? "order-1" : "order-3"}`}>
           {opponents.map((o, i) => (
             <PlayerPanel key={i} p={o} label={o.isBot ? "AI" : "Opponent"} />
           ))}
@@ -163,8 +169,9 @@ export function GameShell({
             <button type="button" onClick={() => (setMenu(false), setHelp(true))} className="btn-secondary flex min-h-12 items-center justify-center gap-2 rounded-control font-semibold">
               <CircleHelp size={18} /> {t("game.howToPlay")}
             </button>
-            <PrefToggle k="sound" label="game.sound" />
-            <PrefToggle k="haptics" label="game.haptics" />
+            <button type="button" onClick={() => (setMenu(false), setSettings(true))} className="btn-secondary flex min-h-12 items-center justify-center gap-2 rounded-control font-semibold">
+              <SlidersHorizontal size={18} /> {t("game.settings")}
+            </button>
             {menuExtras?.(() => setMenu(false))}
             <button type="button" onClick={() => setLeaving(true)} className="btn-danger flex min-h-12 items-center justify-center gap-2 rounded-control font-semibold">
               <LogOut size={18} /> {t("game.leave")}
@@ -194,6 +201,7 @@ export function GameShell({
           }}
         />
       )}
+      {settings && <GameSettings game={game} live={live} onClose={() => setSettings(false)} />}
       {fairOpen && fairness && (
         <Modal onClose={() => setFairOpen(false)} label="Provably fair" title="Provably fair" icon={ShieldCheck}>
           <p className="text-sm text-on-glass-muted">Every roll comes from HMAC-SHA256(server seed, client seed, match, roll #). The seed is revealed after the match so you can verify every roll.</p>
@@ -211,19 +219,14 @@ export function GameShell({
   );
 }
 
-function PrefToggle({ k, label }: { k: "sound" | "haptics" | "autoMove" | "fullGuide"; label: GameKey }) {
-  const on = useGamePrefs((s) => s[k]);
-  const set = useGamePrefs((s) => s.set);
+/** A preference switch as a game-menu row. */
+export function PrefToggle({ k, label }: { k: Parameters<typeof PrefSwitch>[0]["k"]; label: GameKey }) {
   return (
-    <button type="button" role="switch" aria-checked={on} onClick={() => set({ [k]: !on })} className="btn-secondary flex min-h-12 items-center justify-between gap-3 rounded-control px-4 font-semibold">
-      <span>{t(label)}</span>
-      <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${on ? "bg-[#16a34a]" : "bg-[color-mix(in_srgb,var(--ink,#000)_18%,transparent)]"}`}>
-        <span className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${on ? "left-[1.375rem]" : "left-0.5"}`} />
-      </span>
-    </button>
+    <div className="btn-secondary rounded-control px-4">
+      <PrefSwitch k={k} label={label} />
+    </div>
   );
 }
-export { PrefToggle };
 
 /** Turn clock: a ring that drains towards the deadline (live) or pulses (practice, no clock). */
 export function TurnRing({ color, deadline, turnMs = 30_000, size = "100%" }: { color: string; deadline?: number; turnMs?: number; size?: string }) {
@@ -373,10 +376,13 @@ export function ResultModal({ won, draw = false, starsDelta, xp, summary, onRema
     haptic(won ? [40, 60, 40, 60, 120] : 120);
   }, [won]);
   return (
-    <Modal label={won ? "You won" : "Game over"}>
+    <Modal label={won ? t("game.youWon") : t("game.over")}>
       <div className="text-center">
-        <div className={`mx-auto grid size-20 place-items-center rounded-full ${won ? "bg-gold/25 text-gold" : "bg-[color-mix(in_srgb,var(--ink)_8%,transparent)] text-white"}`}>{won ? <Trophy size={40} /> : <Handshake size={40} />}</div>
-        <p className="mt-2 font-display text-2xl font-bold">{won ? "You won!" : draw ? "Draw" : "Good game"}</p>
+        <div className="relative mx-auto size-20">
+          {won && <span aria-hidden className="gk-rays pointer-events-none absolute -inset-8 rounded-full" />}
+          <div className={`gk-pop relative grid size-20 place-items-center rounded-full ${won ? "bg-gold/25 text-gold" : "bg-[color-mix(in_srgb,var(--ink)_8%,transparent)] text-white"}`}>{won ? <Trophy size={40} /> : <Handshake size={40} />}</div>
+        </div>
+        <p className="mt-2 font-display text-2xl font-bold">{won ? t("game.youWon") : draw ? t("game.draw") : t("game.goodGame")}</p>
         <p className="mt-1 text-sm text-on-glass-muted">{summary}</p>
         <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
           <div className="ptile">
