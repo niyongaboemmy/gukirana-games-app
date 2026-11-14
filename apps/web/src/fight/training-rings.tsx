@@ -26,7 +26,6 @@ export interface RingKitRing {
 }
 
 const STD = { platform: 4.9, canvasY: 0.8, base: 0 };
-const dims = (_r: RingKitRing) => STD;
 
 /**
  * Placeholder instanced ring kit: platform + canvas, apron status band, four corner posts (red / blue / two neutral),
@@ -88,7 +87,7 @@ export function TrainingRings({ rings, lite = false }: { rings: RingKitRing[]; l
     let pi = 0;
     let ri = 0;
     rings.forEach((r, i) => {
-      const d = dims(r);
+      const d = STD;
       const h = d.platform / 2;
       put(refs.platform.current, i, r, 0, (d.canvasY - 0.04) / 2, 0, d.platform, d.canvasY - 0.04, d.platform);
       put(refs.canvas.current, i, r, 0, d.canvasY - 0.02, 0, d.platform - 0.5, 0.04, d.platform - 0.5);
