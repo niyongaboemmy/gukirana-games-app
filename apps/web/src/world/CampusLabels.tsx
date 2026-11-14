@@ -55,7 +55,7 @@ export function CampusLabels() {
     // about constant size on screen up to mid height, then smaller (the campus shrinks too); very high up only the
     // campus name and the Fight hall stay (the inner buildings are too close together to label)
     const dist = camera.position.length();
-    const s = Math.max(1, Math.min(dist / 60, 7.5));
+    const s = Math.max(1, Math.min(dist / 70, 7));
     const high = dist > FAR_LABELS_M;
     g.children.forEach((c, i) => {
       c.scale.setScalar(s);
@@ -81,12 +81,12 @@ export function CampusLabels() {
     <group ref={group} visible={false}>
       {labels.map((l, i) => (
         <Billboard key={l.key} position={[l.x, l.y, l.z]} renderOrder={20}>
-          <Text font={FONT} fontSize={2.2} anchorX="center" anchorY="bottom" outlineWidth={0.22} outlineColor="#141414" renderOrder={20}>
+          <Text font={FONT} fontSize={1.45} anchorX="center" anchorY="bottom" outlineWidth={0.12} outlineColor="#141414" renderOrder={20}>
             {l.text}
             {mat(i * 2, "#ffffff")}
           </Text>
           {l.sub && (
-            <Text font={FONT} fontSize={1.3} anchorX="center" anchorY="top" position={[0, -0.2, 0]} outlineWidth={0.16} outlineColor="#141414" renderOrder={20}>
+            <Text font={FONT} fontSize={0.9} anchorX="center" anchorY="top" position={[0, -0.1, 0]} outlineWidth={0.07} outlineColor="#141414" renderOrder={20}>
               {l.sub}
               {mat(i * 2 + 1, "#e8c3a0")}
             </Text>

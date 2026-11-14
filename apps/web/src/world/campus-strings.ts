@@ -4,7 +4,7 @@ export const CAMPUS = {
   plaza: "Gukirana Plaza",
   gate: "Main Gate",
   help: "Help desk and Cafe",
-  closed: "Closed",
+  closed: "Opening soon",
   view: "Campus view",
   backToMe: "Back to me",
   hint: "Drag to turn · zoom in to come back down",
