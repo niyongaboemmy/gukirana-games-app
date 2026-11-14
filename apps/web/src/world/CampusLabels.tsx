@@ -1,0 +1,98 @@
+"use client";
+import { useMemo, useRef } from "react";
+import type * as THREE from "three";
+import { useFrame } from "@react-three/fiber";
+import { Billboard, Text } from "@react-three/drei";
+import { PORTALS, ringOf, ringPoint, SERVICE_ANGLE, PLAZA_RADIUS } from "./layout";
+import { GATE_Z } from "./gate/Gate";
+import { cameraState } from "./Player";
+import { aerialBlend } from "./aerial";
+import { CAMPUS } from "./campus-strings";
+
+const FONT = "/fonts/Baloo2.ttf";
+/** Camera distance (m) beyond which the inner building names give way to the campus name. */
+const FAR_LABELS_M = 330;
+
+interface Label {
+  key: string;
+  text: string;
+  sub?: string;
+  x: number;
+  z: number;
+  y: number;
+  /** "far": still shown from very high up (the campus name, the big Fight hall); "near": hidden there (decluttered) */
+  tier: "near" | "far";
+}
+
+/** How far behind its door each building's mass sits (m), so the label floats over the roof, not the doorway. */
+const DEPTH: Record<string, number> = { arena: 26, fight: 34, admin: 12 };
+
+/** Building names floating over the roofs in the campus aerial view (fade in as the camera rises; hidden up close). */
+export function CampusLabels() {
+  const group = useRef<THREE.Group>(null);
+  const mats = useRef<THREE.MeshBasicMaterial[]>([]);
+  const labels = useMemo<Label[]>(() => {
+    const out: Label[] = [];
+    for (const p of PORTALS) {
+      if (p.kind === "soon") continue;
+      const c = ringPoint(p.angleDeg, ringOf(p) + (DEPTH[p.kind] ?? 12));
+      out.push({ key: p.id, text: p.label, sub: p.href ? undefined : CAMPUS.closed, x: c.x, z: c.z, y: p.kind === "arena" || p.kind === "fight" ? 30 : 22, tier: p.kind === "fight" ? "far" : "near" });
+    }
+    const help = ringPoint(SERVICE_ANGLE, PLAZA_RADIUS + 8);
+    out.push({ key: "help", text: CAMPUS.help, x: help.x, z: help.z, y: 16, tier: "near" });
+    out.push({ key: "plaza", text: CAMPUS.plaza, x: 0, z: 0, y: 18, tier: "near" });
+    out.push({ key: "gate", text: CAMPUS.gate, x: 0, z: GATE_Z, y: 16, tier: "near" });
+    out.push({ key: "campus", text: CAMPUS.campus, x: 0, z: 0, y: 40, tier: "far" });
+    return out;
+  }, []);
+
+  useFrame(({ camera }) => {
+    const g = group.current;
+    if (!g) return;
+    const k = aerialBlend(cameraState.distance);
+    g.visible = k > 0.05;
+    if (!g.visible) return;
+    // about constant size on screen up to mid height, then smaller (the campus shrinks too); very high up only the
+    // campus name and the Fight hall stay (the inner buildings are too close together to label)
+    const dist = camera.position.length();
+    const s = Math.max(1, Math.min(dist / 60, 7.5));
+    const high = dist > FAR_LABELS_M;
+    g.children.forEach((c, i) => {
+      c.scale.setScalar(s);
+      const tier = labels[i]?.tier;
+      c.visible = labels[i]?.key === "campus" ? high : tier === "far" || !high;
+    });
+    for (const m of mats.current) if (m) m.opacity = Math.min(1, (k - 0.05) * 1.6);
+  });
+
+  const mat = (i: number, color: string) => (
+    <meshBasicMaterial
+      ref={(m) => {
+        if (m) mats.current[i] = m;
+      }}
+      color={color}
+      transparent
+      depthTest={false}
+      toneMapped={false}
+    />
+  );
+
+  return (
+    <group ref={group} visible={false}>
+      {labels.map((l, i) => (
+        <Billboard key={l.key} position={[l.x, l.y, l.z]} renderOrder={20}>
+          <Text font={FONT} fontSize={2.2} anchorX="center" anchorY="bottom" outlineWidth={0.22} outlineColor="#141414" renderOrder={20}>
+            {l.text}
+            {mat(i * 2, "#ffffff")}
+          </Text>
+          {l.sub && (
+            <Text font={FONT} fontSize={1.3} anchorX="center" anchorY="top" position={[0, -0.2, 0]} outlineWidth={0.16} outlineColor="#141414" renderOrder={20}>
+              {l.sub}
+              {mat(i * 2 + 1, "#e8c3a0")}
+            </Text>
+          )}
+        </Billboard>
+      ))}
+    </group>
+  );
+}

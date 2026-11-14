@@ -41,6 +41,7 @@ import { SEAT_PROFILES, type SeatProfile } from "./human/seat-profiles";
 import { applyPeople, lookTarget as personLook, nearSpot, people, SPOTS } from "@/social/people";
 import { useSocial } from "@/social/social-store";
 import { HUMAN_MODELS } from "./human/meta";
+import { aerialPivot, FOLLOW_MAX, isAerial, maxPitch, pinchZoom, viewPitch, wheelZoom } from "./aerial";
 
 /** Walking speeds (m/s): real walking pace by default; the player can change it (HUD speed control). */
 export const WALK_SPEEDS = { slow: 1.4, normal: 2.2, fast: 3.2 } as const;
@@ -52,8 +53,8 @@ const DOOR_NOTICE_R = 4.5;
 
 /** Camera orbit state shared between the camera rig and the movement code. */
 export const cameraState = { yaw: 0, pitch: 0.42, distance: 9 }; // start zoomed out
-/** Farthest orbit distance (m) for wheel / pinch zoom. */
-export const MAX_ORBIT = 24;
+/** Farthest follow distance (m); zooming out beyond it rises into the campus aerial view (world/aerial.ts). */
+export const MAX_ORBIT = FOLLOW_MAX;
 /** Over-the-shoulder offset (m, to the right) when the camera is close, so your own avatar doesn't hide who you face. */
 const SHOULDER = 0.45;
 /** Walking in through a hall door: the follow camera closes to this distance (m) and height, over the shoulder. */
@@ -180,7 +181,7 @@ export function LocalPlayer({
       () => camera,
       (dx, dy) => {
         cameraState.yaw -= dx * 0.006;
-        cameraState.pitch = THREE.MathUtils.clamp(cameraState.pitch + dy * 0.004, 0.08, 1.1);
+        cameraState.pitch = THREE.MathUtils.clamp(cameraState.pitch + dy * 0.004, 0.08, maxPitch(cameraState.distance));
       },
       (p) => {
         const r = Math.hypot(p.x, p.z);
@@ -213,14 +214,29 @@ export function LocalPlayer({
       },
     );
     const wheel = (e: WheelEvent) => {
-      cameraState.distance = THREE.MathUtils.clamp(cameraState.distance + e.deltaY * 0.006, 2.5, MAX_ORBIT);
+      cameraState.distance = wheelZoom(cameraState.distance, e.deltaY);
     };
     el.addEventListener("wheel", wheel, { passive: true });
+    // two-finger pinch on phones and tablets: spread to zoom in, pinch to zoom out (all the way up to the campus view)
+    let spread = 0;
+    const touchSpread = (e: TouchEvent) => (e.touches.length === 2 ? Math.hypot(e.touches[0]!.clientX - e.touches[1]!.clientX, e.touches[0]!.clientY - e.touches[1]!.clientY) : 0);
+    const tstart = (e: TouchEvent) => {
+      spread = touchSpread(e);
+    };
+    const tmove = (e: TouchEvent) => {
+      const now = touchSpread(e);
+      if (spread > 0 && now > 0) cameraState.distance = pinchZoom(cameraState.distance, spread, now);
+      spread = now;
+    };
+    el.addEventListener("touchstart", tstart, { passive: true });
+    el.addEventListener("touchmove", tmove, { passive: true });
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
       stopPointer();
       el.removeEventListener("wheel", wheel);
+      el.removeEventListener("touchstart", tstart);
+      el.removeEventListener("touchmove", tmove);
       nav.target = null;
     };
   }, [gl, camera]);
@@ -355,6 +371,13 @@ export function LocalPlayer({
       if (!ec.on) {
         ec.on = true;
         ec.L = Math.hypot(camera.position.x - pos.current.x, camera.position.z - pos.current.z);
+        // coming down from the campus view: back to the normal follow range and near plane
+        if (isAerial(cameraState.distance)) cameraState.distance = 9;
+        const pc = camera as THREE.PerspectiveCamera;
+        if (pc.near !== 0.15) {
+          pc.near = 0.15;
+          pc.updateProjectionMatrix();
+        }
       }
       ec.L += (ENTER_CAM_L - ec.L) * Math.min(1, dt * 2.6);
       const fx = Math.sin(facing.current);
@@ -369,10 +392,11 @@ export function LocalPlayer({
       camera.lookAt(pos.current.x + fx * 1.2, 1.45, pos.current.z + fz * 1.2);
     } else if (!inXR) {
       enterCam.current.on = false;
-      let want = seatCam.current > 0.01 ? THREE.MathUtils.lerp(cameraState.distance, Math.min(cameraState.distance, 3.6), seatCam.current) : cameraState.distance;
+      const aerial = isAerial(cameraState.distance);
+      let want = seatCam.current > 0.01 && !aerial ? THREE.MathUtils.lerp(cameraState.distance, Math.min(cameraState.distance, 3.6), seatCam.current) : cameraState.distance;
       // walking up to an open hall door: the camera closes in behind you over the last few metres, so that walking
       // through it is one continuous follow (no swoop at the threshold)
-      for (const p of PORTALS) {
+      for (const p of aerial ? [] : PORTALS) {
         if (!p.href || (doorOpen[p.id] ?? 0) < 0.2) continue;
         const loc = doorLocal(p, pos.current.x, pos.current.z);
         const depth = loc.lz - doorInset(p.kind);
@@ -384,24 +408,35 @@ export function LocalPlayer({
       }
       // spring arm: pull the camera in front of anything solid between the head and the wanted position
       // (buildings around the plaza, sign totems, lamp posts, kiosks, the gate canopy); snap in, ease out
-      const d = cameraArm(pos.current.x, pos.current.z, cameraState.yaw, cameraState.pitch, want);
+      // (the aerial view is far above every roof: nothing to pull it in)
+      const d = aerial ? want : cameraArm(pos.current.x, pos.current.z, cameraState.yaw, cameraState.pitch, want);
       armLen.current = d < armLen.current ? d : armLen.current + (d - armLen.current) * Math.min(1, dt * 2.5);
       const L = armLen.current;
       // close up (< 3 m): slide camera and aim point to the right shoulder
       const sh = SHOULDER * THREE.MathUtils.smoothstep(3.6 - L, 0, 1.0);
       const rx = Math.cos(cameraState.yaw) * sh;
       const rz = -Math.sin(cameraState.yaw) * sh;
-      const cx = pos.current.x + Math.sin(cameraState.yaw) * Math.cos(cameraState.pitch) * L + rx;
-      const cz = pos.current.z + Math.cos(cameraState.yaw) * Math.cos(cameraState.pitch) * L + rz;
       // seated: frame the seated person (look lower, come a little closer) instead of aiming over their head
       seatCam.current += ((benchBusy() ? 1 : 0) - seatCam.current) * Math.min(1, dt * 3);
       const aimY = 1.5 - 0.5 * seatCam.current;
-      let cy = aimY + 0.1 + Math.sin(cameraState.pitch) * L;
+      // zoomed out past the follow range: the pivot glides to the campus centre and the view tilts down (aerial.ts)
+      const pv = viewPitch(cameraState.pitch, L);
+      const pivot = aerialPivot(pos.current.x, pos.current.z, aimY, L);
+      const cx = pivot.x + Math.sin(cameraState.yaw) * Math.cos(pv) * L + rx;
+      const cz = pivot.z + Math.cos(cameraState.yaw) * Math.cos(pv) * L + rz;
+      let cy = pivot.y + 0.1 + Math.sin(pv) * L;
       // keep the camera below the entry gate canopy (soffit at ~5.2 m) instead of clipping through it
-      if (Math.abs(cx) < 10 && Math.abs(cz - ENTRY_Z) < 4.6) cy = Math.min(cy, 4.6);
+      if (!aerial && Math.abs(cx) < 10 && Math.abs(cz - ENTRY_Z) < 4.6) cy = Math.min(cy, 4.6);
       camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * (d < L + 0.01 ? 14 : 8)));
       // aim only a little right of the head: the camera's own sideways offset then puts you left of centre
-      camera.lookAt(pos.current.x + rx * 0.25, aimY, pos.current.z + rz * 0.25);
+      camera.lookAt(pivot.x + rx * 0.25, pivot.y, pivot.z + rz * 0.25);
+      // far views: push the near plane out with the distance so the far campus keeps its depth precision
+      const near = L > FOLLOW_MAX ? Math.min(2, 0.15 + (L - FOLLOW_MAX) * 0.004) : 0.15;
+      const pc = camera as THREE.PerspectiveCamera;
+      if (Math.abs(pc.near - near) > 0.01) {
+        pc.near = near;
+        pc.updateProjectionMatrix();
+      }
     }
     // dev QA: a fixed camera pose for screenshots (like rooms/RoomPlayer's __gkRoomQA.cam)
     const qaCam = process.env.NODE_ENV !== "production" ? (window as unknown as { __gkPlazaCam?: { p: [number, number, number]; l: [number, number, number] } | null }).__gkPlazaCam : null;

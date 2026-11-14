@@ -1,17 +1,33 @@
 "use client";
-import { useEffect } from "react";
-import { Loader2, Lock, Mic, MicOff, Minus, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Loader2, LocateFixed, Lock, Mic, MicOff, Minus, Plus } from "lucide-react";
 import { useSession } from "@/lib/session";
-import { cameraState, MAX_ORBIT } from "@/world/Player";
+import { cameraState } from "@/world/Player";
+import { FOLLOW_MAX, isAerial, stepZoom } from "@/world/aerial";
+import { useStage } from "@/world/stage";
+import { CAMPUS } from "@/world/campus-strings";
 import { enableVoice, disableVoice, pttDown, pttUp, toggleOpenMic, useVoice } from "@/voice/voice";
 import { H } from "./strings";
 
 
 const btn = "icon-button pointer-events-auto size-12 rounded-card phone:size-9 phone:rounded-full";
 
-const zoom = (delta: number) => {
-  cameraState.distance = Math.min(MAX_ORBIT, Math.max(2.5, cameraState.distance + delta));
+/** + / − : linear steps up close, then on out into the campus aerial view (world/aerial.ts). */
+const zoom = (dir: number) => {
+  // the aerial view is the plaza's (halls keep their own close camera range)
+  const d = stepZoom(cameraState.distance, dir);
+  cameraState.distance = useStage.getState().view === "plaza" ? d : Math.min(FOLLOW_MAX, d);
 };
+
+/** True while the plaza camera is up in the campus aerial view (polled: the camera state is not reactive). */
+function useAerialView() {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const t = window.setInterval(() => setOn(useStage.getState().view === "plaza" && isAerial(cameraState.distance)), 250);
+    return () => window.clearInterval(t);
+  }, []);
+  return on;
+}
 
 /**
  * Right-edge controls: push-to-talk voice (FR-COM-03), voice on/off, camera zoom. (Walking pace is in Settings.)
@@ -22,13 +38,14 @@ export function WorldControls() {
   const authed = useSession((s) => s.status === "authenticated");
   const { status, transmitting, openMic, selfTalking, connected, hearers } = useVoice();
   const on = status === "on";
+  const aerial = useAerialView();
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === "INPUT") return;
       if (e.code === "KeyV" && !e.repeat) pttDown();
-      if (e.key === "+" || e.key === "=") zoom(-1.5);
-      if (e.key === "-") zoom(1.5);
+      if (e.key === "+" || e.key === "=") zoom(-1);
+      if (e.key === "-") zoom(1);
     };
     const up = (e: KeyboardEvent) => e.code === "KeyV" && pttUp();
     window.addEventListener("keydown", down);
@@ -98,12 +115,17 @@ export function WorldControls() {
         </div>
       )}
 
-      {/* zoom (pace lives in Settings) */}
+      {/* zoom (pace lives in Settings); in the campus aerial view, one tap brings the camera back down to you */}
+      {aerial && (
+        <button type="button" onClick={() => (cameraState.distance = 9)} title={CAMPUS.hint} className="pbtn-primary pointer-events-auto flex items-center gap-1.5 whitespace-nowrap rounded-card px-3 py-2 text-sm font-bold phone:px-2.5 phone:py-1.5 phone:text-xs">
+          <LocateFixed size={16} /> {CAMPUS.backToMe}
+        </button>
+      )}
       <div className="flex flex-col gap-2 [@media(max-height:430px)]:flex-row phone:gap-1.5">
-        <button type="button" aria-label="Zoom in" onClick={() => zoom(-1.5)} className={btn}>
+        <button type="button" aria-label="Zoom in" onClick={() => zoom(-1)} className={btn}>
           <Plus size={20} />
         </button>
-        <button type="button" aria-label="Zoom out" onClick={() => zoom(1.5)} className={btn}>
+        <button type="button" aria-label="Zoom out" onClick={() => zoom(1)} className={btn}>
           <Minus size={20} />
         </button>
       </div>

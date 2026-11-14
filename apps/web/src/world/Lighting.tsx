@@ -28,6 +28,7 @@ function SkyDome() {
 }
 
 /** Sun with a shadow frustum that follows the player (crisp shadows near you, texel-snapped to avoid shimmer). */
+const look = new THREE.Vector3();
 function Sun({ tier }: { tier: Tier }) {
   const light = useRef<THREE.DirectionalLight>(null);
   const { camera, scene } = useThree();
@@ -44,11 +45,33 @@ function Sun({ tier }: { tier: Tier }) {
   useFrame(() => {
     const l = light.current;
     if (!l) return;
-    const texel = (size * 2) / map;
-    const cx = Math.round(camera.position.x / texel) * texel;
-    const cz = Math.round(camera.position.z / texel) * texel;
+    // high up (campus aerial view): centre the shadows where the camera looks and widen them to cover the campus
+    const h = camera.position.y;
+    const half = h > 40 ? Math.min(220, Math.max(size, h * 0.55)) : size;
+    const sc = l.shadow.camera;
+    if (sc.right !== half) {
+      sc.left = -half;
+      sc.right = half;
+      sc.top = half;
+      sc.bottom = -half;
+      sc.far = h > 40 ? 300 + half * 2 : 300;
+      sc.updateProjectionMatrix();
+    }
+    let fx = camera.position.x;
+    let fz = camera.position.z;
+    if (h > 40) {
+      camera.getWorldDirection(look);
+      if (look.y < -0.05) {
+        fx += (look.x * h) / -look.y;
+        fz += (look.z * h) / -look.y;
+      }
+    }
+    const texel = (half * 2) / map;
+    const cx = Math.round(fx / texel) * texel;
+    const cz = Math.round(fz / texel) * texel;
+    const reach = 120 + half;
     l.target.position.set(cx, 0, cz);
-    l.position.set(cx + SUN_DIR.x * 120, SUN_DIR.y * 120, cz + SUN_DIR.z * 120);
+    l.position.set(cx + SUN_DIR.x * reach, SUN_DIR.y * reach, cz + SUN_DIR.z * reach);
   });
   return (
     <directionalLight

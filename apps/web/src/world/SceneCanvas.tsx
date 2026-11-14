@@ -1,5 +1,6 @@
 "use client";
 import { startTransition, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { CampusLabels } from "./CampusLabels";
 import { Canvas, createPortal, useFrame, useThree } from "@react-three/fiber";
 import { AdaptiveDpr, PerformanceMonitor, useGLTF, useProgress } from "@react-three/drei";
 import { XR, useXR } from "@react-three/xr";
@@ -393,6 +394,7 @@ function OutdoorArea({ tier }: { tier: "lite" | "standard" }) {
         <Gate tier={tier} inXR={inXR} />
       </StaticMerge>
       <ProxyAvatar tier={tier} />
+      {view === "plaza" && <CampusLabels />}
     </AreaContent>
   );
 }
