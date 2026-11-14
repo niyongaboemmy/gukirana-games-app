@@ -1,0 +1,181 @@
+import {
+  DEFAULT_FIGHT_RULES,
+  type BoxingAction,
+  type FightEvent,
+  type FightInput,
+  type FightRules,
+  type RingId,
+} from "@gukirana/contracts";
+import {
+  beginFight,
+  boxingBotInput,
+  createFight,
+  isBusy,
+  isTooTired,
+  snapshotOf,
+  stepFight,
+  type BotLevel,
+  type FightState,
+} from "@gukirana/boxing";
+import { useFightBridge } from "../bridge";
+import { useFightUi } from "./ui-store";
+
+/** the integer rng the practice bot needs (practice seeds it from @gukirana/fairness, tests with a fixed one) */
+export interface PracticeRng {
+  int(min: number, max: number): number;
+}
+
+/** gloving-up beat on the stool before the countdown (ticks at 30 Hz) */
+export const GLOVE_UP_TICKS = 45;
+/** at most this many of my fight's events wait in the bridge for the renderer */
+const MAX_PENDING_EVENTS = 64;
+
+/**
+ * Practice vs the AI, run locally in the browser (FIGHT-GAMES-PLAN D10): the same engine and rules as a live fight,
+ * no stake, never counted. The player is always fighter 0 (red corner). `tick()` is one 30 Hz engine step; the
+ * wall-time pace (training speed) is the runner's business (`PracticeRunner`).
+ */
+export class PracticeSession {
+  state: FightState;
+  readonly ring: RingId;
+  readonly level: BotLevel;
+  private readonly rng: PracticeRng;
+  private seq = 0;
+  /** hold-to-guard: the guard starts down (the engine's default stance is guard up, so it is sent once) */
+  private guard = false;
+  private guardSent = false;
+  private press: BoxingAction | null = null;
+  private introLeft = GLOVE_UP_TICKS;
+  private onRoundEnd?: (round: number, score: [number, number]) => void;
+
+  constructor(opts: {
+    ring: RingId;
+    level: BotLevel;
+    rng: PracticeRng;
+    name: string;
+    rules?: FightRules;
+    onRoundEnd?: (round: number, score: [number, number]) => void;
+  }) {
+    this.ring = opts.ring;
+    this.level = opts.level;
+    this.rng = opts.rng;
+    this.onRoundEnd = opts.onRoundEnd;
+    const rules = opts.rules ?? DEFAULT_FIGHT_RULES;
+    const fresh = createFight(["me", "ai"], rules);
+    this.state = { ...fresh, fighters: [{ ...fresh.fighters[0], guard: false }, fresh.fighters[1]] };
+    useFightBridge.setState({
+      mine: {
+        ring: opts.ring,
+        corner: "red",
+        mode: "practice",
+        stake: 0,
+        rules,
+        snap: snapshotOf(this.state, opts.ring),
+        predicted: null,
+        names: [opts.name, ""],
+        level: opts.level,
+        begun: false,
+        settled: null,
+      },
+      myEvents: [],
+    });
+  }
+
+  get over(): boolean {
+    return this.state.phase === "over";
+  }
+
+  /** a press from any control (keys, touch, pad). Starts my pose at once (prediction); the engine decides. */
+  pressAction(a: BoxingAction, now = performance.now()): void {
+    if (this.over) return;
+    const me = this.state.fighters[0];
+    if (isTooTired(me, a)) {
+      useFightUi.getState().hint("hud.tooTired");
+      return;
+    }
+    this.press = a;
+    if (this.state.phase === "round" && !isBusy(me)) {
+      const mine = useFightBridge.getState().mine;
+      if (mine) useFightBridge.setState({ mine: { ...mine, predicted: { act: a, at: now } } });
+    }
+  }
+
+  setGuard(g: boolean): void {
+    this.guard = g;
+  }
+  get guardHeld(): boolean {
+    return this.guard;
+  }
+
+  /** one engine tick: my input + the bot's, step, then write the bridge */
+  tick(): void {
+    if (this.over) return;
+    if (this.state.phase === "intro") {
+      if (--this.introLeft <= 0) this.state = beginFight(this.state);
+      return;
+    }
+    let mine: FightInput | null = null;
+    if (this.press || this.guard !== this.guardSent) {
+      mine = this.press ? { seq: this.seq++, a: this.press, g: this.guard } : { seq: this.seq++, g: this.guard };
+      this.press = null;
+      this.guardSent = this.guard;
+    }
+    const bot = boxingBotInput(this.state, 1, this.level, this.rng);
+    this.state = stepFight(this.state, [mine, bot]);
+    this.publish(this.state.events);
+  }
+
+  private publish(events: FightEvent[]): void {
+    const b = useFightBridge.getState();
+    if (!b.mine || b.mine.ring !== this.ring || b.mine.mode !== "practice") return;
+    const snap = snapshotOf(this.state, this.ring);
+    let predicted = b.mine.predicted;
+    // prediction confirmed (the engine shows the act) or stale → drop it
+    if (predicted && (snap.fighters[0].act === predicted.act || performance.now() - predicted.at > 300)) predicted = null;
+    const begun = b.mine.begun || (this.state.round >= 1 && this.state.fighters.some((f) => f.acted));
+    const myEvents = events.length ? [...b.myEvents, ...events].slice(-MAX_PENDING_EVENTS) : b.myEvents;
+    useFightBridge.setState({ mine: { ...b.mine, snap, predicted, begun }, myEvents });
+    if (events.length) useFightUi.getState().push(events);
+    for (const e of events) if (e.k === "roundEnd") this.onRoundEnd?.(e.round, e.points);
+  }
+}
+
+/**
+ * Wall-clock pace for a practice session: `hz` engine ticks per second (30 = normal, lower = training speed),
+ * drift-corrected by tick count, at most 5 catch-up ticks per frame (a background tab doesn't fast-forward).
+ */
+export class PracticeRunner {
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private start = 0;
+  private done = 0;
+  constructor(
+    readonly session: PracticeSession,
+    private hz: number,
+  ) {}
+
+  run(): void {
+    if (this.timer) return;
+    this.start = performance.now();
+    this.done = 0;
+    this.timer = setInterval(() => this.frame(), Math.max(8, Math.floor(1000 / this.hz / 2)));
+  }
+  setHz(hz: number): void {
+    if (hz === this.hz) return;
+    this.hz = hz;
+    if (this.timer) {
+      this.stop();
+      this.run();
+    }
+  }
+  private frame(): void {
+    const due = Math.floor(((performance.now() - this.start) * this.hz) / 1000) - this.done;
+    const n = Math.min(5, due);
+    for (let i = 0; i < n; i++) this.session.tick();
+    this.done += due; // skipped ticks are dropped, not replayed later
+    if (this.session.over) this.stop();
+  }
+  stop(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
+}

@@ -584,3 +584,11 @@ work on phone landscape, keyboard and gamepad; console edits of the fight block 
   `MatchRules.fight`; `HALL_SEATING.fight/boxing`; building `fight`; `@gukirana/boxing` skeleton;
   `apps/web/src/fight/bridge.ts`.
 - 2026-11-14 motion seam for the assets agent (P3-FGT-02): `BOXING_CLIPS`, `ACT_CLIP`, `HIT_REACTION`, `clipFor`.
+- 2026-11-14 P3-FGT-01 game core (G1): no contract changes, no new engine acts (ACT_CLIP unchanged). Engine API
+  additions (`@gukirana/boxing`): `resumeFight(s, countdown = true)` (3 s countdown, then back to the paused phase +
+  clock), `FighterState.acted` (drives `hasBegun`), `FighterState.idleStrikes` (IDLE strikes in a row; the room
+  forfeits at `maxTimeouts`), `maxFightTicks`, `countOf`, `isBusy`, `isTooTired`, `stageOf`, `actTicks`,
+  `BOT_PROFILES`, `BOT_LEVELS`. Event convention: `by` = the puncher on hit / block / evade / whiff. Web seam
+  `fight/bridge.ts` `MyFight` gained optional `names`, `level`, `begun`, `settled` (additive). Live client hook:
+  `registerLiveFight()` in `fight/game/actions.ts` (G2 registers from `fight/game/net/`); the HUD feed is
+  `fight/game/ui-store.ts` `useFightUi.push(events)` (live client pushes fight events there too).

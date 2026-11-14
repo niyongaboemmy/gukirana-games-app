@@ -12,6 +12,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@gukirana/boxing": "workspace:*",
     "@gukirana/contracts": "workspace:*",
     "@gukirana/fairness": "workspace:*",
     "@gukirana/i18n": "workspace:*",

@@ -197,6 +197,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@gukirana/boxing':
+        specifier: workspace:*
+        version: link:../../packages/games/boxing
       '@gukirana/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
