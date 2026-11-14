@@ -65,6 +65,25 @@ Scripts (Python + numpy / Pillow, Node): `clean_neutral.py` + `clean_neutral2.py
 notes, not in the repo. At load time the head geometry is also smoothed and tessellated (see
 `apps/web/src/world/human/head-geometry.ts`); no new geometry files are shipped.
 
+### Hair mask, hairline and skull template (P2-AVA-10)
+
+Same three heads, same licence; derived data only.
+
+1. Hair mask (G of the head recolour mask) cleaned per body: stray specks removed (the brows kept), pinholes filled,
+   nothing on the ears, the outline smoothed into one hairline with a ~1.5 texel soft edge; skin (R) takes over what
+   hair gives up. `masculine`: the receded front corners filled into a natural hairline. `neutral`: the baked cap's
+   six crown gores and its band strip are scalp hair now (plain hair albedo); the brim triangles are dropped at load.
+2. Albedo: stray photo hairs on temple / sideburn skin and on the ears inpainted from the surrounding skin (pores
+   from nearby skin); texels that became hair take the colour of the hair around them.
+3. Skull template (`apps/web/src/world/human/skull.ts`, generated): the masculine head's outer surface (ears left
+   out) as a 15 × 32 radius grid in the face frame, plus a per-body fit (centre + scale) to each head's forehead /
+   temple skin and short back hair. Hair shells, hats and the deflated neutral crown / feminine bob sit on it.
+4. Packed back into the glbs as before (+0.06 MB over P2-AVA-08).
+
+Scripts (Python + numpy / Pillow, Node): `hairtex.py`, `posmap.py`, `skull.py`, `gen_skull_ts.py`, `dumphead.mjs`,
+`repack.mjs`; kept with the task notes, not in the repo. Hair and headwear geometry is generated at load time
+(`hair.ts`, `headwear.ts`), cached per body / style.
+
 ### Everyday-life clips: `life-m.glb` (0.61 MB) and `life-f.glb` (0.61 MB)
 
 These load lazily, after the base set: avatars run on the base set until the life clips have streamed in.

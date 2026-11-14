@@ -23,10 +23,29 @@ export const SKIN_TONES = ["#3B2219", "#4A2C21", "#5C3A26", "#6E4530", "#85562C"
 /** Saved looks may still carry the old over-saturated tones: map them to their replacements when rendering. */
 export const LEGACY_SKIN: Record<string, string> = { "#8D5524": "#85562C", "#A0662F": "#986637", "#C68642": "#BC864C" };
 
-export type HairStyle = "short" | "fade" | "afro" | "puffs" | "braids" | "locs" | "bun" | "cornrows" | "headwrap" | "bald";
+export type HairStyle =
+  | "short"
+  | "fade"
+  | "afro"
+  | "puffs"
+  | "braids"
+  | "locs"
+  | "bun"
+  | "cornrows"
+  | "headwrap"
+  | "bald"
+  // P2-AVA-10 (appended: older clients decode these as their default hair, nothing breaks)
+  | "hightop"
+  | "twists"
+  | "waves"
+  | "shortlocs"
+  | "buzz"
+  | "lowfade"
+  | "cornrowbun"
+  | "braidtail";
 export const HAIR_STYLES: { id: HairStyle; label: string }[] = [
-  { id: "short", label: "Short" },
-  { id: "fade", label: "Fade" },
+  { id: "short", label: "Low cut (line-up)" },
+  { id: "fade", label: "Mid fade" },
   { id: "afro", label: "Afro" },
   { id: "puffs", label: "Afro puffs" },
   { id: "braids", label: "Box braids" },
@@ -35,8 +54,17 @@ export const HAIR_STYLES: { id: HairStyle; label: string }[] = [
   { id: "cornrows", label: "Cornrows" },
   { id: "headwrap", label: "Headwrap (igitambaro)" },
   { id: "bald", label: "Bald" },
+  { id: "buzz", label: "Buzz cut" },
+  { id: "waves", label: "360 waves" },
+  { id: "hightop", label: "High-top" },
+  { id: "twists", label: "Twists" },
+  { id: "shortlocs", label: "Short locs" },
+  { id: "lowfade", label: "Low fade" },
+  { id: "cornrowbun", label: "Cornrows into a bun" },
+  { id: "braidtail", label: "Box braids, low ponytail" },
 ];
-export const HAIR_COLORS = ["#141010", "#2a1a12", "#4a2d1c", "#7a4a26", "#b07a3e", "#d9c27a", "#8a8a8a", "#5a2a6e"];
+/** Black → browns → blonde, grey (salt-and-pepper strands), purple; then (appended) light salt-and-pepper and white. */
+export const HAIR_COLORS = ["#141010", "#2a1a12", "#4a2d1c", "#7a4a26", "#b07a3e", "#d9c27a", "#8a8a8a", "#5a2a6e", "#b4b0aa", "#e6e4e0"];
 
 export type Slot = "top" | "bottom" | "shoes" | "accessory" | "headwear";
 export type ItemStyle = "casual" | "sport" | "smart" | "traditional" | "street";
@@ -45,7 +73,7 @@ export type TopKind = "tee" | "longsleeve" | "hoodie" | "jersey" | "blazer" | "s
 export type BottomKind = "trousers" | "joggers" | "shorts" | "skirt" | "longwrap";
 export type ShoeKind = "sneakers" | "boots" | "sandals" | "loafers";
 export type AccessoryKind = "none" | "headset" | "glasses" | "sunglasses" | "earrings" | "watch";
-export type HeadwearKind = "none" | "cap" | "beanie" | "bucket";
+export type HeadwearKind = "none" | "cap" | "beanie" | "bucket" | "kufi" | "wrap";
 
 export interface OutfitItem {
   id: string;
@@ -102,6 +130,11 @@ export const OUTFITS: OutfitItem[] = [
   { id: "cap", slot: "headwear", label: "Cap", style: "sport", suggestedFor: ALL, kind: "cap", color: "accent" },
   { id: "beanie", slot: "headwear", label: "Beanie", style: "street", suggestedFor: ALL, kind: "beanie", color: "#B5532A" },
   { id: "bucket", slot: "headwear", label: "Bucket hat", style: "street", suggestedFor: ALL, kind: "bucket", color: "#e8dcc6" },
+  // P2-AVA-10 (appended)
+  { id: "kufi", slot: "headwear", label: "Embroidered kufi", style: "traditional", suggestedFor: ALL, kind: "kufi", color: "#f1ece0", color2: "#8a5a2b" },
+  { id: "headwrap-kitenge", slot: "headwear", label: "Headwrap (kitenge)", style: "traditional", suggestedFor: ALL, kind: "wrap", color: "#ffffff", print: "kitenge-sun" },
+  { id: "headwrap-leaf", slot: "headwear", label: "Headwrap (leaf print)", style: "traditional", suggestedFor: ALL, kind: "wrap", color: "#ffffff", print: "kitenge-leaf" },
+  { id: "headwrap-indigo", slot: "headwear", label: "Headwrap (indigo)", style: "traditional", suggestedFor: ALL, kind: "wrap", color: "#26365f" },
 ];
 
 export const itemById = (id: string): OutfitItem | undefined => OUTFITS.find((o) => o.id === id);
@@ -247,6 +280,10 @@ const SEED_HAIR: Record<BodyType, W<HairStyle>> = {
     ["short", 12],
     ["fade", 3],
     ["bald", 3],
+    ["cornrowbun", 10],
+    ["braidtail", 10],
+    ["twists", 6],
+    ["shortlocs", 3],
   ],
   masculine: [
     ["short", 30],
@@ -259,6 +296,12 @@ const SEED_HAIR: Record<BodyType, W<HairStyle>> = {
     ["bun", 1],
     ["puffs", 1],
     ["headwrap", 1],
+    ["lowfade", 18],
+    ["buzz", 6],
+    ["waves", 5],
+    ["twists", 4],
+    ["shortlocs", 4],
+    ["hightop", 2],
   ],
   neutral: [
     ["short", 16],
@@ -271,6 +314,14 @@ const SEED_HAIR: Record<BodyType, W<HairStyle>> = {
     ["puffs", 6],
     ["headwrap", 6],
     ["bald", 8],
+    ["lowfade", 6],
+    ["buzz", 4],
+    ["waves", 3],
+    ["twists", 4],
+    ["shortlocs", 3],
+    ["hightop", 2],
+    ["cornrowbun", 3],
+    ["braidtail", 3],
   ],
 };
 const SEED_HAIR_COLOR: W<string> = [
