@@ -27,7 +27,7 @@ const LAYOUTS: Record<"full" | "digits", Key[][]> = {
 
 const W = 1024;
 
-export function VirtualKeyboard({ mode, onKey, width = 0.8, accent = "#3DA9FC" }: { mode: "full" | "digits"; onKey: (k: string) => void; width?: number; accent?: string }) {
+export function VirtualKeyboard({ mode, onKey, width = 0.8, accent = "#d6a06c" }: { mode: "full" | "digits"; onKey: (k: string) => void; width?: number; accent?: string }) {
   const rows = LAYOUTS[mode];
   const cols = Math.max(...rows.map((r) => r.reduce((s, x) => s + x.w, 0)));
   const keyPx = W / cols;
@@ -58,7 +58,7 @@ export function VirtualKeyboard({ mode, onKey, width = 0.8, accent = "#3DA9FC" }
       for (const key of row) {
         const w = key.w * keyPx;
         const on = pressed.current === key.k;
-        g.fillStyle = on ? accent : key.k === "OK" ? "#2F80ED" : key.k === "DEL" ? "#2F3136" : "#1E1F23";
+        g.fillStyle = on ? accent : key.k === "OK" ? "#7a4e33" : key.k === "DEL" ? "#2F3136" : "#1E1F23";
         g.beginPath();
         g.roundRect(x + 6, ri * rowPx + 6, w - 12, rowPx - 12, 18);
         g.fill();

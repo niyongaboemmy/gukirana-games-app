@@ -375,7 +375,7 @@ function VRSetup() {
         <group key={b.id} position={[(i - 1) * 0.34, 0.27, 0]} onClick={(e) => (e.stopPropagation(), profile.setBodyType(b.id))}>
           <mesh>
             <planeGeometry args={[0.31, 0.09]} />
-            <meshBasicMaterial color={profile.bodyType === b.id ? "#2F80ED" : "#22266E"} toneMapped={false} />
+            <meshBasicMaterial color={profile.bodyType === b.id ? "#7a4e33" : "#2a2b2f"} toneMapped={false} />
           </mesh>
           <Text font={FONT} fontSize={0.04} position={[0, 0, 0.002]} anchorX="center" anchorY="middle" color="#ffffff">
             {b.label}

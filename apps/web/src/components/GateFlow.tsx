@@ -103,7 +103,7 @@ function CodeBoxes({ code, onFocus }: { code: string; onFocus: () => void }) {
         <span
           key={i}
           className={`grid h-12 place-items-center rounded-xl border text-2xl font-bold tabular-nums transition [@media(max-height:430px)]:h-9 [@media(max-height:430px)]:text-lg phone:h-8! phone:rounded-lg! phone:text-base! ${
-            i === code.length ? "border-accent bg-primary/15 shadow-[0_0_0_3px_rgb(96_165_250/.18)]" : code[i] ? "border-white/30 bg-white/10" : "border-white/15 bg-white/5"
+            i === code.length ? "border-accent bg-primary/15 shadow-[0_0_0_3px_rgb(214_160_108/.25)]" : code[i] ? "border-white/30 bg-white/10" : "border-white/15 bg-white/5"
           }`}
         >
           {code[i] ?? ""}
@@ -114,7 +114,7 @@ function CodeBoxes({ code, onFocus }: { code: string; onFocus: () => void }) {
 }
 
 const input =
-  "w-full rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-lg font-semibold outline-none transition placeholder:text-white/35 focus:border-accent focus:bg-white/10 focus:shadow-[0_0_0_3px_rgb(96_165_250/.22)] [@media(max-height:430px)]:py-2 [@media(max-height:430px)]:text-base phone:px-3! phone:py-1.5! phone:text-sm!";
+  "w-full rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-lg font-semibold outline-none transition placeholder:text-white/35 focus:border-accent focus:bg-white/10 focus:shadow-[0_0_0_3px_rgb(214_160_108/.28)] [@media(max-height:430px)]:py-2 [@media(max-height:430px)]:text-base phone:px-3! phone:py-1.5! phone:text-sm!";
 const primary =
   "btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-3 text-base font-extrabold [@media(max-height:430px)]:py-2 phone:py-1.5! phone:text-sm!";
 

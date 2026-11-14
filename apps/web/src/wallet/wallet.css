@@ -65,7 +65,7 @@
     0 1px 0 #2b1b11;
 }
 .wbtn:focus-visible {
-  outline: 3px solid var(--color-ring, #60a5fa);
+  outline: 3px solid var(--color-ring, #d6a06c);
   outline-offset: 3px;
 }
 .wbtn:disabled {
@@ -198,7 +198,7 @@
 }
 .wtab:focus-visible,
 .winfo-strip:focus-visible {
-  outline: 3px solid var(--color-ring, #60a5fa);
+  outline: 3px solid var(--color-ring, #d6a06c);
   outline-offset: 2px;
 }
 
@@ -260,7 +260,7 @@
   --paper-2: #f7f2e8;
   --plus: #15803d;
   --minus: #b42318;
-  --accent: #2563eb;
+  --accent: #7a4e33;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -388,7 +388,7 @@
   box-shadow: 0 1px 0 #2b1b11;
 }
 .wcard-close:focus-visible {
-  outline: 3px solid var(--color-ring, #60a5fa);
+  outline: 3px solid var(--color-ring, #d6a06c);
   outline-offset: 2px;
 }
 .wcard-body {
@@ -484,7 +484,7 @@
 }
 .wcard button:focus-visible,
 .winput:focus-within {
-  outline: 3px solid var(--color-ring, #60a5fa);
+  outline: 3px solid var(--color-ring, #d6a06c);
   outline-offset: 2px;
 }
 

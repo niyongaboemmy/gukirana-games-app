@@ -17,7 +17,7 @@
 }
 
 /* ───────────────────────── UI design system (docs/UI-DESIGN-SYSTEM.md) ─────────────────────────
-   Dark gaming UI: graphite glass surfaces, one blue accent used sparingly, gold for Stars. Tokens are Tailwind v4
+   Dark gaming UI: graphite glass surfaces, one chocolate accent (buttons, active states, focus), gold for Stars. Tokens are Tailwind v4
    theme variables (bg-primary, text-on-glass, ring-ring, rounded-card, font-display…); surfaces and controls are
    component classes (@layer components, below), so utilities on the same element always win. */
 @theme {
@@ -26,15 +26,15 @@
   --font-ui: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-sans: var(--font-ui);
 
-  /* accent (the only vivid colour): primary buttons, focus, active tabs, progress, selection */
-  --color-primary-300: #93c5fd;
-  --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
-  --color-primary: #3b82f6;
-  --color-accent: #60a5fa;
-  --color-ring: #60a5fa;
+  /* accent (chocolate; the only vivid colour): primary buttons, focus, active tabs, progress, selection */
+  --color-primary-300: #e8c3a0;
+  --color-primary-400: #d6a06c;
+  --color-primary-500: #9b6a48;
+  --color-primary-600: #7a4e33;
+  --color-primary-700: #5e3a25;
+  --color-primary: #9b6a48;
+  --color-accent: #d6a06c;
+  --color-ring: #d6a06c;
   /* neutral greys, no blue tint (near-black base → raised surfaces) */
   --color-ink-950: #0e0f11;
   --color-ink-900: #121314;
@@ -60,7 +60,7 @@
   --radius-control: 10px;
   --shadow-float: 0 1px 2px rgb(0 0 0 / 0.35), 0 10px 28px -10px rgb(0 0 0 / 0.65);
   --shadow-elevated: 0 2px 8px rgb(0 0 0 / 0.4), 0 32px 72px -18px rgb(0 0 0 / 0.85);
-  --shadow-glow: 0 0 0 1px rgb(96 165 250 / 0.35), 0 6px 18px -6px rgb(59 130 246 / 0.6);
+  --shadow-glow: 0 0 0 1px rgb(214 160 108 / 0.35), 0 6px 18px -6px rgb(155 106 72 / 0.6);
   --ease-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -79,7 +79,7 @@
   --glass-filter: blur(18px);
   --glass-filter-2: blur(22px);
   /* thin accent edge line for key panels */
-  --edge-accent: linear-gradient(90deg, transparent, rgb(96 165 250 / 0.9) 30%, rgb(96 165 250 / 0.9) 70%, transparent);
+  --edge-accent: linear-gradient(90deg, transparent, rgb(214 160 108 / 0.9) 30%, rgb(214 160 108 / 0.9) 70%, transparent);
 }
 /* phones: lighter blur over WebGL */
 @media (pointer: coarse) {
@@ -252,11 +252,11 @@ html[data-glass="lite"] {
     background:
       radial-gradient(circle at 50% 28%, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0) 62%),
       rgb(30 31 35 / 0.88);
-    border-color: rgb(96 165 250 / 0.85);
+    border-color: rgb(214 160 108 / 0.85);
     box-shadow:
       inset 0 1px 0 rgb(255 255 255 / 0.14),
-      0 0 0 3px rgb(59 130 246 / 0.22),
-      0 0 18px -2px rgb(59 130 246 / 0.55),
+      0 0 0 3px rgb(155 106 72 / 0.22),
+      0 0 18px -2px rgb(155 106 72 / 0.55),
       var(--shadow-float);
   }
 
@@ -283,26 +283,26 @@ html[data-glass="lite"] {
       }
     }
     &:active:not(:disabled) {
-      background-color: rgb(59 130 246 / 0.18);
-      box-shadow: inset 0 0 0 1px rgb(96 165 250 / 0.55);
+      background-color: rgb(155 106 72 / 0.18);
+      box-shadow: inset 0 0 0 1px rgb(214 160 108 / 0.55);
     }
   }
   .tile-active,
   .tile-active:hover:not(:disabled) {
-    background-color: rgb(59 130 246 / 0.2);
-    box-shadow: inset 0 0 0 1px rgb(96 165 250 / 0.8), 0 0 14px -4px rgb(59 130 246 / 0.6);
+    background-color: rgb(155 106 72 / 0.2);
+    box-shadow: inset 0 0 0 1px rgb(214 160 108 / 0.8), 0 0 14px -4px rgb(155 106 72 / 0.6);
   }
 
   /* buttons */
   .btn-primary {
     color: #fff;
     background: linear-gradient(180deg, var(--color-primary-500), var(--color-primary-600));
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22), inset 0 -1px 0 rgb(0 0 0 / 0.25), 0 6px 16px -8px rgb(59 130 246 / 0.75);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22), inset 0 -1px 0 rgb(0 0 0 / 0.25), 0 6px 16px -8px rgb(155 106 72 / 0.75);
     text-shadow: 0 1px 1px rgb(0 0 0 / 0.3);
     @media (hover: hover) {
       &:hover:not(:disabled) {
-        background: linear-gradient(180deg, #4f8ff7, #2e6cf0);
-        box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25), inset 0 -1px 0 rgb(0 0 0 / 0.25), 0 0 0 3px rgb(59 130 246 / 0.18), 0 8px 20px -8px rgb(59 130 246 / 0.85);
+        background: linear-gradient(180deg, #a87556, #74492e);
+        box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25), inset 0 -1px 0 rgb(0 0 0 / 0.25), 0 0 0 3px rgb(155 106 72 / 0.18), 0 8px 20px -8px rgb(155 106 72 / 0.85);
       }
     }
     &:disabled {
@@ -444,7 +444,7 @@ body {
     box-shadow:
       inset 0 2px 6px rgb(0 0 0 / 0.55),
       inset 0 -1px 0 rgb(255 255 255 / 0.06),
-      0 0 0 3px rgb(96 165 250 / 0.28),
+      0 0 0 3px rgb(214 160 108 / 0.28),
       0 4px 12px -6px rgb(0 0 0 / 0.6);
   }
   .game-btn:active:not(:disabled) .game-btn-icon {
@@ -455,24 +455,24 @@ body {
     border-width: 1.5px;
   }
   .game-btn-main.controller-active {
-    border-color: rgb(96 165 250 / 0.9);
+    border-color: rgb(214 160 108 / 0.9);
     box-shadow:
       inset 0 1px 0 rgb(255 255 255 / 0.18),
       inset 0 -2px 0 rgb(0 0 0 / 0.35),
-      0 0 0 3px rgb(59 130 246 / 0.25),
-      0 0 22px -2px rgb(59 130 246 / 0.6),
+      0 0 0 3px rgb(155 106 72 / 0.25),
+      0 0 22px -2px rgb(155 106 72 / 0.6),
       0 10px 24px -8px rgb(0 0 0 / 0.65);
     animation: game-btn-ready 2.4s ease-in-out infinite;
   }
   .game-btn-action {
     color: #f2f3f5;
-    background: rgb(37 99 235 / 0.92);
-    box-shadow: 0 0 0 1px rgb(147 197 253 / 0.45), 0 4px 12px -4px rgb(37 99 235 / 0.8);
+    background: rgb(122 78 51 / 0.92);
+    box-shadow: 0 0 0 1px rgb(232 195 160 / 0.45), 0 4px 12px -4px rgb(122 78 51 / 0.8);
     animation: game-btn-action-in 180ms ease-out both;
   }
   @keyframes game-btn-ready {
-    0%, 100% { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18), inset 0 -2px 0 rgb(0 0 0 / 0.35), 0 0 0 3px rgb(59 130 246 / 0.25), 0 0 18px -4px rgb(59 130 246 / 0.5), 0 10px 24px -8px rgb(0 0 0 / 0.65); }
-    50% { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18), inset 0 -2px 0 rgb(0 0 0 / 0.35), 0 0 0 4px rgb(59 130 246 / 0.32), 0 0 26px 0 rgb(59 130 246 / 0.7), 0 10px 24px -8px rgb(0 0 0 / 0.65); }
+    0%, 100% { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18), inset 0 -2px 0 rgb(0 0 0 / 0.35), 0 0 0 3px rgb(155 106 72 / 0.25), 0 0 18px -4px rgb(155 106 72 / 0.5), 0 10px 24px -8px rgb(0 0 0 / 0.65); }
+    50% { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18), inset 0 -2px 0 rgb(0 0 0 / 0.35), 0 0 0 4px rgb(155 106 72 / 0.32), 0 0 26px 0 rgb(155 106 72 / 0.7), 0 10px 24px -8px rgb(0 0 0 / 0.65); }
   }
   @keyframes game-btn-action-in {
     from { opacity: 0; transform: translate(-50%, 4px); }
