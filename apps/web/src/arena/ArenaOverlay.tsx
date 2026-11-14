@@ -470,7 +470,7 @@ export function ArenaOverlay({ layout }: { layout: HallLayout }) {
             closeLabel={A.close}
             bodyClassName="max-h-[60vh] overflow-y-auto phone:max-h-[56vh]"
             footer={
-              <div className="flex gap-2">
+              <div className="flex w-full gap-2">
                 {ev && !status?.pass ? (
                   <button type="button" disabled={!status?.canClaim || st.claiming} onClick={() => void claimPass(ev.id)} className="pbtn pbtn-primary flex-1">
                     {st.claiming ? <Loader2 size={18} className="animate-spin" /> : <Ticket size={18} />} {A.getPass}

@@ -309,6 +309,7 @@ a.prow {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  white-space: nowrap; /* a button label stays on one line */
   min-height: 48px;
   padding: 0 18px;
   border-radius: 13px;

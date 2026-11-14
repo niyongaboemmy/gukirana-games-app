@@ -269,7 +269,7 @@ export function AdminBlockOverlay({ layout }: { layout: HallLayout }) {
               size={phone ? "sm" : "md"}
               bodyClassName="max-h-[56vh] overflow-y-auto phone:max-h-[52vh]"
               footer={
-                <div className="flex gap-2">
+                <div className="flex w-full gap-2">
                   <button
                     type="button"
                     onClick={() => {

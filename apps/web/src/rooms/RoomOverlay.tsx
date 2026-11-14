@@ -141,7 +141,7 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
               icon={Swords}
               onClose={() => setChallenge(null)}
               footer={
-                <div className="flex gap-2">
+                <div className="flex w-full gap-2">
                   <button type="button" onClick={() => setChallenge(null)} className="pbtn pbtn-secondary flex-1">{R.cancel}</button>
                   <button
                     type="button"
