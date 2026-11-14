@@ -35,7 +35,7 @@ export const RING_SPOTS: Record<RingId, RingSpot> = (() => {
 
 /** distance (m) from a point to the ring's platform edge (0 = on / inside it) */
 export function distanceToRing(id: RingId, x: number, z: number): number {
-  const r = RING_SPOTS[id];
+  const r = RING_SPOTS[id]!;
   const dx = Math.max(0, Math.abs(x - r.x) - r.half);
   const dz = Math.max(0, Math.abs(z - r.z) - r.half);
   return Math.hypot(dx, dz);

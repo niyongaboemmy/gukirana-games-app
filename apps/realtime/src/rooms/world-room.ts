@@ -2,6 +2,9 @@ import { Room, type Client } from "@colyseus/core";
 import {
   ArenaMsg,
   BlockListSchema,
+  BOXING_GAME_ID,
+  BOXING_HALL_CAPACITY,
+  BoxingHallMsg,
   CALL_RING_MS,
   CallEndSchema,
   CallRespondSchema,
@@ -37,6 +40,8 @@ import { PairRegistry } from "../social/pairs.js";
 import { MoveGuard } from "../social/movement.js";
 import { OfficeDesk } from "./office-desk.js";
 import { ArenaHall } from "./arena-hall.js";
+import { BoxingHall, boxingHallConfig } from "./boxing-hall.js";
+import { boxingRoomOf, startBoxing } from "./boxing-room.js";
 import { arenaConfig } from "../social/arena-access.js";
 import { eligibilityOf, isRefusal, mutedUntil, signedOutSince, trackAccount } from "../social/accounts.js";
 
@@ -60,7 +65,8 @@ interface Proposal {
   id: string;
   from: string; // sessionId
   to: string;
-  game: GameId;
+  /** boxing only inside the Boxing hall (a ring is assigned on accept) */
+  game: GameId | typeof BOXING_GAME_ID;
   stake: number;
   expires: number;
 }
@@ -115,6 +121,8 @@ export class WorldRoom extends Room {
   private desk: OfficeDesk | null = null;
   /** Tournament Arena rules (hall "arena" only, P2-ARN-02) */
   private arena: ArenaHall | null = null;
+  /** Boxing sub-hall: ring registry, ring actions, fights, spectators (hall "boxing" only, P3-FGT-01) */
+  private boxing: BoxingHall | null = null;
   private lastChat = new Map<string, number>();
   private lastEmote = new Map<string, number>();
   private tick = 0;
@@ -266,6 +274,42 @@ export class WorldRoom extends Room {
       this.onMessage(ArenaMsg.mic, (client, raw: { on?: unknown }) => arena.onMic(client.sessionId, raw));
       this.clock.setInterval(() => void arena.sync(), arenaConfig.statePollMs);
       this.clock.setInterval(() => arena.report(), arenaConfig.reportMs);
+    }
+
+    // ---- Boxing sub-hall (hall "boxing"): 50 rings, claim / join / quick / practice / watch (rooms/boxing-hall.ts)
+    if (this.hallGame === "boxing") {
+      this.maxClients = BOXING_HALL_CAPACITY;
+      const boxing = (this.boxing = new BoxingHall(
+        {
+          roomId: this.roomId,
+          uidOf: (sid) => this.users.get(sid)?.sub,
+          nameOf: (sid) => this.players.get(sid)?.name ?? "Player",
+          levelOf: (sid) => this.players.get(sid)?.level,
+          posOf: (sid) => {
+            const p = this.players.get(sid);
+            return p && { x: p.x / 100, z: p.z / 100 };
+          },
+          has: (sid) => this.players.has(sid),
+          send: (sid, type, msg) => this.client(sid)?.send(type, msg),
+          broadcast: (type, msg) => this.broadcast(type, msg),
+          later: (fn, ms) => void this.clock.setTimeout(fn, ms),
+        },
+        {
+          eligibility: (uid, stake) => eligibilityOf(uid, stake, BOXING_GAME_ID),
+          start: startBoxing,
+          leaveFight: (roomId, uid) => boxingRoomOf(roomId)?.leaveFrom(uid),
+        },
+      ));
+      this.onMessage(BoxingHallMsg.claim, (client, raw: unknown) => void boxing.onClaim(client.sessionId, raw));
+      this.onMessage(BoxingHallMsg.join, (client, raw: unknown) => void boxing.onJoin(client.sessionId, raw));
+      this.onMessage(BoxingHallMsg.leave, (client) => boxing.onLeave(client.sessionId));
+      this.onMessage(BoxingHallMsg.quick, (client, raw: unknown) => void boxing.onQuick(client.sessionId, raw));
+      this.onMessage(BoxingHallMsg.quickCancel, (client) => boxing.onQuickCancel(client.sessionId));
+      this.onMessage(BoxingHallMsg.practice, (client, raw: unknown) => boxing.onPractice(client.sessionId, raw));
+      this.onMessage(BoxingHallMsg.watch, (client, raw: unknown) => boxing.onWatch(client.sessionId, raw));
+      this.onMessage(BoxingHallMsg.practiceScore, (client, raw: { round?: unknown; score?: unknown }) => boxing.onPracticeScore(client.sessionId, raw));
+      this.onMessage(BoxingHallMsg.pong, (client, raw: { n?: unknown }) => boxing.onPong(client.sessionId, raw));
+      this.clock.setInterval(() => boxing.probe(this.players.keys()), boxingHallConfig.pingEveryMs);
     }
 
     // ---- seats (hall chairs + plaza bench places): one person per seat, one seat per person
@@ -495,11 +539,13 @@ export class WorldRoom extends Room {
       const them = target && this.users.get(target.sessionId);
       if (!target || !them || target.sessionId === client.sessionId || !this.sees(client.sessionId, target.sessionId))
         return client.send("proposal-failed", { reason: "PLAYER_UNAVAILABLE" });
-      if (!isGame(raw.game) || !isStake(raw.stake)) return client.send("proposal-failed", { reason: "INVALID_PROPOSAL" });
+      const boxingHere = !!this.boxing && raw.game === BOXING_GAME_ID;
+      if ((!isGame(raw.game) && !boxingHere) || !isStake(raw.stake)) return client.send("proposal-failed", { reason: "INVALID_PROPOSAL" });
+      const game = raw.game as GameId | typeof BOXING_GAME_ID;
       // checked when the challenge is made, not only after the other player accepts (GAP-011); the API checks again
       // when the match is created. The challenger hears their own reason, never the other player's (GAP-005).
-      const [mine, theirs] = await Promise.all([eligibilityOf(me.sub, raw.stake, raw.game), eligibilityOf(them.sub, raw.stake, raw.game)]);
-      if (isRefusal(mine)) return client.send("proposal-failed", { reason: mine.reason, game: raw.game, ...(mine.limit !== undefined ? { limit: mine.limit } : {}) });
+      const [mine, theirs] = await Promise.all([eligibilityOf(me.sub, raw.stake, game), eligibilityOf(them.sub, raw.stake, game)]);
+      if (isRefusal(mine)) return client.send("proposal-failed", { reason: mine.reason, game, ...(mine.limit !== undefined ? { limit: mine.limit } : {}) });
       if (isRefusal(theirs)) return client.send("proposal-failed", { reason: OPPONENT_CANT_PLAY });
       // either of them may have left (or been suspended) meanwhile
       if (!this.users.has(client.sessionId) || !this.users.has(target.sessionId) || !this.client(target.sessionId) || !this.sees(client.sessionId, target.sessionId))
@@ -507,7 +553,7 @@ export class WorldRoom extends Room {
       const open = [...this.proposals.values()].filter((p) => p.from === client.sessionId);
       if (open.length >= 3) return client.send("proposal-failed", { reason: "TOO_MANY_OPEN" });
       const id = `p${++this.seq}`;
-      const proposal: Proposal = { id, from: client.sessionId, to: target.sessionId, game: raw.game, stake: raw.stake, expires: Date.now() + PROPOSAL_TTL };
+      const proposal: Proposal = { id, from: client.sessionId, to: target.sessionId, game, stake: raw.stake, expires: Date.now() + PROPOSAL_TTL };
       this.proposals.set(id, proposal);
       const from = this.players.get(client.sessionId)!;
       // ttlMs lets clients count down on their own clock (device clocks drift from the server's)
@@ -536,12 +582,13 @@ export class WorldRoom extends Room {
       const b = this.users.get(p.to);
       if (!fromClient || !a || !b) return client.send("proposal-closed", { id: p.id, reason: "PLAYER_LEFT" });
       try {
-        const m = await startMatch(p.game, p.stake, [a.sub, b.sub]);
+        // boxing: a free ring of this hall + the fight room (the hall sends boxing-assigned / boxing-fight-ready too)
+        const m = p.game === BOXING_GAME_ID ? await this.boxing!.assignProposal(p.from, p.to, p.stake) : await startMatch(p.game, p.stake, [a.sub, b.sub]);
         for (const c of [fromClient, client]) c.send("match-ready", { ...m, game: p.game, stake: p.stake });
       } catch (e) {
         // both re-validated by the API at accept time; the precise reason only to the player it is about (GAP-005)
-        fromClient.send("proposal-closed", { id: p.id, ...refusalFor(e, a.sub, p.game) });
-        client.send("proposal-closed", { id: p.id, ...refusalFor(e, b.sub, p.game) });
+        fromClient.send("proposal-closed", { id: p.id, ...refusalFor(e, a.sub, p.game as GameId) });
+        client.send("proposal-closed", { id: p.id, ...refusalFor(e, b.sub, p.game as GameId) });
       }
     });
 
@@ -604,7 +651,9 @@ export class WorldRoom extends Room {
     for (const c of this.clients) {
       const viewer = byId.get(c.sessionId);
       if (!viewer) continue;
-      const entries = this.interest.collect(viewer, movers, this.tick, (m) => this.sees(c.sessionId, m.id));
+      // Boxing hall: area of interest (BOXING_AOI_RADIUS) and no world moves from fighters in a running fight
+      const boxing = this.boxing;
+      const entries = this.interest.collect(viewer, movers, this.tick, (m) => this.sees(c.sessionId, m.id) && (!boxing || boxing.sendsMove(viewer, m)));
       if (entries.length) c.send("moves", entries);
     }
   }
@@ -655,6 +704,7 @@ export class WorldRoom extends Room {
     this.desk?.onJoin(client);
     this.sendVisible(client.sessionId, "joined", player);
     if (this.arena) await this.arena.joined(client.sessionId);
+    this.boxing?.joined(client.sessionId);
     this.presenceSoon();
   }
 
@@ -696,6 +746,7 @@ export class WorldRoom extends Room {
     if (this.seats.release(sid)) this.broadcastSeats();
     this.desk?.onLeave(sid);
     this.arena?.left(sid);
+    this.boxing?.left(sid);
     this.presenceSoon();
   }
 
@@ -703,5 +754,6 @@ export class WorldRoom extends Room {
     void api.reportPresence(this.roomId, this.hallGame ? `hall:${this.hallGame}` : "plaza", 0, 0);
     this.desk?.dispose();
     if (this.arena) this.arena.report();
+    this.boxing?.dispose();
   }
 }

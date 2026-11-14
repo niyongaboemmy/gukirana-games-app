@@ -75,7 +75,7 @@ export const boxingHallConfig = {
   resultMs: RING_RESULT_SECONDS * 1000,
 };
 
-type Action = "claim" | "join" | "leave" | "quick" | "practice" | "watch";
+type Action = "claim" | "join" | "leave" | "quick" | "practice" | "watch" | "proposal";
 const PERSONAL = new Set<string>(PERSONAL_REFUSALS);
 const OPPONENT_CANT_PLAY = "OPPONENT_CANT_PLAY";
 const watchersMax = (id: RingId) => ((FEATURE_RINGS as readonly string[]).includes(id) ? 2 * RING_WATCHERS_MAX : RING_WATCHERS_MAX);
