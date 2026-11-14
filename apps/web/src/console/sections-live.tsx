@@ -192,8 +192,9 @@ export function Visitors({ office }: { office: string | null }) {
                     {k.from.level ? `Level ${k.from.level} · ` : ""}at {name(k.office)} · <span className="gkc-timer">{left}s</span>
                   </span>
                 </span>
-                <button type="button" className="gkc-btn sm secondary" onClick={() => answerKnock(k.knockId, false)}>{C.decline}</button>
-                <button type="button" className="gkc-btn sm success" onClick={() => answerKnock(k.knockId, true)}>{C.letIn}</button>
+                <button type="button" className="gkc-btn sm secondary" onClick={() => answerKnock(k.knockId, "decline")}>{C.decline}</button>
+                <button type="button" className="gkc-btn sm secondary" onClick={() => answerKnock(k.knockId, "wait")}>{C.wait}</button>
+                <button type="button" className="gkc-btn sm success" onClick={() => answerKnock(k.knockId, "allow")}>{C.letIn}</button>
               </div>
             );
           })

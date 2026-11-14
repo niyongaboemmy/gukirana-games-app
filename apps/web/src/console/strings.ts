@@ -54,6 +54,7 @@ export const C = {
   notInOffice: "Open the console from your office computer to answer knocks at your door.",
   letIn: "Let in",
   decline: "Decline",
+  wait: "Please wait",
   inside: (n: number) => (n === 1 ? "1 staff member inside" : `${n} staff inside`),
   search: "Search name, email, phone or id",
   all: "All",
