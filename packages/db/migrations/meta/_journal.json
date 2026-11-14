@@ -64,6 +64,13 @@
       "when": 1794615745057,
       "tag": "0008_arena",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794655386549,
+      "tag": "0009_moderation",
+      "breakpoints": true
     }
   ]
 }

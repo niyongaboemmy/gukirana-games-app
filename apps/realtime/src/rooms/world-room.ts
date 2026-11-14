@@ -37,7 +37,7 @@ import { MoveGuard } from "../social/movement.js";
 import { OfficeDesk } from "./office-desk.js";
 import { ArenaHall } from "./arena-hall.js";
 import { arenaConfig } from "../social/arena-access.js";
-import { eligibilityOf, isRefusal, trackAccount } from "../social/accounts.js";
+import { eligibilityOf, isRefusal, mutedUntil, signedOutSince, trackAccount } from "../social/accounts.js";
 
 export interface WorldPlayer {
   id: string;
@@ -120,6 +120,8 @@ export class WorldRoom extends Room {
     if (!options?.token) return true; // guest
     const claims = await verifyToken(options.token);
     if (!claims) throw new Error("INVALID_TOKEN");
+    // a token from before a staff "sign out everywhere" (P2-CON-02)
+    if (signedOutSince(claims.sub, claims.iat)) throw new Error("SESSION_REVOKED");
     // a suspended account's access token stays valid up to 15 min: the account itself must still be active
     if ((await eligibilityOf(claims.sub, 0)).reason === "ACCOUNT_INACTIVE") throw new Error("ACCOUNT_INACTIVE");
     return claims;
@@ -140,6 +142,12 @@ export class WorldRoom extends Room {
   }
 
   // ---------------------------------------------------------------- helpers
+  /** muted until (ms) for a signed-in session under a staff chat mute, else null */
+  private mutedTill(sid: string, now = Date.now()): number | null {
+    const uid = this.users.get(sid)?.sub;
+    return uid ? mutedUntil(uid, now) : null;
+  }
+
   private ident(sid: string): Ident {
     return { sid, uid: this.users.get(sid)?.sub };
   }
@@ -350,6 +358,9 @@ export class WorldRoom extends Room {
       const now = Date.now();
       if (now - (this.lastChat.get(client.sessionId) ?? 0) < CHAT_MIN_INTERVAL_MS) return;
       if (!this.rate.allow(`${client.sessionId}:chat`, 20, 30_000, now)) return client.send("chat-warning", { reason: "rate" });
+      // a staff chat mute (P2-CON-02): nothing reaches anyone until it ends
+      const muted = this.mutedTill(client.sessionId, now);
+      if (muted) return client.send("chat-warning", { reason: "muted", until: muted });
       this.lastChat.set(client.sessionId, now);
       const r = filterChat(parsed.data.text);
       if (r.blocked) return client.send("chat-warning", { reason: r.reason });
@@ -386,6 +397,7 @@ export class WorldRoom extends Room {
       if (!target || to === me.id || !target.verified || !this.sees(me.id, to)) return fail("UNAVAILABLE");
       const now = Date.now();
       if (!this.rate.allow(`${me.id}:dm`, 12, 10_000, now)) return fail("RATE_LIMITED");
+      if (this.mutedTill(client.sessionId, now)) return fail("MUTED");
       const r = filterChat(parsed.data.text);
       if (r.blocked) return client.send("chat-warning", { reason: r.reason });
       if (!r.text) return;
@@ -604,7 +616,10 @@ export class WorldRoom extends Room {
     }
     if (claims) {
       this.users.set(client.sessionId, claims);
-      this.tracked.set(client.sessionId, trackAccount(claims.sub, () => this.closeSuspended(client.sessionId)));
+      this.tracked.set(
+        client.sessionId,
+        trackAccount(claims.sub, () => this.closeSuspended(client.sessionId), (type, msg) => this.client(client.sessionId)?.send(type, msg)),
+      );
     }
     const look = claims?.look ?? options.look;
     // the joiner's own block list (from the API) applies before anyone becomes visible

@@ -14,12 +14,14 @@ import { LedgerService } from "../ledger/ledger.service.js";
 import { BuildingsService } from "./buildings.service.js";
 import { ConsoleService, kigaliDayStart } from "./console.service.js";
 import { PRESENCE_STALE_MS, PresenceStore } from "./presence.js";
+import { ModerationService } from "./moderation.service.js";
 
 let db: Database;
 let close: () => Promise<void>;
 let access: AccessService;
 let buildings: BuildingsService;
 let svc: ConsoleService;
+let mod: ModerationService;
 
 const boss = "bbbbbbbb-0000-4000-8000-000000000001";
 const support = "bbbbbbbb-0000-4000-8000-000000000002";
@@ -35,6 +37,7 @@ beforeAll(async () => {
   buildings = new BuildingsService(db);
   await buildings.seed();
   svc = new ConsoleService(db, access, new OccupancyStore(), new EconomyService(db), new LedgerService(db), buildings, new PresenceStore());
+  mod = new ModerationService(db, access, new LedgerService(db));
   await db.insert(users).values([
     { id: boss, email: "boss@example.com", username: "boss" },
     { id: support, phone: "+250788000222", username: "helper" },
@@ -49,9 +52,9 @@ afterAll(() => close());
 
 describe("console sections", () => {
   it("grants sections by role", () => {
-    expect(sectionsFor(["super_admin"])).toEqual(["overview", "visitors", "users", "buildings", "monitor", "roles", "finance"]);
+    expect(sectionsFor(["super_admin"])).toEqual(["overview", "visitors", "users", "reports", "buildings", "monitor", "roles", "finance"]);
     expect(sectionsFor(["accountant"])).toEqual(["overview", "visitors", "finance"]);
-    expect(sectionsFor(["support_agent"])).toEqual(["overview", "visitors", "users"]);
+    expect(sectionsFor(["support_agent"])).toEqual(["overview", "visitors", "users", "reports"]);
     expect(sectionsFor([])).toEqual([]);
   });
 
@@ -68,35 +71,35 @@ describe("console sections", () => {
 
 describe("users", () => {
   it("lists with masked contacts, level and roles; filters by text", async () => {
-    const all = await svc.listUsers(undefined, undefined, 0);
+    const all = await svc.listUsers({});
     expect(all.items).toHaveLength(4);
-    const p = (await svc.listUsers("play", undefined, 0)).items[0]!;
+    const p = (await svc.listUsers({ q: "play" })).items[0]!;
     expect(p).toMatchObject({ username: "player", level: 10, status: "active", roles: [] });
     expect(p.email).not.toBe("player@example.com");
-    expect((await svc.listUsers("helper", undefined, 0)).items[0]?.roles).toEqual(["support_agent"]);
+    expect((await svc.listUsers({ q: "helper" })).items[0]?.roles).toEqual(["support_agent"]);
   });
 
   it("support can suspend a player, with an audited reason; reactivates too", async () => {
-    expect(await svc.setStatus(support, player, "suspended", "abusive chat")).toEqual({ id: player, status: "suspended", changed: true });
-    expect((await svc.listUsers(undefined, "suspended", 0)).items.map((u) => u.id)).toEqual([player]);
+    expect(await mod.setStatus(support, player, "suspended", "abusive chat")).toEqual({ id: player, status: "suspended", changed: true });
+    expect((await svc.listUsers({ status: "suspended" })).items.map((u) => u.id)).toEqual([player]);
     const d = await svc.userDetail(player);
     expect(d.history[0]).toMatchObject({ action: "user.suspend", detail: "abusive chat", who: support, whoName: "helper" });
     // the console's staff-action feed names people instead of ids (GAP-016)
     expect((await svc.auditFeed(5))[0]).toMatchObject({ action: "user.suspend", whoName: "helper", targetName: "player", detailText: "abusive chat" });
     expect((await svc.auditFeed(50, "helper")).length).toBeGreaterThan(0);
-    expect((await svc.setStatus(support, player, "active", "appeal accepted")).changed).toBe(true);
+    expect((await mod.setStatus(support, player, "active", "appeal accepted")).changed).toBe(true);
   });
 
   it("protects super admins and self, and needs a status role", async () => {
-    await expect(svc.setStatus(support, boss, "suspended", "test")).rejects.toMatchObject({ response: { code: "SUPER_ADMIN_PROTECTED" } });
-    await expect(svc.setStatus(boss, boss, "suspended", "test")).rejects.toMatchObject({ response: { code: "CANNOT_CHANGE_SELF" } });
-    await expect(svc.setStatus(accountant, player, "suspended", "test")).rejects.toMatchObject({ response: { code: "ROLE_REQUIRED" } });
+    await expect(mod.setStatus(support, boss, "suspended", "test")).rejects.toMatchObject({ response: { code: "SUPER_ADMIN_PROTECTED" } });
+    await expect(mod.setStatus(boss, boss, "suspended", "test")).rejects.toMatchObject({ response: { code: "CANNOT_CHANGE_SELF" } });
+    await expect(mod.setStatus(accountant, player, "suspended", "test")).rejects.toMatchObject({ response: { code: "ROLE_REQUIRED" } });
     // a bad id is a 400, not a database error (GAP-009)
-    await expect(svc.setStatus(support, "not-a-uuid", "suspended", "test")).rejects.toMatchObject({ status: 400, response: { code: "BAD_ID" } });
+    await expect(mod.setStatus(support, "not-a-uuid", "suspended", "test")).rejects.toMatchObject({ status: 400, response: { code: "BAD_ID" } });
     expect(() => uuidParam("1; drop table users")).toThrow(BadRequestException);
     expect(uuidParam(player)).toBe(player);
     // the back office can't suspend the only active super admin either (GAP-007)
-    await expect(svc.setStatus("admin-token:ops", boss, "suspended", "test")).rejects.toMatchObject({ response: { code: "LAST_SUPER_ADMIN" } });
+    await expect(mod.setStatus("admin-token:ops", boss, "suspended", "test")).rejects.toMatchObject({ response: { code: "LAST_SUPER_ADMIN" } });
   });
 
   it("search takes _ % and \\ literally (GAP-006): qa_lv30 is found, wildcards match nothing extra", async () => {
@@ -105,7 +108,7 @@ describe("users", () => {
       { id: "bbbbbbbb-0000-4000-8000-0000000000a2", email: "lv31@example.test", username: "qaXlv30" },
       { id: "bbbbbbbb-0000-4000-8000-0000000000a3", email: "pct@example.test", username: "50%off" },
     ]);
-    const names = async (q: string) => (await svc.listUsers(q, undefined, 0)).items.map((u) => u.username).sort();
+    const names = async (q: string) => (await svc.listUsers({ q: q })).items.map((u) => u.username).sort();
     expect(await names("qa_lv30")).toEqual(["qa_lv30"]);
     expect(await names("qa_")).toEqual(["qa_lv30"]);
     expect(await names("%")).toEqual(["50%off"]);
@@ -128,35 +131,35 @@ describe("suspension ends the session (GAP-001 / GAP-002)", () => {
     const guard = new AuthGuard(db);
     const t = await bearer(player);
     expect(await guard.canActivate(ctx(t))).toBe(true); // cached as active
-    await svc.setStatus(support, player, "suspended", "QA: token cut-off");
+    await mod.setStatus(support, player, "suspended", "QA: token cut-off");
     await expect(guard.canActivate(ctx(t))).rejects.toMatchObject({ response: { code: "ACCOUNT_INACTIVE" } });
-    await svc.setStatus(support, player, "active", "QA: restore");
+    await mod.setStatus(support, player, "active", "QA: restore");
     expect(await guard.canActivate(ctx(t))).toBe(true);
   });
 
   it("revokes the refresh tokens and publishes the suspension for realtime", async () => {
     const since = new Date(Date.now() - 1000);
     await db.insert(refreshTokens).values({ id: "cccccccc-0000-4000-8000-000000000001", userId: player, tokenHash: "h-suspend-1", expiresAt: new Date(Date.now() + 86_400_000) });
-    await svc.setStatus(support, player, "suspended", "QA: feed");
+    await mod.setStatus(support, player, "suspended", "QA: feed");
     const [rt] = await db.select().from(refreshTokens).where(eq(refreshTokens.tokenHash, "h-suspend-1"));
     expect(rt?.revoked).toBe(true);
-    const feed = await svc.suspensionsSince(since);
+    const feed = await mod.feed(since);
     expect(feed.events.map((e) => e.userId)).toContain(player);
     expect(Date.parse(feed.cursor)).toBeGreaterThan(since.getTime());
     // no cursor yet: nothing old is replayed, the cursor starts now
-    expect((await svc.suspensionsSince(null)).events).toEqual([]);
-    await svc.setStatus(support, player, "active", "QA: restore");
+    expect((await mod.feed(null)).events).toEqual([]);
+    await mod.setStatus(support, player, "active", "QA: restore");
   });
 
   it("a suspended staff member holds no roles: console, admin endpoints and office doors refuse them", async () => {
     const roleGuard = new RoleGuard(access, new Reflector());
     const t = await bearer(accountant);
     expect((await access.access(accountant)).roles).toEqual(["accountant"]);
-    await svc.setStatus(boss, accountant, "suspended", "QA: staff suspended");
+    await mod.setStatus(boss, accountant, "suspended", "QA: staff suspended");
     expect(await access.access(accountant)).toEqual({ roles: [], offices: [] });
-    expect(await svc.rolesOf(accountant)).toEqual([]);
+    expect(await mod.rolesOf(accountant)).toEqual([]);
     await expect(roleGuard.canActivate(ctx(t))).rejects.toThrow();
-    await svc.setStatus(boss, accountant, "active", "QA: restore");
+    await mod.setStatus(boss, accountant, "active", "QA: restore");
     expect((await access.access(accountant)).roles).toEqual(["accountant"]);
   });
 });

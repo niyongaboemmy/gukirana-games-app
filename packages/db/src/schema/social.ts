@@ -29,6 +29,11 @@ export const reports = pgTable("reports", {
   details: text("details"),
   /** where it happened + recent chat lines involving the reported player (no audio in this version) */
   context: jsonb("context"),
+  /** open | resolved | dismissed */
   status: text("status").notNull().default("open"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /** staff handling (P2-CON-02): who closed it, when, and the internal note they left */
+  resolvedBy: text("resolved_by"),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  resolution: text("resolution"),
 });

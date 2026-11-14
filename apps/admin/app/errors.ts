@@ -12,7 +12,10 @@ const WORDS: Record<string, string> = {
   ROLE_EXISTS: "A role with that id already exists.",
   OFFICE_EXISTS: "An office with that id already exists.",
   UNKNOWN_OFFICE: "That office doesn't exist.",
-  VALIDATION_ERROR: "Please check the fields.",
+  VALIDATION_ERROR: "Please check the fields (a reason is 3 to 200 characters).",
+  REASON_REQUIRED: "Super Admin changes need a reason.",
+  ACCOUNT_NOT_ACTIVE: "That account is suspended or deleted, so it can't be given a role.",
+  RATE_LIMITED: "Too many changes in a short time. Wait a minute and try again.",
   BAD_ID: "That id doesn't look right.",
 };
 

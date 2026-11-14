@@ -50,7 +50,10 @@ export interface Eligibility {
 }
 export interface SuspensionFeed {
   cursor: string;
-  events: { id: string; userId: string; at: string }[];
+  /** kind: suspend (also deletion) | signout | mute (until) | unmute | warn (reason); missing = suspend (older API) */
+  events: { id: string; userId: string; at: string; kind?: "suspend" | "signout" | "mute" | "unmute" | "warn"; until?: string; reason?: string }[];
+  /** first poll only: every chat mute in force */
+  mutes?: { userId: string; until: string }[];
 }
 
 export const api = {

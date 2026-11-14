@@ -638,6 +638,9 @@ button.gkc-row:hover {
   flex-direction: column;
   width: min(460px, 100vw);
   background: linear-gradient(180deg, var(--c-bg), var(--c-bg2));
+  /* the list behind must not read through the panel (P2-CON-02 phone pass) */
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
   box-shadow: -20px 0 50px -20px rgb(0 0 0 / 0.5);
   animation: gkc-slide 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -910,4 +913,141 @@ button.gkc-row:hover {
   .gkc-skel {
     animation: none;
   }
+}
+
+/* ---- account management (P2-CON-02) ---- */
+.gkc-pill.warn {
+  color: var(--c-warn);
+  background: rgb(180 83 9 / 0.12);
+}
+:root[data-ptheme="dark"] .gkc .gkc-pill.warn {
+  color: #fbbf24;
+  background: rgb(251 191 36 / 0.12);
+}
+.gkc-pill.muted {
+  color: var(--c-muted);
+  background: var(--c-panel-2);
+}
+.gkc-count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--c-choc);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+.gkc-input:has(textarea) {
+  align-items: stretch;
+  padding-block: 8px;
+}
+.gkc-input textarea {
+  resize: vertical;
+  min-height: 2.6em;
+}
+.gkc-field-err {
+  color: var(--c-bad);
+  font-size: 13px;
+  font-weight: 700;
+}
+.gkc-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.gkc-foot > .gkc-btn {
+  flex: 1 1 auto;
+}
+@media (min-width: 641px) {
+  .gkc-foot > .gkc-btn {
+    flex: 0 0 auto;
+  }
+}
+.gkc-confirm {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  color: var(--c-ink);
+  background: var(--c-choc-tint);
+  box-shadow: inset 3px 0 0 var(--c-choc);
+  overflow-wrap: anywhere;
+}
+.gkc-confirm span {
+  color: var(--c-ink-2);
+  font-size: 13px;
+}
+.gkc-confirm.danger {
+  background: var(--c-bad-tint);
+  box-shadow: inset 3px 0 0 var(--c-bad);
+}
+.gkc-acts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.gkc-acts .gkc-btn {
+  justify-content: flex-start;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.2;
+}
+.gkc-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+.gkc-filters label {
+  display: grid;
+  gap: 4px;
+  color: var(--c-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+.gkc-filters input[type="date"] {
+  color-scheme: light;
+}
+:root[data-ptheme="dark"] .gkc .gkc-filters input[type="date"] {
+  color-scheme: dark;
+}
+.gkc-filters .col-span-full {
+  grid-column: 1 / -1;
+}
+.gkc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--c-choc-text);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.gkc-evidence {
+  display: grid;
+  gap: 2px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--c-panel-2);
+  box-shadow: inset 0 0 0 1px var(--c-line);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.gkc-evidence small {
+  color: var(--c-muted);
+  font-weight: 700;
+}
+.gkc-seg.w-full {
+  display: flex;
+}
+.gkc-filters .flex > .gkc-input {
+  min-width: 0;
+  padding-inline: 10px;
+}
+.gkc-filters .gkc-input input {
+  width: 100%;
+  min-width: 0;
 }
