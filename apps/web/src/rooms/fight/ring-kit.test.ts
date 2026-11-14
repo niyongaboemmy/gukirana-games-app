@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cornerPost, fightSpots, LOD_BY_TIER, RING, ringDrawCalls, ringSteps, selectLods, stoolSpot, toHall, type RingLod, type RingSpec } from "./ring-kit-core";
+import { cornerPost, fightSpots, LOD_BY_TIER, RING, ringDrawCalls, ringSteps, selectLods, stepHeight, stoolSpot, toHall, TRAINING_RING, type RingLod, type RingSpec } from "./ring-kit-core";
 import { farRingGeometry, nearRingGeometry, stoolGeometry, triangles } from "./ring-kit-geometry";
 
 /** a 50-ring hall field: 10 × 5 rings on a 12 m grid */
@@ -99,5 +99,56 @@ describe("ring placement helpers", () => {
     expect(s.top.y).toBe(RING.deck);
     expect(Math.abs(s.foot.x - r.x)).toBeGreaterThan(RING.half);
     expect(Math.abs(s.in.x - r.x)).toBeLessThan(RING.post);
+  });
+});
+
+describe("training ring size (P3-FGT-03)", () => {
+  const t: RingSpec = { id: "t", x: 4, z: -2, rotY: 0, status: "free", size: "training" };
+
+  it("is 4.3 m inside the ropes on a 0.8 m deck, and fits the hall's 6.2 × 6.4 m pitch with its rail and steps", () => {
+    expect(2 * (TRAINING_RING.post - 0.13)).toBeCloseTo(4.3, 2);
+    expect(TRAINING_RING.deck).toBe(0.8);
+    // neighbouring rails leave a walkable aisle (≥ 0.85 m) in both directions
+    expect(6.2 - 2 * TRAINING_RING.rail).toBeGreaterThanOrEqual(0.85);
+    expect(6.4 - 2 * TRAINING_RING.rail).toBeGreaterThanOrEqual(0.85);
+    // the steps stay clear of the neighbouring platform
+    expect(TRAINING_RING.half + 3 * TRAINING_RING.stepRun).toBeLessThan(6.2 - TRAINING_RING.half - 0.3);
+  });
+
+  it("keeps the corner convention and its helpers follow the size", () => {
+    const red = cornerPost(t, "red");
+    expect(red.x).toBeCloseTo(4 - TRAINING_RING.post, 6);
+    expect(red.z).toBeCloseTo(-2 - TRAINING_RING.post, 6);
+    expect(Math.hypot(stoolSpot(t, "blue").x - cornerPost(t, "blue").x, stoolSpot(t, "blue").z - cornerPost(t, "blue").z)).toBeLessThan(1);
+  });
+
+  it("the steps climb foot → top → in over three treads", () => {
+    for (const c of ["red", "blue"] as const) {
+      const s = ringSteps(t, c);
+      expect(s.foot.y).toBe(0);
+      expect(s.top.y).toBe(TRAINING_RING.deck);
+      expect(Math.abs(s.in.x - t.x)).toBeLessThan(TRAINING_RING.post);
+      // the treads rise monotonically from the foot to the apron
+      let last = 0;
+      for (let k = 1; k <= 8; k++) {
+        const x = s.foot.x + ((s.top.x - s.foot.x) * k) / 9;
+        const h = stepHeight(t, x, s.foot.z) ?? (k > 4 ? TRAINING_RING.deck : 0);
+        expect(h).toBeGreaterThanOrEqual(last);
+        last = h;
+      }
+      expect(last).toBeCloseTo(TRAINING_RING.deck, 6);
+    }
+    expect(stepHeight(t, t.x, t.z)).toBeNull();
+  });
+
+  it("training geometry is lighter than the pro kit; the field stays in budget", () => {
+    const nearT = triangles(nearRingGeometry({ size: "training", boards: false }));
+    const farT = triangles(farRingGeometry({ size: "training", boards: false }));
+    expect(nearT).toBeLessThan(triangles(nearRingGeometry()));
+    expect(farT).toBeLessThan(nearT / 8);
+    // 48 rings, ~10 near on Standard
+    expect(10 * nearT + 38 * farT).toBeLessThan(400_000);
+    const lods = selectLods([t], { x: 4, y: 1.7, z: 30 }, { ...LOD_BY_TIER.standard, near: 15 }, () => true, null, null);
+    expect(lods[0]).toBe("far");
   });
 });

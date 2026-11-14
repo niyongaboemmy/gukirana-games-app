@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { clipFor, CORNER_COLORS, HIT_REACTION, TICK_HZ, type BoxingSnapshot, type Corner, type FightEvent, type RingFighter, type RingId, type RingState } from "@gukirana/contracts";
@@ -8,7 +8,9 @@ import { decodeLook, seededLook, type AvatarLook } from "@/world/outfits";
 import { lookOf, useProfile } from "@/lib/profile-store";
 import { hiddenPeople, SELF_ID } from "@/rooms/hall-hooks";
 import { isOnScreen, useArea } from "@/world/stage";
-import { FighterAvatar, type FighterPose } from "./assets-shim";
+import { FighterAvatar, type ClimbBlend, type FighterPose } from "./assets-shim";
+import { CLIMB_S, climbPose } from "./climb";
+import { IMPOSTOR_POSES, impostorGeometry, impostorMaterial } from "./impostor-geometry";
 import { drainMyEvents, useFightBridge } from "./bridge";
 import { RING_BY_ID, RINGS, type RingPlace } from "./plan";
 
@@ -17,7 +19,7 @@ import { RING_BY_ID, RINGS, type RingPlace } from "./plan";
  *  - full avatars (in the corner's kit, posed by the motion library) for MY ring, the WATCHED ring and the two nearest
  *    other live rings within 14 m: clip = clipFor(view, phase) at actT / TICK_HZ (my own press: `predicted` first),
  *    HIT_REACTION blended on the target of each `hit` event, the pair placed from `dist` / `orbit`;
- *  - every other live ring: two-pose impostors (one instanced body + head batch, a sparring loop from the 1 Hz
+ *  - every other live ring: low-poly boxer impostors in kit (three instanced pose meshes, a sparring loop from the 1 Hz
  *    registry), so 50 busy rings stay within the people budget;
  *  - these people's ordinary avatars are hidden meanwhile (rooms/hall-hooks hiddenPeople): their pose is the fight's.
  */
@@ -28,9 +30,17 @@ const LIVE = new Set(["fighting", "practice", "starting", "result", "waiting"]);
 
 interface Slot {
   ring: RingId;
-  /** the snapshot source: mine / watched (real frames) or none (a local sparring loop) */
-  src: "mine" | "watched" | "loop";
+  /** the snapshot source: mine / watched (real frames), none (a local sparring loop), or my climb out after a fight */
+  src: "mine" | "watched" | "loop" | "exit";
 }
+
+/**
+ * My climb into / out of the ring (P3-FGT-03): starts when my fight starts (in) and when it ends (out). While it runs
+ * my fighter walks the ring kit's corner steps and ducks through the ropes (fight/climb climbPose); after a fight the
+ * exit slot keeps drawing me until I am down the steps.
+ */
+export const myClimb: { run: { ring: RingId; corner: Corner; dir: "in" | "out"; t0: number } | null } = { run: null };
+const climbing = (dir: "in" | "out") => !!myClimb.run && myClimb.run.dir === dir && performance.now() - myClimb.run.t0 < CLIMB_S * 1000;
 
 export function FightersLayer({ lite }: { lite: boolean }) {
   const area = useArea();
@@ -41,6 +51,17 @@ export function FightersLayer({ lite }: { lite: boolean }) {
     () => () => {
       for (const id of hidden.current) hiddenPeople.delete(id);
     },
+    [],
+  );
+  useEffect(
+    () =>
+      useFightBridge.subscribe((s, prev) => {
+        // (the in-climb waits a moment for the fighter avatar to mount; the layer re-plans on the next frame)
+        if (s.mine && (!prev.mine || prev.mine.ring !== s.mine.ring)) myClimb.run = { ring: s.mine.ring, corner: s.mine.corner, dir: "in", t0: performance.now() + 300 };
+        else if (!s.mine && prev.mine) myClimb.run = { ring: prev.mine.ring, corner: prev.mine.corner, dir: "out", t0: performance.now() };
+        else return;
+        acc.current = 1;
+      }),
     [],
   );
   useFrame(({ camera }, dt) => {
@@ -58,12 +79,13 @@ export function FightersLayer({ lite }: { lite: boolean }) {
     }
     // in my own fight (live or practice) this layer draws me too
     const you = useWorld.getState().you ?? SELF_ID;
-    if (b.mine) now.add(you);
+    if (b.mine || climbing("out")) now.add(you);
     for (const id of hidden.current) if (!now.has(id)) hiddenPeople.delete(id);
     for (const id of now) hiddenPeople.add(id);
     hidden.current = now;
     const out: Slot[] = [];
     if (b.mine) out.push({ ring: b.mine.ring, src: "mine" });
+    else if (climbing("out")) out.push({ ring: myClimb.run!.ring, src: "exit" });
     if (b.watched && b.watched.ring !== b.mine?.ring) out.push({ ring: b.watched.ring, src: "watched" });
     const near = RINGS.filter((r) => LIVE.has(b.rings[r.id]?.status ?? "free") && !out.some((s) => s.ring === r.id))
       .map((r) => ({ r, d: Math.hypot(r.x - camera.position.x, r.z - camera.position.z) }))
@@ -101,7 +123,8 @@ const _a = new THREE.Vector3();
 function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
   const place = RING_BY_ID[slot.ring]!;
   const entry = useFightBridge((s) => s.rings[slot.ring]);
-  const myCorner = useFightBridge((s) => (slot.src === "mine" ? (s.mine?.corner ?? null) : null));
+  const liveCorner = useFightBridge((s) => (slot.src === "mine" ? (s.mine?.corner ?? null) : null));
+  const myCorner = liveCorner ?? (slot.src === "exit" ? (myClimb.run?.corner ?? null) : null);
   const you = useWorld((s) => s.you) ?? SELF_ID;
   // my own fight: me in my corner (my look), the opponent from the registry (or the practice AI)
   const fighterOf = (c: Corner): RingFighter | undefined => (myCorner === c ? { sid: you, name: "", corner: c } : entry?.[c]);
@@ -109,6 +132,7 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
   const blue = useFighterLook(fighterOf("blue"), `${slot.ring}-blue`);
   const g = [useRef<THREE.Group>(null), useRef<THREE.Group>(null)] as const;
   const poses = [useRef<FighterPose | null>(null), useRef<FighterPose | null>(null)] as const;
+  const climbs = [useRef<ClimbBlend | null>(null), useRef<ClimbBlend | null>(null)] as const;
   const react = useRef<[{ clip: FighterPose["clip"]; at: number } | null, { clip: FighterPose["clip"]; at: number } | null]>([null, null]);
   const loopT0 = useMemo(() => performance.now() - ((hashOf(slot.ring) % 997) * 1000) / 3, [slot.ring]);
   useFrame(() => {
@@ -153,15 +177,34 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
         react: r && now - r.at < 500 ? { clip: r.clip, t: (now - r.at) / 1000 } : null,
       };
     });
+    // my climb in / out over the corner steps overrides my fighter's place and pose
+    const run = myClimb.run;
+    const ci: 0 | 1 | -1 = run && run.ring === slot.ring && (slot.src === "mine" || slot.src === "exit") ? (run.corner === "red" ? 0 : 1) : -1;
+    for (const k of [0, 1] as const) if (k !== ci) climbs[k].current = null;
+    if (run && ci !== -1) {
+      const t = (now - run.t0) / 1000;
+      const grp = g[ci]!.current;
+      if (t < CLIMB_S || slot.src === "exit") {
+        const cp = climbPose(place, run.corner, run.dir, Math.min(t, CLIMB_S));
+        grp?.position.set(cp.x, cp.y, cp.z);
+        if (grp) grp.rotation.y = cp.yaw;
+        climbs[ci]!.current = { walk: cp.walk && t < CLIMB_S, duck: cp.duck };
+        poses[ci]!.current = { clip: cp.duckT >= 0 ? "duck" : "guard", t: cp.duckT >= 0 ? cp.duckT * 0.7 : 0, react: null };
+      } else climbs[ci]!.current = null;
+    }
   });
+  const showRed = slot.src !== "exit" || myCorner === "red";
+  const showBlue = slot.src === "exit" ? myCorner === "blue" : !!(entry?.blue || entry?.status === "practice" || slot.src === "mine");
   return (
     <group>
-      <group ref={g[0]}>
-        <FighterAvatar look={red} corner="red" poseRef={poses[0]} lite={lite} />
-      </group>
-      {(entry?.blue || entry?.status === "practice" || slot.src === "mine") && (
+      {showRed && (
+        <group ref={g[0]}>
+          <FighterAvatar look={red} corner="red" poseRef={poses[0]} lite={lite} climbRef={climbs[0]} />
+        </group>
+      )}
+      {showBlue && (
         <group ref={g[1]}>
-          <FighterAvatar look={blue} corner="blue" poseRef={poses[1]} lite={lite} />
+          <FighterAvatar look={blue} corner="blue" poseRef={poses[1]} lite={lite} climbRef={climbs[1]} />
         </group>
       )}
     </group>
@@ -210,110 +253,103 @@ export function loopSnapshot(ring: RingId, ms: number, st: RingState | undefined
   return { ring, tick, phase, round: st?.round ?? 1, rounds: st?.rounds ?? 3, left: 0, dist: 150 + Math.round(25 * Math.sin(tick / 40)), orbit: Math.round((tick * 0.8) % 3600), fighters: [f(0, "red"), f(1, "blue")] };
 }
 
-/* ------------------------------------------------------------ far rings: two-pose impostors ------------------------------------------------------------ */
+/* ------------------------------------------------------------ far rings: boxer impostors ------------------------------------------------------------ */
+
+/** adult skin tones for the far fighters (picked by a hash of the fighter's id: deterministic) */
+const SKIN = ["#3B2219", "#4A2C1E", "#5C3A26", "#6E4530", "#85562C", "#9A6A44"];
 
 /**
- * Every other live ring: both fighters as simple instanced figures (torso + head + gloves) in the corner colours,
- * switching between two sparring poses at ~2 Hz (a lead / a guard), placed like the real pair. Three draw calls for the
- * whole hall.
+ * Every other live ring: both fighters as low-poly boxers in kit (fight/impostor-geometry: headgear, gloves, vest,
+ * trunks, boots, an orthodox stance) in their corner colour and their own skin tone. Three poses (guard, jab, cross),
+ * one instanced mesh each: a fighter is written into the mesh of its current pose, so three draw calls draw every far
+ * fighter of the hall. Updated at 6 Hz (far rings never animate at full rate), with a small bounce and footwork.
  */
 function Impostors({ exclude }: { exclude: RingId[] }) {
   const N = RINGS.length * 2;
-  const body = useRef<THREE.InstancedMesh>(null);
-  const head = useRef<THREE.InstancedMesh>(null);
-  const glove = useRef<THREE.InstancedMesh>(null);
   const area = useArea();
-  const geo = useMemo(
-    () => ({
-      body: new THREE.CapsuleGeometry(0.2, 0.9, 2, 8).translate(0, 0.85, 0),
-      head: new THREE.SphereGeometry(0.12, 10, 8).translate(0, 1.62, 0),
-      glove: new THREE.SphereGeometry(0.075, 8, 6),
-    }),
-    [],
-  );
-  const mats = useMemo(
-    () => ({
-      body: new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.8 }),
-      head: new THREE.MeshStandardMaterial({ color: "#5a3a28", roughness: 0.7 }),
-      glove: new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.5 }),
-    }),
-    [],
-  );
-  useEffect(() => () => (Object.values(geo).forEach((g) => g.dispose()), Object.values(mats).forEach((m) => m.dispose())), [geo, mats]);
-  useLayoutEffect(() => {
-    const c = new THREE.Color();
-    for (let i = 0; i < N; i++) {
-      c.set(i % 2 === 0 ? CORNER_COLORS.red : CORNER_COLORS.blue);
-      body.current!.setColorAt(i, c);
-      glove.current!.setColorAt(i * 2, c);
-      glove.current!.setColorAt(i * 2 + 1, c);
-      head.current!.setColorAt(i, c.set(["#3B2219", "#5C3A26", "#6E4530", "#85562C"][hashOf(String(i)) % 4]!));
-    }
-    for (const m of [body, head, glove]) if (m.current!.instanceColor) m.current!.instanceColor.needsUpdate = true;
+  const res = useMemo(() => {
+    const mat = impostorMaterial();
+    const meshes = IMPOSTOR_POSES.map((pose) => {
+      const geo = impostorGeometry(pose);
+      geo.setAttribute("aKit", new THREE.InstancedBufferAttribute(new Float32Array(N * 3), 3));
+      const m = new THREE.InstancedMesh(geo, mat, N);
+      m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(N * 3), 3);
+      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      m.frustumCulled = false;
+      m.count = 0;
+      m.name = `boxer-impostor-${pose}`;
+      return m;
+    });
+    return { mat, meshes };
   }, [N]);
+  useEffect(
+    () => () => {
+      res.mat.dispose();
+      for (const m of res.meshes) {
+        m.geometry.dispose();
+        m.dispose();
+      }
+    },
+    [res],
+  );
   const m4 = useMemo(() => new THREE.Matrix4(), []);
   const q = useMemo(() => new THREE.Quaternion(), []);
   const p = useMemo(() => new THREE.Vector3(), []);
   const one = useMemo(() => new THREE.Vector3(1, 1, 1), []);
-  const zero = useMemo(() => new THREE.Vector3(0, 0, 0), []);
+  const c = useMemo(() => new THREE.Color(), []);
+  const kitCol = useMemo(() => ({ red: new THREE.Color(CORNER_COLORS.red), blue: new THREE.Color(CORNER_COLORS.blue) }), []);
   const acc = useRef(1);
   useFrame(({ clock }, dt) => {
-    // far rings never animate at full rate: 6 Hz pose updates
     acc.current += dt;
     if (acc.current < 1 / 6 || !isOnScreen(area)) return;
     acc.current = 0;
     const rings = useFightBridge.getState().rings;
     const t = clock.elapsedTime;
-    let shown = 0;
+    const counts = [0, 0, 0];
     RINGS.forEach((r: RingPlace, ri) => {
       const st = rings[r.id];
-      const live = st && LIVE.has(st.status) && !exclude.includes(r.id);
+      if (!st || !LIVE.has(st.status) || exclude.includes(r.id)) return;
+      const rest = st.status === "waiting" || st.status === "starting";
       for (let k = 0; k < 2; k++) {
-        const i = ri * 2 + k;
-        const has = live && (k === 0 ? !!st!.red : !!st!.blue || st!.status === "practice");
-        if (!has) {
-          m4.compose(p.set(r.x, -10, r.z), q.identity(), zero);
-          body.current!.setMatrixAt(i, m4);
-          head.current!.setMatrixAt(i, m4);
-          glove.current!.setMatrixAt(i * 2, m4);
-          glove.current!.setMatrixAt(i * 2 + 1, m4);
-          continue;
-        }
-        shown++;
+        const corner = k === 0 ? "red" : "blue";
+        const who = k === 0 ? st.red : st.blue;
+        if (!who && !(k === 1 && st.status === "practice")) continue;
+        const h = hashOf(r.id + corner);
         const s = k === 0 ? -1 : 1;
+        // the pair circles the centre; between rounds / waiting they stand in their corners
         const th = ((t * 4.8 + (hashOf(r.id) % 360)) * Math.PI) / 180;
-        const ph = Math.floor(t * 2 + (hashOf(r.id + k) % 4)) % 2; // the two poses
-        const half = 0.72 + 0.08 * Math.sin(t * 0.9 + ri);
-        const x = r.x + s * half * Math.cos(th);
-        const z = r.z + s * half * Math.sin(th);
-        const yaw = Math.atan2(-s * Math.cos(th), -s * Math.sin(th));
+        const half = rest ? r.half - 1.0 : 0.62 + 0.1 * Math.sin(t * 0.9 + ri);
+        const x = rest ? r.x + s * half : r.x + s * half * Math.cos(th);
+        const z = rest ? r.z + s * half : r.z + s * half * Math.sin(th);
+        const yaw = rest ? Math.atan2(r.x - x, r.z - z) : Math.atan2(-s * Math.cos(th), -s * Math.sin(th));
+        // pose: mostly guard, a jab or a cross now and then (offset per fighter so the pair interleaves)
+        const beat = Math.floor(t * 2.2 + (h % 7));
+        const roll = (beat * 2654435761 + h) >>> 0;
+        const pose = rest || st.status === "result" ? 0 : roll % 5 === 0 ? 1 : roll % 7 === 0 ? 2 : 0;
+        const bounce = rest ? 0 : Math.abs(Math.sin(t * 6.3 + h)) * 0.03;
         q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, yaw);
-        m4.compose(p.set(x, r.canvasY, z), q, one);
-        body.current!.setMatrixAt(i, m4);
-        head.current!.setMatrixAt(i, m4);
-        // gloves: guard at the chin, the lead hand out on pose 1
-        const fx = Math.sin(yaw);
-        const fz = Math.cos(yaw);
-        const rx = Math.cos(yaw);
-        const rz = -Math.sin(yaw);
-        for (const [gi, side] of [
-          [0, 1],
-          [1, -1],
-        ] as const) {
-          const reachOut = ph === 1 && gi === 0 ? 0.5 : 0.22;
-          m4.compose(p.set(x + fx * reachOut + rx * side * 0.14, r.canvasY + 1.42, z + fz * reachOut + rz * side * 0.14), q, one);
-          glove.current!.setMatrixAt(i * 2 + gi, m4);
-        }
+        m4.compose(p.set(x, r.canvasY + bounce, z), q, one);
+        const mesh = res.meshes[pose]!;
+        const i = counts[pose]!++;
+        mesh.setMatrixAt(i, m4);
+        mesh.setColorAt(i, c.set(SKIN[h % SKIN.length]!));
+        (mesh.geometry.getAttribute("aKit") as THREE.InstancedBufferAttribute).setXYZ(i, kitCol[corner].r, kitCol[corner].g, kitCol[corner].b);
       }
     });
-    for (const m of [body, head, glove]) m.current!.instanceMatrix.needsUpdate = true;
-    impostorCount.n = shown;
+    res.meshes.forEach((m, k) => {
+      m.count = counts[k]!;
+      m.visible = m.count > 0;
+      m.instanceMatrix.needsUpdate = true;
+      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+      m.geometry.getAttribute("aKit").needsUpdate = true;
+    });
+    impostorCount.n = counts[0]! + counts[1]! + counts[2]!;
   });
   return (
     <group userData={{ noMerge: true }}>
-      <instancedMesh ref={body} args={[geo.body, mats.body, N]} frustumCulled={false} />
-      <instancedMesh ref={head} args={[geo.head, mats.head, N]} frustumCulled={false} />
-      <instancedMesh ref={glove} args={[geo.glove, mats.glove, N * 2]} frustumCulled={false} />
+      {res.meshes.map((m) => (
+        <primitive key={m.name} object={m} />
+      ))}
     </group>
   );
 }

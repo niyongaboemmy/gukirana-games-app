@@ -66,7 +66,7 @@ function RoundButton({ icon: Icon, label, onPress, onRelease, big, active, badge
 
 export function WorldHud() {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const { name, color, xp, stars } = useProfile();
+  const { name, xp, stars } = useProfile();
   const level = levelForXp(xp);
   const progress = (xp - totalXpForLevel(level)) / (totalXpForLevel(level + 1) - totalXpForLevel(level));
   const nearPortal = useWorld((s) => s.nearPortal);
@@ -168,7 +168,8 @@ export function WorldHud() {
           className="relative grid size-12 place-items-center rounded-full phone:size-10"
           style={{ background: `conic-gradient(var(--color-gold) ${progress * 360}deg, rgba(255,255,255,.18) 0)` }}
         >
-          <div className="grid size-10 place-items-center rounded-full phone:size-[34px]" style={{ background: color }}>
+          {/* chocolate disc (no blue in the UI): the avatar accent stays a 3D clothing colour */}
+          <div className="grid size-10 place-items-center rounded-full phone:size-[34px]" style={{ background: "linear-gradient(180deg, var(--choc-hi, #9b6a48), var(--choc-lo, #5e3a25))" }}>
             <UserRound size={phone ? 18 : 22} strokeWidth={1.85} />
           </div>
           <span className="absolute -bottom-1 -right-1 hidden min-w-4 place-items-center rounded-full bg-gold px-1 text-[10px] font-black leading-4 text-ink-900 [text-shadow:none] phone:grid">{level}</span>
