@@ -19,6 +19,7 @@ import {
   PARKING_BAYS,
   MOTO_BAYS,
   PUBLIC_ROAD,
+  roadPoint,
   roadY,
   SERVICE_GATE,
   WALL_H,
@@ -36,7 +37,7 @@ import {
 
 const FONT = "/fonts/Baloo2.ttf";
 /** flat parts that never cast a shadow (one more shadow-pass draw each for nothing seen) */
-const FLAT = new Set(["asphaltC", "paintW", "paintY", "granite", "basalt"]);
+const FLAT = new Set(["asphaltC", "paintW", "granite", "basalt"]);
 
 /** A flat quad (corners in order, world xz) at height y, world-metre UVs. */
 function quad(b: GeoBatch, key: string, pts: P[], y: number, tile: number) {
@@ -58,15 +59,22 @@ function quad(b: GeoBatch, key: string, pts: P[], y: number, tile: number) {
   b.add(key, g, { tile });
 }
 
-/** A strip along x from x0 to x1 between z0 and z1, following the public road's height profile. */
+/** A strip along the public road from x0 to x1 between z0 and z1 (as offsets across the road: the strip follows the
+ *  road's bend east of the campus and its height profile). */
 function roadStrip(b: GeoBatch, key: string, x0: number, x1: number, z0: number, z1: number, dy: number, tile: number) {
-  const step = 8;
-  for (let x = x0; x < x1 - 1e-6; x += step) {
+  const mid = PUBLIC_ROAD.mid;
+  for (let x = x0; x < x1 - 1e-6; ) {
+    const step = x > 140 ? 3 : 8;
     const xb = Math.min(x1, x + step);
+    const a0 = roadPoint(x, z0 - mid);
+    const a1 = roadPoint(x, z1 - mid);
+    const b0 = roadPoint(xb, z0 - mid);
+    const b1 = roadPoint(xb, z1 - mid);
     const ya = roadY(x) + dy;
     const yb = roadY(xb) + dy;
+    x = xb;
     const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.Float32BufferAttribute([x, ya, z0, x, ya, z1, xb, yb, z1, x, ya, z0, xb, yb, z1, xb, yb, z0], 3));
+    g.setAttribute("position", new THREE.Float32BufferAttribute([a0.x, ya, a0.z, a1.x, ya, a1.z, b1.x, yb, b1.z, a0.x, ya, a0.z, b1.x, yb, b1.z, b0.x, yb, b0.z], 3));
     g.setAttribute("uv", new THREE.Float32BufferAttribute(new Array(12).fill(0), 2));
     g.computeVertexNormals();
     b.add(key, g, { tile });
@@ -169,7 +177,7 @@ export function buildFrontage(tier: Tier): Map<string, THREE.BufferGeometry> {
   // drop-off bay marks along the lane (white T-marks every 6 m), "keep clear" yellow line by the crossing
   for (let x = -36; x <= 36; x += 6) if (Math.abs(x) > 4) b.box("paintW", 0.12, 0.01, 1.4, { p: [x, 0.02, L.z1 - 0.8], tile: 4 });
   b.box("paintW", L.x1 * 2 - 6, 0.01, 0.1, { p: [0, 0.02, L.z1 - 0.2], tile: 4 });
-  b.box("paintY", 8, 0.01, 0.1, { p: [0, 0.02, L.z0 + 0.25], tile: 4 });
+  b.box("paintW", 8, 0.01, 0.1, { p: [0, 0.02, L.z0 + 0.25], tile: 4 });
   // kerbed island between the lane and the road's footpath, low clipped planting
   for (const [a, c] of spans(-L.x1 - 1, L.x1 + 1, [[-zebra.hw, zebra.hw]])) {
     b.box("concrete", c - a, 0.18, FORECOURT.island.z1 - FORECOURT.island.z0, { p: [(a + c) / 2, 0.05, (FORECOURT.island.z0 + FORECOURT.island.z1) / 2], tile: 2 });
@@ -297,8 +305,8 @@ export function Frontage({ tier }: { tier: Tier }) {
         const unlit = m instanceof THREE.MeshBasicMaterial;
         return <mesh key={key} geometry={g} material={m} castShadow={!unlit && !m.transparent && !FLAT.has(key) && tier !== "lite"} receiveShadow={!unlit && tier !== "lite"} />;
       })}
-      {/* lit lettering on the gate sign, readable from the road (drawn within 160 m) */}
-      <NearOnly max={160} position={[-16.4, 0, 79.56]}>
+      {/* lit lettering on the gate sign, readable from the road and the forecourt (drawn within 40 m) */}
+      <NearOnly max={40} position={[-16.4, 0, 79.56]}>
         <Text font={FONT} fontSize={0.62} position={[0, 1.72, 0]} anchorX="center" anchorY="middle" letterSpacing={0.12}>
           {SITE.gateSign}
           <meshBasicMaterial color={new THREE.Color("#fff6e2").multiplyScalar(1.15)} toneMapped={false} />

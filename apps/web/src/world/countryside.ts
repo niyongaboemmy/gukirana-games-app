@@ -66,6 +66,8 @@ export interface FrontRoad {
   z1: number;
   x0: number;
   x1: number;
+  /** perpendicular distance from its centre line (it bends east of the campus) */
+  dist: (x: number, z: number) => number;
 }
 
 /**
@@ -87,7 +89,7 @@ export function buildCountryside(outside: (x: number, z: number) => number, isWa
     }
     return polar(deg, MASK_HALF - 40);
   };
-  const nearFront = (q: Pt) => Math.abs(q.z - front.mid) < (front.z1 - front.z0) / 2 + 14;
+  const nearFront = (q: Pt) => front.dist(q.x, q.z) < (front.z1 - front.z0) / 2 + 14;
   for (const s of [
     // junctions on the public road (south kerb), heading off into the southern hills
     { p: { x: -64, z: front.z1 + 0.4 }, deg: 196, len: 34 },
@@ -156,7 +158,7 @@ export function buildCountryside(outside: (x: number, z: number) => number, isWa
   const clear = (x: number, z: number) =>
     !isWater(x, z) &&
     outside(x, z) > 25 &&
-    Math.abs(z - front.mid) > 12 &&
+    front.dist(x, z) > 12 &&
     roads.every((l) => polyDist(x, z, l) > 6.5) &&
     rivers.every((v) => polyDist(x, z, v.line) > v.w + 8) &&
     houses.every((h) => Math.hypot(h.x - x, h.z - z) > 8.5);
@@ -188,7 +190,8 @@ export function buildCountryside(outside: (x: number, z: number) => number, isWa
   for (const side of [-1, 1])
     for (const dir of [-1, 1]) {
       let x = dir * (45 + r() * 20);
-      while (Math.abs(x) < 470) {
+      // (east of the campus the road bends south round the lake: houses along the straight only)
+      while (x > -470 && x < 140) {
         // north of the road only beyond the campus
         const z = side > 0 ? front.z1 + 10 + r() * 5 : front.z0 - 10 - r() * 5;
         if ((side > 0 || Math.abs(x) > 200) && outside(x, z) > 5 && clear(x, z)) houses.push({ x, z, rot: Math.PI / 2 + (r() - 0.5) * 0.16, k: r() });

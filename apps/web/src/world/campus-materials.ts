@@ -6,7 +6,7 @@ import type { Tier } from "./materials";
  * Road materials of the campus frontage and loop (P2-WLD-12). Detail comes from the shader, not from geometry:
  *  - asphalt: a fine aggregate texture (seeded canvas, 4 m tile) × world-space tone variation (sun-bleached and
  *    darker patches, darker wheel tracks along the lanes, a few patch repairs), so long straight roads never repeat;
- *  - road paint (white / yellow): matte thermoplastic, slightly worn by the same world-space noise.
+ *  - road paint: matte thermoplastic, slightly worn by the same world-space noise.
  * Shared per tier (like world/materials.ts), so the outdoor StaticMerge folds every road part into one draw per look.
  */
 
@@ -87,7 +87,6 @@ export function campusMaterials(tier: Tier): Record<string, THREE.Material> {
   const m: Record<string, THREE.Material> = {
     asphaltC: asphalt,
     paintW: paint("#e9e6dc", "gk-paint-w"),
-    paintY: paint("#d9a62a", "gk-paint-y"),
   };
   cache = { tier, m };
   return m;

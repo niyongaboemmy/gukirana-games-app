@@ -57,15 +57,38 @@ export const inCompound = (x: number, z: number, margin = 0) => z <= COMPOUND.so
 export const COMPOUND_SOUTH_X = Math.sqrt(COMPOUND.r * COMPOUND.r - FRONTAGE_Z * FRONTAGE_Z);
 
 /**
- * "Musanze Road": the public road along the frontage, straight east–west, running off into the farmland both ways.
- * Two 3.5 m lanes (right-hand traffic: westbound on the north lane) between 1.5 m footpaths with kerbs.
+ * "Musanze Road": the public road along the frontage, straight east–west across the campus, running off into the
+ * farmland both ways (east of the campus it bends south-east round Lake Ruhondo: `roadMid`). Two 3.5 m lanes
+ * (right-hand traffic: westbound on the north lane) between 1.5 m footpaths with kerbs. z values are along the
+ * straight; beyond the bend they are offsets from the centre line.
  */
 export const PUBLIC_ROAD = (() => {
   const z0 = 86;
   const z1 = 96;
   const foot = 1.5;
-  return { z0, z1, foot, lane: 3.5, c0: z0 + foot, c1: z1 - foot, mid: (z0 + z1) / 2, x0: -720, x1: 720 };
+  return { z0, z1, foot, lane: 3.5, c0: z0 + foot, c1: z1 - foot, mid: (z0 + z1) / 2, x0: -720, x1: 450 };
 })();
+/** The bend east of the campus: parabolic from x0, then straight at `slope` (dz / dx), clear of the lake shore. */
+const BEND = { x0: 150, k: 0.015, slope: 2 } as const;
+const BEND_T = BEND.slope / (2 * BEND.k);
+const bend = (x: number) => {
+  const t = x - BEND.x0;
+  return t <= 0 ? 0 : t < BEND_T ? BEND.k * t * t : BEND.k * BEND_T * BEND_T + BEND.slope * (t - BEND_T);
+};
+const bendSlope = (x: number) => {
+  const t = x - BEND.x0;
+  return t <= 0 ? 0 : t < BEND_T ? 2 * BEND.k * t : BEND.slope;
+};
+/** The road's centre line z at x. */
+export const roadMid = (x: number) => PUBLIC_ROAD.mid + bend(x);
+/** A point `o` m off the road's centre line at x (o > 0 towards +z, perpendicular to the road). */
+export function roadPoint(x: number, o: number): P & { rotY: number } {
+  const s = bendSlope(x);
+  const n = Math.hypot(1, s);
+  return { x: x - (s / n) * o, z: roadMid(x) + o / n, rotY: Math.atan2(-s / n, 1 / n) };
+}
+/** Perpendicular distance (m, approx.) from the road's centre line. */
+export const roadDist = (x: number, z: number) => Math.abs(z - roadMid(x)) / Math.hypot(1, bendSlope(x));
 /** The road's height along x (flat across the campus, it follows the farmland beyond: Landscape.tsx flattens a
  *  corridor to this profile). */
 export const roadY = (x: number) => {
@@ -513,7 +536,7 @@ export interface Lamp {
  *  (the car parks are lit from their planter islands). */
 export const STREET_LIGHTS: Lamp[] = (() => {
   const out: Lamp[] = [];
-  for (let x = -315; x <= 315; x += 30) if (Math.abs(x) > 6) out.push({ x, z: PUBLIC_ROAD.z0 + 0.55, y: roadY(x), rotY: 0 });
+  for (let x = -315; x <= 315; x += 30) if (Math.abs(x) > 6) { const q = roadPoint(x, PUBLIC_ROAD.z0 + 0.55 - PUBLIC_ROAD.mid); out.push({ x: q.x, z: q.z, y: roadY(q.x), rotY: q.rotY }); }
   let acc = 10;
   for (let i = 0; i < CAMPUS_LOOP.length - 1; i++) {
     const a = CAMPUS_LOOP[i]!;

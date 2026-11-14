@@ -31,7 +31,7 @@ import {
  */
 
 const FONT = "/fonts/Baloo2.ttf";
-const FLAT = new Set(["asphaltC", "paintW", "paintY", "granite", "basalt"]);
+const FLAT = new Set(["asphaltC", "paintW", "granite", "basalt"]);
 
 /** Offset polyline (lateral offset `o`, + = left of the direction of travel) with mitred joints. */
 function offset(pts: P[], o: number): P[] {

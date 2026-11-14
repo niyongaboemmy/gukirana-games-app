@@ -7,7 +7,8 @@ import { PORTALS, ringOf, ringPoint, SERVICE_ANGLE, PLAZA_RADIUS } from "./layou
 import { GATE_Z } from "./gate/Gate";
 import { cameraState } from "./Player";
 import { aerialBlend } from "./aerial";
-import { CAMPUS } from "./campus-strings";
+import { CAMPUS, SITE } from "./campus-strings";
+import { DISTRICTS, PUBLIC_ROAD } from "./campus";
 
 const FONT = "/fonts/Baloo2.ttf";
 /** Camera distance (m) beyond which the inner building names give way to the campus name. */
@@ -43,6 +44,13 @@ export function CampusLabels() {
     out.push({ key: "plaza", text: CAMPUS.plaza, x: 0, z: 0, y: 18, tier: "near" });
     out.push({ key: "gate", text: CAMPUS.gate, x: 0, z: GATE_Z, y: 16, tier: "near" });
     out.push({ key: "campus", text: CAMPUS.campus, x: 0, z: 0, y: 40, tier: "far" });
+    // district names over the lawns between their plots, and the public road (P2-WLD-12)
+    for (const d of DISTRICTS) {
+      if (d.id === "view") continue;
+      const c = ringPoint((d.from + d.to) / 2 + (d.id === "east" ? 18 : 0), 132);
+      out.push({ key: `d-${d.id}`, text: SITE.district[d.id], x: c.x, z: c.z, y: 12, tier: "near" });
+    }
+    out.push({ key: "road", text: SITE.road, x: -90, z: PUBLIC_ROAD.mid, y: 6, tier: "near" });
     return out;
   }, []);
 
