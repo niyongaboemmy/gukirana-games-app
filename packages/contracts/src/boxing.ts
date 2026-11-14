@@ -321,6 +321,8 @@ export const BoxingHallMsg = {
   watch: "boxing-watch",
   /** practice only: the local engine's summary so spectators see the score: { round, score } */
   practiceScore: "boxing-practice-score",
+  /** answer to `boxing-ping`: { n } (the hall measures the round trip for the HIGH_LATENCY check, plan §3.4) */
+  pong: "boxing-pong",
 } as const;
 /** Boxing sub-hall room → clients */
 export const BoxingHallEvt = {
@@ -338,6 +340,10 @@ export const BoxingHallEvt = {
   frame: "boxing-frame",
   /** events of the ring you watch: FightEvent[] */
   events: "boxing-events",
+  /** latency probe every few seconds: { n } → answer `boxing-pong` { n } */
+  ping: "boxing-ping",
+  /** quick fight queue state: { status: "waiting" | "idle", stake? } */
+  quick: "boxing-quick",
 } as const;
 
 /** client → fight room (`boxing` room); server → client names */

@@ -14,6 +14,7 @@
   "dependencies": {
     "@colyseus/core": "^0.16.19",
     "@colyseus/ws-transport": "^0.16.5",
+    "@gukirana/boxing": "workspace:*",
     "@gukirana/config": "workspace:*",
     "@gukirana/contracts": "workspace:*",
     "@gukirana/fairness": "workspace:*",
