@@ -2,20 +2,16 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { RING_STATUSES, type RingStatus } from "@gukirana/contracts";
-import { atlasPlane, labelAtlas, type LabelAtlas } from "@/world/label-atlas";
 import { blobTexture, concreteTexture, woodTexture } from "@/world/textures";
 import { isOnScreen, useArea } from "@/world/stage";
 import type { HallLayout } from "@/rooms/layouts";
-import { FeatureRingKit, STATUS_LAMP } from "./assets-shim";
-import { TrainingRings } from "./training-rings";
+import { HallRingKit } from "./assets-shim";
+import { RingSigns } from "./ring-signs";
 import { FEATURE_RING } from "./plan";
 import { BIG_SCREEN, BOXING_DOOR, BOXING_SIZE, FEATURE_STAGE, RINGS } from "./plan";
-import { useRingKitRings, useRingStatuses } from "./rings";
+import { useRingKitRings } from "./rings";
 import { drawBigScreen } from "./screen";
 import { useFightBridge } from "./bridge";
-import { F } from "./strings";
 import { FightersLayer } from "./fighters";
 import { FightCamera } from "./camera";
 import { RingCloseInfo } from "./ring-info";
@@ -45,10 +41,10 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
   }, []);
   const rings = useRingKitRings();
   const restKey = useFightBridge((st) => (st.watched?.snap?.phase === "rest" ? st.watched.ring : "") + (st.mine?.snap?.phase === "rest" ? st.mine.ring : ""));
-  const features = useMemo(
-    () => rings.filter((r) => r.feature).map((r) => ({ ...r, number: Number(r.id.slice(1)), rest: restKey.includes(r.id + "") && restKey.length > 0 })),
-    [rings, restKey],
-  );
+  const [features, training] = useMemo(() => {
+    const all = rings.map((r) => ({ ...r, number: Number(r.id.slice(1)), rest: restKey.includes(r.id) }));
+    return [all.filter((r) => r.feature), all.filter((r) => !r.feature)];
+  }, [rings, restKey]);
   const [mock] = useState(fightMockOn);
   return (
     <group>
@@ -56,11 +52,11 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
       <HallLights lite={lite} />
       <Shell layout={layout} lite={lite} />
       <FeatureStage />
-      <TrainingRings rings={rings.filter((r) => !r.feature)} lite={lite} />
-      <FeatureRingKit rings={features} y={FEATURE_RING.stage} lite={lite} />
+      <HallRingKit rings={training} size="training" lite={lite} />
+      <HallRingKit rings={features} size="pro" y={FEATURE_RING.stage} lite={lite} />
       <RingPanels />
       <PlatformShadows />
-      <NumberBoxes />
+      <RingSigns />
       <BigScreen />
       <group userData={{ noMerge: true }}>
         <RingCloseInfo />
@@ -290,114 +286,6 @@ function PlatformShadows() {
   }, []);
   useEffect(() => () => (geo.dispose(), mat.dispose()), [geo, mat]);
   return <instancedMesh ref={ref} args={[geo, mat, RINGS.length]} renderOrder={1} userData={{ noMerge: true }} />;
-}
-
-/* ------------------------------------------------------------ number boxes ------------------------------------------------------------ */
-
-let numberAtlas: LabelAtlas | null = null;
-let wordAtlas: LabelAtlas | null = null;
-const boxY = (r: (typeof RINGS)[number]) => (r.feature ? r.canvasY + 2.9 : 4.3);
-
-/**
- * A number box over every ring: the ring number on all four faces (static, one atlas → one batched draw), a status
- * lamp strip in the status colour and the status in words under it (one dynamic quad batch: re-written when a status
- * changes). Colour plus text, never colour alone.
- */
-function NumberBoxes() {
-  const statuses = useRingStatuses();
-  const parts = useMemo(() => {
-    numberAtlas ??= labelAtlas(RINGS.map((r) => ({ text: r.id.slice(1), px: 96 })), { cols: 10, cellW: 160, cellH: 128, ink: "#ffffff", paper: "#141416" });
-    wordAtlas ??= labelAtlas(RING_STATUSES.map((s) => ({ text: F.status[s].toUpperCase(), px: 64 })), { cols: 1, cellW: 512, cellH: 112, ink: "#ffffff", paper: "#141416", letterSpacing: 0.08 });
-    // the numbers: four faces per box, merged into one geometry
-    const faces: THREE.BufferGeometry[] = [];
-    const words: THREE.BufferGeometry[] = [];
-    const lamps: THREE.BufferGeometry[] = [];
-    for (const r of RINGS) {
-      const y = boxY(r);
-      const S = r.feature ? 1.3 : 0.9;
-      for (let k = 0; k < 4; k++) {
-        const a = (k * Math.PI) / 2;
-        const g = atlasPlane(S, S * 0.8, numberAtlas.uv(RINGS.indexOf(r)));
-        g.translate(0, 0, S / 2 + 0.005);
-        g.rotateY(a);
-        g.translate(r.x, y, r.z);
-        faces.push(g);
-        const wg = atlasPlane(S, S * 0.22, wordAtlas.uv(0));
-        wg.translate(0, -S * 0.56, S / 2 + 0.005);
-        wg.rotateY(a);
-        wg.translate(r.x, y, r.z);
-        words.push(wg);
-        const lg = new THREE.PlaneGeometry(S, 0.07);
-        lg.translate(0, -S * 0.43, S / 2 + 0.007);
-        lg.rotateY(a);
-        lg.translate(r.x, y, r.z);
-        lamps.push(lg);
-      }
-    }
-    const word = mergeGeometries(words)!;
-    const lamp = mergeGeometries(lamps)!;
-    lamp.setAttribute("color", new THREE.Float32BufferAttribute(new Float32Array(lamp.getAttribute("position").count * 3), 3));
-    return {
-      faces: mergeGeometries(faces)!,
-      word,
-      lamp,
-      body: new THREE.BoxGeometry(1, 1, 1),
-      faceMat: new THREE.MeshBasicMaterial({ map: numberAtlas.texture, toneMapped: false }),
-      wordMat: new THREE.MeshBasicMaterial({ map: wordAtlas.texture, toneMapped: false }),
-      lampMat: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }),
-      bodyMat: new THREE.MeshStandardMaterial({ color: "#101012", roughness: 0.6 }),
-    };
-  }, []);
-  // status words + lamp strip colours follow the statuses
-  useLayoutEffect(() => {
-    const uv = parts.word.getAttribute("uv") as THREE.BufferAttribute;
-    const col = parts.lamp.getAttribute("color") as THREE.BufferAttribute;
-    const c = new THREE.Color();
-    const perRing = 4 * 4; // 4 faces × 4 vertices (plane 1×1 segments)
-    RINGS.forEach((_, i) => {
-      const st: RingStatus = statuses[i] ?? "free";
-      const [u0, v0, u1, v1] = wordAtlas!.uv(RING_STATUSES.indexOf(st));
-      for (let v = 0; v < perRing; v++) {
-        const idx = i * perRing + v;
-        // PlaneGeometry vertex order: (0,1) (1,1) (0,0) (1,0)
-        const corner = v % 4;
-        uv.setXY(idx, corner % 2 === 0 ? u0 : u1, corner < 2 ? v1 : v0);
-      }
-      c.set(STATUS_LAMP[st]).multiplyScalar(1.3);
-      for (let v = 0; v < perRing; v++) col.setXYZ(i * perRing + v, c.r, c.g, c.b);
-    });
-    uv.needsUpdate = true;
-    col.needsUpdate = true;
-  }, [statuses, parts]);
-  useEffect(
-    () => () => {
-      for (const v of Object.values(parts)) (v as { dispose?: () => void }).dispose?.();
-    },
-    [parts],
-  );
-  return (
-    <group userData={{ noMerge: true }}>
-      <mesh geometry={parts.faces} material={parts.faceMat} />
-      <mesh geometry={parts.word} material={parts.wordMat} />
-      <mesh geometry={parts.lamp} material={parts.lampMat} />
-      <BoxBodies geo={parts.body} mat={parts.bodyMat} />
-    </group>
-  );
-}
-
-function BoxBodies({ geo, mat }: { geo: THREE.BufferGeometry; mat: THREE.Material }) {
-  const ref = useRef<THREE.InstancedMesh>(null);
-  useLayoutEffect(() => {
-    const m = new THREE.Matrix4();
-    RINGS.forEach((r, i) => {
-      const S = r.feature ? 1.3 : 0.9;
-      m.compose(new THREE.Vector3(r.x, boxY(r) - S * 0.12, r.z), new THREE.Quaternion(), new THREE.Vector3(S - 0.004, S * 1.06, S - 0.004));
-      ref.current!.setMatrixAt(i, m);
-    });
-    ref.current!.instanceMatrix.needsUpdate = true;
-    ref.current!.computeBoundingSphere();
-  }, []);
-  return <instancedMesh ref={ref} args={[geo, mat, RINGS.length]} />;
 }
 
 /* ------------------------------------------------------------ big screen ------------------------------------------------------------ */

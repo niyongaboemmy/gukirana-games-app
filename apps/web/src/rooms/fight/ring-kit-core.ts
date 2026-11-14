@@ -5,10 +5,14 @@
  *
  * Ring frame: origin = the ring centre on the hall floor, +y up, rotY about +y (three.js convention: a point (x, z)
  * of the ring frame is at (x cos + z sin, −x sin + z cos) in the hall). Corners: red at (−p, −p), blue at (+p, +p),
- * the neutral corners at (+p, −p) and (−p, +p), p = RING.post.
+ * the neutral corners at (+p, −p) and (−p, +p), p = the size's post offset.
+ *
+ * Two ring sizes share every helper (P3-FGT-03): `pro` (RING, the feature rings) and `training` (TRAINING_RING, the
+ * Boxing hall's 48 standard rings: 4.3 m inside the ropes on a 6.2 × 6.4 m pitch). A spec's `size` picks them.
  */
 
 export type RingStatus = "free" | "waiting" | "fighting" | "closed";
+export type RingSize = "pro" | "training";
 
 export interface RingSpec {
   id: string;
@@ -21,6 +25,34 @@ export interface RingSpec {
   number?: number;
   /** between rounds: the stools are in the corners (otherwise on the floor by the steps) */
   rest?: boolean;
+  /** ring size (default "pro"); one RingKit draws one size, so its rings all carry it */
+  size?: RingSize;
+  /** status lamp colour override (e.g. practice in white, a blinking result); default STATUS_COLORS[status] */
+  lamp?: string;
+}
+
+export interface RingDims {
+  /** post centres at ±post */
+  post: number;
+  /** half size of the platform */
+  half: number;
+  /** canvas height above the hall floor */
+  deck: number;
+  /** post height above the canvas */
+  postH: number;
+  /** rope heights above the canvas */
+  ropes: readonly [number, number, number, number];
+  /** rope sag at mid-span (m), bottom rope … top rope order as `ropes` */
+  sag: readonly [number, number, number, number];
+  /** spectator rail: half size of its square and height */
+  rail: number;
+  railH: number;
+  /** stool height */
+  stoolH: number;
+  /** bounding sphere radius of a ring incl. its rail (culling) */
+  radius: number;
+  /** run of each of the three corner steps (m) */
+  stepRun: number;
 }
 
 export const RING = {
@@ -43,7 +75,31 @@ export const RING = {
   stoolH: 0.55,
   /** bounding sphere radius of a ring incl. its rail (culling) */
   radius: 7.2,
-} as const;
+  stepRun: 0.3,
+} as const satisfies RingDims;
+
+/**
+ * The training-gym ring (plan §4.3): 4.3 m inside the ropes (posts at ±2.28, the ropes 0.13 m in from them), a 4.9 m
+ * platform (narrow apron), the same 0.8 m deck, rope heights and corner convention; shorter steps and a low barrier
+ * rail 0.2 m off the skirt, so the aisles of the 6.2 × 6.4 m pitch stay walkable.
+ */
+export const TRAINING_RING = {
+  post: 2.28,
+  half: 2.45,
+  deck: 0.8,
+  postH: 1.5,
+  ropes: RING.ropes,
+  sag: [0.035, 0.03, 0.026, 0.022] as const,
+  rail: 2.65,
+  railH: 0.72,
+  stoolH: RING.stoolH,
+  radius: 4.4,
+  stepRun: 0.24,
+} as const satisfies RingDims;
+
+export const RING_SIZES: Record<RingSize, RingDims> = { pro: RING, training: TRAINING_RING };
+/** the dimensions of a ring (its `size`, default pro) */
+export const dimsOf = (r: { size?: RingSize }): RingDims => RING_SIZES[r.size ?? "pro"];
 
 export const STATUS_COLORS: Record<RingStatus, string> = {
   free: "#3ccf7a",
@@ -64,6 +120,8 @@ export interface Spot {
   yaw: number;
 }
 
+type Placed = Pick<RingSpec, "x" | "z" | "rotY" | "size">;
+
 /** ring frame → hall */
 export function toHall(r: Pick<RingSpec, "x" | "z" | "rotY">, lx: number, ly: number, lz: number, lyaw = 0): Spot {
   const c = Math.cos(r.rotY),
@@ -71,27 +129,40 @@ export function toHall(r: Pick<RingSpec, "x" | "z" | "rotY">, lx: number, ly: nu
   return { x: r.x + lx * c + lz * s, y: ly, z: r.z - lx * s + lz * c, yaw: lyaw + r.rotY };
 }
 
+/** hall → ring frame (x, z) */
+export function toRing(r: Pick<RingSpec, "x" | "z" | "rotY">, x: number, z: number): [number, number] {
+  const dx = x - r.x,
+    dz = z - r.z;
+  const c = Math.cos(r.rotY),
+    s = Math.sin(r.rotY);
+  return [dx * c - dz * s, dx * s + dz * c];
+}
+
 /** yaw that faces from (x, z) towards (tx, tz) */
 const facing = (x: number, z: number, tx: number, tz: number) => Math.atan2(tx - x, tz - z);
 
 /** Corner post (top of the canvas at its foot). */
-export function cornerPost(r: RingSpec, c: CornerId): Spot {
+export function cornerPost(r: Placed, c: CornerId): Spot {
   const [sx, sz] = CORNERS[c];
-  return toHall(r, sx * RING.post, RING.deck, sz * RING.post);
+  const d = dimsOf(r);
+  return toHall(r, sx * d.post, d.deck, sz * d.post);
 }
 
 /** Where a fighter's stool stands in their corner during the rest, facing the ring centre (the root of the
  * corner-rest pose). */
-export function stoolSpot(r: RingSpec, c: "red" | "blue"): Spot {
+export function stoolSpot(r: Placed, c: "red" | "blue"): Spot {
   const [sx, sz] = CORNERS[c];
-  const d = RING.post - 0.48;
-  return toHall(r, sx * d, RING.deck, sz * d, facing(sx * d, sz * d, 0, 0));
+  const D = dimsOf(r);
+  const d = D.post - 0.48;
+  return toHall(r, sx * d, D.deck, sz * d, facing(sx * d, sz * d, 0, 0));
 }
 
 /** The stool off duty: on the hall floor outside the corner, by the steps. */
-export function stoolParked(r: RingSpec, c: "red" | "blue"): Spot {
+export function stoolParked(r: Placed, c: "red" | "blue"): Spot {
   const [sx, sz] = CORNERS[c];
-  return toHall(r, sx * (RING.half + 0.45), 0, sz * (RING.post - 0.9), 0);
+  const d = dimsOf(r);
+  // beside the bucket, clear of the steps
+  return toHall(r, sx * (d.half + 0.4), 0, sz * (stepZ(d) - 1.35), 0);
 }
 
 /** Root-to-root distance at which straight punches land (the jab / cross reach of the motion library + the head). */
@@ -101,37 +172,61 @@ export const PUNCH_RANGE = 1.0;
  * Fighters' spots on the red–blue diagonal, `gap` metres apart (root to root), facing each other: the start of a
  * round / touching gloves (world/human/boxing TOUCH_DISTANCE ≈ 0.92 m) or fighting range (PUNCH_RANGE).
  */
-export function fightSpots(r: RingSpec, gap = PUNCH_RANGE): { red: Spot; blue: Spot } {
+export function fightSpots(r: Placed, gap = PUNCH_RANGE): { red: Spot; blue: Spot } {
   const h = gap / 2 / Math.SQRT2;
-  return { red: toHall(r, -h, RING.deck, -h, facing(-h, -h, 0, 0)), blue: toHall(r, h, RING.deck, h, facing(h, h, 0, 0)) };
+  const y = dimsOf(r).deck;
+  return { red: toHall(r, -h, y, -h, facing(-h, -h, 0, 0)), blue: toHall(r, h, y, h, facing(h, h, 0, 0)) };
 }
 
 /** Each fighter's corner start: 0.9 m out of the corner on the diagonal, facing the centre. */
-export function cornerStart(r: RingSpec, c: "red" | "blue"): Spot {
+export function cornerStart(r: Placed, c: "red" | "blue"): Spot {
   const [sx, sz] = CORNERS[c];
-  const d = RING.post - 0.9;
-  return toHall(r, sx * d, RING.deck, sz * d, facing(sx * d, sz * d, 0, 0));
+  const D = dimsOf(r);
+  const d = D.post - 0.9;
+  return toHall(r, sx * d, D.deck, sz * d, facing(sx * d, sz * d, 0, 0));
 }
 
 /** The referee's spot: off the fighters' diagonal, towards a neutral corner, facing the centre. */
-export function refereeSpot(r: RingSpec): Spot {
-  const d = 1.1;
-  return toHall(r, d, RING.deck, -d, facing(d, -d, 0, 0));
+export function refereeSpot(r: Placed): Spot {
+  const D = dimsOf(r);
+  const d = Math.min(1.1, D.post - 0.9);
+  return toHall(r, d, D.deck, -d, facing(d, -d, 0, 0));
 }
+
+/** the corner steps' centre line along the side (ring frame |z|) */
+export const stepZ = (d: RingDims) => d.post - 0.7;
 
 /**
  * The steps up into a fighter's corner (outside the platform, along the side next to the corner): `foot` = on the
  * hall floor at the bottom, `top` = on the apron, `in` = through the ropes onto the canvas, each facing the way in.
  */
-export function ringSteps(r: RingSpec, c: "red" | "blue"): { foot: Spot; top: Spot; in: Spot } {
+export function ringSteps(r: Placed, c: "red" | "blue"): { foot: Spot; top: Spot; in: Spot } {
   const [sx, sz] = CORNERS[c];
-  const z = sz * (RING.post - 0.7);
-  const yaw = facing(sx, 0, 0, 0);
+  const d = dimsOf(r);
+  const z = sz * stepZ(d);
+  const yaw = facing(sx, 0, 0, 0) + r.rotY;
+  const at = (lx: number, ly: number) => ({ ...toHall(r, lx, ly, z), yaw });
   return {
-    foot: toHall(r, sx * (RING.half + 1.1), 0, z, yaw),
-    top: toHall(r, sx * (RING.half - 0.2), RING.deck, z, yaw),
-    in: toHall(r, sx * (RING.post - 0.6), RING.deck, z, yaw),
+    foot: at(sx * (d.half + 3 * d.stepRun + 0.25), 0),
+    top: at(sx * (d.half - 0.12), d.deck),
+    in: at(sx * (d.post - 0.6), d.deck),
   };
+}
+
+/**
+ * Height of the walking surface on a ring's corner steps at hall point (x, z) — three treads from the floor up to
+ * the apron — or null when the point is not on a set of steps. (The ground of the ring you climb into.)
+ */
+export function stepHeight(r: Placed, x: number, z: number): number | null {
+  const d = dimsOf(r);
+  const [lx, lz] = toRing(r, x, z);
+  const ax = Math.abs(lx);
+  const out = d.half + 3 * d.stepRun;
+  if (ax < d.half - 0.01 || ax > out) return null;
+  // red steps on the −x side at −z, blue on +x at +z
+  if (Math.sign(lx) !== Math.sign(lz) || Math.abs(Math.abs(lz) - stepZ(d)) > 0.42) return null;
+  const k = Math.min(2, Math.floor((out - ax) / d.stepRun));
+  return (d.deck / 3) * (k + 1);
 }
 
 /* ---------------- LOD / culling ---------------- */
@@ -161,8 +256,9 @@ export function selectLods(rings: readonly RingSpec[], cam: { x: number; y: numb
   out.length = rings.length;
   for (let i = 0; i < rings.length; i++) {
     const r = rings[i]!;
-    const d = Math.hypot(r.x - cam.x, RING.deck - cam.y, r.z - cam.z);
-    if (d > opts.max + RING.radius || !visible(r)) {
+    const D = dimsOf(r);
+    const d = Math.hypot(r.x - cam.x, D.deck - cam.y, r.z - cam.z);
+    if (d > opts.max + D.radius || !visible(r)) {
       out[i] = "culled";
       continue;
     }

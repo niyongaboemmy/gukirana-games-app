@@ -9,7 +9,7 @@ import { boxingLayer } from "@/world/human/boxing/layer";
 import { BoxingMotion } from "@/world/human/boxing/motion";
 import type { BoxingClipName } from "@/world/human/boxing/clips";
 import { RingKit } from "@/rooms/fight/ring-kit";
-import type { RingSpec, RingStatus as KitStatus } from "@/rooms/fight/ring-kit-core";
+import type { RingSize, RingSpec, RingStatus as KitStatus } from "@/rooms/fight/ring-kit-core";
 
 /**
  * The world's adapter onto the Boxing assets (P3-FGT-02, merged): the ONE place fight/** touches
@@ -28,17 +28,38 @@ export const STATUS_LAMP: Record<RingStatus, string> = {
   fighting: "#C8322A",
   result: "#C8322A",
   practice: "#EDEDE8",
-  closed: "#2a2a2a",
+  closed: "#3a3a3c",
 };
 /** the ring kit knows four lamp states */
 export const kitStatus = (s: RingStatus): KitStatus => (s === "free" || s === "waiting" || s === "closed" ? s : "fighting");
 
-/** the feature rings with the assets ring kit, on the raised stage (`y`); `rest` puts the stools in the corners */
-export function FeatureRingKit({ rings, y, lite }: { rings: { id: RingId; x: number; z: number; rotY: number; status: RingStatus; number: number; rest?: boolean }[]; y: number; lite: boolean }) {
-  const specs = useMemo<RingSpec[]>(() => rings.map((r) => ({ id: r.id, x: r.x, z: r.z, rotY: r.rotY, status: kitStatus(r.status), number: r.number, rest: r.rest })), [rings]);
+export interface HallRing {
+  id: RingId;
+  x: number;
+  z: number;
+  rotY: number;
+  status: RingStatus;
+  number: number;
+  rest?: boolean;
+}
+/** LOD distances of the small training rings (their near kit is detailed; far ones read fine as the far kit) */
+const TRAINING_LOD = { standard: { near: 15 }, lite: { near: 9 } } as const;
+
+/**
+ * A field of hall rings with the assets ring kit (P3-FGT-03): `size` "pro" (the feature rings R1 / R2, on the raised
+ * stage `y`, with the feature extras) or "training" (the 48 standard rings). The lamps take the hall's status
+ * colours (practice white, closed dark); the number signs are the hall's own (fight/ring-signs), so no boards here.
+ * `rest` puts the stools in the corners.
+ */
+export function HallRingKit({ rings, size, y = 0, lite }: { rings: HallRing[]; size: RingSize; y?: number; lite: boolean }) {
+  const specs = useMemo<RingSpec[]>(
+    () => rings.map((r) => ({ id: r.id, x: r.x, z: r.z, rotY: r.rotY, status: kitStatus(r.status), lamp: STATUS_LAMP[r.status], number: r.number, rest: r.rest, size })),
+    [rings, size],
+  );
+  const tier = lite ? "lite" : "standard";
   return (
     <group position={[0, y, 0]} userData={{ noMerge: true }}>
-      <RingKit rings={specs} featureRing={specs[0]?.id ?? null} tier={lite ? "lite" : "standard"} shadows={false} boards />
+      <RingKit rings={specs} size={size} featureRing={size === "pro" ? (specs[0]?.id ?? null) : null} tier={tier} lod={size === "training" ? TRAINING_LOD[tier] : undefined} shadows={false} boards={false} />
     </group>
   );
 }

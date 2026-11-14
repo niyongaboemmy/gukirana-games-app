@@ -26,6 +26,7 @@ export const F = {
   posterSub: "3 rounds · points · respect",
   posterRules: "Gloves up · fair play · touch gloves",
   ring: (id: string) => `Ring ${id.slice(1)}`,
+  ringWord: "Ring",
   status: {
     free: "Free",
     waiting: "Waiting",

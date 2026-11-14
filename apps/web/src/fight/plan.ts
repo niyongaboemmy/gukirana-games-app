@@ -1,3 +1,4 @@
+import { ringSteps as kitSteps } from "@/rooms/fight/ring-kit-core";
 import { FEATURE_RINGS, FIGHT_SUBHALLS, RING_IDS, type FightSubHallId, type RingId } from "@gukirana/contracts";
 
 /**
@@ -129,8 +130,11 @@ export function cornerPoint(r: RingPlace, corner: "red" | "blue", out = 0) {
   const sn = Math.sin(r.rotY);
   return { x: r.x + lx * c + lz * sn, z: r.z - lx * sn + lz * c };
 }
-/** where you stand to use a ring's prompt / climb in: just outside its red-corner steps */
-export const ringSteps = (r: RingPlace, corner: "red" | "blue" = "red") => cornerPoint(r, corner, 0.75);
+/** where you stand to use a ring's prompt / climb in: at the foot of the ring kit's corner steps (P3-FGT-03) */
+export const ringSteps = (r: RingPlace, corner: "red" | "blue" = "red") => {
+  const f = kitSteps({ x: r.x, z: r.z, rotY: r.rotY, size: r.feature ? "pro" : "training" }, corner).foot;
+  return { x: f.x, z: f.z };
+};
 
 /** the ring whose platform (incl. the feature stage around R1 / R2) contains the point, if any */
 export function ringAt(x: number, z: number, pad = 0): RingPlace | null {
