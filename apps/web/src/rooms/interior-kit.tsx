@@ -97,6 +97,22 @@ interface Part {
   local: THREE.Matrix4;
 }
 
+/**
+ * glTF glass (KHR_materials_transmission, e.g. the bar bottles): one transmissive material makes three.js draw every
+ * opaque object of the room a second time into a transmission buffer, each frame (it doubled the Pool Hall's draw
+ * calls). Satin tinted glass looks the same as plain alpha blending at prop size: no transmission pass.
+ */
+function noTransmission(m: THREE.MeshPhysicalMaterial) {
+  const t = m.transmission;
+  m.transmission = 0;
+  m.thickness = 0;
+  m.transparent = true;
+  m.opacity = Math.min(m.opacity, Math.max(0.35, 1 - t * 0.5));
+  m.depthWrite = false;
+  m.forceSinglePass = true; // double-sided glass in one pass, not two
+  m.needsUpdate = true;
+}
+
 /** Every mesh of a glTF (optionally only nodes whose name contains `pick`) with its transform relative to the file root. */
 function useParts(
   url: string,
@@ -121,10 +137,12 @@ function useParts(
         if (!hit) return;
       }
       let material = mesh.material as THREE.Material;
-      if (tint || matOverride) {
+      const transmissive = ((material as THREE.MeshPhysicalMaterial).transmission ?? 0) > 0;
+      if (tint || matOverride || transmissive) {
         const m = (material as THREE.MeshStandardMaterial).clone();
         if (tint) m.color.set(tint);
         matOverride?.(m);
+        if (transmissive) noTransmission(m as THREE.MeshPhysicalMaterial);
         material = m;
       }
       parts.push({ geometry: mesh.geometry, material, local: mesh.matrixWorld.clone() });

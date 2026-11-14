@@ -334,7 +334,7 @@ function HumanBody({
     };
   }, [inst, animator]);
 
-  const st = useRef({ last: new THREE.Vector3(), has: false, speed: 0, fwd: 0, yaw: 0, yawRate: 0, frame: seed % 8, acc: 0, jaw: 0, jawT: 0, look: 0, near: true, phone: 0, tilt: 0, fade: 1, faded: false });
+  const st = useRef({ last: new THREE.Vector3(), has: false, speed: 0, fwd: 0, yaw: 0, yawRate: 0, frame: seed % 8, acc: 0, jaw: 0, jawT: 0, look: 0, near: null as boolean | null, phone: 0, tilt: 0, fade: 1, faded: false });
   const props = useMemo(buildProps, []);
   const tilt = useRef<THREE.Group>(null);
   useEffect(() => {
@@ -405,7 +405,9 @@ function HumanBody({
     // distance LOD + animation throttling (DESIGN-SPEC §16: cap animated mixers by distance)
     const dist = camera.position.distanceTo(_v);
     const near = quality !== "lite" && (!lod || dist < NEAR_LOD);
-    if (near !== s.near || s.frame === 0) {
+    // (near starts unset: the first frame always picks one level; `frame` starts at a per-person offset, so the
+    // old `frame === 0` test never ran for most people and both levels stayed visible: every body drawn twice)
+    if (near !== s.near) {
       s.near = near;
       inst.full.forEach((m) => (m.visible = near));
       inst.lite.forEach((m) => (m.visible = !near));
