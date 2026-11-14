@@ -203,3 +203,7 @@ export function bindArenaRealtime() {
     useRoom.getState().set({ leaving: true });
   });
 }
+
+// QA hook (dev, or a production build with NEXT_PUBLIC_GK_QA=1), like window.__gkOffice
+if ((process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_GK_QA === "1") && typeof window !== "undefined")
+  (window as unknown as { __gkArena: unknown }).__gkArena = { store: useArena, requestSeat };
