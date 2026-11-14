@@ -24,7 +24,7 @@
     "@gukirana/money": "workspace:*",
     "@gukirana/observability": "workspace:*",
     "@gukirana/signing": "workspace:*",
-    "@nestjs/common": "^11.1.6",
+    "@nestjs/common": "^12.4.2",
     "@nestjs/core": "^11.1.6",
     "@nestjs/platform-fastify": "^11.1.6",
     "@nestjs/throttler": "^6.7.1",
