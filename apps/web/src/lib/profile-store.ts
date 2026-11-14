@@ -1,7 +1,8 @@
 "use client";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { DEFAULT_LOOK, DEFAULT_OUTFIT, seededLook, type AvatarLook, type BodyType, type HairStyle, type Outfit } from "@/world/outfits";
+import { DEFAULT_LOOK, DEFAULT_OUTFIT, faceKeyOf, seededLook, type AvatarLook, type BodyType, type HairStyle, type Outfit } from "@/world/outfits";
+import { seededFace, type FaceLook } from "@/world/face";
 
 /**
  * Local player profile (dev stub until identity + ledger APIs exist: P0-AUTH, P1-STR, P1-LVL).
@@ -30,6 +31,8 @@ interface ProfileState {
   outfit: Outfit;
   /** Muted top colour of a default (seeded) look; cleared when the player picks their own accent. */
   topColor?: string;
+  /** Face choices (P2-AVA-07); unset on profiles saved before then = the person's seeded face. */
+  face?: FaceLook;
   setBodyType: (b: BodyType) => void;
   setSkinTone: (hex: string) => void;
   setHairStyle: (h: HairStyle) => void;
@@ -40,15 +43,22 @@ interface ProfileState {
 }
 
 /** Current look of the local player, assembled from the profile. */
-export const lookOf = (s: Pick<ProfileState, "bodyType" | "skinTone" | "hairStyle" | "hairColor" | "outfit" | "color"> & { topColor?: string }): AvatarLook => ({
-  bodyType: s.bodyType ?? DEFAULT_LOOK.bodyType,
-  skinTone: s.skinTone ?? DEFAULT_LOOK.skinTone,
-  hairStyle: s.hairStyle ?? DEFAULT_LOOK.hairStyle,
-  hairColor: s.hairColor ?? DEFAULT_LOOK.hairColor,
-  outfit: { ...DEFAULT_OUTFIT, ...s.outfit },
-  accent: s.color,
-  ...(s.topColor ? { topColor: s.topColor } : {}),
-});
+export const lookOf = (s: Pick<ProfileState, "bodyType" | "skinTone" | "hairStyle" | "hairColor" | "outfit" | "color"> & { topColor?: string; face?: FaceLook }): AvatarLook => {
+  const base = {
+    bodyType: s.bodyType ?? DEFAULT_LOOK.bodyType,
+    skinTone: s.skinTone ?? DEFAULT_LOOK.skinTone,
+    hairStyle: s.hairStyle ?? DEFAULT_LOOK.hairStyle,
+    hairColor: s.hairColor ?? DEFAULT_LOOK.hairColor,
+  };
+  return {
+    ...base,
+    outfit: { ...DEFAULT_OUTFIT, ...s.outfit },
+    accent: s.color,
+    ...(s.topColor ? { topColor: s.topColor } : {}),
+    // same fallback as decodeLook() for a code without a face token, so every screen shows the same face
+    face: s.face ? { ...seededFace(faceKeyOf(base), base.bodyType), ...s.face } : seededFace(faceKeyOf(base), base.bodyType),
+  };
+};
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Kigali" });
 
@@ -86,6 +96,7 @@ export const useProfile = create<ProfileState>()(
           hairStyle: l.hairStyle,
           hairColor: l.hairColor,
           outfit: { ...l.outfit },
+          face: { ...l.face },
           color: l.accent,
           // a newly picked accent recolours the top again (the seeded muted colour only lasts until then)
           topColor: l.topColor && (l.accent === get().color || !get().topColor) ? l.topColor : undefined,

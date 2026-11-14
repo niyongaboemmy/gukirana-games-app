@@ -7,7 +7,8 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import { blobTexture } from "./textures";
 import { encodeLook, type AvatarLook } from "./outfits";
 import { ANIM_SETS, HUMAN_MODELS, type HumanModelId, type HumanModelMeta } from "./human/meta";
-import { makeHairCardMaterial, makeLookMaterial } from "./human/materials";
+import { makeHairCardMaterial, makeLookMaterial, type LookUniforms } from "./human/materials";
+import { faceFrameOf, FaceRig } from "./human/face-rig";
 import { buildAttachments, neutralFrame } from "./human/attachments";
 import { clipsFor, HumanAnimator } from "./human/animator";
 import { aimBone, ProceduralLayer, type ArmBones } from "./human/procedural";
@@ -127,6 +128,8 @@ interface Instance {
   jaw: THREE.Bone | null;
   arms: ArmBones[];
   spine: THREE.Bone | null;
+  /** head material uniforms (face detail LOD) */
+  faceU: LookUniforms | null;
 }
 
 function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMeta, shadows: boolean, keepClothes: boolean): Instance {
@@ -136,6 +139,13 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
   const lite: THREE.Object3D[] = [];
   const materials: THREE.Material[] = [];
   const matCache = new Map<THREE.Material, THREE.Material>();
+  // face frame of the bind pose (eye / lip bones) for the head shader's painted details
+  let frame: ReturnType<typeof faceFrameOf> = null;
+  root.traverse((o) => {
+    const m = o as THREE.SkinnedMesh;
+    if (!frame && m.isSkinnedMesh && m.skeleton.bones.some((b) => b.name === "Bip01_LEye")) frame = faceFrameOf(m);
+  });
+  let faceU: LookUniforms | null = null;
   root.traverse((o) => {
     const mesh = o as THREE.SkinnedMesh;
     if (!mesh.isMesh) return;
@@ -143,7 +153,10 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
     const base = mesh.material as THREE.MeshStandardMaterial;
     let m = matCache.get(base);
     if (!m) {
-      if (base.name === "body" || base.name === "head") m = makeLookMaterial(base, look, meta, base.name === "head", keepClothes);
+      if (base.name === "body" || base.name === "head") {
+        m = makeLookMaterial(base, look, meta, base.name === "head", keepClothes, frame);
+        if (base.name === "head") faceU = (m.userData.gkUniforms as LookUniforms | undefined) ?? null;
+      }
       else if (base.name === "haircards") m = makeHairCardMaterial(base, look, meta);
       // own copy (lashes, eyes …) so one person fading at a door never fades everyone's eyes
       else m = base.clone();
@@ -199,7 +212,7 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
       mm.needsUpdate = true;
     }
   }
-  return { root, full, lite, materials, fadeable, extras, head, jaw: bone("Bip01_MJaw"), arms, spine: bone("Bip01_Spine1") };
+  return { root, full, lite, materials, fadeable, extras, head, jaw: bone("Bip01_MJaw"), arms, spine: bone("Bip01_Spine1"), faceU };
 }
 
 function disposeInstance(inst: Instance) {
@@ -343,6 +356,8 @@ function HumanBody({
   const proc = useMemo(() => new ProceduralLayer({ root: inst.root, arms: inst.arms, spine: inst.spine, head: inst.head }), [inst]);
   // (built before the first mixer update: it measures the standing foot heights in the bind pose)
   const fit = useMemo(() => new SeatFit(inst.root, (n) => (inst.root.getObjectByName(n) as THREE.Bone | undefined) ?? null, inst.spine, inst.head), [inst]);
+  // face proportions (bind pose) + blinking / eye life (P2-AVA-07); `inst` is rebuilt whenever the look changes
+  const face = useMemo(() => new FaceRig(inst.root, look.face, modelId, seed), [inst, modelId, seed]);
   /** the seat being sat on / stood up from (kept through the stand-up after the seat itself is released) */
   const seatLatch = useRef<SeatProfile | null>(null);
   useEffect(() => {
@@ -353,7 +368,7 @@ function HumanBody({
     };
   }, [inst, animator]);
 
-  const st = useRef({ last: new THREE.Vector3(), has: false, speed: 0, fwd: 0, yaw: 0, yawRate: 0, frame: seed % 8, acc: 0, jaw: 0, jawT: 0, look: 0, near: null as boolean | null, phone: 0, tilt: 0, fade: 1, faded: false });
+  const st = useRef({ last: new THREE.Vector3(), has: false, speed: 0, fwd: 0, yaw: 0, yawRate: 0, frame: seed % 8, acc: 0, jaw: 0, jawT: 0, look: 0, near: null as boolean | null, phone: 0, tilt: 0, fade: 1, faded: false, faceLod: -1 });
   const props = useMemo(buildProps, []);
   const tilt = useRef<THREE.Group>(null);
   useEffect(() => {
@@ -430,6 +445,12 @@ function HumanBody({
       s.near = near;
       inst.full.forEach((m) => (m.visible = near));
       inst.lite.forEach((m) => (m.visible = !near));
+    }
+    // face detail LOD: hair-fine stipple / freckles up close, their mean colour further away
+    const faceLod = dist < 7 ? 1 : dist < 14 ? Math.round(((14 - dist) / 7) * 10) / 10 : 0;
+    if (faceLod !== s.faceLod && inst.faceU) {
+      s.faceLod = faceLod;
+      inst.faceU.uFaceDetail.value = faceLod;
     }
     const every = (dist < 15 ? 1 : dist < 30 ? 2 : dist < 60 ? 4 : 8) * (quality === "lite" && dist > 8 ? 2 : 1);
     s.frame++;
@@ -510,9 +531,9 @@ function HumanBody({
     }
     // head turn towards a point of interest (limited to ±55°, smoothed); not during contact actions
     const head = inst.head;
+    let want = 0;
+    const p = lookAtRef?.current;
     if (head && head.parent && dist < 20) {
-      let want = 0;
-      const p = lookAtRef?.current;
       if (p && proc.active < 0.2) {
         root.worldToLocal(_v2.copy(p));
         const a = Math.atan2(_v2.x, _v2.z);
@@ -527,6 +548,12 @@ function HumanBody({
         head.parent.getWorldQuaternion(_q2);
         head.quaternion.copy(_q2.invert().multiply(_q));
       }
+    }
+    // face life: blinking, saccades, eyes leading the head towards the person looked at (close people only)
+    if (dist < 16) {
+      const dev = process.env.NODE_ENV !== "production" ? (globalThis as { __gkFace?: { blink?: number } }).__gkFace : undefined;
+      face.force = dev?.blink ?? null;
+      face.update({ dt: step, talking, gazeYaw: THREE.MathUtils.clamp((want - s.look) * 0.9, -0.4, 0.4), gazePitch: 0, engaged: want !== 0 });
     }
   });
 

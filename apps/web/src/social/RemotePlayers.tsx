@@ -182,7 +182,7 @@ function RemoteAvatar({ id, tier, hall, seatArea }: { id: string; tier: Tier; ha
   // of the account id as the API's sign-up look; guests hash their session id), never a shared default clone
   const look = useMemo(() => {
     const body = bodyType === "feminine" || bodyType === "masculine" ? bodyType : null;
-    return lookStr ? decodeLook(lookStr, color) : seededLook(uid ?? id, color, body);
+    return lookStr ? decodeLook(lookStr, color, uid ?? undefined) : seededLook(uid ?? id, color, body);
   }, [lookStr, color, bodyType, uid, id]);
   const group = useRef<THREE.Group>(null);
   const anim = useRef(0);

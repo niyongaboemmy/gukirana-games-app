@@ -42,7 +42,7 @@ export default function GatePage() {
   // apply the server look to the local avatar whenever we have a session
   useEffect(() => {
     if (!me) return;
-    if (me.look) useProfile.getState().setLook(decodeLook(me.look, me.color));
+    if (me.look) useProfile.getState().setLook(decodeLook(me.look, me.color, me.id));
     else useProfile.getState().setBodyType(me.bodyType);
   }, [me]);
 

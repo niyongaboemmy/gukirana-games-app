@@ -81,7 +81,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 function mirror(me: Me) {
   useProfile.setState({ name: me.username ?? "", color: me.color, xp: me.xp, stars: me.stars, onboarded: !!me.username });
   // the account's saved avatar wins over this device's local look
-  if (me.look) useProfile.getState().setLook(decodeLook(me.look, me.color));
+  if (me.look) useProfile.getState().setLook(decodeLook(me.look, me.color, me.id));
   else useProfile.setState({ bodyType: me.bodyType });
 }
 

@@ -1,4 +1,5 @@
 import type { PrintId } from "./textures";
+import { decodeFace, DEFAULT_FACE, encodeFace, findFaceToken, seededFace, type FaceLook } from "./face";
 
 /**
  * Avatar look + outfit catalogue (DESIGN-SPEC §7.1–7.2).
@@ -123,6 +124,8 @@ export interface AvatarLook {
   accent: string;
   /** Optional colour for "accent"-coloured tops and caps (default looks use a muted palette); unset = accent. */
   topColor?: string;
+  /** Face choices (world/face.ts); looks saved before P2-AVA-07 get the person's seeded face. */
+  face: FaceLook;
 }
 
 export const DEFAULT_OUTFIT: Outfit = { top: "hoodie", bottom: "joggers", shoes: "sneakers", accessory: "none", headwear: "no-hat" };
@@ -133,6 +136,7 @@ export const DEFAULT_LOOK: AvatarLook = {
   hairColor: HAIR_COLORS[0]!,
   outfit: DEFAULT_OUTFIT,
   accent: "#2F80ED",
+  face: DEFAULT_FACE,
 };
 
 /** Items for a slot, suggested ones first; with `showAll` false only suggested items (+ the current one) are listed. */
@@ -143,7 +147,12 @@ export function itemsFor(slot: Slot, body: BodyType, showAll: boolean, current?:
     .sort((a, b) => Number(b.suggested) - Number(a.suggested));
 }
 
-/* ---------- compact wire encoding for the realtime `look` field (≤ 90 chars, "|"-separated: the API allows [\w.:;,|#=-]) ---------- */
+/*
+ * ---------- compact wire encoding for the realtime `look` field ----------
+ * "|"-separated (the API and realtime allow [\w.:;,|#=-]{0,300}; this client accepts ≤ 160): `1|body|skin|hair|
+ * hairColour|top|bottom|shoes|accessory|headwear|accent[|topColour][|F=<face>]` — ≤ 110 chars. The face token
+ * (world/face.ts) is self-versioned, so the leading "1" stays and older clients keep decoding new codes.
+ */
 const BODY_CODE: Record<BodyType, string> = { feminine: "f", masculine: "m", neutral: "n" };
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
@@ -151,12 +160,15 @@ export function encodeLook(l: AvatarLook): string {
   const o = l.outfit;
   const f = ["1", BODY_CODE[l.bodyType], l.skinTone.slice(1), l.hairStyle, l.hairColor.slice(1), o.top, o.bottom, o.shoes, o.accessory, o.headwear, l.accent.slice(1)];
   if (l.topColor && HEX.test(l.topColor)) f.push(l.topColor.slice(1));
+  f.push(encodeFace(l.face ?? DEFAULT_FACE));
   return f.join("|");
 }
 
 /**
  * Decodes and validates a look string; anything unknown falls back to defaults (never throws).
  * With `seed` (a user or session id) a missing / invalid look becomes that person's deterministic default look.
+ * Codes without a face token get the seeded face of `seed` (pass the account id so every screen agrees), else of
+ * a stable key of the code itself (body, skin, hair: never the clothes, so changing a shirt keeps the face).
  */
 export function decodeLook(s: string | undefined | null, accentFallback: string, seed?: string): AvatarLook {
   const accent = HEX.test(accentFallback) ? accentFallback : DEFAULT_LOOK.accent;
@@ -167,11 +179,15 @@ export function decodeLook(s: string | undefined | null, accentFallback: string,
   const body = (Object.keys(BODY_CODE) as BodyType[]).find((k) => BODY_CODE[k] === p[1]);
   const hex = (v: string | undefined, d: string) => (v && HEX.test(`#${v}`) ? `#${v}` : d);
   const slotItem = (slot: Slot, id: string | undefined, d: string) => (id && itemById(id)?.slot === slot ? id : d);
+  const bodyType = body ?? base.bodyType;
+  const skinTone = hex(p[2], base.skinTone);
+  const hairStyle = HAIR_STYLES.some((h) => h.id === p[3]) ? (p[3] as HairStyle) : base.hairStyle;
+  const hairColor = hex(p[4], base.hairColor);
   return {
-    bodyType: body ?? base.bodyType,
-    skinTone: hex(p[2], base.skinTone),
-    hairStyle: HAIR_STYLES.some((h) => h.id === p[3]) ? (p[3] as HairStyle) : base.hairStyle,
-    hairColor: hex(p[4], base.hairColor),
+    bodyType,
+    skinTone,
+    hairStyle,
+    hairColor,
     outfit: {
       top: slotItem("top", p[5], DEFAULT_OUTFIT.top),
       bottom: slotItem("bottom", p[6], DEFAULT_OUTFIT.bottom),
@@ -181,7 +197,13 @@ export function decodeLook(s: string | undefined | null, accentFallback: string,
     },
     accent: hex(p[10], base.accent),
     ...(p[11] && HEX.test(`#${p[11]}`) ? { topColor: `#${p[11]}` } : {}),
+    face: decodeFace(findFaceToken(p), seededFace(seed ?? faceKeyOf({ bodyType, skinTone, hairStyle, hairColor }), bodyType)),
   };
+}
+
+/** Stable face seed of a look without an account id: body, skin and hair (never the clothes). */
+export function faceKeyOf(l: Pick<AvatarLook, "bodyType" | "skinTone" | "hairStyle" | "hairColor">): string {
+  return `${BODY_CODE[l.bodyType]}|${l.skinTone.slice(1).toUpperCase()}|${l.hairStyle}|${l.hairColor.slice(1).toLowerCase()}`;
 }
 
 /* ---------- deterministic default look per person (P1-WLD-03) ---------- */
@@ -192,7 +214,8 @@ export function decodeLook(s: string | undefined | null, accentFallback: string,
  * `body` = the player's own body-type choice when known (body type is never inferred from anything else).
  */
 export function seededLook(seed: string, accent: string, body?: BodyType | null): AvatarLook {
-  return decodeLook(defaultLookCode(seed, accent, body), accent);
+  const l = decodeLook(defaultLookCode(seed, accent, body), accent);
+  return { ...l, face: seededFace(seed, l.bodyType) };
 }
 
 type W<T> = readonly (readonly [T, number])[];

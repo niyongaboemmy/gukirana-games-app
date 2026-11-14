@@ -19,6 +19,8 @@ export interface HumanModelMeta {
   regions: { skin: number; top: number; bottom: number; shoes: number; hair: number };
   /** Base model already has hair cards (separate mesh named "haircards"). */
   hairCards: boolean;
+  /** The base head has a painted beard (shaved off in the shader unless the chosen facial hair covers it). */
+  beard?: boolean;
 }
 
 const BASE = "/assets/characters";
@@ -47,6 +49,7 @@ export const HUMAN_MODELS: Record<HumanModelId, HumanModelMeta> = {
     skinRef: [0.2368, 0.0818, 0.0308],
     regions: { skin: 0.1284, top: 0.1166, bottom: 0.0357, shoes: 0.3117, hair: 0.012 },
     hairCards: false,
+    beard: true,
   },
   guard: {
     url: `${BASE}/guard.glb`,

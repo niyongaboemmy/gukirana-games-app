@@ -3,7 +3,7 @@ import { updateMe, useSession } from "@/lib/session";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, Footprints, Glasses, Hand, Palette, Scissors, Shirt, Sparkles, UserRound, X, type LucideIcon } from "lucide-react";
+import { Check, Footprints, Glasses, Hand, Palette, Scissors, Shirt, Smile, Sparkles, UserRound, X, ZoomIn, ZoomOut, type LucideIcon } from "lucide-react";
 import { AVATAR_COLORS, lookOf, useProfile } from "@/lib/profile-store";
 import {
   BODY_TYPE_HINT,
@@ -18,37 +18,72 @@ import {
   encodeLook,
 } from "@/world/outfits";
 import { fabricTexture } from "@/world/textures";
+import { BROW_STYLES, EYE_COLORS, FACE_EDITOR_ON, EYE_SHAPES, FACE_SHAPES, FACIAL_HAIR, LIP_SHAPES, MAKEUP, NOSE_SHAPES, SKIN_MARKS, type FaceLook } from "@/world/face";
+import { AVATAR, EYE_COLOUR_LABELS, FACE_LABELS } from "./avatar-strings";
 
 const AvatarPreview = dynamic(() => import("./AvatarPreview"), {
   ssr: false,
-  loading: () => <div className="grid h-full place-items-center text-sm text-white/50">Loading preview…</div>,
+  loading: () => <div className="grid h-full place-items-center text-sm text-white/50">{AVATAR.loadingPreview}</div>,
 });
 
-/** UI strings (to move to @gukirana/i18n keys `avatar.*` when the catalogue is localised). */
-const STR = {
-  title: "Style your avatar",
-  bodyNote: "You choose your body style. We never guess it from your name or number.",
-  showAll: "Show all items",
-  suggested: "Suggested",
-  save: "Save look",
-  cancel: "Cancel",
-  wave: "Wave",
-  accent: "Accent colour",
-  hairColour: "Hair colour",
-  headwear: "Headwear",
-  accessory: "Accessory",
-} as const;
+const STR = AVATAR;
 
-type Tab = "body" | "skin" | "hair" | "top" | "bottom" | "shoes" | "extras";
-const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
-  { id: "body", label: "Body", icon: UserRound },
-  { id: "skin", label: "Skin", icon: Palette },
-  { id: "hair", label: "Hair", icon: Scissors },
-  { id: "top", label: "Top", icon: Shirt },
-  { id: "bottom", label: "Bottom", icon: Shirt },
-  { id: "shoes", label: "Shoes", icon: Footprints },
-  { id: "extras", label: "Extras", icon: Glasses },
+type Tab = "body" | "face" | "skin" | "hair" | "top" | "bottom" | "shoes" | "extras";
+const TABS: { id: Tab; icon: LucideIcon }[] = [
+  { id: "body", icon: UserRound },
+  ...(FACE_EDITOR_ON ? [{ id: "face" as const, icon: Smile }] : []),
+  { id: "skin", icon: Palette },
+  { id: "hair", icon: Scissors },
+  { id: "top", icon: Shirt },
+  { id: "bottom", icon: Shirt },
+  { id: "shoes", icon: Footprints },
+  { id: "extras", icon: Glasses },
 ];
+
+/** Face tab sections: one chip row per choice (labels in avatar-strings.ts). */
+const FACE_SECTIONS = [
+  { key: "shape", title: STR.face.shape, options: FACE_SHAPES },
+  { key: "eyes", title: STR.face.eyes, options: EYE_SHAPES },
+  { key: "brows", title: STR.face.brows, options: BROW_STYLES },
+  { key: "nose", title: STR.face.nose, options: NOSE_SHAPES },
+  { key: "lips", title: STR.face.lips, options: LIP_SHAPES },
+  { key: "facialHair", title: STR.face.facialHair, options: FACIAL_HAIR, note: STR.face.facialHairNote },
+  { key: "marks", title: STR.face.marks, options: SKIN_MARKS },
+  { key: "makeup", title: STR.face.makeup, options: MAKEUP, note: STR.face.makeupNote },
+] as const;
+
+function FaceTab({ face, onChange }: { face: FaceLook; onChange: (f: Partial<FaceLook>) => void }) {
+  return (
+    <>
+      <p className="text-sm pmuted">{STR.face.note}</p>
+      {FACE_SECTIONS.map((sec) => {
+        const labels = FACE_LABELS[sec.key] as Record<string, string>;
+        return (
+          <section key={sec.key} className="space-y-2">
+            <p className="text-sm font-semibold text-[var(--ink-2)]">
+              {sec.title}
+              {"note" in sec && <span className="ml-2 text-xs font-normal pmuted">{sec.note}</span>}
+            </p>
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+              {sec.options.map((o: string) => (
+                <Chip key={o} active={face[sec.key] === o} onClick={() => onChange({ [sec.key]: o } as Partial<FaceLook>)}>
+                  <span className="truncate">{labels[o]}</span>
+                </Chip>
+              ))}
+            </div>
+            {sec.key === "eyes" && (
+              <>
+                <p className="pt-1 text-sm font-semibold text-[var(--ink-2)]">{STR.face.eyeColour}</p>
+                <Swatches colors={[...EYE_COLORS]} labels={[...EYE_COLOUR_LABELS]} value={face.eyeColor} onPick={(eyeColor) => onChange({ eyeColor })} />
+              </>
+            )}
+          </section>
+        );
+      })}
+      <p className="text-xs pmuted">{STR.face.glassesNote}</p>
+    </>
+  );
+}
 
 function swatchStyle(item: OutfitItem, accent: string): React.CSSProperties {
   if (item.print) {
@@ -99,14 +134,15 @@ function ItemGrid({ slot, look, showAll, onPick }: { slot: Slot; look: AvatarLoo
   );
 }
 
-function Swatches({ colors, value, onPick, round = true }: { colors: string[]; value: string; onPick: (c: string) => void; round?: boolean }) {
+function Swatches({ colors, value, onPick, round = true, labels }: { colors: string[]; value: string; onPick: (c: string) => void; round?: boolean; labels?: string[] }) {
   return (
     <div className="flex flex-wrap gap-2">
-      {colors.map((c) => (
+      {colors.map((c, i) => (
         <button
           key={c}
           type="button"
-          aria-label={`Colour ${c}`}
+          aria-label={labels?.[i] ?? `${STR.colour} ${c}`}
+          title={labels?.[i]}
           aria-pressed={value === c}
           onClick={() => onPick(c)}
           className={`press size-10 border-2 ${round ? "rounded-full" : "rounded-xl"} ${value === c ? "scale-110 border-white ring-4 ring-[#7a5638]/45" : "border-black/15"}`}
@@ -128,6 +164,9 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
   const [tab, setTab] = useState<Tab>("body");
   const [showAll, setShowAll] = useState(false);
   const [emote, setEmote] = useState(0);
+  /** preview camera: close-up on the face (the Face tab zooms in by itself; the button toggles) */
+  const [closeUp, setCloseUp] = useState<boolean | null>(null);
+  const focus = (closeUp ?? tab === "face") ? "face" : "body";
   const set = (p: Partial<AvatarLook>) => setDraft((d) => ({ ...d, ...p }));
   const setItem = (slot: Slot, id: string) => setDraft((d) => ({ ...d, outfit: { ...d.outfit, [slot]: id } }));
   const garmentTab = tab === "top" || tab === "bottom" || tab === "shoes" || tab === "extras";
@@ -146,13 +185,21 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
     <div role="dialog" aria-modal="true" aria-label={STR.title} className="pscrim z-50 grid place-items-center !bg-black/45 p-2 sm:p-4">
       <div className="grid h-full max-h-[720px] w-full max-w-5xl grid-rows-[minmax(0,38%)_minmax(0,1fr)] pcard !grid overflow-hidden sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] sm:grid-rows-1 landscape:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] landscape:grid-rows-1">
         <div className="relative min-h-0 bg-[radial-gradient(ellipse_at_50%_35%,#2a2b2f_0%,var(--color-ink-900)_75%)]">
-          <AvatarPreview look={look} emote={emote} />
+          <AvatarPreview look={look} emote={emote} focus={focus} />
           <button
             type="button"
             onClick={() => setEmote((e) => (e === 10 ? 11 : 10))}
             className="chip absolute bottom-3 left-3 flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold"
           >
             <Hand size={14} strokeWidth={1.85} /> {STR.wave}
+          </button>
+          <button
+            type="button"
+            onClick={() => setCloseUp(focus !== "face")}
+            aria-pressed={focus === "face"}
+            className="chip absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold"
+          >
+            {focus === "face" ? <ZoomOut size={14} strokeWidth={1.85} /> : <ZoomIn size={14} strokeWidth={1.85} />} {focus === "face" ? STR.zoomBody : STR.zoomFace}
           </button>
         </div>
         <div className="relative flex min-h-0 flex-col">
@@ -163,16 +210,19 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
               <X size={18} strokeWidth={1.85} />
             </button>
           </div>
-          <nav className="flex gap-1.5 overflow-x-auto border-b border-[rgb(70_50_25/.14)] px-3 py-2.5" aria-label="Avatar sections">
+          <nav className="flex gap-1.5 overflow-x-auto border-b border-[rgb(70_50_25/.14)] px-3 py-2.5" aria-label={STR.sections}>
             {TABS.map((t) => (
               <button
                 key={t.id}
                 type="button"
-                onClick={() => setTab(t.id)}
+                onClick={() => {
+                  setTab(t.id);
+                  setCloseUp(null);
+                }}
                 aria-current={tab === t.id}
                 className={`ptab flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold ${tab === t.id ? "is-on" : ""}`}
               >
-                <t.icon size={15} strokeWidth={1.85} /> {t.label}
+                <t.icon size={15} strokeWidth={1.85} /> {STR.tabs[t.id]}
               </button>
             ))}
           </nav>
@@ -200,6 +250,7 @@ export function AvatarCreator({ onClose, onSaved }: { onClose: () => void; onSav
                 <Swatches colors={AVATAR_COLORS} value={draft.accent} onPick={(accent) => set({ accent, topColor: undefined })} />
               </>
             )}
+            {tab === "face" && <FaceTab face={draft.face} onChange={(f) => setDraft((d) => ({ ...d, face: { ...d.face, ...f } }))} />}
             {tab === "skin" && <Swatches colors={SKIN_TONES} value={draft.skinTone} onPick={(skinTone) => set({ skinTone })} />}
             {tab === "hair" && (
               <>
