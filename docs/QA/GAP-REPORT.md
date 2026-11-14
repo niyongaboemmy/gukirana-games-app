@@ -32,6 +32,29 @@ Top risks:
 4. **Performance budgets (GAP-008).** The plaza draws ~400–460 calls and ~1M triangles per frame (Standard budget
    150 / 300k). It runs at 60 fps on the test GPU, but mid-range phones are at risk.
 
+## Fix status (updated by the coordinator after re-tests)
+
+| Gap | Status | Fix | Re-test |
+|---|---|---|---|
+| GAP-001 | fixed | FIX-A `d059a7c` | api.mjs /me,/wallet 401; pvp.mjs suspended player removed, can't chat or be staked; escrow voided + refunded |
+| GAP-002 | fixed | FIX-A `d059a7c` | api.mjs suspended it_admin 403 on console |
+| GAP-003 | fixed | FIX-A `86c2372` | ui-gate: 'This account is suspended. Contact support.' |
+| GAP-005 | fixed | FIX-A `bb95d8e` | pvp.mjs opponent gets OPPONENT_CANT_PLAY |
+| GAP-006 | fixed | FIX-A `6f4ff41` | api.mjs finds qa_lv30 |
+| GAP-007 | fixed | FIX-A `00efd39` | api.mjs 400 CANNOT_REVOKE_OWN_SUPER_ADMIN / LAST_SUPER_ADMIN |
+| GAP-009 | fixed | FIX-A `348fe8b` | api.mjs bad id → 400 |
+| GAP-010 | fixed | FIX-A `0429442` | one rule 3–16 in contracts; api.mjs short name 400 |
+| GAP-011 | fixed | FIX-A `bb95d8e` | pvp.mjs refused at challenge / queue request |
+| GAP-012 | fixed | FIX-A `fc4c800` | office.mjs lobby chat not heard inside (coordinator decision) |
+| GAP-013 | fixed | FIX-A `fc4c800` | office.mjs officer-left notice, walk-out after 60 s (coordinator decision; walk-out not browser-verified) |
+| GAP-014 | fixed | FIX-A `92bd6be` | realtime movement tests (9 m/s, 8 m jump) |
+| GAP-015 | fixed | FIX-A `34ea846` | ui-backoffice 14/0, icon 200 |
+| GAP-016 | fixed | FIX-A `7440d44` | ui-console 49/0, readable audit |
+| GAP-004 | open — FIX-B in progress | | |
+| GAP-008 | open — FIX-B in progress | | |
+| GAP-017 | open — FIX-B in progress | | |
+| GAP-018 | open — FIX-B in progress | | |
+
 ## Coverage matrix
 
 `pass` = journey passed (any failing check in it is listed as a gap), `fail` = a product gap was found, `blocked` =
