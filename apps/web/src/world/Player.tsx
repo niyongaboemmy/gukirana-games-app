@@ -50,6 +50,23 @@ const keys = new Set<string>();
 onReleaseInput(() => keys.clear()); // lost key-ups (area change, focus, background tab) never keep you walking
 
 /** Click-to-walk over the campus walks: the network's waypoints, the plaza crossings routed round the furniture. */
+/**
+ * The open outer-ring hall (beyond the plaza, e.g. the Fight Games hall) whose building a ground point falls on: within
+ * its bearing span and from just in front of its door to the back of the building (the halls are ≤ 50 m deep).
+ */
+function outerHallAt(x: number, z: number) {
+  const r = Math.hypot(x, z);
+  const deg = (Math.atan2(x, -z) * 180) / Math.PI;
+  for (const d of PORTALS) {
+    const R = ringOf(d);
+    if (!d.href || R === DOOR_RING) continue;
+    const half = (Math.atan2(50, R) * 180) / Math.PI; // ≈ 25 m either side of the door at the door ring
+    const gap = Math.abs(((deg - d.angleDeg + 540) % 360) - 180);
+    if (gap < half && r > R - 6 && r < R + 52) return d;
+  }
+  return null;
+}
+
 function walkRoute(from: { x: number; z: number }, to: { x: number; z: number }): { x: number; z: number }[] {
   const out: { x: number; z: number }[] = [];
   let at = from;
@@ -204,6 +221,18 @@ export function LocalPlayer({
         if (r > PLAZA_RADIUS - 0.5 && onCampusWalk(p.x, p.z, 0.6)) {
           route.current = walkRoute(pos.current, walkDepth(p.x, p.z).at);
           return route.current.shift()!;
+        }
+        // a tap on an outer hall itself (the Fight Games hall: its roof, walls or forecourt, from the ground or from the
+        // campus aerial view): along the walks to its door and on through it
+        if (r > PLAZA_RADIUS + 4) {
+          const hall = outerHallAt(p.x, p.z);
+          if (hall) {
+            const t = portalTransform(hall);
+            const a = (hall.angleDeg * Math.PI) / 180;
+            const R = ringOf(hall);
+            route.current = [...walkRoute(pos.current, walkDepth(t.entryX, t.entryZ).at), { x: Math.sin(a) * (R + 0.2), z: -Math.cos(a) * (R + 0.2) }];
+            return route.current.shift()!;
+          }
         }
         // out on a walk, a tap back in the plaza: back along the walks to the plaza first
         const out = Math.hypot(pos.current.x, pos.current.z) > PLAZA_RADIUS - 0.5 && onCampusWalk(pos.current.x, pos.current.z, 0.5);

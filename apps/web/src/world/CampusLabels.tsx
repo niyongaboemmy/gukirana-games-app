@@ -26,7 +26,7 @@ interface Label {
 }
 
 /** How far behind its door each building's mass sits (m), so the label floats over the roof, not the doorway. */
-const DEPTH: Record<string, number> = { arena: 26, fight: 34, admin: 12 };
+const DEPTH: Record<string, number> = { arena: 26, fight: 18, admin: 12 };
 
 /** Building names floating over the roofs in the campus aerial view (fade in as the camera rises; hidden up close). */
 export function CampusLabels() {
