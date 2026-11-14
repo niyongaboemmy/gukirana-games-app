@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { CORNERS, RING, type CornerId } from "./ring-kit-core";
+import { CORNERS, RING, RING_SIZES, stepZ, type CornerId, type RingDims, type RingSize } from "./ring-kit-core";
 
 /**
  * Boxing ring geometry (P3-FGT-02), in the ring frame (ring-kit-core.ts). Every level is ONE merged geometry with
@@ -97,9 +97,9 @@ const SIDES: [CornerId, CornerId][] = [
 ];
 
 /** the pleated skirt (near) or a plain box side (far) round the platform */
-function platform(p: Parts, near: boolean) {
-  const H = RING.half,
-    D = RING.deck - 0.03;
+function platform(p: Parts, K: RingDims, near: boolean) {
+  const H = K.half,
+    D = K.deck - 0.03;
   // body (inside, never seen) + apron board under the canvas
   p.box(2 * H - 0.04, D, 2 * H - 0.04, 0, D / 2, 0, COL.skirt);
   if (!near) {
@@ -128,23 +128,23 @@ function platform(p: Parts, near: boolean) {
   // apron edge: a padded lip round the canvas
   for (let s = 0; s < 4; s++) {
     const a = (s * Math.PI) / 2;
-    const m = new THREE.Matrix4().makeRotationY(a).setPosition(0, RING.deck - 0.02, 0);
+    const m = new THREE.Matrix4().makeRotationY(a).setPosition(0, K.deck - 0.02, 0);
     p.add(new THREE.BoxGeometry(2 * H + 0.06, 0.06, 0.06), COL.apron, m.multiply(new THREE.Matrix4().makeTranslation(0, 0, H)));
   }
 }
 
-function postsAndPads(p: Parts, near: boolean) {
-  const P = RING.post,
-    top = RING.deck + RING.postH;
+function postsAndPads(p: Parts, K: RingDims, near: boolean) {
+  const P = K.post,
+    top = K.deck + K.postH;
   for (const c of Object.keys(CORNERS) as CornerId[]) {
     const [sx, sz] = CORNERS[c];
     const x = sx * P,
       z = sz * P;
     if (near) {
-      p.cyl(0.055, 0.055, RING.postH + 0.05, x, RING.deck + RING.postH / 2, z, COL.post, 12);
-      p.cyl(0.1, 0.11, 0.05, x, RING.deck + 0.025, z, COL.post, 12);
+      p.cyl(0.055, 0.055, K.postH + 0.05, x, K.deck + K.postH / 2, z, COL.post, 12);
+      p.cyl(0.1, 0.11, 0.05, x, K.deck + 0.025, z, COL.post, 12);
       p.cyl(0.065, 0.055, 0.04, x, top + 0.02, z, COL.post, 12);
-    } else p.box(0.11, RING.postH, 0.11, x, RING.deck + RING.postH / 2, z, COL.post);
+    } else p.box(0.11, K.postH, 0.11, x, K.deck + K.postH / 2, z, COL.post);
     // the turnbuckle cover on the inner face of the post, square to the ring diagonal
     const inward = Math.atan2(-sx, -sz);
     const d = near ? 0.12 : 0.1;
@@ -153,21 +153,21 @@ function postsAndPads(p: Parts, near: boolean) {
     if (near) {
       const g = new THREE.CapsuleGeometry(0.09, 1.0, 4, 10);
       g.scale(1.15, 1, 0.85);
-      p.add(g, PAD_COLORS[c], new THREE.Matrix4().makeRotationY(inward).setPosition(cx, RING.deck + 0.9, cz));
-    } else p.box(0.2, 1.1, 0.14, cx, RING.deck + 0.9, cz, PAD_COLORS[c], inward);
+      p.add(g, PAD_COLORS[c], new THREE.Matrix4().makeRotationY(inward).setPosition(cx, K.deck + 0.9, cz));
+    } else p.box(0.2, 1.1, 0.14, cx, K.deck + 0.9, cz, PAD_COLORS[c], inward);
   }
 }
 
 /** rope ends sit on the pad faces; near: sagging tubes + rope covers + spacers; far: straight boxes */
-function ropes(p: Parts, near: boolean) {
-  const P = RING.post - 0.13;
+function ropes(p: Parts, K: RingDims, near: boolean) {
+  const P = K.post - 0.13;
   SIDES.forEach(([a, b], side) => {
     const [ax, az] = CORNERS[a];
     const [bx, bz] = CORNERS[b];
     const A = v(ax * P, 0, az * P),
       B = v(bx * P, 0, bz * P);
-    RING.ropes.forEach((h, i) => {
-      const y = RING.deck + h;
+    K.ropes.forEach((h, i) => {
+      const y = K.deck + h;
       const color = i % 2 === 0 ? COL.ropeB : COL.ropeA;
       if (near) {
         const pts: THREE.Vector3[] = [];
@@ -175,11 +175,11 @@ function ropes(p: Parts, near: boolean) {
         for (let k = 0; k <= n; k++) {
           const t = k / n;
           // a shallow catenary (a parabola is indistinguishable at this sag)
-          pts.push(A.clone().lerp(B, t).setY(y - 4 * RING.sag[i]! * t * (1 - t)));
+          pts.push(A.clone().lerp(B, t).setY(y - 4 * K.sag[i]! * t * (1 - t)));
         }
         p.tube(pts, 0.021, color, 7);
       } else {
-        const mid = A.clone().lerp(B, 0.5).setY(y - RING.sag[i]! * 0.6);
+        const mid = A.clone().lerp(B, 0.5).setY(y - K.sag[i]! * 0.6);
         const len = A.distanceTo(B);
         p.box(len, 0.035, 0.035, mid.x, mid.y, mid.z, color, side % 2 === 0 ? 0 : Math.PI / 2);
       }
@@ -189,28 +189,28 @@ function ropes(p: Parts, near: boolean) {
       for (const t of [1 / 3, 2 / 3]) {
         const at = A.clone().lerp(B, t);
         const sag = 4 * t * (1 - t);
-        const yTop = RING.deck + RING.ropes[3] - RING.sag[0] * sag + 0.04,
-          yBot = RING.deck + RING.ropes[0] - RING.sag[3] * sag - 0.04;
+        const yTop = K.deck + K.ropes[3] - K.sag[0] * sag + 0.04,
+          yBot = K.deck + K.ropes[0] - K.sag[3] * sag - 0.04;
         p.box(side % 2 === 0 ? 0.05 : 0.03, yTop - yBot, side % 2 === 0 ? 0.03 : 0.05, at.x, (yTop + yBot) / 2, at.z, COL.spacer);
       }
     }
   });
 }
 
-function steps(p: Parts, near: boolean) {
+function steps(p: Parts, K: RingDims, near: boolean) {
   for (const c of ["red", "blue"] as const) {
     const [sx, sz] = CORNERS[c];
-    const z = sz * (RING.post - 0.7);
-    const x0 = sx * RING.half;
+    const z = sz * stepZ(K);
+    const x0 = sx * K.half;
+    const n = 3;
+    const rise = K.deck / n,
+      run = K.stepRun;
     if (!near) {
-      // a ramp-ish block
-      const g = new THREE.BoxGeometry(0.85, RING.deck * 0.55, 0.8);
-      p.add(g, COL.steps, new THREE.Matrix4().makeTranslation(x0 + sx * 0.42, RING.deck * 0.275, z));
+      // two blocks (a stepped silhouette)
+      p.box(run * n, rise * 1.5, 0.8, x0 + sx * ((run * n) / 2), rise * 0.75, z, COL.steps);
+      p.box(run * 1.5, rise * 1.5, 0.8, x0 + sx * ((run * 1.5) / 2), rise * 2.25, z, COL.steps);
       continue;
     }
-    const n = 3;
-    const rise = RING.deck / n,
-      run = 0.3;
     for (let k = 0; k < n; k++) {
       const h = rise * (k + 1);
       const xc = x0 + sx * (run * (n - k) - run / 2);
@@ -220,20 +220,20 @@ function steps(p: Parts, near: boolean) {
     // hand rails both sides
     for (const dz of [-0.42, 0.42]) {
       const a = v(x0 + sx * (run * n + 0.05), 0.95, z + dz),
-        b = v(x0 + sx * 0.02, RING.deck + 0.95, z + dz);
+        b = v(x0 + sx * 0.02, K.deck + 0.95, z + dz);
       p.rod(a, b, 0.018, COL.rail);
       p.rod(v(a.x, 0, a.z), a, 0.02, COL.rail);
-      p.rod(v(b.x, RING.deck, b.z), b, 0.02, COL.rail);
+      p.rod(v(b.x, K.deck, b.z), b, 0.02, COL.rail);
     }
   }
 }
 
-function setDressing(p: Parts) {
+function setDressing(p: Parts, K: RingDims) {
   for (const c of ["red", "blue"] as const) {
     const [sx, sz] = CORNERS[c];
     // bucket + water bottle on the floor beside the steps
-    const x = sx * (RING.half + 0.35),
-      z = sz * (RING.post - 1.55);
+    const x = sx * (K.half + 0.35),
+      z = sz * (stepZ(K) - 0.85);
     const bucket = new THREE.CylinderGeometry(0.16, 0.13, 0.3, 14, 1, true);
     p.add(bucket, COL.bucket, new THREE.Matrix4().makeTranslation(x, 0.15, z));
     p.cyl(0.13, 0.13, 0.01, x, 0.012, z, COL.bucket, 14);
@@ -244,19 +244,22 @@ function setDressing(p: Parts) {
 }
 
 /** the spectator rail (gaps at the steps); near: round tubes + posts every ~1.6 m, far: thin boxes */
-function rail(p: Parts, near: boolean) {
-  const R = RING.rail,
-    h = RING.railH;
+function rail(p: Parts, K: RingDims, near: boolean) {
+  const R = K.rail,
+    h = K.railH;
   for (let s = 0; s < 4; s++) {
     const a = (s * Math.PI) / 2;
     const rot = new THREE.Matrix4().makeRotationY(a);
     // side s runs along x at z = R (rotated); the red / blue steps gaps are on the ±x sides (s = 1, 3)
     const gap = s === 1 || s === 3;
+    // (the gap is 1.3 m round the steps' centre line, stepZ either side)
+    const g0 = stepZ(K) - 0.65,
+      g1 = stepZ(K) + 0.65;
     const spans: [number, number][] = gap
       ? [
-          [-R, -RING.post + 0.05],
-          [-RING.post + 1.35, RING.post - 1.35],
-          [RING.post - 0.05, R],
+          [-R, -g1],
+          [-g0, g0],
+          [g1, R],
         ]
       : [[-R, R]];
     for (const [x0, x1] of spans) {
@@ -282,57 +285,75 @@ function rail(p: Parts, near: boolean) {
 }
 
 /** number-board frame (front side of the rail) + the status-lamp housing on the neutral corner post */
-export const BOARD = { x: 0, y: RING.railH + 0.34, z: -RING.rail, w: 0.62, h: 0.42 };
-export const LAMP = { x: CORNERS.neutralA[0] * RING.post, y: RING.deck + RING.postH + 0.1, z: CORNERS.neutralA[1] * RING.post };
-function fixtures(p: Parts, near: boolean) {
+export const boardAt = (K: RingDims = RING) => ({ x: 0, y: K.railH + 0.34, z: -K.rail, w: 0.62, h: 0.42 });
+export const lampAt = (K: RingDims = RING) => ({ x: CORNERS.neutralA[0] * K.post, y: K.deck + K.postH + 0.1, z: CORNERS.neutralA[1] * K.post });
+export const BOARD = boardAt();
+export const LAMP = lampAt();
+function fixtures(p: Parts, K: RingDims, near: boolean, boards: boolean) {
+  const BOARD = boardAt(K),
+    LAMP = lampAt(K);
+  if (near) p.cyl(0.055, 0.07, 0.06, LAMP.x, LAMP.y - 0.06, LAMP.z, COL.lampHouse, 12);
+  if (!boards) return;
   p.box(BOARD.w + 0.05, BOARD.h + 0.05, 0.04, BOARD.x, BOARD.y, BOARD.z, COL.board);
   p.box(0.05, BOARD.y - BOARD.h / 2, 0.05, BOARD.x, (BOARD.y - BOARD.h / 2) / 2, BOARD.z, COL.rail);
-  if (near) p.cyl(0.055, 0.07, 0.06, LAMP.x, LAMP.y - 0.06, LAMP.z, COL.lampHouse, 12);
 }
 
-export function nearRingGeometry(): THREE.BufferGeometry {
+/** geometry options: the ring size, and whether the number-board frame is built (off when the hall hangs its own signs) */
+export interface RingGeoOptions {
+  size?: RingSize;
+  boards?: boolean;
+}
+const dimsFor = (o: RingGeoOptions) => RING_SIZES[o.size ?? "pro"];
+
+export function nearRingGeometry(o: RingGeoOptions = {}): THREE.BufferGeometry {
+  const K = dimsFor(o);
   const p = new Parts();
-  platform(p, true);
-  postsAndPads(p, true);
-  ropes(p, true);
-  steps(p, true);
-  setDressing(p);
-  rail(p, true);
-  fixtures(p, true);
+  platform(p, K, true);
+  postsAndPads(p, K, true);
+  ropes(p, K, true);
+  steps(p, K, true);
+  setDressing(p, K);
+  rail(p, K, true);
+  fixtures(p, K, true, o.boards !== false);
   return p.geometry();
 }
 
-export function farRingGeometry(): THREE.BufferGeometry {
+export function farRingGeometry(o: RingGeoOptions = {}): THREE.BufferGeometry {
+  const K = dimsFor(o);
   const p = new Parts();
-  platform(p, false);
-  postsAndPads(p, false);
-  ropes(p, false);
-  steps(p, false);
-  rail(p, false);
-  fixtures(p, false);
+  platform(p, K, false);
+  postsAndPads(p, K, false);
+  ropes(p, K, false);
+  steps(p, K, false);
+  rail(p, K, false);
+  fixtures(p, K, false, o.boards !== false);
   return p.geometry();
 }
 
 /** the canvas top (uv 0…1 over the whole platform top, for the printed canvas texture) */
-export function canvasGeometry(): THREE.BufferGeometry {
-  const g = new THREE.PlaneGeometry(2 * RING.half, 2 * RING.half, 1, 1);
+export function canvasGeometry(size: RingSize = "pro"): THREE.BufferGeometry {
+  const K = RING_SIZES[size];
+  const g = new THREE.PlaneGeometry(2 * K.half, 2 * K.half, 1, 1);
   g.rotateX(-Math.PI / 2);
-  g.translate(0, RING.deck + 0.002, 0);
+  g.translate(0, K.deck + 0.002, 0);
   return g;
 }
 
 /** a lamp: a small dome on top of the neutral post + a light strip along the apron edge on that side */
-export function lampGeometry(): THREE.BufferGeometry {
+export function lampGeometry(size: RingSize = "pro"): THREE.BufferGeometry {
+  const K = RING_SIZES[size];
+  const LAMP = lampAt(K);
   const p = new Parts();
   const dome = new THREE.SphereGeometry(0.075, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2);
   p.add(dome, "#ffffff", new THREE.Matrix4().makeTranslation(LAMP.x, LAMP.y - 0.03, LAMP.z));
   // the strip on the front skirt (side towards −z, the board side)
-  p.add(new THREE.PlaneGeometry(2 * RING.half - 0.4, 0.03), "#ffffff", new THREE.Matrix4().makeRotationY(Math.PI).setPosition(0, RING.deck - 0.235, -RING.half - 0.028));
+  p.add(new THREE.PlaneGeometry(2 * K.half - 0.4, 0.03), "#ffffff", new THREE.Matrix4().makeRotationY(Math.PI).setPosition(0, K.deck - 0.235, -K.half - 0.028));
   return p.geometry();
 }
 
 /** a number board face pair (front + back, each reading the right way) */
-export function boardGeometry(): THREE.BufferGeometry {
+export function boardGeometry(size: RingSize = "pro"): THREE.BufferGeometry {
+  const BOARD = boardAt(RING_SIZES[size]);
   const front = new THREE.PlaneGeometry(BOARD.w, BOARD.h);
   front.rotateY(Math.PI);
   front.translate(BOARD.x, BOARD.y, BOARD.z - 0.022);
@@ -343,11 +364,12 @@ export function boardGeometry(): THREE.BufferGeometry {
 
 /** the corner stool (seat tinted by the instance colour, legs darker) */
 export function stoolGeometry(): THREE.BufferGeometry {
+  const K = RING;
   const p = new Parts();
-  p.cyl(0.19, 0.18, 0.05, 0, RING.stoolH - 0.025, 0, "#ffffff", 18);
+  p.cyl(0.19, 0.18, 0.05, 0, K.stoolH - 0.025, 0, "#ffffff", 18);
   for (let k = 0; k < 4; k++) {
     const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
-    p.rod(v(Math.cos(a) * 0.17, 0, Math.sin(a) * 0.17), v(Math.cos(a) * 0.12, RING.stoolH - 0.05, Math.sin(a) * 0.12), 0.014, "#3a3a3a", 6);
+    p.rod(v(Math.cos(a) * 0.17, 0, Math.sin(a) * 0.17), v(Math.cos(a) * 0.12, K.stoolH - 0.05, Math.sin(a) * 0.12), 0.014, "#3a3a3a", 6);
   }
   p.add(new THREE.TorusGeometry(0.145, 0.01, 6, 18).rotateX(Math.PI / 2), "#3a3a3a", new THREE.Matrix4().makeTranslation(0, 0.2, 0));
   return p.geometry();
@@ -355,8 +377,9 @@ export function stoolGeometry(): THREE.BufferGeometry {
 
 /** the feature ring's extras: judges' table + chairs on one side, the bell, an overhead lighting truss */
 export function featureExtrasGeometry(): THREE.BufferGeometry {
+  const K = RING;
   const p = new Parts();
-  const z = -(RING.rail + 1.4);
+  const z = -(K.rail + 1.4);
   p.box(3.2, 0.06, 0.7, 0, 0.76, z, "#2b2e34");
   p.box(3.2, 0.7, 0.04, 0, 0.38, z - 0.33, "#1f4fb0");
   for (const x of [-1.3, 1.3]) p.box(0.06, 0.74, 0.6, x, 0.37, z, "#2b2e34");
@@ -375,7 +398,7 @@ export function featureExtrasGeometry(): THREE.BufferGeometry {
   p.cyl(0.02, 0.02, 0.08, 1.05, 0.83, z, "#4a4e56", 8);
   p.add(new THREE.SphereGeometry(0.1, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), "#a0845a", new THREE.Matrix4().makeRotationX(Math.PI).setPosition(1.05, 0.98, z));
   // overhead truss: a square frame of box trusses over the ring
-  const T = RING.half + 0.4,
+  const T = K.half + 0.4,
     y = 5.4;
   for (let s = 0; s < 4; s++) {
     const a = (s * Math.PI) / 2;

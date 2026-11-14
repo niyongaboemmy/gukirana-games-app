@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { boardGeometry, canvasGeometry, farRingGeometry, featureExtrasGeometry, lampGeometry, nearRingGeometry, stoolGeometry, triangles } from "./ring-kit-geometry";
-import { LOD_BY_TIER, RING, ringDrawCalls, selectLods, STATUS_COLORS, stoolParked, stoolSpot, type RingLod, type RingSpec } from "./ring-kit-core";
+import { LOD_BY_TIER, RING_SIZES, ringDrawCalls, selectLods, STATUS_COLORS, stoolParked, stoolSpot, type LodOptions, type RingDims, type RingLod, type RingSize, type RingSpec } from "./ring-kit-core";
 
 /**
  * <RingKit rings={…} /> (P3-FGT-02): a whole field of boxing rings in a handful of instanced draw calls.
@@ -26,6 +26,10 @@ export interface RingKitProps {
   shadows?: boolean;
   /** show the number boards (standard tier) */
   boards?: boolean;
+  /** ring size of every ring in this field (default pro); the specs should carry the same `size` */
+  size?: RingSize;
+  /** override the tier's LOD distances (e.g. nearer for the small training rings) */
+  lod?: Partial<LodOptions>;
   /** per-frame stats for QA / the lab */
   statsRef?: React.RefObject<RingKitStats | null>;
 }
@@ -47,6 +51,12 @@ const _sphere = new THREE.Sphere();
 const _frustum = new THREE.Frustum();
 const _pv = new THREE.Matrix4();
 const UP = new THREE.Vector3(0, 1, 0);
+/** a small hash of a lamp colour override (part of the buffer signature) */
+const lampKey = (s?: string) => {
+  let h = 0;
+  if (s) for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return (h & 1023) * 2048;
+};
 
 /* ---------------- textures (generated once, deterministic) ---------------- */
 
@@ -57,19 +67,19 @@ const hash = (x: number, y: number) => {
 };
 
 /** the printed canvas: light grey-blue canvas weave, a darker apron, corner marks and a centre emblem */
-function canvasTexture(): THREE.Texture {
+function canvasTexture(K: RingDims): THREE.Texture {
   const n = 1024;
   const cv = document.createElement("canvas");
   cv.width = cv.height = n;
   const g = cv.getContext("2d")!;
-  const half = RING.half;
+  const half = K.half;
   const px = (m: number) => ((m + half) / (2 * half)) * n; // ring metres → pixels
   // apron (outside the posts)
   g.fillStyle = "#3a3f47";
   g.fillRect(0, 0, n, n);
   // canvas inside the ropes
-  const a = px(-RING.post),
-    b = px(RING.post);
+  const a = px(-K.post),
+    b = px(K.post);
   g.fillStyle = "#b9bfc8";
   g.fillRect(a, a, b - a, b - a);
   // a subtle weave (hashed, no randomness)
@@ -160,20 +170,22 @@ function numberAtlas(): THREE.Texture {
 
 const matte = (opts: THREE.MeshStandardMaterialParameters = {}) => new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, ...opts });
 
-export function RingKit({ rings, featureRing = null, tier = "standard", shadows = false, boards = true, statsRef }: RingKitProps) {
+export function RingKit({ rings, featureRing = null, tier = "standard", shadows = false, boards = true, statsRef, size = "pro", lod }: RingKitProps) {
+  const dims = RING_SIZES[size];
+  const lodOpts = useMemo(() => ({ ...LOD_BY_TIER[tier], ...lod }), [tier, lod?.near, lod?.hysteresis, lod?.max]);
   const lite = tier === "lite";
   const showBoards = boards && !lite;
   const cap = Math.max(1, rings.length);
   const res = useMemo(() => {
-    const near = nearRingGeometry();
-    const far = farRingGeometry();
-    const canvas = canvasGeometry();
-    const lamp = lampGeometry();
-    const board = boardGeometry();
+    const near = nearRingGeometry({ size, boards: showBoards });
+    const far = farRingGeometry({ size, boards: showBoards });
+    const canvas = canvasGeometry(size);
+    const lamp = lampGeometry(size);
+    const board = boardGeometry(size);
     const stool = stoolGeometry();
     const mats = {
       kit: matte({ vertexColors: true }),
-      canvas: lite ? matte({ color: "#aeb4bd" }) : matte({ map: canvasTexture(), roughness: 0.92 }),
+      canvas: lite ? matte({ color: "#aeb4bd" }) : matte({ map: canvasTexture(RING_SIZES[size]), roughness: 0.92 }),
       // status lamps glow softly (unlit colour, tone-mapped: no bloom blow-out)
       lamp: new THREE.MeshBasicMaterial({ color: "#ffffff" }),
       board: new THREE.MeshBasicMaterial({ map: showBoards ? numberAtlas() : null, toneMapped: true }),
@@ -210,7 +222,7 @@ export function RingKit({ rings, featureRing = null, tier = "standard", shadows 
     if (extras) extras.name = "ring-feature-extras";
     const tris = { near: triangles(near), far: triangles(far), canvas: triangles(canvas), lamp: triangles(lamp), board: triangles(board), stool: triangles(stool), extras: extras ? triangles(extras.geometry) : 0 };
     return { meshes, mats, extras, tris, geos: [near, far, canvas, lamp, board, stool] };
-  }, [cap, lite, showBoards, shadows, featureRing]);
+  }, [cap, lite, showBoards, shadows, featureRing, size]);
   useEffect(
     () => () => {
       res.geos.forEach((g) => g.dispose());
@@ -236,8 +248,8 @@ export function RingKit({ rings, featureRing = null, tier = "standard", shadows 
     const lods = selectLods(
       rings,
       { x: cam.x, y: cam.y, z: cam.z },
-      LOD_BY_TIER[tier],
-      (r) => _frustum.intersectsSphere(_sphere.set(_sphere.center.set(r.x, RING.deck + 0.6, r.z), RING.radius)),
+      lodOpts,
+      (r) => _frustum.intersectsSphere(_sphere.set(_sphere.center.set(r.x, dims.deck + 0.6, r.z), dims.radius)),
       st.prev,
       featureRing,
       st.lods,
@@ -247,7 +259,7 @@ export function RingKit({ rings, featureRing = null, tier = "standard", shadows 
     let sig = rings.length;
     for (let i = 0; i < rings.length; i++) {
       const r = rings[i]!;
-      const v = (lods[i] === "near" ? 1 : lods[i] === "far" ? 2 : 3) + 4 * (r.status.charCodeAt(0) + (r.rest ? 512 : 0)) + Math.round(r.x * 100) * 7919 + Math.round(r.z * 100) * 104729 + Math.round(r.rotY * 1000) * 15485863;
+      const v = (lods[i] === "near" ? 1 : lods[i] === "far" ? 2 : 3) + 4 * (r.status.charCodeAt(0) + (r.rest ? 512 : 0) + lampKey(r.lamp)) + Math.round(r.x * 100) * 7919 + Math.round(r.z * 100) * 104729 + Math.round(r.rotY * 1000) * 15485863;
       sig = (Math.imul(sig ^ v, 2654435761) + i) | 0;
     }
     if (sig === st.sig) return;
@@ -268,7 +280,7 @@ export function RingKit({ rings, featureRing = null, tier = "standard", shadows 
       else M.far.setMatrixAt(nf++, _m);
       M.canvas.setMatrixAt(nv, _m);
       M.lamp.setMatrixAt(nv, _m);
-      M.lamp.setColorAt(nv, _c.set(STATUS_COLORS[r.status]));
+      M.lamp.setColorAt(nv, _c.set(r.lamp ?? STATUS_COLORS[r.status]));
       M.board.setMatrixAt(nv, _m);
       const num = Math.max(1, Math.min(ATLAS * ATLAS, r.number ?? i + 1)) - 1;
       // atlas rows run top → bottom in the canvas, uv v runs bottom → top
