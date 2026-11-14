@@ -79,7 +79,7 @@ export function SettingsModal({ onClose, onEditAvatar }: { onClose: () => void; 
           {/* who you are */}
           <div className="flex items-center gap-3">
             <div className="relative grid size-16 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(#d9ab3c ${pct * 360}deg, rgb(70 50 25 / .15) 0)` }}>
-              <div className="grid size-[54px] place-items-center rounded-full text-xl font-black text-white" style={{ background: color }}>
+              <div className="grid size-[54px] place-items-center rounded-full text-xl font-black" style={{ background: color, color: inkOn(color) }}>
                 {(me.username ?? "?").slice(0, 1).toUpperCase()}
               </div>
             </div>
@@ -237,4 +237,14 @@ function GameSwitch({ k, label, icon: Icon }: { k: "sound" | "haptics"; label: s
       <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={() => useGamePrefs.getState().set({ [k]: !on })} className="pswitch" />
     </div>
   );
+}
+
+/** white or near-black initial on the player's colour, whichever reads at ≥ 4.5:1 (light avatar colours need dark ink) */
+function inkOn(bg: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(bg.trim());
+  if (!m) return "#ffffff";
+  const n = parseInt(m[1]!, 16);
+  const lin = (v: number) => (v / 255 <= 0.03928 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4);
+  const L = 0.2126 * lin(n >> 16) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  return 1.05 / (L + 0.05) >= 4.5 ? "#ffffff" : "#1f1b16";
 }

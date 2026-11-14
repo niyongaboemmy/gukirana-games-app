@@ -249,6 +249,13 @@ await section("settings", async () => {
           const c = getComputedStyle(el).backgroundColor;
           const a = c.match(/\d+(\.\d+)?/g)?.map(Number);
           if (a && (a.length < 4 || a[3] > 0.5)) return c;
+          // paper cards and chocolate buttons paint a gradient (background-image), not a background colour: use the
+          // mean of its colour stops (FIX-B: the check used to fall through to the dark page behind the card)
+          const stops = [...getComputedStyle(el).backgroundImage.matchAll(/rgba?\(([^)]+)\)/g)].map((m) => m[1].split(/[ ,/]+/).filter(Boolean).map(Number)).filter((s) => (s[3] ?? 1) > 0.5);
+          if (stops.length) {
+            const mean = [0, 1, 2].map((i) => Math.round(stops.reduce((t, s) => t + s[i], 0) / stops.length));
+            return `rgb(${mean.join(",")})`;
+          }
           el = el.parentElement;
         }
         return "rgb(0,0,0)";
