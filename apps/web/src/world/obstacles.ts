@@ -1,5 +1,6 @@
-import { onFightWalk, ringOf, BENCH_CLUSTER_RADIUS, BENCHES, DOOR, DOOR_RING, doorInset, doorLocal, ENTRY_Z, EXIT_KIOSK, FOUNTAIN_RADIUS, MID_ANGLES, PLAZA_RADIUS, PORTALS, RING_ANGLES, ringPoint, TOTEMS, VESTIBULE_DEPTH, WAYFINDING } from "./layout";
+import { ringOf, BENCH_CLUSTER_RADIUS, BENCHES, DOOR, DOOR_RING, doorInset, doorLocal, ENTRY_Z, EXIT_KIOSK, FOUNTAIN_RADIUS, MID_ANGLES, PLAZA_RADIUS, PORTALS, RING_ANGLES, ringPoint, TOTEMS, VESTIBULE_DEPTH, WAYFINDING } from "./layout";
 import { doorOpen } from "./transition";
+import { onCampusWalk } from "./campus";
 import { inBuilding } from "./footprints";
 import { arcPoint, GATE_ARCS, PLAZA_ARCS, PLAZA_BEDS, RING_PLANTERS, type ArcBed } from "./beds";
 import { GATE_Z, GUARD_POST, KIOSK } from "./gate/Gate";
@@ -156,7 +157,7 @@ function cameraBlocked(x: number, y: number, z: number, list: Obstacle[]): boole
   // the buildings stand on the ring beyond the plaza edge (except the open sky over the avenue / gate)
   const r = Math.hypot(x, z);
   // the Fight walk (P3-FGT-01) runs over open lawn: the camera may follow you along it (never into a building)
-  if (r > DOOR_RING - 0.3 && y < 11 && onFightWalk(x, z, 6) && !inBuilding(x, z, 0.4)) return false;
+  if (r > DOOR_RING - 0.3 && y < 11 && onCampusWalk(x, z, 6) && !inBuilding(x, z, 0.4)) return false;
   if (r > DOOR_RING - 0.3 && y < 11 && !(Math.abs(x) < 10 && z > PLAZA_RADIUS - 3)) {
     // …except through an open hall door: the lobby behind it is open space (stepping out of a hall, the camera
     // starts in the doorway behind you, exactly where the hall's camera was)

@@ -25,7 +25,8 @@ import { useDoorway } from "./doorway";
 import { doorRefusal } from "./door-access";
 import { clearHandoff, peekHandoff } from "./stage";
 import { cameraArm, freePoint, planRoute, plazaObstacles, resolve } from "./obstacles";
-import { clampToFightWalk, FIGHT_WALK_POINTS, fightWalkDepth, fightWalkRoute, onFightWalk, ringOf } from "./layout";
+import { ringOf } from "./layout";
+import { campusWalkRoute, clampToCampusWalk, onCampusWalk, walkDepth } from "./campus";
 import type { Tier } from "./materials";
 import { useWorld } from "@/lib/world-store";
 import { lookOf, useProfile } from "@/lib/profile-store";
@@ -47,6 +48,18 @@ import { aerialPivot, FOLLOW_MAX, isAerial, maxPitch, pinchZoom, viewPitch, whee
 export const WALK_SPEEDS = { slow: 1.4, normal: 2.2, fast: 3.2 } as const;
 const keys = new Set<string>();
 onReleaseInput(() => keys.clear()); // lost key-ups (area change, focus, background tab) never keep you walking
+
+/** Click-to-walk over the campus walks: the network's waypoints, the plaza crossings routed round the furniture. */
+function walkRoute(from: { x: number; z: number }, to: { x: number; z: number }): { x: number; z: number }[] {
+  const out: { x: number; z: number }[] = [];
+  let at = from;
+  for (const w of campusWalkRoute(from, to)) {
+    if (w.plaza) out.push(...planRoute(at, { x: w.x, z: w.z }));
+    else out.push({ x: w.x, z: w.z });
+    at = w;
+  }
+  return out;
+}
 
 /** Within this distance (m) of a hall door's doorstep you are "at the door" (door notices, GAP-004). */
 const DOOR_NOTICE_R = 4.5;
@@ -186,11 +199,16 @@ export function LocalPlayer({
       (p) => {
         const r = Math.hypot(p.x, p.z);
         // tapping a playable building's doorway walks you through it (the door opens as you arrive)
-        // a tap on the Fight walk (P3-FGT-01): along the walk's corners, then to the spot (and through the door)
-        if (r > PLAZA_RADIUS - 0.5 && onFightWalk(p.x, p.z, 0.6)) {
-          const startIn = Math.hypot(pos.current.x, pos.current.z) < PLAZA_RADIUS - 1.5;
-          const goal = fightWalkDepth(p.x, p.z).at;
-          route.current = startIn ? [...planRoute(pos.current, FIGHT_WALK_POINTS[0]!), ...fightWalkRoute(FIGHT_WALK_POINTS[0]!, goal)] : fightWalkRoute(pos.current, goal);
+        // a tap on a campus walk (P2-WLD-12, the generalised Fight walk): over the walk network (across the plaza to
+        // the best walk exit, along the walks' corners), then to the spot (and through a door there)
+        if (r > PLAZA_RADIUS - 0.5 && onCampusWalk(p.x, p.z, 0.6)) {
+          route.current = walkRoute(pos.current, walkDepth(p.x, p.z).at);
+          return route.current.shift()!;
+        }
+        // out on a walk, a tap back in the plaza: back along the walks to the plaza first
+        const out = Math.hypot(pos.current.x, pos.current.z) > PLAZA_RADIUS - 0.5 && onCampusWalk(pos.current.x, pos.current.z, 0.5);
+        if (out && r < PLAZA_RADIUS) {
+          route.current = walkRoute(pos.current, freePoint(p, plazaObstacles()));
           return route.current.shift()!;
         }
         for (const d of PORTALS) {
@@ -334,8 +352,8 @@ export function LocalPlayer({
         }
       }
     }
-    // beyond the plaza edge only the Fight walk is walkable (P3-FGT-01): slide along its kerbs
-    if (r > limit && !(r > PLAZA_RADIUS - 0.5 && clampToFightWalk(pos.current))) pos.current.multiplyScalar(limit / r);
+    // beyond the plaza edge only the campus walks are walkable (P2-WLD-12): slide along their kerbs
+    if (r > limit && !(r > PLAZA_RADIUS - 0.5 && clampToCampusWalk(pos.current))) pos.current.multiplyScalar(limit / r);
     // other people are solid: walk around them (soft push, no passing through) — except my partner in a hug
     for (const op of Object.values(w.players)) {
       if (op.id === people.partner) continue;
