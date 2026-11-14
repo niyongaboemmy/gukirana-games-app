@@ -10,7 +10,10 @@ import { newSeed } from "@gukirana/fairness";
 import type { PoolIntent, PoolState } from "@gukirana/pool";
 import { GameShell, Modal, ResultModal, TurnBanner, type PanelPlayer } from "@/games/GameShell";
 import { IgisoroBoard, previewMove, useConfirmTap, useSowAnimation } from "@/games/IgisoroBoard";
-import { LudoBoard, LudoControls, SeatLabel } from "@/games/LudoBoard";
+import { LudoBoard, LudoControls, SeatLabel, type LudoHandOf } from "@/games/LudoBoard";
+import { ludoHandSide } from "@/games/hand/ludo-hand";
+import { opponentHandLook } from "@/games/hand/look";
+import { useMyHandLook } from "@/games/hand/useHandLook";
 import { eventMs, ludoNotice } from "@/games/LudoGame";
 import { seatColors } from "@/games/ludo-board";
 import { PoolTable } from "@/games/PoolTable";
@@ -313,6 +316,19 @@ export function LiveMatch({ roomId }: { roomId: string }) {
   const opp = players.filter((p) => p.userId !== myId);
   const meInfo = players.find((p) => p.userId === myId);
   const nameOf = useCallback((id: string) => (id === myId ? "You" : (players.find((p) => p.userId === id)?.name ?? "Opponent")), [myId, players]);
+  // the real game hands (P2-GAME-07, presentation only): yours wears your avatar's look; an opponent's their seeded
+  // default look (the match does not carry look codes) in their colour, coming from their side of the table
+  const myHand = useMyHandLook();
+  const handLookOf = useCallback((id: string) => (id === myId ? myHand : opponentHandLook(id, null, players.find((p) => p.userId === id)?.color)), [myHand, myId, players]);
+  const ludoHandOf = useCallback<LudoHandOf>(
+    (id) => {
+      const p = players.find((x) => x.userId === id);
+      if (!p) return null;
+      return { side: ludoHandSide(p.seat, meInfo?.seat ?? 0), look: handLookOf(id), me: id === myId };
+    },
+    [handLookOf, meInfo?.seat, myId, players],
+  );
+  const oppHandLook = opp[0] ? handLookOf(opp[0].userId) : undefined;
 
   const ranks = result ? Object.values(result.ranks) : [];
   // a voided match (no-show, server error) also has equal ranks, but it is a refund, not a draw
@@ -365,6 +381,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
         preview={preview}
         selected={selected}
         autoFocus={canPlay}
+        oppLook={oppHandLook}
         onHover={(p) => (!coarse || p !== null) && setSelected(p)}
         onPick={(pit) => {
           if (coarse && selected !== pit) return setSelected(pit);
@@ -380,7 +397,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
   }
   if (state && game === "ludo") {
     const s = state as LudoState;
-    board = <LudoBoard state={s} movable={ludoMovable} onMove={(token) => send({ type: "move", token })} myId={myId} />;
+    board = <LudoBoard state={s} movable={ludoMovable} onMove={(token) => send({ type: "move", token })} myId={myId} handOf={ludoHandOf} />;
     for (const p of s.players) {
       const label = <SeatLabel seat={p.seat} home={p.tokens.filter((x) => x === HOME).length} />;
       if (p.id === myId) detailMe = label;
@@ -393,6 +410,9 @@ export function LiveMatch({ roomId }: { roomId: string }) {
         rolling={rolling}
         color={seatCols[cur?.seat ?? 0]!}
         rollId={s.rolls}
+        handOf={ludoHandOf}
+        rollerId={cur?.id ?? null}
+        throwerId={s.lastEvent?.kind === "roll" || s.lastEvent?.kind === "pass" ? s.lastEvent.player : null}
         canRoll={myTurn && s.phase === "roll"}
         onRoll={() => {
           setRolling(true);
@@ -406,7 +426,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
     const s = state as PoolState;
     const d = poolBefore ?? s;
     const mySide = (s.players.indexOf(myId) === 1 ? 1 : 0) as 0 | 1;
-    board = <PoolTable state={s} mySide={mySide} myTurn={myTurn} guide="short" names={[nameOf(s.players[0]), nameOf(s.players[1])]} onShoot={(i: PoolIntent) => send(i)} onReplayDone={() => setPoolBefore(null)} />;
+    board = <PoolTable state={s} mySide={mySide} myTurn={myTurn} guide="short" names={[nameOf(s.players[0]), nameOf(s.players[1])]} oppLook={oppHandLook} onShoot={(i: PoolIntent) => send(i)} onReplayDone={() => setPoolBefore(null)} />;
     detailMe = <GroupBalls s={d} side={mySide} />;
     for (const o of opp) detailOpp[o.userId] = <GroupBalls s={d} side={(1 - mySide) as 0 | 1} />;
     footer = d.lastShot ? <p className="text-center text-xs text-on-glass-muted sm:text-sm">{d.lastShot.message}</p> : null;

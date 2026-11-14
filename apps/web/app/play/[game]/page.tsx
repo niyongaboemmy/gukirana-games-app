@@ -9,6 +9,8 @@ const GAMES = {
   pool: dynamic(() => import("@/games/PoolGame"), { ssr: false, loading: Loading }),
   ludo: dynamic(() => import("@/games/LudoGame"), { ssr: false, loading: Loading }),
   igisoro: dynamic(() => import("@/games/IgisoroGame"), { ssr: false, loading: Loading }),
+  // dev-only tuning page for the game hands (P2-GAME-07); never routed in production builds
+  ...(process.env.NODE_ENV === "development" ? { "hand-lab": dynamic(() => import("@/games/hand/HandLab"), { ssr: false, loading: Loading }) } : {}),
 } as const;
 
 /**

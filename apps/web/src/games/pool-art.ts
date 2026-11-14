@@ -100,9 +100,27 @@ export function paintTable(spec: TableSpec): HTMLCanvasElement {
   g.fillRect(0, h - cush, w, cush);
   g.fillRect(0, 0, cush, h);
   g.fillRect(w - cush, 0, cush, h);
+  // rubber under the cushion cloth: a dark seam with a soft lit nose (P2-GAME-07)
+  g.strokeStyle = "rgba(0,0,0,.28)";
+  g.lineWidth = 1.6 * u;
+  g.strokeRect(cush + 0.8 * u, cush + 0.8 * u, w - cush * 2 - 1.6 * u, h - cush * 2 - 1.6 * u);
   g.strokeStyle = "rgba(255,255,255,.14)";
   g.lineWidth = 1.2 * u;
   g.strokeRect(cush, cush, w - cush * 2, h - cush * 2);
+  // three overhead lamps: warm pools of light on the cloth, falling off towards the rails (matte, no glare)
+  for (const lx of [w * 0.22, w * 0.5, w * 0.78]) {
+    const lamp = g.createRadialGradient(lx, h / 2, 0, lx, h / 2, h * 0.62);
+    lamp.addColorStop(0, "rgba(255,244,214,.10)");
+    lamp.addColorStop(0.55, "rgba(255,240,205,.04)");
+    lamp.addColorStop(1, "rgba(255,240,205,0)");
+    g.fillStyle = lamp;
+    g.fillRect(0, 0, w, h);
+  }
+  const fall = g.createRadialGradient(w / 2, h / 2, h * 0.35, w / 2, h / 2, w * 0.62);
+  fall.addColorStop(0, "rgba(0,0,0,0)");
+  fall.addColorStop(1, "rgba(0,0,0,.2)");
+  g.fillStyle = fall;
+  g.fillRect(0, 0, w, h);
   // head string and spots
   g.strokeStyle = "rgba(255,255,255,.10)";
   g.lineWidth = u;
@@ -162,9 +180,11 @@ export function paintTable(spec: TableSpec): HTMLCanvasElement {
     g.stroke();
     g.setLineDash([]);
     const hole = g.createRadialGradient(px - pr * 0.25, py - pr * 0.25, pr * 0.1, px, py, pr);
+    // the drop: the net's mesh catches a little light at the far side, deep black in the middle
     hole.addColorStop(0, "#000");
-    hole.addColorStop(0.8, "#070605");
-    hole.addColorStop(1, "#1a120c");
+    hole.addColorStop(0.55, "#050403");
+    hole.addColorStop(0.85, "#120c08");
+    hole.addColorStop(1, "#2a1b10");
     g.fillStyle = hole;
     g.beginPath();
     g.arc(px, py, pr, 0, Math.PI * 2);
@@ -340,6 +360,45 @@ export function drawCueHands(g: CanvasRenderingContext2D, x: number, y: number, 
       g.stroke();
     }
   }
+  g.restore();
+}
+
+/** Real hand sprites (rendered once from the 3D game hand, P2-GAME-07) for the bridge and the grip. */
+export interface CueHandSprites {
+  bridge: HandSpriteLike;
+  grip: HandSpriteLike;
+}
+interface HandSpriteLike {
+  img: CanvasImageSource & { width: number; height: number };
+  pxPerM: number;
+  ax: number;
+  ay: number;
+  cueAngle: number;
+}
+
+/**
+ * The real hands on the cue (table units, same frame as drawCue / drawCueHands; 1 unit = 0.1 mm, so the sprites are
+ * drawn at true size). "back": the left bridge hand flat on the cloth, the cue resting in the V of thumb and index;
+ * "front": the right hand's fist round the butt, travelling with the pull-back.
+ */
+export function drawCueHandSprites(g: CanvasRenderingContext2D, x: number, y: number, angle: number, tip: number, bridge: number, k: number, layer: "back" | "front", sp: CueHandSprites) {
+  g.save();
+  g.translate(x, y);
+  g.rotate(angle + Math.PI); // +x runs from the cue ball back along the cue
+  const s = k / 25;
+  const draw = (h: HandSpriteLike, at: number, mirror: boolean, extra: number) => {
+    const u = (10000 / h.pxPerM) * 1.15; // units per sprite pixel (a touch over life size so the hands read on a phone)
+    g.save();
+    g.translate(at, 0);
+    // turn the sprite so its cue direction lies along −x (towards the cue ball)
+    g.rotate(Math.PI - (mirror ? Math.PI - h.cueAngle : h.cueAngle) + extra);
+    if (mirror) g.scale(-1, 1);
+    g.drawImage(h.img, -h.ax * u, -h.ay * u, h.img.width * u, h.img.height * u);
+    g.restore();
+  };
+  // the bridge hand points along the cue (the V under it); its forearm angles off to the side (wrist deviation)
+  if (layer === "back") draw(sp.bridge, bridge + 250 * s, true, 0);
+  else draw(sp.grip, tip + 6300 * s, false, 0);
   g.restore();
 }
 
