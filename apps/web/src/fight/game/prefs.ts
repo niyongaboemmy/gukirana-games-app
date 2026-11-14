@@ -37,7 +37,15 @@ export const useFightPrefs = create<FightPrefs>()(
   persist((set) => ({ ...DEFAULT_FIGHT_PREFS, set: (p) => set(p) }), {
     name: "gk-fight-prefs",
     storage: createJSONStorage(() => localStorage),
-    partialize: ({ set: _set, ...rest }) => rest,
+    partialize: (s): FightPrefsData => ({
+      sound: s.sound,
+      vibration: s.vibration,
+      guardToggle: s.guardToggle,
+      buttonSize: s.buttonSize,
+      leftHanded: s.leftHanded,
+      reducedMotion: s.reducedMotion,
+      speed: s.speed,
+    }),
   }),
 );
 

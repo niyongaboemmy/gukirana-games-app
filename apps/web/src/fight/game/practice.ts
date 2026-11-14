@@ -41,8 +41,9 @@ export class PracticeSession {
   readonly level: BotLevel;
   private readonly rng: PracticeRng;
   private seq = 0;
-  private guard = true;
-  private guardSent = true;
+  /** hold-to-guard: the guard starts down (the engine's default stance is guard up, so it is sent once) */
+  private guard = false;
+  private guardSent = false;
   private press: BoxingAction | null = null;
   private introLeft = GLOVE_UP_TICKS;
   private onRoundEnd?: (round: number, score: [number, number]) => void;
@@ -60,7 +61,8 @@ export class PracticeSession {
     this.rng = opts.rng;
     this.onRoundEnd = opts.onRoundEnd;
     const rules = opts.rules ?? DEFAULT_FIGHT_RULES;
-    this.state = createFight(["me", "ai"], rules);
+    const fresh = createFight(["me", "ai"], rules);
+    this.state = { ...fresh, fighters: [{ ...fresh.fighters[0], guard: false }, fresh.fighters[1]] };
     useFightBridge.setState({
       mine: {
         ring: opts.ring,
