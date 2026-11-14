@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
@@ -20,7 +20,8 @@ import { FightersLayer } from "./fighters";
 import { FightCamera } from "./camera";
 import { RingCloseInfo } from "./ring-info";
 import "./hooks"; // registers the Boxing hall's hall hooks
-import { startFightMock } from "./mock";
+import { fightMockOn, startFightMock } from "./mock";
+import { useBoxingNetClient } from "./game/net/client";
 import { hiddenPeople } from "@/rooms/hall-hooks";
 import { fightActions } from "./actions";
 
@@ -48,8 +49,10 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
     () => rings.filter((r) => r.feature).map((r) => ({ ...r, number: Number(r.id.slice(1)), rest: restKey.includes(r.id + "") && restKey.length > 0 })),
     [rings, restKey],
   );
+  const [mock] = useState(fightMockOn);
   return (
     <group>
+      {!mock && <LiveNet />}
       <HallLights lite={lite} />
       <Shell layout={layout} lite={lite} />
       <FeatureStage />
@@ -66,6 +69,12 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
       </group>
     </group>
   );
+}
+
+/** G2's live boxing client (hall ring registry, claim / join / quick / watch); the mock replaces it behind ?fightmock=1 */
+function LiveNet() {
+  useBoxingNetClient();
+  return null;
 }
 
 function HallLights({ lite }: { lite: boolean }) {
