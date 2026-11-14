@@ -5,8 +5,28 @@ import { playEmote } from "@/lib/realtime";
 import { nav } from "@/world/navigation";
 import { hallHooks, walkQueue } from "@/rooms/hall-hooks";
 import type { Rect } from "@/rooms/layouts";
+import { useRoom } from "@/rooms/room-store";
+import { getUp, sitDown } from "@/rooms/RoomPlayer";
+import { useConsole } from "@/console/console-store";
+import { voiceScope } from "@/voice/voice";
 import { canEnter, enterOffice, leaveOffice, useOffices } from "./office-client";
-import { doorFront, doorInside, doorRect, FRONT_Z, OFFICE_PLANS, officeAt, officePlan, routeBetween, zoneOf, type P } from "./plan";
+import {
+  ADMIN_SEATS,
+  adminSeat,
+  doorFront,
+  doorInside,
+  doorRect,
+  FRONT_Z,
+  OFFICE_PLANS,
+  officeAt,
+  officePlan,
+  RECEPTION_TALK,
+  RECEPTION_TALK_R,
+  routeBetween,
+  visitorApproach,
+  zoneOf,
+  type P,
+} from "./plan";
 
 /**
  * Office doors on the client (P2-ADM-02). Each door is a collider while closed; it swings open (into the office)
@@ -73,16 +93,72 @@ export function knockAt(id: string): void {
   enterOffice(id);
 }
 
+/** may this chair be offered to you? lobby: always; office chairs: only inside that office; the officer's chair: staff */
+export function seatOk(id: string): boolean {
+  const seat = adminSeat(id);
+  if (!seat) return false;
+  if (seat.kind === "lobby") return true;
+  const s = useOffices.getState();
+  if (s.inside !== seat.table) return false;
+  return seat.kind !== "officer" || (s.via === "role" && canEnter(seat.table));
+}
+
+/** a person's office from where they stand (inside the office, past the door line) */
+const officeOfPerson = (x: number, z: number) => (z < FRONT_Z - 0.3 ? officeAt(x, z)?.id ?? null : null);
+
+/**
+ * Voice in the block: an office is a closed room. Inside one you hear (and are heard by) only the people in its
+ * conversation, at full level; in the lobby / corridor, the normal proximity voice, never through an office wall.
+ */
+function bindVoiceZones() {
+  voiceScope.allow = (id) => {
+    const s = useOffices.getState();
+    if (s.inside) return s.members.some((m) => m.id === id);
+    const p = useWorld.getState().players[id];
+    return !!p && !officeOfPerson(p.x / 100, p.z / 100);
+  };
+  voiceScope.room = (id) => {
+    const s = useOffices.getState();
+    return !!s.inside && s.members.some((m) => m.id === id);
+  };
+}
+
+/** Choose a free visitor chair in `office` (else a meeting chair), walk round the row and sit (after being let in). */
+let pendingSeat: { office: string; seat: string | null; phase: "wait" | "walk" } | null = null;
+export function guideToSeat(office: string): void {
+  pendingSeat = { office, seat: null, phase: "wait" };
+}
+/** the free chair of that kind nearest to `near` */
+function freeSeat(office: string, kind: "visitor" | "meeting", near: P = selfPose): string | null {
+  const w = useWorld.getState();
+  const free = ADMIN_SEATS.filter((x) => x.table === office && x.kind === kind && (!w.seats[x.id] || w.seats[x.id] === w.you));
+  free.sort((a, b) => Math.hypot(a.x - near.x, a.z - near.z) - Math.hypot(b.x - near.x, b.z - near.z));
+  return free[0]?.id ?? null;
+}
+
 export function registerAdminHooks(): () => void {
-  hallHooks.admin = { solids: closedDoors, route: routeBetween, tap: tapTarget };
-  // let in (or a role holder admitted) while standing at the door: walk on in once the door has swung open
+  hallHooks.admin = { solids: closedDoors, route: routeBetween, tap: tapTarget, seatOk, frozen: () => useConsole.getState().open };
+  bindVoiceZones();
   const unsub = useOffices.subscribe((s, prev) => {
-    if (s.admitted && s.admitted !== prev.admitted) pendingWalkIn = s.admitted;
+    if (s.admitted && s.admitted !== prev.admitted) {
+      // let in (or a role holder admitted) while standing at the door: walk on in once the door has swung open;
+      // let in while waiting elsewhere (seated in the lobby): stand up and walk to the door first
+      pendingWalkIn = s.admitted;
+      const o = officePlan(s.admitted);
+      if (o && Math.hypot(selfPose.x - o.cx, selfPose.z - FRONT_Z) > 2.4) {
+        if (useRoom.getState().seated) getUp();
+        goToOffice(s.admitted);
+      }
+      if (s.via === "invite") guideToSeat(s.admitted);
+    }
   });
   return () => {
     unsub();
     delete hallHooks.admin;
+    voiceScope.allow = null;
+    voiceScope.room = null;
     pendingWalkIn = null;
+    pendingSeat = null;
     suppressAuto = null;
     lastAtDoor = null;
     for (const d of Object.values(doors)) d.open = 0;
@@ -148,6 +224,41 @@ export function updateDoors(dt: number): void {
       }
     }
   }
+
+  // let in: once inside and the walk-in is done, round the visitor row to a free chair and sit down
+  if (pendingSeat) {
+    const ps = pendingSeat;
+    const o = officePlan(ps.office);
+    const R = useRoom.getState();
+    if (!o || s.admitted !== ps.office || R.seated || R.leaving) pendingSeat = null;
+    else if (s.inside === ps.office && !nav.target && !walkQueue.legs.length && !pendingWalkIn) {
+      if (ps.phase === "wait") {
+        const approach = visitorApproach(o, selfPose);
+        const visitor = freeSeat(ps.office, "visitor", approach);
+        ps.seat = visitor ?? freeSeat(ps.office, "meeting");
+        if (!ps.seat) pendingSeat = null;
+        else if (visitor) {
+          ps.phase = "walk";
+          nav.target = approach;
+          nav.goal = null;
+          nav.progress = { best: Infinity, since: performance.now(), detours: 0 };
+        } else {
+          pendingSeat = null;
+          sitDown(ps.seat);
+        }
+      } else {
+        pendingSeat = null;
+        const w = useWorld.getState();
+        const holder = ps.seat ? w.seats[ps.seat] : undefined;
+        const seat = holder && holder !== w.you ? freeSeat(ps.office, "visitor") ?? freeSeat(ps.office, "meeting") : ps.seat;
+        if (seat) sitDown(seat);
+      }
+    }
+  }
+
+  // at the reception counter (lobby): Talk to reception
+  const atRec = z.kind === "lobby" && Math.hypot(selfPose.x - RECEPTION_TALK.x, selfPose.z - RECEPTION_TALK.z) < RECEPTION_TALK_R;
+  if (atRec !== s.atReception) s.set({ atReception: atRec });
 
   // people seen inside each office (lamp + directory fallback while the server's count is unknown)
   presenceTick += dt;

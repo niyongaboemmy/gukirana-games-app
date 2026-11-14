@@ -140,7 +140,7 @@ export function paintDirectory(t: THREE.CanvasTexture | null, rows: DirectoryRow
     g.font = `500 30px ${SANS}`;
     g.fillText(r.status, W - 336, r.note ? y + 42 : y + 52);
     if (r.note) {
-      g.fillStyle = "#93c5fd";
+      g.fillStyle = "#e3c98f"; // warm note (queue / you can enter), no blue
       g.font = `500 22px ${SANS}`;
       g.fillText(r.note, W - 336, y + 76);
     }

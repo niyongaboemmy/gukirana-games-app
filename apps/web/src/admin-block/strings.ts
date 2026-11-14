@@ -53,13 +53,55 @@ export const S = {
   reception: "RECEPTION",
   officesSign: "OFFICES",
   exitSign: "EXIT · PLAZA",
+
+  /* ---- P2-ADM-04: reception, waiting, queue, seats, conversation, computer ---- */
+  talkReception: "Talk to reception",
+  receptionTitle: "Reception",
+  receptionHello: "Hello, welcome to the Administrative Block. I can tell you which offices are staffed right now and show you the way.",
+  receptionChips: ["Who is in?", "Is the Accountant available?", "Take me to the IT Office"],
+  receptionPlaceholder: "Ask about an office…",
+  receptionSend: "Send",
+  receptionThinking: "One moment…",
+  receptionOffline: "Sorry, I can't check the offices right now. The directory board shows their status.",
+  receptionBusy: "One moment, please. Ask me again in a few seconds.",
+  receptionSignIn: "Please sign in at the gate to ask at reception.",
+  receptionNote: "Reception only knows this block's offices. Nothing you type is stored.",
+  takeMeThere: (name: string) => `Take me to the ${name}`,
+  askedToWait: (office: string) => `${office} asked you to wait`,
+  officeFull: "The office is full — please wait in the lobby",
+  waitHint: "You stay in the queue. Take a seat in the lobby; you will be called in.",
+  waitLeft: (min: number) => (min <= 1 ? "Less than a minute left in the queue" : `${min} min left in the queue`),
+  queueTitle: (n: number) => (n === 1 ? "1 visitor at your door" : `${n} visitors at your door`),
+  waitingSince: (s: number) => (s < 60 ? `${s}s` : `${Math.floor(s / 60)} min`),
+  pleaseWait: "Please wait",
+  asked: "Asked to wait",
+  fullNote: "Office full: Let in keeps them waiting",
+  queued: (n: number) => (n === 1 ? "1 waiting" : `${n} waiting`),
+  sitDown: "Sit down",
+  takeSeat: "Take a seat",
+  sitDesk: "Sit at your desk",
+  standUp: "Stand up",
+  seated: "Seated",
+  inConversation: "In conversation",
+  conversation: (office: string) => `${office} · conversation`,
+  chatTab: "Chat",
+  peopleTab: "People",
+  chatPlaceholder: "Message the people in this office…",
+  chatEmpty: "Only the people in this office see these messages and hear your voice here.",
+  staffLabel: "Staff",
+  visitorLabel: "Visitor",
+  you: "you",
+  voiceOn: "Voice on",
+  voiceOff: "Turn on voice",
+  useComputer: "Use computer",
+  seatRefused: "That chair is for this office's staff.",
 } as const;
 
-/** the status of an office door, from the number of staff inside */
+/** the status of an office door: vacant, staff inside, or in a meeting (staff with a visitor, or several staff) */
 export type DoorStatus = "vacant" | "staff" | "busy";
-export const doorStatus = (occupants: number): DoorStatus => (occupants <= 0 ? "vacant" : occupants === 1 ? "staff" : "busy");
-export const statusLabel = (occupants: number) => {
-  const s = doorStatus(occupants);
+export const doorStatus = (occupants: number, visitors = 0): DoorStatus => (occupants <= 0 ? "vacant" : occupants === 1 && visitors <= 0 ? "staff" : "busy");
+export const statusLabel = (occupants: number, visitors = 0) => {
+  const s = doorStatus(occupants, visitors);
   return s === "vacant" ? S.vacant : s === "staff" ? S.staffInside(occupants) : S.busy;
 };
 /** lamp / dot colours: vacant = neutral grey, staff inside = green, in a meeting = amber */

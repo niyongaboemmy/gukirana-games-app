@@ -44,8 +44,8 @@ export const api = {
     await fetch(`${env.API_INTERNAL_URL}/internal/presence`, { method: "POST", headers, body: JSON.stringify({ room, area, count, signedIn }), signal: AbortSignal.timeout(3000) }).catch(() => undefined);
   },
   /** staff per office in one admin-block room (the API sums rooms for the reception directory) */
-  reportOccupancy: async (room: string, offices: Record<string, number>) => {
-    const r = await fetch(`${env.API_INTERNAL_URL}/internal/admin-block/occupancy`, { method: "POST", headers, body: JSON.stringify({ room, offices }), signal: AbortSignal.timeout(3000) });
+  reportOccupancy: async (room: string, offices: Record<string, number>, visitors: Record<string, number> = {}) => {
+    const r = await fetch(`${env.API_INTERNAL_URL}/internal/admin-block/occupancy`, { method: "POST", headers, body: JSON.stringify({ room, offices, visitors }), signal: AbortSignal.timeout(3000) });
     if (!r.ok) throw new Error(`API_${r.status}`);
   },
   /** Tournament Arena (P2-ARN-02): building switch, current event, active bars — polled ~5 s by social/arena-access.ts */

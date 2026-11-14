@@ -387,8 +387,15 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     } else if (pick.req) planPick(pick.req);
     else if (pick.table) followPick();
     const seat = R.seated ? layout.seats.find((s) => s.id === R.seated) : undefined;
+    const frozen = !!hooks?.frozen?.();
+    if (frozen) {
+      // a full-screen window has the keyboard (the office computer): no walking, no standing up, until it closes
+      keys.clear();
+      nav.target = null;
+      walkQueue.legs = [];
+    }
     const run = W.input.run || keys.has("ShiftLeft") || keys.has("ShiftRight") || R.leaving; // Leave: a brisk walk out
-    const wantsToWalk = keys.has("KeyW") || keys.has("ArrowUp") || keys.has("KeyS") || keys.has("ArrowDown") || Math.hypot(W.input.x, W.input.y) > 0.3 || !!nav.target;
+    const wantsToWalk = !frozen && (keys.has("KeyW") || keys.has("ArrowUp") || keys.has("KeyS") || keys.has("ArrowDown") || Math.hypot(W.input.x, W.input.y) > 0.3 || !!nav.target);
     if (seat && wantsToWalk) {
       // walking (keys / joystick / click) while seated = stand up; turning keys don't
       releaseSeat();
@@ -496,7 +503,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
         nav.goal = null;
         nav.progress = { best: Infinity, since: performance.now(), detours: 0 };
       }
-      const s = steer({ keys, joyX: W.input.x, joyY: W.input.y, camYaw: cameraState.yaw, facing: facing.current, x: pos.current.x, z: pos.current.z, walkSpeed: WALK_SPEEDS[W.speed] ?? WALK_SPEEDS.slow, run, dt });
+      const s = steer({ keys, joyX: frozen ? 0 : W.input.x, joyY: frozen ? 0 : W.input.y, camYaw: cameraState.yaw, facing: facing.current, x: pos.current.x, z: pos.current.z, walkSpeed: WALK_SPEEDS[W.speed] ?? WALK_SPEEDS.slow, run, dt });
       pos.current.x += s.dx;
       pos.current.z += s.dz;
       facing.current = s.facing;
@@ -729,6 +736,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
         const holder = W.seats[s.id];
         if (holder && holder !== W.you) continue;
         if (leftChair.current) continue; // just stood up: no "Sit down" straight back
+        if (hooks?.seatOk && !hooks.seatOk(s.id)) continue; // e.g. an office chair you may not take
         const dist = Math.hypot(s.x - pos.current.x, s.z - pos.current.z);
         if (dist < best) {
           best = dist;

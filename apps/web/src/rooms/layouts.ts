@@ -1,5 +1,5 @@
 /** Hall interiors (metres, DESIGN-SPEC §6.1/§6.4). Room spans x ∈ [-W/2, W/2], z ∈ [-D/2, D/2]; entrance door on the south wall (+z). */
-import { ADMIN_COLLIDERS, ADMIN_COLOR, ADMIN_SIZE, ADMIN_WALLS } from "@/admin-block/plan";
+import { ADMIN_COLLIDERS, ADMIN_COLOR, ADMIN_SEATS, ADMIN_SIZE, ADMIN_WALLS } from "@/admin-block/plan";
 import { ARENA_COLLIDERS, ARENA_COLOR, ARENA_SIZE, BOWL_SEATS } from "@/arena/bowl";
 
 export type HallGame = "pool" | "ludo" | "igisoro" | "admin" | "arena";
@@ -256,11 +256,15 @@ export const HALLS: Record<HallGame, HallLayout> = {
   ),
   // Administrative Block (P2-ADM-02): no game tables. Reception lobby, a corridor and four closed offices
   // (admin-block/plan.ts); the walls are solid for walking and the camera, the office doors are dynamic colliders.
-  admin: build("admin", "Administrative Block", "Reception · four offices", ADMIN_COLOR, [], () => [], ADMIN_COLLIDERS, {
-    size: { ...ADMIN_SIZE },
-    aisles: [0],
-    walls: ADMIN_WALLS,
-  }),
+  // Its seats (P2-ADM-04: lobby sofa / armchairs / benches, officer + visitor + meeting chairs) are not table chairs.
+  admin: {
+    ...build("admin", "Administrative Block", "Reception · four offices", ADMIN_COLOR, [], () => [], ADMIN_COLLIDERS, {
+      size: { ...ADMIN_SIZE },
+      aisles: [0],
+      walls: ADMIN_WALLS,
+    }),
+    seats: ADMIN_SEATS.map(({ id, table, x, z, yaw }) => ({ id, table, x, z, yaw })),
+  },
   // Tournament Arena (P2-ARN-03): a round bowl, not a table hall. Its 1,224 seats are the contract's bowl seats
   // (arena/bowl.ts, ids from ARENA_BOWL); walking, levels and routes come from the arena's hall hooks (arena/hooks.ts).
   arena: {

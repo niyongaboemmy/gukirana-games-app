@@ -13,11 +13,6 @@ import {
   isHallId,
   isKnownAnim,
   NEARBY_CHAT_RANGE,
-  OfficeAnswerSchema,
-  OfficeEnterSchema,
-  OfficeEvt,
-  OfficeMsg,
-  type OfficeRefusal,
   PAIR_MS,
   PairRequestSchema,
   PairRespondSchema,
@@ -38,8 +33,7 @@ import { CallRegistry } from "../social/calls.js";
 import { InterestManager, TICK_MS, type Mover } from "../social/interest.js";
 import { RateLimiter } from "../social/rate.js";
 import { PairRegistry } from "../social/pairs.js";
-import { OfficeRegistry, type Via } from "../social/offices.js";
-import { accessOf, officeConfig, reportOccupancy } from "../social/office-access.js";
+import { OfficeDesk } from "./office-desk.js";
 import { ArenaHall } from "./arena-hall.js";
 import { arenaConfig } from "../social/arena-access.js";
 
@@ -95,7 +89,8 @@ export class WorldRoom extends Room {
   private interest = new InterestManager();
   private rate = new RateLimiter();
   private pairs = new PairRegistry();
-  private offices = new OfficeRegistry();
+  /** Administrative Block only (hall "admin") */
+  private desk: OfficeDesk | null = null;
   /** Tournament Arena rules (hall "arena" only, P2-ARN-02) */
   private arena: ArenaHall | null = null;
   private lastChat = new Map<string, number>();
@@ -181,84 +176,6 @@ export class WorldRoom extends Room {
     this.client(c.to)?.send("call-ended", { id: c.id, reason });
   }
 
-  // ---------------------------------------------------------------- Administrative Block offices (hall "admin")
-  private refuse(sid: string, office: string, reason: OfficeRefusal, knockId?: string) {
-    this.client(sid)?.send(OfficeEvt.refused, knockId ? { office, knockId, reason } : { office, reason });
-  }
-  private officeChanged(office: string) {
-    this.broadcast(OfficeEvt.occupancy, { office, occupants: this.offices.staff(office).length });
-    reportOccupancy(this.roomId, this.offices.snapshot());
-  }
-  /** Sessions inside `office` who may answer its door right now (fresh role check, cached ~15 s). */
-  private async answerers(office: string): Promise<string[]> {
-    const out: string[] = [];
-    for (const sid of this.offices.staff(office)) {
-      const uid = this.users.get(sid)?.sub;
-      if (uid && (await accessOf(uid)).offices.includes(office)) out.push(sid);
-    }
-    return out;
-  }
-  private admit(sid: string, office: string, via: Via) {
-    const prev = this.offices.enter(sid, office, via);
-    for (const k of this.offices.knocksBy(sid)) if (k.office === office) this.offices.take(k.id);
-    this.client(sid)?.send(OfficeEvt.admitted, { office, via });
-    if (prev) this.leftOffice(prev);
-    this.officeChanged(office);
-  }
-  /** After someone left `office`: update the lamps; knocks nobody can answer any more are refused. */
-  private leftOffice(office: string) {
-    this.officeChanged(office);
-    if (this.offices.staff(office).length) return;
-    for (const k of this.offices.knocksTo(office)) if (this.offices.take(k.id)) this.refuse(k.from, office, "NOBODY_INSIDE", k.id);
-  }
-
-  private async onOfficeEnter(client: Client, raw: unknown) {
-    const parsed = OfficeEnterSchema.safeParse(raw);
-    if (!parsed.success) return;
-    const sid = client.sessionId;
-    const { office } = parsed.data;
-    const me = this.users.get(sid);
-    if (!me) return this.refuse(sid, office, "LOGIN_REQUIRED");
-    if (this.offices.officeOf(sid) === office) return client.send(OfficeEvt.admitted, { office, via: this.offices.viaOf(sid) });
-    const acc = await accessOf(me.sub);
-    if (!this.players.has(sid)) return; // left meanwhile
-    if (!acc.known.includes(office)) return this.refuse(sid, office, "NOT_ALLOWED");
-    if (acc.offices.includes(office)) return this.admit(sid, office, "role");
-    const open = this.offices.openKnockFrom(sid, office);
-    if (open) return client.send(OfficeEvt.knocking, { office, knockId: open.id, expiresInMs: Math.max(0, open.expires - Date.now()) });
-    const inside = await this.answerers(office);
-    if (!this.players.has(sid) || this.offices.officeOf(sid) === office) return;
-    if (!inside.length) return this.refuse(sid, office, "NOBODY_INSIDE");
-    // no awaits from here: the rate check and the new knock happen together
-    const now = Date.now();
-    if (this.offices.openKnockFrom(sid, office)) return;
-    if (!this.offices.mayKnock(sid, office, now, officeConfig.knockGapMs, officeConfig.maxOpenKnocks)) return this.refuse(sid, office, "RATE_LIMITED");
-    const ttl = officeConfig.knockTtlMs;
-    const k = this.offices.knock(sid, office, now, ttl);
-    client.send(OfficeEvt.knocking, { office, knockId: k.id, expiresInMs: ttl });
-    const p = this.players.get(sid)!;
-    for (const s of inside) this.client(s)?.send(OfficeEvt.knock, { office, knockId: k.id, from: { id: p.id, name: p.name, level: p.level }, expiresInMs: ttl });
-    this.clock.setTimeout(() => {
-      // look the knocker up now (never the client object captured above)
-      const gone = this.offices.take(k.id);
-      if (gone) this.refuse(gone.from, gone.office, "EXPIRED", gone.id);
-    }, ttl);
-  }
-
-  private async onOfficeAnswer(client: Client, raw: unknown) {
-    const parsed = OfficeAnswerSchema.safeParse(raw);
-    if (!parsed.success) return;
-    const sid = client.sessionId;
-    const k = this.offices.get(parsed.data.knockId);
-    const me = this.users.get(sid);
-    if (!k || !me || this.offices.viaOf(sid) !== "role" || this.offices.officeOf(sid) !== k.office) return;
-    if (!(await accessOf(me.sub)).offices.includes(k.office)) return; // role revoked meanwhile
-    if (this.offices.officeOf(sid) !== k.office || !this.offices.take(k.id)) return; // answered by someone else / expired
-    if (!this.players.has(k.from)) return;
-    if (parsed.data.allow) this.admit(k.from, k.office, "invite");
-    else this.refuse(k.from, k.office, "DECLINED", k.id);
-  }
-
   override onCreate(options: { game?: unknown } = {}): void {
     this.hallGame = isHallId(options.game) ? options.game : null;
     this.seats = new SeatRegistry(this.hallGame ?? "plaza");
@@ -268,20 +185,21 @@ export class WorldRoom extends Room {
     // ---- staff console live monitor: people here, reported every 15 s and shortly after joins / leaves
     this.clock.setInterval(() => this.reportPresence(), 15_000);
 
-    // ---- Administrative Block (hall "admin"): closed offices — role holders walk in, everyone else knocks
-    if (this.hallGame === "admin") {
-      this.onMessage(OfficeMsg.enter, (client, raw: unknown) => void this.onOfficeEnter(client, raw));
-      this.onMessage(OfficeMsg.answer, (client, raw: unknown) => void this.onOfficeAnswer(client, raw));
-      this.onMessage(OfficeMsg.leave, (client, raw: { office?: unknown }) => {
-        const o = this.offices.officeOf(client.sessionId);
-        if (o && (raw?.office === undefined || raw.office === o) && this.offices.leave(client.sessionId)) this.leftOffice(o);
+    // ---- Administrative Block (hall "admin"): closed offices, knock queue, office chairs + conversation (office-desk.ts)
+    if (this.hallGame === "admin")
+      this.desk = new OfficeDesk({
+        roomId: this.roomId,
+        client: (sid) => this.client(sid),
+        player: (sid) => this.players.get(sid),
+        uid: (sid) => this.users.get(sid)?.sub,
+        broadcast: (type, payload) => this.broadcast(type, payload),
+        later: (fn, ms) => void this.clock.setTimeout(fn, ms),
+        every: (fn, ms) => void this.clock.setInterval(fn, ms),
+        onMessage: (type, fn) => void this.onMessage(type, (client, raw: unknown) => fn(client, raw)),
+        seats: this.seats,
+        broadcastSeats: () => this.broadcastSeats(),
+        rate: this.rate,
       });
-      // heartbeat so the API's reception count survives (and expires after) realtime restarts
-      this.clock.setInterval(() => {
-        const snap = this.offices.snapshot();
-        if (Object.keys(snap).length) reportOccupancy(this.roomId, snap);
-      }, officeConfig.reportMs);
-    }
 
     // ---- Tournament Arena (hall "arena"): entry gate, zones, bowl seats, removal on close / bar (rooms/arena-hall.ts)
     if (this.hallGame === "arena") {
@@ -303,6 +221,7 @@ export class WorldRoom extends Room {
 
     // ---- seats (hall chairs + plaza bench places): one person per seat, one seat per person
     this.onMessage("sit", (client, raw: { seat?: unknown }) => {
+      if (this.desk) return void this.desk.sit(client, raw?.seat); // admin chairs: who is inside / role checks
       const r = this.seats.claim(raw?.seat, client.sessionId);
       if (r === "taken") return client.send("seat-taken", { seat: raw.seat });
       if (r === "ok") this.broadcastSeats();
@@ -464,6 +383,9 @@ export class WorldRoom extends Room {
       if (!this.users.has(client.sessionId) || typeof raw?.to !== "string") return;
       const target = this.client(raw.to);
       if (!target || !this.users.has(target.sessionId) || !this.sees(client.sessionId, target.sessionId)) return;
+      // Administrative Block: office conversations are private (same office only), except a private call
+      const call = this.calls.callOf(client.sessionId);
+      if (this.desk && !this.desk.sameRoom(client.sessionId, target.sessionId) && !(call && (call.from === target.sessionId || call.to === target.sessionId))) return;
       const data = JSON.stringify(raw.data ?? null);
       if (data.length > 16_000) return; // SDP/ICE only
       if (!this.rate.allow(`${client.sessionId}:sig`, 200, 10_000, Date.now())) return; // flood guard
@@ -639,7 +561,7 @@ export class WorldRoom extends Room {
     const visible = [...this.players.values()].filter((p) => p.id === player.id || this.sees(player.id, p.id));
     client.send("snapshot", { you: player.id, players: visible });
     client.send("seats", this.seats.snapshot());
-    if (this.hallGame === "admin") for (const [office, occupants] of Object.entries(this.offices.snapshot())) client.send(OfficeEvt.occupancy, { office, occupants });
+    this.desk?.onJoin(client);
     this.sendVisible(client.sessionId, "joined", player);
     if (this.arena) await this.arena.joined(client.sessionId);
     this.presenceSoon();
@@ -678,16 +600,14 @@ export class WorldRoom extends Room {
     this.interest.forget(sid);
     for (const inv of this.pairs.forget(sid)) this.client(inv.from === sid ? inv.to : inv.from)?.send("pair-closed", { id: inv.id, to: sid, reason: "LEFT" });
     if (this.seats.release(sid)) this.broadcastSeats();
-    this.offices.forget(sid);
-    const office = this.offices.leave(sid);
-    if (office) this.leftOffice(office);
+    this.desk?.onLeave(sid);
     this.arena?.left(sid);
     this.presenceSoon();
   }
 
   override onDispose(): void {
     void api.reportPresence(this.roomId, this.hallGame ? `hall:${this.hallGame}` : "plaza", 0, 0);
-    if (this.hallGame === "admin") reportOccupancy(this.roomId, {});
+    this.desk?.dispose();
     if (this.arena) this.arena.report();
   }
 }

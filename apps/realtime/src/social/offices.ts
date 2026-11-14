@@ -6,11 +6,13 @@ export interface Knock {
   /** knocker's session id */
   from: string;
   expires: number;
+  /** "new": nobody answered yet; "waiting": staff said Please wait, or the office was full (P2-ADM-04) */
+  status: "new" | "waiting";
 }
 
 /**
- * Who is inside which Administrative Block office (by session; one office at a time) and the open knocks.
- * Pure state — the room does the access checks, messages and timers.
+ * Who is inside which Administrative Block office (by session; one office at a time) and the open knocks (a queue
+ * per office, oldest first). Pure state — the room does the access checks, messages and timers.
  */
 export class OfficeRegistry {
   private inside = new Map<string, Map<string, Via>>(); // office → session → via
@@ -56,6 +58,14 @@ export class OfficeRegistry {
   staff(office: string): string[] {
     return [...(this.inside.get(office)?.entries() ?? [])].filter(([, v]) => v === "role").map(([s]) => s);
   }
+  /** people who were let in (they take the visitor chairs) */
+  visitors(office: string): string[] {
+    return [...(this.inside.get(office)?.entries() ?? [])].filter(([, v]) => v === "invite").map(([s]) => s);
+  }
+  /** every visitor chair is taken */
+  isFull(office: string, capacity: number): boolean {
+    return this.visitors(office).length >= capacity;
+  }
   /** staff count per office (door lamps + reception directory) */
   snapshot(): Record<string, number> {
     const out: Record<string, number> = {};
@@ -74,6 +84,7 @@ export class OfficeRegistry {
   knocksBy(sid: string): Knock[] {
     return [...this.knocks.values()].filter((k) => k.from === sid);
   }
+  /** the office's queue, oldest first */
   knocksTo(office: string): Knock[] {
     return [...this.knocks.values()].filter((k) => k.office === office);
   }
@@ -88,9 +99,18 @@ export class OfficeRegistry {
   }
 
   knock(sid: string, office: string, now: number, ttlMs: number): Knock {
-    const k: Knock = { id: `k${++this.seq}`, office, from: sid, expires: now + ttlMs };
+    const k: Knock = { id: `k${++this.seq}`, office, from: sid, expires: now + ttlMs, status: "new" };
     this.knocks.set(k.id, k);
     this.lastKnock.set(`${sid}|${office}`, now);
+    return k;
+  }
+
+  /** Please wait / office full: the knock stays queued, its expiry pushed out to `until`. */
+  hold(id: string, until: number): Knock | undefined {
+    const k = this.knocks.get(id);
+    if (!k) return undefined;
+    k.status = "waiting";
+    k.expires = Math.max(k.expires, until);
     return k;
   }
 
@@ -101,9 +121,11 @@ export class OfficeRegistry {
     return k;
   }
 
-  /** Session gone: drop its knocks and rate-limit marks (its office is left via `leave`). */
-  forget(sid: string): void {
-    for (const k of this.knocksBy(sid)) this.knocks.delete(k.id);
+  /** Session gone: drop its knocks (returned, so the staff prompts can close) and its rate-limit marks. */
+  forget(sid: string): Knock[] {
+    const gone = this.knocksBy(sid);
+    for (const k of gone) this.knocks.delete(k.id);
     for (const key of [...this.lastKnock.keys()]) if (key.startsWith(`${sid}|`)) this.lastKnock.delete(key);
+    return gone;
   }
 }

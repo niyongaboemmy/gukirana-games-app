@@ -19,6 +19,9 @@ const EnvSchema = z.object({
   COIN_VALUE_RWF: z.coerce.number().int().positive().default(10),
   /** Dev / first-run bootstrap: comma-separated emails or phones that get the `super_admin` role at login. Unset = never. */
   BOOTSTRAP_SUPER_ADMINS: z.string().max(2000).optional(),
+  /** Administrative Block reception assistant (P2-ADM-04): optional; unset = the built-in rule-based receptionist */
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  RECEPTION_MODEL: z.string().min(1).default("claude-haiku-5-5"),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

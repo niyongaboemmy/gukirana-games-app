@@ -16,6 +16,14 @@ const MAX_PEERS = 8;
 /** a press shorter than this on the mic button / V toggles the open-mic lock instead of push-to-talk */
 export const TAP_MS = 260;
 
+/**
+ * Acoustic zones (P2-ADM-04, the Administrative Block offices): `allow(id)` false = you can't hear that person at
+ * all (they are in another closed office, or you are in an office and they are not); `room(id)` true = you share a
+ * private room with them (an office conversation): no distance falloff inside it. Unset = open space (plaza / halls).
+ * The realtime server enforces the same rule on the voice signalling.
+ */
+export const voiceScope: { allow: ((id: string) => boolean) | null; room: ((id: string) => boolean) | null } = { allow: null, room: null };
+
 type Status = "off" | "starting" | "on" | "denied" | "error";
 interface VoiceState {
   status: Status;
@@ -211,8 +219,10 @@ function manage() {
     const d = Math.hypot(p.x / 100 - selfPose.x, p.z / 100 - selfPose.z);
     const has = peers.has(p.id);
     const isCall = p.id === callPeer;
-    if (!has && p.verified && me() < p.id && (isCall || (available[p.id] && d < CONNECT_RANGE && peers.size < MAX_PEERS))) createPeer(p.id);
-    if (has && !isCall && d > DISCONNECT_RANGE) dropPeer(p.id, true);
+    const zoned = !voiceScope.allow || voiceScope.allow(p.id);
+    const inRoom = zoned && !!voiceScope.room?.(p.id);
+    if (!has && p.verified && me() < p.id && (isCall || (zoned && available[p.id] && (inRoom || d < CONNECT_RANGE) && peers.size < MAX_PEERS))) createPeer(p.id);
+    if (has && !isCall && (!zoned || (!inRoom && d > DISCONNECT_RANGE))) dropPeer(p.id, true);
     if (has && available[p.id] && d < VOICE_RANGE && peers.get(p.id)?.pc.connectionState === "connected") hearers++;
   }
   for (const id of peers.keys()) if (!players[id]) dropPeer(id);
@@ -268,8 +278,10 @@ function spatialize() {
     peer.nodes.panner.positionY.value = 1.6;
     peer.nodes.panner.positionZ.value = z;
     const d = Math.hypot(x - selfPose.x, z - selfPose.z);
-    // hard cut beyond range (privacy) with a short fade; mute / volume per person (FR-COM-07)
-    const range = d >= VOICE_RANGE ? 0 : d > VOICE_RANGE - 1.5 ? (VOICE_RANGE - d) / 1.5 : 1;
+    // hard cut beyond range (privacy) with a short fade; mute / volume per person (FR-COM-07); acoustic zones
+    // (closed offices) cut entirely, a shared office is heard in full
+    const zoned = !voiceScope.allow || voiceScope.allow(id);
+    const range = !zoned ? 0 : voiceScope.room?.(id) ? 1 : d >= VOICE_RANGE ? 0 : d > VOICE_RANGE - 1.5 ? (VOICE_RANGE - d) / 1.5 : 1;
     peer.nodes.gain.gain.setTargetAtTime(vol * range, ctx.currentTime, 0.08);
   }
 }

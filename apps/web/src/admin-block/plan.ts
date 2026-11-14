@@ -189,6 +189,9 @@ export interface OfficeFurniture {
 export const MEETING_R = 0.55;
 export const MEETING_CHAIR_R = 0.98;
 export const DESK_Z = -10.3;
+/** visitor chairs: a row facing the officer's desk, with a clear strip (≈0.5 m) between them and the desk */
+export const VISITOR_DX = [-0.8, 0, 0.8] as const;
+export const VISITOR_Z = DESK_Z + 1.35;
 
 export function officeFurniture(o: OfficePlan): OfficeFurniture {
   const cx = o.cx;
@@ -197,7 +200,8 @@ export function officeFurniture(o: OfficePlan): OfficeFurniture {
       ? [-2.6, 0, 2.6].map((dx) => ({ x: cx + dx, z: DESK_Z, w: 1.6, d: 0.8, h: 0.74 }))
       : [{ x: cx, z: DESK_Z, w: o.theme === "executive" ? 2.4 : 2.0, d: o.theme === "executive" ? 1.0 : 0.9, h: 0.75 }];
   const chairs = desks.map((d) => ({ x: d.x, z: DESK_Z - 0.9 }));
-  const visitors = o.theme === "support" ? [] : [-0.65, 0.65].map((dx) => ({ x: cx + dx, z: DESK_Z + 1.15 }));
+  // P2-ADM-04: three visitor chairs facing the officer's desk (the office's visitor capacity), every office
+  const visitors = VISITOR_DX.map((dx) => ({ x: cx + dx, z: VISITOR_Z }));
   const units: OfficeFurniture["units"] = [{ x: o.x1 - 0.3, z: -9.75, w: 0.42, d: 5.0, h: 2.1, kind: "shelf" }];
   if (o.theme === "it") units.push({ x: o.x0 + 0.62, z: -11.7, w: 1.0, d: 1.9, h: 2.0, kind: "rack" });
   if (o.theme === "finance") units.push({ x: o.x0 + 0.38, z: -10.2, w: 0.6, d: 3.6, h: 1.32, kind: "files" });
@@ -227,3 +231,80 @@ export const ADMIN_COLLIDERS: WallRect[] = [
     ];
   }),
 ];
+
+/* ---------------- seats (P2-ADM-04): ids from @gukirana/contracts offices.ts, validated by the server ---------------- */
+
+export interface AdminSeatPose {
+  /** `lobby-{n}` | `{office}-officer` | `{office}-visitor-{n}` | `{office}-meeting-{n}` */
+  id: string;
+  /** "lobby" or the office id (the hall controller's `Seat.table`) */
+  table: string;
+  kind: "lobby" | "officer" | "visitor" | "meeting";
+  x: number;
+  z: number;
+  /** avatar rotation.y when seated (forward = (sin yaw, cos yaw)) */
+  yaw: number;
+}
+
+/** the officer's chair: behind the desk nearest the office's axis (Support: the middle of its three desks) */
+export const officerChair = (o: OfficePlan): P => {
+  const f = officeFurniture(o);
+  return f.chairs.reduce((b, c) => (Math.abs(c.x - o.cx) < Math.abs(b.x - o.cx) ? c : b), f.chairs[0]!);
+};
+
+const lobbySeats = (): Omit<AdminSeatPose, "id">[] => {
+  const s = LOUNGE.sofa;
+  return [
+    // the sofa against the east wall, facing west over the coffee table
+    ...[-0.75, 0, 0.75].map((dz) => ({ table: "lobby", kind: "lobby" as const, x: s.x - 0.12, z: s.z + dz, yaw: -Math.PI / 2 })),
+    // two armchairs facing the sofa (east)
+    ...LOUNGE.chairs.map((c) => ({ table: "lobby", kind: "lobby" as const, x: c.x, z: c.z, yaw: Math.PI / 2 })),
+    // waiting benches along the screen wall, facing the entrance
+    ...BENCHES.flatMap((b) => [-1.05, 0, 1.05].map((dx) => ({ table: "lobby", kind: "lobby" as const, x: b.x + dx, z: b.z + 0.05, yaw: 0 }))),
+  ];
+};
+
+/** Every sittable place in the block, in the contract's ADMIN_SEAT_IDS order (lobby first, then per office). */
+export const ADMIN_SEATS: AdminSeatPose[] = [
+  ...lobbySeats().map((s, n) => ({ ...s, id: `lobby-${n}` })),
+  ...OFFICE_PLANS.flatMap((o): AdminSeatPose[] => {
+    const f = officeFurniture(o);
+    const off = officerChair(o);
+    const m = f.meeting;
+    return [
+      { id: `${o.id}-officer`, table: o.id, kind: "officer", x: off.x, z: off.z, yaw: 0 },
+      ...f.visitors.map((v, n) => ({ id: `${o.id}-visitor-${n}`, table: o.id, kind: "visitor" as const, x: v.x, z: v.z, yaw: Math.PI })),
+      ...[0, 1, 2, 3].map((k) => {
+        const a = Math.PI / 4 + (k * Math.PI) / 2;
+        return { id: `${o.id}-meeting-${k}`, table: o.id, kind: "meeting" as const, x: m.x + Math.sin(a) * MEETING_CHAIR_R, z: m.z + Math.cos(a) * MEETING_CHAIR_R, yaw: a + Math.PI };
+      }),
+    ];
+  }),
+];
+export const adminSeat = (id: string) => ADMIN_SEATS.find((s) => s.id === id);
+
+/**
+ * Where to walk before sitting on a visitor chair (the staged sit then steps into the strip between the chairs and
+ * the desk): beside the row, on the side you come from, so you never walk through the chairs.
+ */
+export const visitorApproach = (o: OfficePlan, from: P): P => ({ x: o.cx + (from.x < o.cx ? -1 : 1) * 1.5, z: VISITOR_Z - 0.55 });
+
+/** reception: where you stand to talk to the receptionist (in front of the counter) */
+export const RECEPTION_TALK: P = { x: RECEPTION.x, z: RECEPTION.z + 1.25 };
+export const RECEPTION_TALK_R = 2.2;
+
+/**
+ * The officer's computer: the main monitor on the officer's desk (centre, size of the screen face; facing north,
+ * towards the officer). Must match the monitors drawn in rooms/AdminBlock.tsx buildStatic.
+ */
+export function officerMonitor(o: OfficePlan): { x: number; y: number; z: number; w: number; h: number } {
+  const f = officeFurniture(o);
+  const dk = f.desks.reduce((b, d) => (Math.abs(d.x - o.cx) < Math.abs(b.x - o.cx) ? d : b), f.desks[0]!);
+  const top = dk.h;
+  if (o.theme === "executive") return { x: dk.x + 0.55, y: top + 0.14 + 0.18, z: dk.z + 0.1 - 0.0135, w: 0.62, h: 0.36 };
+  if (o.theme === "it") return { x: dk.x, y: top + 0.14 + 0.16, z: dk.z + 0.2 - 0.0135, w: 0.54, h: 0.32 };
+  if (o.theme === "finance") return { x: dk.x, y: top + 0.14 + 0.165, z: dk.z + 0.15 - 0.0135, w: 1.22, h: 0.33 };
+  return { x: dk.x, y: dk.h + 0.14 + 0.155, z: dk.z + 0.12 - 0.0135, w: 0.52, h: 0.31 };
+}
+/** standing at the officer's desk (behind it) counts as "at the computer" too */
+export const atOfficerDesk = (o: OfficePlan, p: P) => Math.abs(p.x - o.cx) < 1.6 && p.z < DESK_Z - 0.3 && p.z > DESK_Z - 2.2;

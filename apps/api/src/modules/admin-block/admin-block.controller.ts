@@ -13,11 +13,12 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { z } from "zod";
-import { OfficeIdSchema, RoleIdSchema, type MyRoles, type OfficeSummary } from "@gukirana/contracts";
+import { OfficeIdSchema, ReceptionRequestSchema, RoleIdSchema, type MyRoles, type OfficeSummary, type ReceptionReply } from "@gukirana/contracts";
 import { AuthGuard, CurrentUser, InternalGuard, type AccessClaims } from "../../common/auth.js";
 import { parse } from "../../common/zod.js";
 import { AccessService } from "./access.service.js";
 import { OccupancyStore } from "./occupancy.js";
+import { ReceptionService } from "./reception.service.js";
 import { Actor, RoleGuard } from "./role.guard.js";
 
 const Name = z.string().trim().min(1).max(60);
@@ -50,6 +51,8 @@ const GrantSchema = z.object({ user: z.string().trim().min(1).max(254), role: Ro
 const OccupancySchema = z.object({
   room: z.string().min(1).max(64),
   offices: z.record(OfficeIdSchema, z.number().int().min(0).max(1000)),
+  /** visitors let in per office (P2-ADM-04, optional) */
+  visitors: z.record(OfficeIdSchema, z.number().int().min(0).max(1000)).optional(),
 });
 
 /** Path params: validated with the contract slug schemas. */
@@ -69,6 +72,7 @@ export class AdminBlockController {
   constructor(
     private readonly access: AccessService,
     private readonly occupancy: OccupancyStore,
+    private readonly reception_: ReceptionService,
   ) {}
 
   @Get("me/roles")
@@ -79,6 +83,13 @@ export class AdminBlockController {
   @Get("admin-block/offices")
   offices(@CurrentUser() u: AccessClaims): Promise<OfficeSummary[]> {
     return this.access.officesFor(u.sub, this.occupancy.totals());
+  }
+
+  /** the reception assistant (P2-ADM-04): availability, knock rules, directions — nothing else, nothing stored */
+  @Post("admin-block/reception")
+  @HttpCode(200)
+  reception(@CurrentUser() u: AccessClaims, @Body() body: unknown): Promise<ReceptionReply> {
+    return this.reception_.answer(u.sub, parse(ReceptionRequestSchema, body));
   }
 }
 
@@ -171,6 +182,6 @@ export class AccessInternalController {
   @HttpCode(204)
   report(@Body() body: unknown) {
     const r = parse(OccupancySchema, body);
-    this.occupancy.report(r.room, r.offices);
+    this.occupancy.report(r.room, r.offices, Date.now(), r.visitors ?? {});
   }
 }

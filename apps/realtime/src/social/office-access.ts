@@ -7,7 +7,8 @@ const ERROR_CACHE_MS = 2_000;
 const NONE: UserAccess = { roles: [], offices: [], known: [] };
 
 type Source = (userId: string) => Promise<UserAccess>;
-type Reporter = (room: string, offices: Record<string, number>) => Promise<void>;
+/** staff per office, and (P2-ADM-04) visitors let in per office — counts only */
+type Reporter = (room: string, offices: Record<string, number>, visitors?: Record<string, number>) => Promise<void>;
 
 /** Tunables (tests shorten them). */
 export const officeConfig = {
@@ -21,7 +22,7 @@ export const officeConfig = {
 };
 
 let source: Source = (uid) => api.access(uid);
-let reporter: Reporter = (room, offices) => api.reportOccupancy(room, offices);
+let reporter: Reporter = (room, offices, visitors) => api.reportOccupancy(room, offices, visitors);
 const cache = new Map<string, { at: number; ttl: number; p: Promise<UserAccess> }>();
 
 /**
@@ -41,8 +42,8 @@ export function accessOf(userId: string, now = Date.now()): Promise<UserAccess> 
   return entry.p;
 }
 
-export function reportOccupancy(room: string, offices: Record<string, number>): void {
-  void reporter(room, offices).catch(() => undefined); // best effort: the reception count is informational
+export function reportOccupancy(room: string, offices: Record<string, number>, visitors?: Record<string, number>): void {
+  void reporter(room, offices, visitors).catch(() => undefined); // best effort: the reception count is informational
 }
 
 /** test hooks */
