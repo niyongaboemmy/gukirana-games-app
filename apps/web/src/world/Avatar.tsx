@@ -89,7 +89,34 @@ export interface AvatarProps {
   attendRef?: React.RefObject<number>;
   /** Talking without voice chat (staff replying in the reception chat): the jaw moves. */
   talkRef?: React.RefObject<boolean>;
+  /**
+   * Extra pose layer over the clips (P3-FGT-02: boxing motion + ring kit, world/human/boxing). Built once per body
+   * instance in its bind pose (keep the factory stable: useMemo / a module constant); `update` runs after the built-in
+   * layers on every animation step, `afterFace` right after the face rig (people up close only).
+   */
+  rigLayer?: AvatarRigLayerFactory;
 }
+
+/** What a rig layer gets: the body instance in its bind pose (bones by name, arms, its own look materials). */
+export interface AvatarRig {
+  root: THREE.Object3D;
+  arms: ArmBones[];
+  /** this person's own materials (look shaders carry `userData.gkUniforms`) */
+  materials: THREE.Material[];
+  modelId: HumanModelId;
+  shadows: boolean;
+}
+export interface AvatarRigLayer {
+  /** add things to the body (on mount; the factory itself must have no side effects) */
+  attach?(): void;
+  /** after the clips and the built-in procedural layers; `dist` = camera distance (m) */
+  update(dt: number, dist: number): void;
+  /** after the face rig (blinks / gaze), dist < 16 m only */
+  afterFace?(dt: number): void;
+  /** undo `attach` (may be followed by another `attach`) */
+  dispose(): void;
+}
+export type AvatarRigLayerFactory = (rig: AvatarRig) => AvatarRigLayer;
 
 const FONT = "/fonts/Baloo2.ttf";
 const NEAR_LOD = 12;
@@ -495,7 +522,9 @@ function HumanBody({
   seatRef,
   activityRef,
   attendRef,
+  rigLayer,
 }: {
+  rigLayer?: AvatarRigLayerFactory;
   seatRef?: React.RefObject<SeatProfile | null>;
   activityRef?: React.RefObject<SeatActivity | null>;
   attendRef?: React.RefObject<number>;
@@ -539,6 +568,16 @@ function HumanBody({
   const seatedL = useMemo(() => new SeatedLayer(inst.root, inst.arms, inst.spine, inst.head, seed), [inst, seed]);
   // face proportions (bind pose) + blinking / eye life (P2-AVA-07); `inst` is rebuilt whenever the look changes
   const face = useMemo(() => new FaceRig(inst.root, look.face, modelId, seed, look.age), [inst, modelId, seed]);
+  // an extra pose layer (boxing), built after the face proportions, in the bind pose
+  const extraLayer = useMemo(
+    () => (face && rigLayer ? rigLayer({ root: inst.root, arms: inst.arms, materials: inst.materials, modelId, shadows }) : null),
+    [inst, face, rigLayer, modelId, shadows],
+  );
+  // side effects (meshes added to the body, material tweaks) only in the effect: StrictMode-safe attach → dispose → attach
+  useEffect(() => {
+    extraLayer?.attach?.();
+    return () => extraLayer?.dispose();
+  }, [extraLayer]);
   // a senior carries the neck and upper back a touch forward, the head tipped back to keep the gaze level (P2-AVA-11)
   const stoop = useMemo(() => {
     const k = ageParams(look.age, look.bodyType).stoop;
@@ -704,6 +743,7 @@ function HumanBody({
     if (dist < 22) seatedL.apply(act, animator.out.sitW, step, Date.now(), animator.out.fidget === "sitlook", attendRef?.current ?? 0);
     // procedural hands (handshake, fist bump, hug, thumbs-up, pointing, chalk): close people only
     if (dist < 25) proc.update(step, anim);
+    extraLayer?.update(step, dist);
 
     // footsteps from the real foot plants (near people only)
     const steps = animator.takeSteps();
@@ -782,6 +822,7 @@ function HumanBody({
       const dev = process.env.NODE_ENV !== "production" ? (globalThis as { __gkFace?: { blink?: number } }).__gkFace : undefined;
       face.force = dev?.blink ?? null;
       face.update({ dt: step, talking, gazeYaw: THREE.MathUtils.clamp((want - s.look) * 0.9, -0.4, 0.4), gazePitch: 0, engaged: want !== 0 });
+      extraLayer?.afterFace?.(step);
     }
   });
 
@@ -892,6 +933,7 @@ export function Avatar({
   activityRef,
   attendRef,
   talkRef,
+  rigLayer,
 }: AvatarProps) {
   const blob = useMemo(() => blobTexture(), []);
   const talkingRef = useRef(false);
@@ -950,6 +992,7 @@ export function Avatar({
           seatRef={seatRef}
           activityRef={activityRef}
           attendRef={attendRef}
+          rigLayer={rigLayer}
         />
       </Suspense>
       <group ref={tags}>

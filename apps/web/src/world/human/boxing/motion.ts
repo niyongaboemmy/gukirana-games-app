@@ -1,0 +1,212 @@
+import { BOXING_CLIPS, clipTime, clipTravel, compensateTravel, sampleClip, type BoxingClipName, type ClipEvent } from "./clips";
+import { copyPose, GUARD, lerpPose, mirrorPose, newPose, P, type Pose } from "./pose";
+
+/**
+ * Boxing motion controller (P3-FGT-02): the one object the engine / hall drives per fighter. Commands are stamped with
+ * the shared match clock (seconds), so every screen that receives the same commands shows the same pose at the same
+ * time (no randomness, no frame-rate dependence):
+ *
+ *   motion.play({ clip: "jab", start: serverT, mirrored: southpaw, intensity: 0.8 });
+ *   motion.sample(now) → Pose            (the rig layer calls this every animation step)
+ *   motion.impactTime()                  (when the glove lands: schedule the hit sound / the other's reaction)
+ *   motion.events(t0, t1)                (impacts, foot plants, the knockdown landing, count beats crossed)
+ *
+ * A new command blends from the pose that was showing at its start time (snapshot, 0.1 s; hit reactions 0.05 s), so
+ * a punch interrupted by a hit never pops. A one-shot that ends hands over to its `then` clip (guardIdle by default;
+ * knockdown → count, victory → victoryHold …) at its end time; loops run until the next command.
+ */
+
+export interface BoxingCommand {
+  clip: BoxingClipName;
+  /** clock time the clip starts (s) */
+  start: number;
+  /** southpaw (right hand / right foot lead) */
+  mirrored?: boolean;
+  /** 0…1: punch commitment / reaction size (default 1) */
+  intensity?: number;
+  /** playback rate (default 1) */
+  speed?: number;
+  /** extra seconds to stay in the clip's hold window (blocks, raised arms) */
+  hold?: number;
+  /** cross-fade time from the previous pose (s; default 0.1, reactions 0.05) */
+  blend?: number;
+}
+
+interface Active {
+  cmd: Required<Omit<BoxingCommand, "blend">> & { blend: number };
+  /** the pose showing when this command started (blend source) */
+  from: Pose | null;
+}
+
+const smooth = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+const _tr: [number, number, number] = [0, 0, 0];
+
+/** reactions scale with intensity (a light tap barely moves the head); punches only in commitment (body turn) */
+const SCALED_REACTION = new Set<BoxingClipName>(["hitHeadLight", "hitHeadHeavy", "hitBodyLight", "hitBodyHeavy"]);
+const COMMIT = [P.yaw, P.chest, P.lean, P.bend, P.hx, P.hz, P.fLheel, P.fRheel, P.effort];
+
+export class BoxingMotion {
+  private cur: Active;
+  private readonly tmp = newPose();
+  private readonly tmp2 = newPose();
+  private readonly out = newPose();
+  /** the default loop when nothing else is playing */
+  readonly base: BoxingClipName;
+
+  constructor(opts: { base?: BoxingClipName; mirrored?: boolean; start?: number } = {}) {
+    this.base = opts.base ?? "guardIdle";
+    this.cur = { cmd: full({ clip: this.base, start: opts.start ?? 0, mirrored: opts.mirrored }), from: null };
+  }
+
+  /** the command playing (after any automatic hand-over at `t`) */
+  current(t?: number): Readonly<BoxingCommand> {
+    if (t !== undefined) this.advance(t);
+    return this.cur.cmd;
+  }
+
+  /** Start a clip (its `start` may be slightly in the past: network latency is caught up). */
+  play(cmd: BoxingCommand) {
+    const c = full(cmd);
+    // blend source: what was showing at the new command's start (deterministic: computed at that time, not now)
+    const from = copyPose(this.sample(c.start), newPose());
+    this.cur = { cmd: c, from };
+  }
+
+  /** Mirror the whole stance (switching to southpaw / back) from `t` on, blending over 0.3 s. */
+  setMirrored(mirrored: boolean, t: number) {
+    if (this.cur.cmd.mirrored === mirrored) return;
+    this.play({ ...this.cur.cmd, clip: this.base, start: t, mirrored, blend: 0.3 });
+  }
+
+  /** the end time of the current clip (Infinity for loops) */
+  endTime(): number {
+    const c = this.cur.cmd;
+    const info = BOXING_CLIPS[c.clip];
+    return info.loop ? Infinity : c.start + (info.duration + c.hold) / c.speed;
+  }
+
+  /** clock time the current clip's glove lands / defence peaks (null when it has none) */
+  impactTime(): number | null {
+    const c = this.cur.cmd;
+    const imp = BOXING_CLIPS[c.clip].impact;
+    if (imp === null) return null;
+    return c.start + imp / c.speed;
+  }
+
+  /** a one-shot that has ended hands over to its `then` clip at its end time */
+  private advance(t: number) {
+    for (let guard = 0; guard < 4; guard++) {
+      const c = this.cur.cmd;
+      const info = BOXING_CLIPS[c.clip];
+      if (info.loop) return;
+      const end = c.start + (info.duration + c.hold) / c.speed;
+      if (t < end) return;
+      const next = info.then ?? this.base;
+      // the one-shot ends exactly on its last key = the next clip's first key: no blend needed
+      this.cur = { cmd: full({ clip: next, start: end, mirrored: c.mirrored, intensity: 1 }), from: null };
+    }
+  }
+
+  /** The pose at clock time `t` (owned by the controller: copy it to keep it). */
+  sample(t: number): Pose {
+    this.advance(t);
+    const { cmd, from } = this.cur;
+    this.raw(cmd, t, this.tmp);
+    if (from && cmd.blend > 0) {
+      const w = smooth((t - cmd.start) / cmd.blend);
+      if (w < 1) {
+        lerpPose(from, this.tmp, w, this.out);
+        return this.out;
+      }
+    }
+    this.out.set(this.tmp);
+    return this.out;
+  }
+
+  /** a command's own pose at `t` (orthodox authoring → intensity → travel compensation → mirror) */
+  private raw(cmd: Active["cmd"], t: number, out: Pose): Pose {
+    const local = (t - cmd.start) * cmd.speed;
+    const ct = clipTime(cmd.clip, local, cmd.hold);
+    sampleClip(cmd.clip, ct, out);
+    const k = cmd.intensity;
+    if (k < 0.999) {
+      const kind = BOXING_CLIPS[cmd.clip].kind;
+      if (SCALED_REACTION.has(cmd.clip)) {
+        lerpPose(GUARD, out, Math.max(0.25, k), this.tmp2);
+        // (feet stay authored: a scaled reaction must still plant where it travels)
+        this.tmp2[P.fLx] = out[P.fLx]!;
+        this.tmp2[P.fLz] = out[P.fLz]!;
+        this.tmp2[P.fRx] = out[P.fRx]!;
+        this.tmp2[P.fRz] = out[P.fRz]!;
+        out.set(this.tmp2);
+      } else if (kind === "punch") {
+        const c = 0.55 + 0.45 * k;
+        for (const i of COMMIT) out[i] = GUARD[i]! + (out[i]! - GUARD[i]!) * c;
+      }
+    }
+    if (BOXING_CLIPS[cmd.clip].travel) compensateTravel(out, clipTravel(cmd.clip, ct, false, _tr));
+    if (cmd.mirrored) mirrorPose(out);
+    return out;
+  }
+
+  /** Root travel of the current clip at `t` ([x, z, yaw] in its start frame, mirrored as played). */
+  travel(t: number, out: [number, number, number] = [0, 0, 0]): [number, number, number] {
+    this.advance(t);
+    const c = this.cur.cmd;
+    return clipTravel(c.clip, clipTime(c.clip, (t - c.start) * c.speed, c.hold), c.mirrored, out);
+  }
+
+  /**
+   * Events crossed in (t0, t1] by the current clip (and the clips it hands over to): impacts, foot plants, the
+   * knockdown landing, the referee's count beats. Times are clock times.
+   */
+  events(t0: number, t1: number): { t: number; kind: ClipEvent["kind"]; clip: BoxingClipName }[] {
+    const out: { t: number; kind: ClipEvent["kind"]; clip: BoxingClipName }[] = [];
+    if (t1 <= t0) return out;
+    this.advance(t0);
+    let c: Active["cmd"] = this.cur.cmd;
+    for (let n = 0; n < 4; n++) {
+      const info = BOXING_CLIPS[c.clip];
+      const end = info.loop ? Infinity : c.start + (info.duration + c.hold) / c.speed;
+      for (const e of info.events) {
+        if (info.loop) {
+          const cyc = info.duration / c.speed;
+          const first = Math.floor((t0 - c.start - e.t / c.speed) / cyc) + 1;
+          for (let k = Math.max(0, first); ; k++) {
+            const at = c.start + e.t / c.speed + k * cyc;
+            if (at > t1) break;
+            if (at > t0) out.push({ t: at, kind: e.kind, clip: c.clip });
+          }
+        } else {
+          const hold = info.hold && e.t > info.hold[0] ? c.hold : 0;
+          const at = c.start + (e.t + hold) / c.speed;
+          if (at > t0 && at <= t1) out.push({ t: at, kind: e.kind, clip: c.clip });
+        }
+      }
+      if (end >= t1) break;
+      c = full({ clip: info.then ?? this.base, start: end, mirrored: c.mirrored });
+    }
+    return out.sort((a, b) => a.t - b.t);
+  }
+}
+
+function full(cmd: BoxingCommand): Active["cmd"] {
+  const kind = BOXING_CLIPS[cmd.clip].kind;
+  return {
+    clip: cmd.clip,
+    start: cmd.start,
+    mirrored: !!cmd.mirrored,
+    intensity: Math.min(1, Math.max(0, cmd.intensity ?? 1)),
+    speed: Math.max(0.1, cmd.speed ?? 1),
+    hold: Math.max(0, cmd.hold ?? 0),
+    blend: cmd.blend ?? (kind === "reaction" ? 0.05 : 0.1),
+  };
+}
+
+/** Pure one-shot form: the pose of `cmd` at `t` without blending (for previews, tests, thumbnails). */
+export function boxingPose(cmd: BoxingCommand, t: number, out: Pose = newPose()): Pose {
+  const m = new BoxingMotion({ base: BOXING_CLIPS[cmd.clip].kind === "referee" ? "refIdle" : "guardIdle" });
+  m.play({ ...cmd, blend: 0 });
+  out.set(m.sample(t));
+  return out;
+}
