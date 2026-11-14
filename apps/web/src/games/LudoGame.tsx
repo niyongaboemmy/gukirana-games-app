@@ -5,7 +5,10 @@ import { returnLabel, returnPath } from "@/lib/return-point";
 import { commitSeed, createFairRng, newSeed, type FairRng } from "@gukirana/fairness";
 import { HOME, initLudo, ludoBotMove, moveToken, movableTokens, rollDice, type LudoState } from "@gukirana/ludo";
 import { GameShell, Modal, ResultModal, TurnBanner } from "./GameShell";
-import { LudoBoard, LudoControls, SeatLabel, ludoEventMs } from "./LudoBoard";
+import { LudoBoard, LudoControls, SeatLabel, ludoEventMs, type LudoHandOf } from "./LudoBoard";
+import { ludoHandSide } from "./hand/ludo-hand";
+import { opponentHandLook } from "./hand/look";
+import { useMyHandLook } from "./hand/useHandLook";
 import { settlePractice } from "./practice";
 import { SEAT_NAMES, seatColors } from "./ludo-board";
 import { DieIcon } from "@/ui/game-icons";
@@ -61,6 +64,17 @@ export default function LudoGame() {
   const myTurn = current?.id === "you" && !state?.winner;
   const movable = state && state.phase === "move" && current ? movableTokens(current, state.dice!) : [];
   const nameOf = useCallback((id: string) => (id === "you" ? name || "You" : `${SEAT_NAMES[state?.players.find((p) => p.id === id)?.seat ?? 0]} AI`), [name, state?.players]);
+  // the real hands (P2-GAME-07): yours wears your avatar's skin and sleeve; each AI seat a fixed seeded look
+  const myHand = useMyHandLook();
+  const handOf = useCallback<LudoHandOf>(
+    (id) => {
+      const p = state?.players.find((x) => x.id === id);
+      const mine = state?.players.find((x) => x.id === "you");
+      if (!p || !mine) return null;
+      return { side: ludoHandSide(p.seat, mine.seat), look: id === "you" ? myHand : opponentHandLook(`practice-${id}`), me: id === "you" };
+    },
+    [myHand, state?.players],
+  );
 
   const doRoll = useCallback(() => {
     if (!state || rolling) return;
@@ -147,9 +161,22 @@ export default function LudoGame() {
       fairness={{ commit: match.commit, reveal: state.winner ? match.seed : undefined, rolls: state.rolls }}
       you={panel("you", name || "You", false)}
       opponents={state.players.filter((p) => p.id !== "you").map((p) => panel(p.id, `${SEAT_NAMES[p.seat]} AI`, true))}
-      footer={<LudoControls die={state.dice ?? (state.lastEvent?.kind === "roll" ? state.lastEvent.dice : null)} rollId={state.rolls} rolling={rolling} color={colors[current?.seat ?? 0]!} canRoll={!!myTurn && state.phase === "roll"} onRoll={doRoll} hint={hint} />}
+      footer={
+        <LudoControls
+          die={state.dice ?? (state.lastEvent?.kind === "roll" ? state.lastEvent.dice : null)}
+          rollId={state.rolls}
+          rolling={rolling}
+          color={colors[current?.seat ?? 0]!}
+          canRoll={!!myTurn && state.phase === "roll"}
+          onRoll={doRoll}
+          hint={hint}
+          handOf={handOf}
+          rollerId={current?.id ?? null}
+          throwerId={state.lastEvent?.kind === "roll" || state.lastEvent?.kind === "pass" ? state.lastEvent.player : null}
+        />
+      }
     >
-      <LudoBoard state={state} movable={myTurn ? movable : []} onMove={doMove} myId="you" />
+      <LudoBoard state={state} movable={myTurn ? movable : []} onMove={doMove} myId="you" handOf={handOf} />
       {banner && <TurnBanner key={banner.id} text={banner.text} tone={banner.tone} />}
       {result && <ResultModal {...result} summary={result.won ? t("ludo.winSummary") : t("ludo.loseSummary", { name: nameOf(state.winner ?? "") })} onRematch={() => start(mode)} />}
     </GameShell>

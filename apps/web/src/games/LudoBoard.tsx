@@ -7,7 +7,14 @@ import { SeatShape, DieIcon } from "@/ui/game-icons";
 import { animScale, haptic, sfx, useAnimScale, useGamePrefs } from "./feedback";
 import { shouldAutoFocus } from "./input";
 import { Fist } from "./hands";
+import { hands, handMode } from "./hand/director";
+import type { HandLook } from "./hand/look";
 import { t } from "./i18n";
+
+/** Who the game hand belongs to for a player id: the side it comes from and what it looks like (P2-GAME-07). */
+export type LudoHandOf = (playerId: string) => { side: number; look: HandLook; me: boolean } | null;
+/** Fist width as a share of the board width. */
+const HAND_SIZE = 0.27;
 
 /** Paper fibre grain for the printed board (feTurbulence, no image download). */
 const CARDBOARD_GRAIN = `url("data:image/svg+xml;utf8,${encodeURIComponent(
@@ -36,20 +43,56 @@ export function ludoEventMs(s: LudoState): number {
 }
 
 /**
- * Outcome-first die: a fist rattles it while the roll is requested, then throws; the cube tumbles and settles on the
- * value that came from the fair RNG (server or practice seed) — the animation never decides anything.
+ * Outcome-first die: a hand grabs it while the roll is requested, shakes, then throws; the cube tumbles and settles on
+ * the value that came from the fair RNG (server or practice seed) — the animation never decides anything.
  * `rollId` changes on every new roll (state.rolls), so the opponent's rolls tumble too.
+ * With the real hand (P2-GAME-07, `handOf`) the throw plays on the board in the hand overlay and this die shows the
+ * value again when the tumble ends; without WebGL the flat fist rattles here as before.
  */
-export function Die({ value, rolling, color, rollId = 0 }: { value: number | null; rolling: boolean; color: string; rollId?: number }) {
+export function Die({
+  value,
+  rolling,
+  color,
+  rollId = 0,
+  handOf,
+  rollerId,
+  throwerId,
+}: {
+  value: number | null;
+  rolling: boolean;
+  color: string;
+  rollId?: number;
+  handOf?: LudoHandOf;
+  /** whose turn it is (the hand that grabs the die on a roll request) */
+  rollerId?: string | null;
+  /** who threw the current value (the last roll event's player) */
+  throwerId?: string | null;
+}) {
   const k = useAnimScale();
   const [throwing, setThrowing] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const spins = useRef(0);
   const lastId = useRef(rollId);
+  const box = useRef<HTMLDivElement>(null);
   const [rot, setRot] = useState<[number, number]>(SHOW[value ?? 1]!);
+  const real = !!handOf && k > 0 && typeof window !== "undefined" && handMode() !== "svg";
+  const target = (id: string | null | undefined) => {
+    const b = document.querySelector<HTMLElement>("[data-game-board]");
+    const h = id ? handOf?.(id) : null;
+    return b && h ? { t: { board: b, side: h.side, look: h.look, size: HAND_SIZE }, me: h.me } : null;
+  };
+  const slot = () => {
+    const r = box.current?.getBoundingClientRect();
+    return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+  };
   useEffect(() => {
     if (!rolling) return;
     sfx.dice();
     haptic([12, 30, 12, 30, 12]);
+    if (!real) return;
+    const tg = target(rollerId);
+    // your hand picks up this very die; another player's hand finds one by their edge of the board
+    if (tg) hands.ludoGrab(tg.t, { key: rollId + 1, pickup: tg.me ? slot() : null, prevValue: value });
   }, [rolling]);
   useEffect(() => {
     if (rollId === lastId.current || value === null) return;
@@ -59,18 +102,28 @@ export function Die({ value, rolling, color, rollId = 0 }: { value: number | nul
     // whole extra turns make it tumble; alternating signs keep every throw looking different (deterministic)
     const n = spins.current;
     setRot([x + 360 * (2 + (n % 2)), y + 360 * (n % 2 ? -2 : 3)]);
-    if (k > 0) {
-      setThrowing(true);
-      const tm = setTimeout(() => setThrowing(false), TUMBLE_MS * k);
-      return () => clearTimeout(tm);
+    if (k <= 0) return;
+    const tg = real ? target(throwerId ?? rollerId) : null;
+    if (tg) {
+      // the value is thrown onto the board by the hand; this die shows it again when the tumble ends
+      hands.ludoThrow(tg.t, { key: rollId, value, rollId, pickup: tg.me ? slot() : null });
+      setHidden(true);
+      const tm = setTimeout(() => setHidden(false), hands.ludoRevealIn() || TUMBLE_MS * k);
+      return () => {
+        clearTimeout(tm);
+        setHidden(false);
+      };
     }
+    setThrowing(true);
+    const tm = setTimeout(() => setThrowing(false), TUMBLE_MS * k);
+    return () => clearTimeout(tm);
   }, [rollId, value, k]);
   const v = value ?? 1;
   return (
-    <div className="relative size-16 shrink-0" role="img" aria-label={rolling ? t("ludo.rolling") : t("ludo.dieShows", { n: v })}>
+    <div ref={box} className="relative size-16 shrink-0" role="img" aria-label={rolling ? t("ludo.rolling") : t("ludo.dieShows", { n: v })}>
       <div
-        className={`gk-die3d absolute inset-0 rounded-2xl ${throwing ? "gk-land" : ""} ${rolling ? "opacity-0" : ""}`}
-        style={{ ["--gk-tumble" as string]: `${TUMBLE_MS * k}ms`, filter: "drop-shadow(0 8px 10px rgb(0 0 0 / .55))" }}
+        className={`gk-die3d absolute inset-0 rounded-2xl ${throwing ? "gk-land" : ""} ${rolling || hidden ? "opacity-0" : ""}`}
+        style={{ ["--gk-tumble" as string]: `${TUMBLE_MS * k}ms`, filter: "drop-shadow(0 8px 10px rgb(0 0 0 / .55))", transition: hidden ? undefined : "opacity 160ms ease-out" }}
       >
         <div className="gk-cube" style={{ ["--h" as string]: "2rem", transform: `rotateX(${rot[0]}deg) rotateY(${rot[1]}deg)`, transition: k > 0 ? undefined : "none" }}>
           {[1, 2, 3, 4, 5, 6].map((f) => (
@@ -82,8 +135,8 @@ export function Die({ value, rolling, color, rollId = 0 }: { value: number | nul
           ))}
         </div>
       </div>
-      {/* the hand: rattles while rolling, flicks away on the throw */}
-      {(rolling || throwing) && (
+      {/* no WebGL: the flat fist rattles here and flicks away on the throw */}
+      {!real && (rolling || throwing) && (
         <Fist
           className={`pointer-events-none absolute -right-3 -top-4 z-10 size-[4.6rem] ${rolling ? "gk-shake" : "gk-throw"}`}
           style={{ ["--gk-throw" as string]: `${Math.round(TUMBLE_MS * k * 0.45)}ms` }}
@@ -94,7 +147,29 @@ export function Die({ value, rolling, color, rollId = 0 }: { value: number | nul
 }
 
 /** Roll button + die + hint, shared by practice and live. The roll button takes focus on your roll (TV / pad). */
-export function LudoControls({ die, rolling, color, canRoll, onRoll, hint, rollId }: { die: number | null; rolling: boolean; color: string; canRoll: boolean; onRoll: () => void; hint: string; rollId?: number }) {
+export function LudoControls({
+  die,
+  rolling,
+  color,
+  canRoll,
+  onRoll,
+  hint,
+  rollId,
+  handOf,
+  rollerId,
+  throwerId,
+}: {
+  die: number | null;
+  rolling: boolean;
+  color: string;
+  canRoll: boolean;
+  onRoll: () => void;
+  hint: string;
+  rollId?: number;
+  handOf?: LudoHandOf;
+  rollerId?: string | null;
+  throwerId?: string | null;
+}) {
   const btn = useRef<HTMLButtonElement>(null);
   const leftHanded = useGamePrefs((s) => s.leftHanded);
   useEffect(() => {
@@ -113,7 +188,7 @@ export function LudoControls({ die, rolling, color, canRoll, onRoll, hint, rollI
   }, [canRoll, onRoll, rolling]);
   return (
     <div className={`flex min-h-16 items-center justify-center gap-4 ${leftHanded ? "flex-row-reverse" : ""}`}>
-      <Die value={die} rolling={rolling} color={color} rollId={rollId} />
+      <Die value={die} rolling={rolling} color={color} rollId={rollId} handOf={handOf} rollerId={rollerId} throwerId={throwerId} />
       {canRoll ? (
         <button ref={btn} type="button" onClick={onRoll} disabled={rolling} className="btn-primary flex min-h-14 items-center gap-2 rounded-2xl px-8 font-display text-lg font-bold">
           <DieIcon size={20} /> {rolling ? t("ludo.rolling") : t("ludo.roll")}
@@ -138,7 +213,9 @@ const SHAPE_AT: Record<Side, [string, string]> = { top: ["50%", "17%"], right: [
  * Colours: every seat colour (yard, start square, home column, centre triangle, tokens, panels, die) comes from
  * one palette (`seatColors`), and the centre triangles are placed from the home columns (CENTRE_SIDE).
  */
-export function LudoBoard({ state, movable, onMove, myId }: { state: LudoState; movable: number[]; onMove: (token: number) => void; myId: string }) {
+export function LudoBoard({ state, movable, onMove, myId, handOf }: { state: LudoState; movable: number[]; onMove: (token: number) => void; myId: string; handOf?: LudoHandOf }) {
+  const handOfRef = useRef(handOf);
+  handOfRef.current = handOf;
   const colorBlind = useGamePrefs((s) => s.colorBlind);
   const hints = useGamePrefs((s) => s.hints);
   const confirmMove = useGamePrefs((s) => s.confirmMove);
@@ -207,8 +284,19 @@ export function LudoBoard({ state, movable, onMove, myId }: { state: LudoState; 
       land();
       return;
     }
+    // another player's move: their hand pinches the token and carries it square by square (P2-GAME-07)
+    const ho = ev.player !== myId && handMode() !== "svg" ? handOfRef.current?.(ev.player) : null;
+    const el = board.current;
+    const handAt = (kind: "pickup" | "sow", progress: number) => {
+      if (!ho || !el) return;
+      const b = el.getBoundingClientRect();
+      const [r, c] = tokenCell(mover.seat, progress, ev.token);
+      hands.sowStep({ board: el, side: ho.side, look: ho.look, size: 0.22 }, { kind, x: b.left + ((c + 0.5) / 15) * b.width, y: b.top + ((r + 0.5) / 15) * b.height, seeds: 0, stepMs: STEP_MS * scale });
+    };
+    handAt("pickup", ev.from === -1 ? -1 : ev.from);
     let i = 0;
     setAnim({ player: ev.player, token: ev.token, progress: path[0]!, captured });
+    handAt("sow", path[0]!);
     sfx.step();
     hop.current = setInterval(() => {
       i += 1;
@@ -216,11 +304,13 @@ export function LudoBoard({ state, movable, onMove, myId }: { state: LudoState; 
         if (hop.current) clearInterval(hop.current);
         hop.current = null;
         setAnim(null);
+        if (ho) hands.sowEnd();
         land();
         return;
       }
       sfx.step();
       setAnim({ player: ev.player, token: ev.token, progress: path[i]!, captured });
+      handAt("sow", path[i]!);
     }, STEP_MS * scale);
   }, [state.lastEvent]);
 
@@ -277,7 +367,7 @@ export function LudoBoard({ state, movable, onMove, myId }: { state: LudoState; 
       <div
         ref={board}
         data-game-board
-        className="relative aspect-square overflow-hidden rounded-2xl border-4 border-ink-500 bg-[#f4efe6] shadow-2xl"
+        className="relative aspect-square overflow-hidden rounded-2xl border-4 border-ink-500 bg-[#f4efe6] shadow-[0_24px_50px_-12px_rgba(0,0,0,.85),0_2px_0_rgba(255,255,255,.08)]"
         style={{ width: "min(100cqw, 100cqh)" }}
         role="group"
         aria-label={t("ludo.title")}
@@ -325,6 +415,8 @@ export function LudoBoard({ state, movable, onMove, myId }: { state: LudoState; 
         </div>
         <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.32] mix-blend-multiply" style={{ backgroundImage: CARDBOARD_GRAIN, backgroundSize: "220px 220px" }} />
         <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(135deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,0) 40%, rgba(0,0,0,0) 70%, rgba(0,0,0,.08) 100%)" }} />
+        {/* laminated board edge: a satin bevel (lit top-left lip, shaded bottom-right) — matte, no glare */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 z-[5] rounded-[inherit]" style={{ boxShadow: "inset 2px 2px 0 rgba(255,255,255,.55), inset -2px -2px 0 rgba(0,0,0,.18), inset 0 0 18px rgba(60,40,20,.18)" }} />
 
         {preview && (
           <div className="pointer-events-none absolute z-10 grid place-items-center" style={{ width: `${100 / 15}%`, height: `${100 / 15}%`, top: `${(preview.r / 15) * 100}%`, left: `${(preview.c / 15) * 100}%` }}>
@@ -372,7 +464,13 @@ export function LudoBoard({ state, movable, onMove, myId }: { state: LudoState; 
               <span
                 key={moving ? `hop-${anim!.progress}` : isKnocked ? "knock" : "still"}
                 className={`grid size-[80%] place-items-center rounded-full border-2 border-white text-white/90 shadow-[0_3px_6px_rgba(0,0,0,.5)] ${glow ? "gk-legal scale-110" : ""} ${moving ? "gk-hop" : ""} ${isKnocked ? "gk-knock" : ""} ${qp === HOME ? "scale-75" : ""} ${focusTok === tok && canMove && !hints ? "ring-4 ring-white" : ""}`}
-                style={{ background: colors[p.seat], transition: "transform .15s", ["--gk-step" as string]: `${STEP_MS * k}ms`, ["--gk-knock" as string]: `${KNOCK_MS * k}ms` }}
+                style={{
+                  // a glossy-but-soft plastic token: satin highlight top-left, darker rim, real drop shadow
+                  background: `radial-gradient(circle at 34% 28%, rgba(255,255,255,.55) 0%, rgba(255,255,255,0) 38%), radial-gradient(circle at 50% 55%, ${colors[p.seat]} 55%, color-mix(in srgb, ${colors[p.seat]} 70%, #000) 100%)`,
+                  transition: "transform .15s",
+                  ["--gk-step" as string]: `${STEP_MS * k}ms`,
+                  ["--gk-knock" as string]: `${KNOCK_MS * k}ms`,
+                }}
               >
                 <SeatShape seat={p.seat} size={colorBlind ? 13 : 10} />
                 {glow && <span className="num absolute -right-1 -top-1 grid size-[45%] place-items-center rounded-full bg-black/80 text-[0.55rem] font-bold text-white max-sm:hidden">{tok + 1}</span>}

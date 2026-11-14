@@ -2,7 +2,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Hand, RotateCcw, Target } from "lucide-react";
 import { canPlaceCue, legalTargets, onTheEight, POCKETS, R, TABLE_H, TABLE_W, U, type PoolIntent, type PoolState } from "@gukirana/pool";
-import { BALL_COLORS, drawCue, drawCueHands, paintTable } from "./pool-art";
+import { BALL_COLORS, drawCue, drawCueHands, drawCueHandSprites, paintTable, type CueHandSprites } from "./pool-art";
+import { handSprite } from "./hand/sprites";
+import { opponentHandLook, type HandLook } from "./hand/look";
+import { useMyHandLook } from "./hand/useHandLook";
 import { pad, padOptions, shouldAutoFocus } from "./input";
 import { animScale, haptic, sfx, useGamePrefs, type AimGuide } from "./feedback";
 import { TurnBanner } from "./GameShell";
@@ -17,6 +20,33 @@ const PK = POCKETS.map(([x, y, r]) => [x / U, y / U, r / U] as const);
 const isStripe = (n: number) => n >= 9;
 const MAX_PULL = 4200; // units of pull-back for full power
 const DEG = Math.PI / 180;
+/** The opponent lines up and strikes along the recorded shot before its replay (P2-GAME-07), at Normal speed. */
+export const OPP_STRIKE_MS = 560;
+
+/** Bridge + grip sprites for a look, once both are rendered (null until then, or without WebGL). */
+function cueSprites(look: HandLook): CueHandSprites | null {
+  const bridge = handSprite("bridge", look);
+  const grip = handSprite("grip", look);
+  return bridge && grip ? { bridge, grip } : null;
+}
+
+/** Where the cue ball starts, which way it leaves and how fast (0–1), from the recorded frames. */
+export function shotLine(frames: number[][]): { x: number; y: number; a: number; power: number } | null {
+  const at = (f: number[]) => {
+    for (let k = 1; k + 2 < f.length; k += 3) if (f[k] === 0) return { x: f[k + 1]!, y: f[k + 2]!, t: f[0]! };
+    return null;
+  };
+  const a0 = frames[0] ? at(frames[0]) : null;
+  if (!a0) return null;
+  for (let i = 1; i < frames.length; i++) {
+    const b = at(frames[i]!);
+    if (!b) return null;
+    const d = Math.hypot(b.x - a0.x, b.y - a0.y);
+    // frames are already in table units; speed in units per physics tick (240 / s), ~400 for a full break
+    if (d > 40) return { x: a0.x, y: a0.y, a: Math.atan2(b.y - a0.y, b.x - a0.x), power: Math.max(0.15, Math.min(1, d / Math.max(1, b.t - a0.t) / 300)) };
+  }
+  return null;
+}
 
 type Pt = { n: number; x: number; y: number };
 type Banner = { id: number; text: string; tone: "info" | "good" | "bad" };
@@ -237,7 +267,10 @@ export function PoolTable({
   onShoot,
   onReplayDone,
   names,
+  oppLook,
 }: {
+  /** the opponent's hand look (their look code or seeded look) for their line-up and strike */
+  oppLook?: HandLook;
   state: PoolState;
   mySide: 0 | 1;
   myTurn: boolean;
@@ -278,6 +311,16 @@ export function PoolTable({
   const [banner, setBanner] = useState<Banner | null>(null);
   const bannerId = useRef(0);
   const lastShots = useRef(state.shots);
+  // the real hands (P2-GAME-07): yours on your cue, the opponent's lining up their shot before its replay
+  const myLook = useMyHandLook();
+  const looks = useRef({ me: myLook, opp: oppLook ?? opponentHandLook("practice-pool-ai") });
+  looks.current = { me: myLook, opp: oppLook ?? opponentHandLook("practice-pool-ai") };
+  const oppStrike = useRef<{ x: number; y: number; a: number; power: number; t0: number; dur: number } | null>(null);
+  // render both players' hand sprites while the table settles, so the first line-up already shows real hands
+  useEffect(() => {
+    cueSprites(looks.current.me);
+    cueSprites(looks.current.opp);
+  }, [myLook, oppLook]);
   const replayFrames = useRef<number[][] | null>(null);
 
   const canAct = myTurn && !replaying && state.winner === null;
@@ -476,6 +519,24 @@ export function PoolTable({
       } else if (state.turn === mySide) show(ls?.message === "Potted. Shoot again" ? ls.message : state.ballInHand ? t("pool.ballInHand") : t("game.yourTurn"), "good");
       else if (ls?.message) show(ls.message);
     };
+    // the opponent's shot: their cue and hands line up along the real shot direction, draw back and strike, then the
+    // replay runs (presentation only: the shot is already decided and recorded)
+    const k = animScale();
+    const line = ls && ls.by !== mySide && frames.length > 1 && k > 0 ? shotLine(frames) : null;
+    if (line) {
+      const dur = OPP_STRIKE_MS * k;
+      oppStrike.current = { ...line, t0: performance.now(), dur };
+      let stop: (() => void) | null = null;
+      const tm = setTimeout(() => {
+        oppStrike.current = null;
+        stop = playFrames(frames, final, announce);
+      }, dur);
+      return () => {
+        clearTimeout(tm);
+        oppStrike.current = null;
+        stop?.();
+      };
+    }
     return playFrames(frames, final, announce);
   }, [state.shots, state.lastShot]);
 
@@ -902,9 +963,25 @@ export function PoolTable({
         // the cue, drawn back by the power, held by your bridge hand on the cloth and your grip hand on the butt
         const a = aim.current;
         const back = 300 + (drag.current?.mode === "power" ? pull.current : powerRef.current) * 2600;
-        drawCueHands(g, cue.x, cue.y, a, BR + back, BR + 3600, 25, "back");
+        const sp = cueSprites(looks.current.me);
+        if (sp) drawCueHandSprites(g, cue.x, cue.y, a, BR + back, BR + 3600, 25, "back", sp);
+        else drawCueHands(g, cue.x, cue.y, a, BR + back, BR + 3600, 25, "back");
         drawCue(g, cue.x, cue.y, a, BR + back, 8000, 25);
-        drawCueHands(g, cue.x, cue.y, a, BR + back, BR + 3600, 25, "front");
+        if (sp) drawCueHandSprites(g, cue.x, cue.y, a, BR + back, BR + 3600, 25, "front", sp);
+        else drawCueHands(g, cue.x, cue.y, a, BR + back, BR + 3600, 25, "front");
+      }
+      const os = oppStrike.current;
+      if (os) {
+        // the opponent's line-up: settle, draw back with the shot's power, then a quick stroke through the ball
+        const x = Math.min(1, (now - os.t0) / os.dur);
+        const pullMax = 300 + os.power * 2600;
+        const back = x < 0.7 ? 300 + (pullMax - 300) * (1 - (1 - x / 0.7) ** 2) : pullMax - (pullMax + BR * 0.15) * (((x - 0.7) / 0.3) ** 2);
+        const sp = cueSprites(looks.current.opp);
+        if (sp) drawCueHandSprites(g, os.x, os.y, os.a, BR + back, BR + 3600, 25, "back", sp);
+        else drawCueHands(g, os.x, os.y, os.a, BR + back, BR + 3600, 25, "back");
+        drawCue(g, os.x, os.y, os.a, BR + back, 8000, 25);
+        if (sp) drawCueHandSprites(g, os.x, os.y, os.a, BR + back, BR + 3600, 25, "front", sp);
+        else drawCueHands(g, os.x, os.y, os.a, BR + back, BR + 3600, 25, "front");
       }
       if (cue && act && cuePosRef.current) {
         drawBall(g, cue, v.portrait, 0.95, undefined, cb);

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { returnLabel, returnPath } from "@/lib/return-point";
 import { Bot, CircleHelp, Handshake, LogOut, Menu, Pause, Play, ShieldCheck, SlidersHorizontal, Star, Trophy, User, Volume2, VolumeX, type LucideIcon } from "lucide-react";
@@ -9,6 +10,9 @@ import { GameSettings, PrefSwitch } from "./GameSettings";
 import { useGameInput } from "./input";
 import { t, type GameKey } from "./i18n";
 import "./games.css";
+
+/** The real game hand (P2-GAME-07): three.js loads with the game screen, off the critical path. */
+const HandOverlay = dynamic(() => import("./hand/HandOverlay").then((m) => m.HandOverlay), { ssr: false });
 
 export type GameId = "pool" | "ludo" | "igisoro";
 
@@ -162,6 +166,7 @@ export function GameShell({
         </div>
       </main>
       {footer && <footer className="px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))]">{footer}</footer>}
+      <HandOverlay />
 
       {menu && !leaving && (
         <Modal onClose={() => setMenu(false)} label={t("game.paused")} title={t("game.paused")} icon={Pause}>

@@ -4,6 +4,9 @@ import { playIgisoro, type IgisoroState } from "@gukirana/igisoro";
 import { animScale, haptic, sfx, useGamePrefs } from "./feedback";
 import { shouldAutoFocus } from "./input";
 import { SKIN, SowingHand } from "./hands";
+import { hands, handMode } from "./hand/director";
+import { opponentHandLook, type HandLook } from "./hand/look";
+import { useMyHandLook } from "./hand/useHandLook";
 import { t } from "./i18n";
 
 type Side = 0 | 1;
@@ -44,6 +47,19 @@ export function previewMove(s: IgisoroState, pit: number): SowPreview {
   return { end, captures, gain: sum(next, me) - sum(s, me) };
 }
 
+/** Carved-wood grain over the board (feTurbulence stretched along the grain; no image download). */
+const WOOD_GRAIN = `url("data:image/svg+xml;utf8,${encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' width='320' height='160'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.004 0.09' numOctaves='4' seed='11'/><feColorMatrix values='0 0 0 0 0.22  0 0 0 0 0.12  0 0 0 0 0.05  0 0 0 1.1 -0.38'/></filter><rect width='320' height='160' filter='url(%23g)'/></svg>",
+).replace(/%2523/g, "%23")}")`;
+
+/** Imbuto seed tones: real seeds vary from honey to dark coffee (fixed per spot, never random). */
+const SEED_TONES = [
+  ["#f3e3c3", "#8a5a2b"],
+  ["#e9d2a8", "#6e4420"],
+  ["#f6e9cf", "#9b6a36"],
+  ["#dcc196", "#5a3818"],
+] as const;
+
 /** Seed spots inside a pit (percent): a golden-angle heap with a fixed per-seed wobble, so piles look natural and never move. */
 const SPOTS = Array.from({ length: 16 }, (_, i) => {
   const a = i * 2.39996 + 0.7;
@@ -63,7 +79,7 @@ const Seeds = memo(function Seeds({ n, drop }: { n: number; drop: number }) {
           <span
             key={fresh ? `d${drop}` : i}
             className={`absolute block h-[22%] w-[17%] rounded-[50%] shadow-[inset_-1px_-2px_2px_rgba(0,0,0,.45),0_1px_1px_rgba(0,0,0,.4)] ${fresh ? "gk-seed-new" : ""}`}
-            style={{ left: `${s.x - 8.5}%`, top: `${s.y - 11}%`, rotate: `${s.rot}deg`, background: `radial-gradient(circle at 35% 30%, #f3e3c3, ${s.dark ? "#6e4420" : "#8a5a2b"})` }}
+            style={{ left: `${s.x - 8.5}%`, top: `${s.y - 11}%`, rotate: `${s.rot}deg`, background: `radial-gradient(circle at 35% 30%, ${SEED_TONES[i % 4]![0]}, ${s.dark ? "#5e3a1b" : SEED_TONES[i % 4]![1]})` }}
           />
         );
       })}
@@ -179,7 +195,10 @@ export function IgisoroBoard({
   autoFocus = false,
   onHover,
   onPick,
+  oppLook,
 }: {
+  /** the opponent's hand look (their look code / seeded look); default: a seeded practice look */
+  oppLook?: HandLook;
   pits: [number[], number[]];
   me: Side;
   legal: number[];
@@ -219,13 +238,35 @@ export function IgisoroBoard({
   }, [autoFocus, legalKey, me]);
 
   const oppHand = !!step && step.owner !== me;
+
+  // the real hand (P2-GAME-07): the overlay hand scoops / sows / sweeps the pit each replay step names
+  const myLook = useMyHandLook();
+  const real = typeof window !== "undefined" && handMode() !== "svg" && stepMs > 0;
+  const hadStep = useRef(false);
+  useEffect(() => {
+    if (!real || !board.current) return;
+    if (!step) {
+      if (hadStep.current) hands.sowEnd();
+      hadStep.current = false;
+      return;
+    }
+    hadStep.current = true;
+    const el = board.current.querySelector<HTMLElement>(`[data-pit="${step.cell.side}-${step.cell.idx}"]`);
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const mine = step.owner === me;
+    hands.sowStep(
+      { board: board.current, side: mine ? 0 : Math.PI, look: mine ? myLook : (oppLook ?? opponentHandLook("practice-igisoro-ai")), size: 0.16 },
+      { kind: step.kind, x: r.left + r.width / 2, y: r.top + r.height / 2, seeds: hand, stepMs },
+    );
+  }, [step?.id, real]);
   return (
     <div className="absolute inset-0 grid place-items-center @container-size">
       <div
         ref={board}
         data-game-board
         className="relative aspect-[2/1] rounded-[28px] border-[6px] border-[#4a2e17] p-[2.2%] shadow-[0_20px_60px_-10px_rgba(0,0,0,.8),inset_0_2px_0_rgba(255,255,255,.15)]"
-        style={{ width: "min(100cqw, 200cqh)", background: "repeating-linear-gradient(95deg,#9a6534 0 18px,#8b5a2d 18px 30px,#a36d3a 30px 44px)" }}
+        style={{ width: "min(100cqw, 200cqh)", background: `${WOOD_GRAIN}, radial-gradient(ellipse at 40% 30%, rgba(255,220,170,.16), rgba(0,0,0,.18) 80%), repeating-linear-gradient(95deg,#9a6534 0 18px,#8b5a2d 18px 30px,#a36d3a 30px 44px)` }}
         role="group"
         aria-label={t("igisoro.title")}
       >
@@ -286,11 +327,13 @@ export function IgisoroBoard({
             className="pointer-events-none absolute z-20 w-[11%] transition-[left,top] ease-out"
             style={{ left: `${handPos.x}%`, top: `${handPos.y}%`, transitionDuration: `${Math.round(stepMs * 0.8)}ms` }}
           >
-            <div key={step.kind === "sow" ? "sow" : step.id} className={`gk-hand ${oppHand ? "gk-opp" : ""} ${step.kind !== "sow" ? "gk-grab" : ""} absolute left-0 top-0 w-full`} style={{ ["--gk-grab" as string]: `${Math.round(stepMs * 1.5)}ms` }}>
-              <SowingHand skin={oppHand ? SKIN.opp : SKIN.me} seeds={hand} className="w-full drop-shadow-[0_6px_8px_rgba(0,0,0,.45)]" />
-            </div>
+            {!real && (
+              <div key={step.kind === "sow" ? "sow" : step.id} className={`gk-hand ${oppHand ? "gk-opp" : ""} ${step.kind !== "sow" ? "gk-grab" : ""} absolute left-0 top-0 w-full`} style={{ ["--gk-grab" as string]: `${Math.round(stepMs * 1.5)}ms` }}>
+                <SowingHand skin={oppHand ? SKIN.opp : SKIN.me} seeds={hand} className="w-full drop-shadow-[0_6px_8px_rgba(0,0,0,.45)]" />
+              </div>
+            )}
             {hand > 0 && (
-              <span className={`num absolute left-1/2 grid min-w-6 -translate-x-1/2 place-items-center rounded-full bg-black/80 px-1.5 text-xs font-bold text-white ring-1 ring-[#FFC83D]/70 ${oppHand ? "-top-[5.2em]" : "top-[3.4em]"}`}>{hand}</span>
+              <span className={`num absolute left-1/2 grid min-w-6 -translate-x-1/2 place-items-center rounded-full bg-black/80 px-1.5 text-xs font-bold text-white ring-1 ring-[#FFC83D]/70 ${real ? (oppHand ? "top-[2.6em]" : "-top-[4.2em]") : oppHand ? "-top-[5.2em]" : "top-[3.4em]"}`}>{hand}</span>
             )}
           </div>
         )}
