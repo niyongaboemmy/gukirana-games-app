@@ -280,10 +280,13 @@ function ReplayBadge() {
   const playing = useReplay((s) => s.playing);
   if (!playing) return null;
   return (
-    <div className="pointer-events-none absolute left-1/2 top-[19%] -translate-x-1/2">
-      <span className={`${glass} flex items-center gap-1.5 px-3 py-1 text-xs font-black uppercase tracking-wide`}>
+    <div className="pointer-events-auto absolute left-1/2 top-[19%] flex -translate-x-1/2 items-center gap-2">
+      <span className={`${glass} flex items-center gap-1.5 px-3 py-1.5 text-xs font-black uppercase tracking-wide`}>
         <Clapperboard size={14} /> {ft("result.replaying")}
       </span>
+      <button type="button" className="pbtn pbtn-primary !min-h-9 !px-3 !py-1 !text-xs" onClick={stopReplay}>
+        <Square size={14} /> {ft("result.highlightsStop")}
+      </button>
     </div>
   );
 }
@@ -422,7 +425,13 @@ export function FightHud() {
   const [leaving, setLeaving] = useState(false);
   const [settings, setSettings] = useState(false);
   const replaying = useReplay((s) => s.playing);
+  // the result card waits ~3.5 s: the bell, the referee raising the winner's hand, the crowd (P3-FGT-05)
+  const overAt = useRef<number | null>(null);
+  const phaseNow = mine?.snap?.phase;
+  if (phaseNow === "over" && overAt.current === null) overAt.current = typeof performance !== "undefined" ? performance.now() : 0;
+  if (phaseNow !== "over") overAt.current = null;
   const now = useNow(100);
+  const ceremony = overAt.current !== null && now - overAt.current < 3500;
   const feed = useFightUi((s) => s.feed);
   // only events that arrive while this HUD is up make a sound: a HUD that (re)mounts mid-fight must not replay the
   // whole recent feed as a burst of sounds
@@ -475,7 +484,7 @@ export function FightHud() {
       <PressChip now={now} />
       <ReplayBadge />
       <div className="pointer-events-auto">
-        {snap.phase === "over" && !replaying && <ResultCard mine={mine} onLeave={leave} />}
+        {snap.phase === "over" && !replaying && !ceremony && <ResultCard mine={mine} onLeave={leave} />}
         {leaving && snap.phase !== "over" && <LeaveDialog mine={mine} onStay={() => setLeaving(false)} onLeave={leave} />}
         {settings && <FightSettings live={mine.mode === "live"} onClose={() => setSettings(false)} />}
       </div>

@@ -84,14 +84,21 @@ export function FocusMode() {
       }
     }
 
-    // darkness
-    if (e <= 0.001 || !ring) {
+    // darkness: the fog object is installed once while the hall shows (a far-away fog = no effect) and only its
+    // distances change, so focusing never recompiles a shader; it is removed when the hall goes off screen
+    if (!onScreen) {
       restoreScene();
-      if (spot.current) spot.current.intensity = 0;
       return;
     }
     if (!saved.current) saved.current = { fog: scene.fog, bg: scene.background instanceof THREE.Color ? scene.background.clone() : null };
-    scene.fog = fog;
+    if (scene.fog !== fog) scene.fog = fog;
+    if (e <= 0.001 || !ring) {
+      fog.near = 1e4;
+      fog.far = 2e4;
+      if (saved.current.bg && scene.background instanceof THREE.Color) scene.background.copy(saved.current.bg);
+      if (spot.current) spot.current.intensity = 0;
+      return;
+    }
     const d = Math.hypot(camera.position.x - ring.x, camera.position.z - ring.z);
     const spectator = next.mode === "spectator";
     // fighter: black a little past the far ropes; spectator: the neighbouring rings stay half visible

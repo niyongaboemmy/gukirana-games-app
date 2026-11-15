@@ -26,7 +26,6 @@ export function isHighlight(e: FightEvent): boolean {
 }
 
 let buffer: Frame[] = [];
-let pendingEvents: FightEvent[] = [];
 let open: { frames: Frame[]; until: number; score: number } | null = null;
 const highlights: { frames: Frame[]; score: number }[] = [];
 
@@ -51,16 +50,24 @@ export function recordFrame(snap: BoxingSnapshot, events: FightEvent[], at = per
       useReplay.setState({ count: highlights.length });
     }
   }
+  addEvents(events, at);
+}
+
+/** events of the latest recorded frame (they arrive just after its snapshot); a big one opens a highlight */
+function addEvents(events: FightEvent[], at: number): void {
+  if (!events.length) return;
+  const last = buffer[buffer.length - 1];
+  if (last && last.events !== events) last.events = [...last.events, ...events];
   const big = events.filter(isHighlight);
   if (big.length && !open) {
     const score = big.reduce((a, e) => a + (e.k === "knockdown" ? 10 : e.k === "hit" ? e.points + e.combo : 0), 0);
     open = { frames: [...buffer], until: at + AFTER_MS, score };
+    if (useReplay.getState().count === 0) useReplay.setState({ count: 1 });
   }
 }
 
 export function resetReplay(): void {
   buffer = [];
-  pendingEvents = [];
   open = null;
   highlights.length = 0;
   play = null;
@@ -93,6 +100,12 @@ export function stopReplay(): void {
   useReplay.setState({ playing: false });
 }
 
+/** the replayed snapshot showing now, read-only (the fight camera frames the replay, not the live end state) */
+export function replaySnap(): BoxingSnapshot | null {
+  if (!play) return null;
+  return play.frames[Math.max(0, play.idx)]?.snap ?? null;
+}
+
 /** the renderer's replay source: the frame to show now (and the events crossed since the last call), or null */
 export function replayFrame(now = performance.now()): { snap: BoxingSnapshot; events: FightEvent[] } | null {
   if (!play) return null;
@@ -113,15 +126,14 @@ if (typeof window !== "undefined") {
   useFightUi.subscribe((s, prev) => {
     if (s.feed === prev.feed) return;
     const last = prev.feed[prev.feed.length - 1]?.id ?? 0;
-    for (const f of s.feed) if (f.id > last) pendingEvents.push(f.e);
-    if (!s.feed.length) pendingEvents = [];
+    const fresh = s.feed.filter((f) => f.id > last).map((f) => f.e);
+    if (fresh.length) addEvents(fresh, performance.now());
   });
   useFightBridge.subscribe((s, prev) => {
     const snap = s.mine?.snap;
     if (!s.mine && prev.mine) return; // stepped out: keep the highlights for the result card until the next fight
     if (!snap || snap === prev.mine?.snap) return;
     if (prev.mine?.ring !== s.mine?.ring || (prev.mine?.snap && snap.tick < prev.mine.snap.tick)) resetReplay();
-    recordFrame(snap, pendingEvents);
-    pendingEvents = [];
+    recordFrame(snap, []);
   });
 }

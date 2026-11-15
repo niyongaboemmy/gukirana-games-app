@@ -10,6 +10,7 @@ import { useFightUi } from "./ui-store";
 import { useFightUi as useGameUi } from "./game/ui-store";
 import { useFightPrefs } from "./game/prefs";
 import { shakeFor } from "./present";
+import { replaySnap } from "./game/replay";
 
 /**
  * Fight camera + watch cameras (P3-FGT-01 §4.3, redesigned in P3-FGT-05). Runs after the hall's follow camera (frame
@@ -50,11 +51,12 @@ export function fightShot(r: RingPlace, snap: BoxingSnapshot | null, me: 0 | 1, 
   }
   if (phase === "knockdown" && snap) {
     const down = snap.fighters.findIndex((f) => f.act === "down");
-    const s = (down === 0 ? -1 : 1) * half;
-    const dx = r.x + s * ax;
-    const dz = r.z + s * az;
-    eye.set(dx + px * 2.3 - ax * Math.sign(s) * 0.6, cy + 1.05, dz + pz * 2.3 - az * Math.sign(s) * 0.6);
-    look.set(dx, cy + 0.6, dz);
+    const sd = down === 0 ? -1 : 1;
+    const dx = r.x + sd * half * ax;
+    const dz = r.z + sd * half * az;
+    const d = r.half + 0.9;
+    eye.set(r.x + px * d + sd * ax * 0.4, cy + 1.95, r.z + pz * d + sd * az * 0.4);
+    look.set(dx, cy + 0.55, dz);
     return;
   }
   if (phase === "over" && snap) {
@@ -119,7 +121,7 @@ export function FightCamera() {
     camera.getWorldDirection(_fwd);
     _fpos.copy(camera.position);
     _flook.copy(camera.position).addScaledVector(_fwd, 5);
-    const snap = mine ? mine.snap : (b.watched?.snap ?? null);
+    const snap = mine ? (replaySnap() ?? mine.snap) : (b.watched?.snap ?? null);
     const th = snap ? ((snap.orbit / 10) * Math.PI) / 180 : 0;
     const ax = Math.cos(th);
     const az = Math.sin(th);
