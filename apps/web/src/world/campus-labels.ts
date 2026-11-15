@@ -20,8 +20,8 @@ export interface CampusLabel {
   tier: "near" | "far";
 }
 
-/** Label height (m) by building kind: just above the roof (the arena: drum 20 m, dome and oculus lid to ~26.6 m since P2-WLD-17; the halls 7–12 m). */
-const HEIGHT: Record<string, number> = { arena: 28.5, fight: 17, pool: 15, admin: 15, ludo: 14, igisoro: 12, service: 10 };
+/** Label height (m) by building kind: just above the roof (the arena: drum 20 m, dome and oculus lid to ~25.5 m since P2-WLD-17; the halls 7–12 m). */
+const HEIGHT: Record<string, number> = { arena: 26, fight: 17, pool: 15, admin: 15, ludo: 14, igisoro: 12, service: 10 };
 
 /** The middle of a plot's footprint in the world. */
 export function plotCentre(p: Plot): { x: number; z: number } {

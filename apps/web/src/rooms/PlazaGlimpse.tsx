@@ -96,7 +96,7 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
     add("arenaWhite", new THREE.CylinderGeometry(1, 1, ARENA.wall + 1 - 7.1, seg, 1, false), 0, 7.1 + (ARENA.wall + 1 - 7.1) / 2, az, 0, ell(ARENA.rx + 0.4, ARENA.rz + 0.4));
     // the cantilevered eave and the shallow dome (District.ts tournamentArena)
     add("arenaRoof", new THREE.CylinderGeometry(1, 1, 0.9, seg, 1, false), 0, ARENA.wall + 0.55, az, 0, ell(ARENA.rx + 2.2, ARENA.rz + 2.2));
-    add("arenaRoof", new THREE.SphereGeometry(1, seg, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0, ARENA.wall + 1.0, az, 0, [ARENA.rx + 2.2, 4.4, ARENA.rz + 2.2]);
+    add("arenaRoof", new THREE.SphereGeometry(1, seg, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0, ARENA.wall + 1.0, az, 0, [ARENA.rx + 2.2, 3.4, ARENA.rz + 2.2]);
     }
 
     // every other building on the campus at its true place, height and facade material (rooms/plaza-impostor.ts: the

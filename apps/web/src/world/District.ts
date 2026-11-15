@@ -445,7 +445,7 @@ function tournamentArena(b: GeoBatch, tier: string) {
 
   // ---- roof: a shallow standing-seam dome from the eave to the oculus, a glazed lantern, a closed cap with an amber
   // halo (one continuous closed shell: nothing floats, nothing is open from above)
-  const H = 4.2;
+  const H = 3.4; // (the lid tops out at ~25.5 m: the aerial label floats just above it, campus-labels.ts)
   const ocu = 0.2;
   const pts: THREE.Vector2[] = [];
   for (let i = 0; i <= 16; i++) {
@@ -455,10 +455,10 @@ function tournamentArena(b: GeoBatch, tier: string) {
   const roofY = eaveY + 0.9;
   b.add("arenaRoof", new THREE.LatheGeometry(pts, seg * 2), { p: [0, roofY, cz], s: ell(E), uv: [150, 1] });
   const lantern: [number, number, number] = [(rx + E) * ocu + 0.05, 1, (rz + E) * ocu + 0.05];
-  b.add("glass", new THREE.CylinderGeometry(1, 1, 1.3, 40, 1, true), { p: [0, roofY + H + 0.4, cz], s: lantern, uv: [6, 1] });
+  b.add("glass", new THREE.CylinderGeometry(1, 1, 1.0, 40, 1, true), { p: [0, roofY + H + 0.35, cz], s: lantern, uv: [6, 1] });
   // (a cream stone lid: from above it reads as the closed crown of the roof, not as a dark hole)
-  b.add("limestone", new THREE.CylinderGeometry(1, 1, 0.32, 40), { p: [0, roofY + H + 1.21, cz], s: [lantern[0] * 1.1, 1, lantern[2] * 1.1] });
-  b.add("led-halo", new THREE.CylinderGeometry(1, 1, 0.05, 40, 1, true), { p: [0, roofY + H + 1.08, cz], s: [lantern[0] * 1.1 + 0.01, 1, lantern[2] * 1.1 + 0.01] });
+  b.add("limestone", new THREE.CylinderGeometry(1, 1, 0.32, 40), { p: [0, roofY + H + 0.95, cz], s: [lantern[0] * 1.1, 1, lantern[2] * 1.1] });
+  b.add("led-halo", new THREE.CylinderGeometry(1, 1, 0.05, 40, 1, true), { p: [0, roofY + H + 0.82, cz], s: [lantern[0] * 1.1 + 0.01, 1, lantern[2] * 1.1 + 0.01] });
 
   // ---- the big screen's chocolate frame on the drum, with the header that carries the crown lettering (Plaza.tsx)
   b.box("choco", 17.4, 7.1, 0.5, { p: [0, 13.3, cz + rz + 0.9] });
