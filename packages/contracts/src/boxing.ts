@@ -251,6 +251,13 @@ export interface FighterView {
   body?: boolean;
   /** accumulated wear (0..1000): lowers the composure the fighter can recover to (no injury visuals) */
   wear?: number;
+  /* -------- fighter life (P3-FGT-13, docs/FIGHT-REALISM-V3.md §5) -------- */
+  /** accumulated body damage (0..1000): lowers the stamina ceiling (the head damage is `wear`) */
+  bodyWear?: number;
+  /** down and getting up: steady presses counted so far / needed before the count runs out */
+  rise?: { got: number; need: number };
+  /** the second wind of this round has been used */
+  wind2?: boolean;
 }
 
 /** fight room → fighters (`snap`, FIGHTER_SNAPSHOT_HZ) and hall room → watchers (`boxing-frame`, SPECTATOR_FRAME_HZ) */
@@ -282,6 +289,10 @@ export interface BoxingSnapshot {
   engine?: 2;
   /** v2: a clinch is on (ticks left before the referee breaks it) and who tied up */
   clinch?: { by: 0 | 1; left: number };
+  /** fighter life rules (P3-FGT-13): 1 = head / body damage, recovery, get-up task, standing count, second wind */
+  life?: 1;
+  /** P3-FGT-13: who the referee is counting, and whether it is a standing count (the fighter is on their feet) */
+  counted?: { to: 0 | 1; standing: boolean };
 }
 
 /* ------------------------------------------------------------ events ------------------------------------------------------------ */
@@ -342,7 +353,12 @@ export type FightEvent =
   /** v2: a clinch: `by` tied the other up (no punches until the referee breaks it) */
   | { k: "clinch"; t: number; by: 0 | 1 }
   | { k: "whiff"; t: number; by: 0 | 1; punch: Punch }
-  | { k: "knockdown"; t: number; to: 0 | 1; points: number }
+  /** `standing` (P3-FGT-13): a standing count (the referee stopped a fighter who was taking punches without answering) */
+  | { k: "knockdown"; t: number; to: 0 | 1; points: number; standing?: boolean }
+  /** P3-FGT-13: a get-up press during the count (`ok` = steady, counted; false = a panic press that cost progress) */
+  | { k: "rise"; t: number; to: 0 | 1; got: number; need: number; ok: boolean }
+  /** P3-FGT-13: a second wind (late in the round, after defending well) */
+  | { k: "secondWind"; t: number; to: 0 | 1 }
   | { k: "count"; t: number; n: number }
   | { k: "up"; t: number; to: 0 | 1 }
   /**

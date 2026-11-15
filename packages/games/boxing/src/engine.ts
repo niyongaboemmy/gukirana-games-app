@@ -175,6 +175,49 @@ export const REGEN = {
   restComposure: 10,
 } as const;
 
+/* ------------------------------------------------------------ fighter life (P3-FGT-13) ------------------------------------------------------------ */
+
+/**
+ * Fighter life and recovery (P3-FGT-13, docs/FIGHT-REALISM-V3.md §5). On for every new fight (`createFight`); a log
+ * recorded before it (no `life` flag) replays with the P3-FGT-10 rules, byte for byte.
+ *
+ * The four meters: balance (`composure`, 0 → down), stamina, head damage (`wear`) and body damage (`bodyWear`). Head
+ * damage lowers the balance a fighter can recover to and makes getting up harder; body damage lowers the stamina
+ * ceiling. Recovery is earned, never bought, and the same for both corners:
+ *  - defence: a block / slip / duck / parry / step-out gives balance (and stamina for a real evasion) back;
+ *  - breathing on the move: out of range, off the ropes and not hit for a second: faster stamina and balance;
+ *  - the clinch (P3-FGT-10, unchanged) — paid for with the referee's HOLDING ladder;
+ *  - the corner: part of what is missing comes back over the rest, and a little damage is treated;
+ *  - the count: get up with steady presses (panic presses cost progress); harder with head damage, knockdowns and
+ *    exhaustion; a fighter who fails is counted out (KO);
+ *  - the standing count: a fighter taking clean punches without answering is given a standing 8 (it counts as a
+ *    knockdown, as in amateur rules) and gets a breather;
+ *  - second wind: once per round, late, for a fighter who has been defending well and not been hit clean lately.
+ */
+export const LIFE = {
+  /** balance / stamina given back by a successful defence */
+  defend: { block: 6, evade: 14, parry: 14, evadeStamina: 6 },
+  /** out of range by `margin` mm, off the ropes, no clean hit taken for `quiet` ticks: extra stamina per tick, balance every tick */
+  breathe: { margin: 150, quiet: 30, stamina: 2 },
+  /** the corner over the rest: % of the missing stamina / balance (to the ceilings), damage treated */
+  corner: { staminaPct: 60, composurePct: 75, headHeal: 40, bodyHeal: 30 },
+  /**
+   * getting up: presses count from `from` ticks into the count, each at least `gap` ticks after the last counted one
+   * (+`tiredGap` when exhausted); a sooner press is panic and costs one. Needed: base + perKnockdown per earlier
+   * knockdown + one per `wearStep` head damage (+`tiredExtra` when exhausted). Done by `composedBy` → +composedBonus.
+   */
+  rise: { from: 30, gap: 9, tiredGap: 4, base: 4, perKnockdown: 3, wearStep: 160, tiredExtra: 3, composedBy: 150, composedBonus: 60 },
+  /** the standing count: balance at or below `at` after a clean hit, `run` clean hits taken within `window` ticks without landing one */
+  standing: { at: 150, run: 4, window: 90, to: 450, points: 3 },
+  /**
+   * second wind: in the last `left` ticks of a round, stamina under `below`, at least `defended` defences this round and
+   * not out-landed in it, no clean hit taken for `clean` ticks
+   */
+  secondWind: { left: 600, below: 350, defended: 10, clean: 200, stamina: 180, composure: 80 },
+} as const;
+/** head damage at which the referee will not let a downed fighter continue (counted out) */
+export const WEAR_STOP = 850;
+
 /* ------------------------------------------------------------ state ------------------------------------------------------------ */
 
 export interface FighterState {
@@ -238,6 +281,19 @@ export interface FighterState {
   ctl: number;
   gassed: number;
   landedTired: number;
+  /*
+   * fighter life (P3-FGT-13). Present only in fights with `life` on, so the canonical state (and the signed hash) of a
+   * fight recorded before P3-FGT-13 is unchanged when its log is replayed.
+   */
+  /** tick of the last clean hit taken, and clean hits taken in a row without landing one (the standing count) */
+  struckAt?: number;
+  struckRun?: number;
+  /** the second wind of this round is used */
+  wind2?: boolean;
+  /** down: the get-up task (steady presses counted, needed, tick of the last counted press) */
+  rise?: { got: number; need: number; last: number } | null;
+  /** the corner over the rest: [stamina, balance] at the start of the rest and what the corner gives back */
+  cornerWork?: [number, number, number, number] | null;
 }
 
 export interface ClinchState {
@@ -274,6 +330,10 @@ export interface FightState {
   events: FightEvent[];
   resume: { phase: FightPhase; left: number } | null;
   outcome: BoxingOutcome | null;
+  /** fighter life rules (P3-FGT-13); absent = the P3-FGT-10 rules (old logs replay unchanged) */
+  life?: 1;
+  /** the referee's count: who, and whether it is a standing count (P3-FGT-13) */
+  counted?: { to: 0 | 1; standing: boolean } | null;
 }
 
 /** inputs that arrived for this tick, by fighter index (0 = red, 1 = blue); null = nothing new */
@@ -329,13 +389,16 @@ const fighter = (id: string, corner: Corner): FighterState => ({
   gassed: 0,
   landedTired: 0,
 });
+/** the fighter-life fields of a fresh fighter (P3-FGT-13) */
+const LIFE_FRESH = { struckAt: -1000, struckRun: 0, wind2: false, rise: null, cornerWork: null } as const;
 
 export function createFight(
   players: readonly [string, string],
   rules: FightRules = DEFAULT_FIGHT_RULES,
-  opts: { staked?: boolean } = {},
+  opts: { staked?: boolean; /** fighter life rules (P3-FGT-13): on unless 0 (replays of older logs) */ life?: 0 | 1 } = {},
 ): FightState {
   return {
+    ...(opts.life === 0 ? {} : { life: 1 as const }),
     v: 2,
     rules,
     tick: 0,
@@ -344,7 +407,10 @@ export function createFight(
     round: 0,
     dist: START_GAP / 10,
     orbit: 0,
-    fighters: [fighter(players[0], "red"), fighter(players[1], "blue")],
+    fighters:
+      opts.life === 0
+        ? [fighter(players[0], "red"), fighter(players[1], "blue")]
+        : [{ ...fighter(players[0], "red"), ...LIFE_FRESH }, { ...fighter(players[1], "blue"), ...LIFE_FRESH }],
     rounds: [],
     tally: emptyTally(),
     tallies: [],
@@ -868,8 +934,23 @@ function resolvePunch(att: FighterState, def: FighterState, gap: number, t: numb
   return { kind: "hit", partial: smothered, counter: counter && !smothered, angle };
 }
 
+/** a successful defence gives some balance / stamina back (fighter life, P3-FGT-13); in place, to the ceilings */
+function recoverBy(f: FighterState, composure: number, stamina: number): void {
+  f.composure = Math.min(Math.max(f.composure, composureCap(f)), f.composure + composure);
+  f.stamina = Math.min(Math.max(f.stamina, staminaCap(f)), f.stamina + stamina);
+}
+
+/** the get-up task for a fighter just knocked down (P3-FGT-13): steady presses needed before the count runs out */
+export function riseNeed(f: Pick<FighterState, "knockdowns" | "wear" | "stamina">): number {
+  const R = LIFE.rise;
+  return R.base + R.perKnockdown * Math.max(0, f.knockdowns - 1) + Math.trunc(f.wear / R.wearStep) + (f.stamina < EXHAUSTED_STAMINA ? R.tiredExtra : 0);
+}
+/** the least ticks between two counted get-up presses */
+export const riseGap = (f: Pick<FighterState, "stamina">): number => LIFE.rise.gap + (f.stamina < TIRED_STAMINA ? LIFE.rise.tiredGap : 0);
+
 function stepRound(s: FightState, inputs: TickInputs, t: number, events: FightEvent[]): FightState {
   const locked = !!s.clinch;
+  const life = s.life === 1;
   // 1. each fighter on its own (timers, input, buffer)
   let fs = [advanceFighter(s.fighters[0], inputs[0], t, locked), advanceFighter(s.fighters[1], inputs[1], t, locked)] as [
     FighterState,
@@ -901,6 +982,13 @@ function stepRound(s: FightState, inputs: TickInputs, t: number, events: FightEv
   const res: [Resolution, Resolution] = [resolvePunch(fs[0], fs[1], gap, t), resolvePunch(fs[1], fs[0], gap, t)];
   const next = fs.map((f) => ({ ...f })) as [FighterState, FighterState];
   const staggers: [0 | 1, number][] = [];
+  // fighter life: balance / stamina won back by defending, clean hits taken / landed (applied after both punches: order-free)
+  const gain: [[number, number], [number, number]] = [
+    [0, 0],
+    [0, 0],
+  ];
+  const struck = [false, false];
+  const landed = [false, false];
   for (const i of [0, 1] as const) {
     const r = res[i];
     if (r.kind === "pending") continue;
@@ -916,6 +1004,7 @@ function stepRound(s: FightState, inputs: TickInputs, t: number, events: FightEv
       att.rec += WHIFF_RECOVERY;
       if (r.kind === "evade") {
         def.defendAt = t;
+        if (life) gain[j] = [gain[j][0] + LIFE.defend.evade, gain[j][1] + LIFE.defend.evadeStamina];
         events.push({ k: "evade", t, by: i, punch, how: r.how });
       } else events.push({ k: "whiff", t, by: i, punch });
       continue;
@@ -924,6 +1013,7 @@ function stepRound(s: FightState, inputs: TickInputs, t: number, events: FightEv
       att.rec += MOVE.parry.recovery;
       att.composure = Math.max(0, att.composure - 20);
       def.defendAt = t;
+      if (life) gain[j] = [gain[j][0] + LIFE.defend.parry, gain[j][1] + LIFE.defend.evadeStamina];
       events.push({ k: "parry", t, by: i, punch });
       continue;
     }
@@ -932,6 +1022,7 @@ function stepRound(s: FightState, inputs: TickInputs, t: number, events: FightEv
       def.stamina = Math.max(0, def.stamina - BLOCK_STAMINA);
       if (punch !== "jab") def.composure = Math.max(1, def.composure - BLOCK_CHIP);
       def.defendAt = t;
+      if (life) gain[j] = [gain[j][0] + LIFE.defend.block, gain[j][1]];
       def.vx += Math.trunc((ux * (spec.push >> 1)) / 1000);
       def.vz += Math.trunc((uz * (spec.push >> 1)) / 1000);
       if (def.act === "idle") Object.assign(def, { act: "blockHit", actT: 0 });
@@ -966,6 +1057,10 @@ function stepRound(s: FightState, inputs: TickInputs, t: number, events: FightEv
       att.rec = Math.max(1, att.rec - HIT_RECOVERY_BONUS);
       if (punch !== "jab") att.power += 1;
       if (tired) att.landedTired += 1;
+      if (life) {
+        struck[j] = true;
+        landed[i] = true;
+      }
     }
     att.points += points;
     def.composure = Math.max(0, def.composure - dmg);
@@ -988,6 +1083,17 @@ function stepRound(s: FightState, inputs: TickInputs, t: number, events: FightEv
   }
   for (const [j, ticksOf] of staggers)
     Object.assign(next[j], { act: "staggered", actT: 0, rec: Math.max(ticksOf, next[j].act === "staggered" ? next[j].rec : 0), resolved: false, buf: null, body: false });
+  if (life)
+    for (const k of [0, 1] as const) {
+      const f = next[k];
+      if (gain[k][0] || gain[k][1]) recoverBy(f, gain[k][0], gain[k][1]);
+      // the standing count watches clean punches taken in a row without answering (landing one resets the run)
+      if (struck[k]) {
+        const prev = fs[k].struckAt ?? -1000;
+        f.struckRun = landed[k] ? 1 : t - prev <= LIFE.standing.window ? (fs[k].struckRun ?? 0) + 1 : 1;
+        f.struckAt = t;
+      } else if (landed[k]) f.struckRun = 0;
+    }
   fs = next;
 
   // 3b. stamina / composure / skill counters (after the punches: a hit fighter does not regenerate this tick)
@@ -999,7 +1105,19 @@ function stepRound(s: FightState, inputs: TickInputs, t: number, events: FightEv
     else if (isPunchAct(f.act)) stamina += 0;
     else if (f.act === "idle") stamina += moving ? REGEN.moving : f.guard ? REGEN.guard : REGEN.rest;
     else stamina += REGEN.moving;
-    const regenC = f.act !== "down" && f.act !== "staggered" && t % REGEN.composureEvery === 0 ? 1 + (clinch ? 2 : 0) : 0;
+    // breathing on the move (P3-FGT-13): out of range, off the ropes, not hit lately
+    const breathing =
+      life &&
+      !clinch &&
+      gap > PUNCH_SPECS.jab.reach + LIFE.breathe.margin &&
+      !onRopes(f) &&
+      !cornered(f) &&
+      t - (f.struckAt ?? -1000) > LIFE.breathe.quiet &&
+      !isPunchAct(f.act) &&
+      f.act !== "staggered" &&
+      f.act !== "blockHit";
+    if (breathing) stamina += LIFE.breathe.stamina;
+    const regenC = f.act !== "down" && f.act !== "staggered" && (breathing || t % REGEN.composureEvery === 0) ? 1 + (clinch ? 2 : 0) : 0;
     return withStage({
       ...f,
       stamina: clamp(stamina, 0, staminaCap(f)),
@@ -1010,6 +1128,23 @@ function stepRound(s: FightState, inputs: TickInputs, t: number, events: FightEv
 
   // 3c. clinch: a grab at its grab tick ties the other up (if still in reach and not knocked away)
   let tally = tallyEvents(s.tally, events);
+  // second wind (P3-FGT-13): once a round, late, for a fighter who has defended well and not been hit clean lately
+  if (life) {
+    const W = LIFE.secondWind;
+    for (const i of [0, 1] as const) {
+      const f = fs[i];
+      if (f.wind2 || s.left > W.left || f.stamina >= W.below || tally[i].defended < W.defended || t - (f.struckAt ?? -1000) <= W.clean) continue;
+      if (tally[1 - i]!.landed > tally[i].landed) continue;
+      if (f.act === "down" || f.act === "staggered") continue;
+      fs[i] = {
+        ...f,
+        wind2: true,
+        stamina: Math.min(staminaCap(f), f.stamina + W.stamina),
+        composure: Math.min(Math.max(f.composure, composureCap(f)), f.composure + W.composure),
+      };
+      events.push({ k: "secondWind", t, to: i });
+    }
+  }
   if (!clinch) {
     const grabbers = ([0, 1] as const).filter(
       (i) => fs[i].act === "clinch" && fs[i].actT === MOVE.clinch.grab && gap <= CLINCH_REACH && fs[1 - i]!.act !== "staggered" && fs[1 - i]!.act !== "down",
@@ -1025,6 +1160,37 @@ function stepRound(s: FightState, inputs: TickInputs, t: number, events: FightEv
 
   // 4. knockdowns
   const downed = ([0, 1] as const).filter((i) => fs[i].composure <= 0);
+  // the standing count (P3-FGT-13): a fighter hurt and taking clean punches in a row without answering
+  const S = LIFE.standing;
+  const hurt = life && !downed.length ? ([0, 1] as const).filter((i) => fs[i].struckAt === t && (fs[i].struckRun ?? 0) >= S.run && fs[i].composure <= S.at) : [];
+  // (both at once: an exchange, no standing count — never decided by the corner index)
+  const standing = hurt.length === 1 ? hurt[0] : undefined;
+  if (standing !== undefined) {
+    const i = standing;
+    const j = (1 - i) as 0 | 1;
+    fs[j] = { ...fs[j], points: fs[j].points + S.points, act: "idle", actT: 0, stage: "none", buf: null, vx: 0, vz: 0 };
+    fs[i] = {
+      ...fs[i],
+      act: "idle",
+      actT: 0,
+      stage: "none",
+      buf: null,
+      vx: 0,
+      vz: 0,
+      struckRun: 0,
+      knockdowns: fs[i].knockdowns + 1,
+      roundKnockdowns: fs[i].roundKnockdowns + 1,
+    };
+    events.push({ k: "knockdown", t, to: i, points: S.points, standing: true });
+    const base: FightState = { ...s, tick: t, ...derive(s, fs), fighters: fs, events, breakLeft: 0, clinch: null, fought: s.fought + 1, tally: tallyEvents(s.tally, events) };
+    if (fs[i].roundKnockdowns >= STOPPAGE_KNOCKDOWNS_ROUND || fs[i].knockdowns >= STOPPAGE_KNOCKDOWNS_MATCH) {
+      events.push({ k: "stoppage", t, winner: j });
+      const closed = closeRound(base, true);
+      return finish(closed, { ...decide(closed), decision: "stoppage", method: "RSC", winner: j }, events);
+    }
+    events.push({ k: "count", t, n: 1 });
+    return { ...base, phase: "knockdown", left: KNOCKDOWN_COUNT_TICKS, held: s.left - 1, ko: null, counted: { to: i, standing: true } };
+  }
   if (downed.length) {
     for (const i of downed) {
       const j = (1 - i) as 0 | 1;
@@ -1038,10 +1204,14 @@ function stepRound(s: FightState, inputs: TickInputs, t: number, events: FightEv
         knockdowns: fs[i].knockdowns + 1,
         roundKnockdowns: fs[i].roundKnockdowns + 1,
       };
+      // the get-up task (P3-FGT-13)
+      if (life) fs[i] = { ...fs[i], struckRun: 0, rise: { got: 0, need: riseNeed(fs[i]), last: -1000 } };
       events.push({ k: "knockdown", t, to: i, points: KNOCKDOWN_POINTS });
     }
-    // a fighter down with no stamina left, or worn out, can't beat the count: it runs on to 10 → KO
-    const out = downed.filter((i) => fs[i].stamina < EXHAUSTED_STAMINA || fs[i].wear >= 850);
+    // a fighter down with no stamina left, or worn out, can't beat the count: it runs on to 10 → KO. With fighter life
+    // only the head damage decides it up front: an exhausted fighter has a harder get-up task instead
+    const out = downed.filter((i) => (life ? fs[i].wear >= WEAR_STOP : fs[i].stamina < EXHAUSTED_STAMINA || fs[i].wear >= 850));
+    if (life) for (const i of out) fs[i] = { ...fs[i], rise: null };
     for (const i of [0, 1] as const)
       if (!downed.includes(i)) fs[i] = { ...fs[i], act: "idle", actT: 0, stage: "none", buf: null, vx: 0, vz: 0 };
     const stopped = ([0, 1] as const).filter(
@@ -1074,10 +1244,11 @@ function stepRound(s: FightState, inputs: TickInputs, t: number, events: FightEv
     return {
       ...base,
       phase: "knockdown",
-      left: ko !== null || both ? KO_COUNT_TICKS : KNOCKDOWN_COUNT_TICKS,
+      left: ko !== null || both || life ? KO_COUNT_TICKS : KNOCKDOWN_COUNT_TICKS,
       held: s.left - 1,
       ko: both ? null : ko,
       ...(both ? { koBoth: true } : {}),
+      ...(life ? { counted: { to: downed[0]!, standing: false } } : {}),
     };
   }
 
@@ -1205,6 +1376,82 @@ function stepRound(s: FightState, inputs: TickInputs, t: number, events: FightEv
   return after;
 }
 
+/* ------------------------------------------------------------ the corner and the count (fighter life, P3-FGT-13) ------------------------------------------------------------ */
+
+/** the bell: the corner treats a little damage at once, and gives back part of the missing stamina / balance over the rest */
+function cornerStart(f: FighterState): FighterState {
+  const C = LIFE.corner;
+  const healed = { ...f, wear: Math.max(0, f.wear - C.headHeal), bodyWear: Math.max(0, f.bodyWear - C.bodyHeal) };
+  const gs = Math.trunc((Math.max(0, staminaCap(healed) - f.stamina) * C.staminaPct) / 100);
+  const gc = Math.trunc((Math.max(0, composureCap(healed) - f.composure) * C.composurePct) / 100);
+  return { ...healed, cornerWork: [f.stamina, f.composure, gs, gc] };
+}
+
+/**
+ * The referee's count with fighter life on. A standing count runs to 8 and the fighter boxes on with a breather. A
+ * real knockdown runs to 10: the downed fighter gets up with steady presses (each at least riseGap ticks after the
+ * last counted one; a sooner press is panic and costs one). Done → up at 8 (the mandatory count) or at once after 8;
+ * not done by 10, or too much head damage → counted out (KO).
+ */
+function stepCount(s: FightState, inputs: TickInputs, t: number, events: FightEvent[]): FightState {
+  const left = s.left - 1;
+  const standing = !!s.counted?.standing;
+  const total = standing ? KNOCKDOWN_COUNT_TICKS : KO_COUNT_TICKS;
+  const elapsed = total - left;
+  const countAt = t - elapsed;
+  let fighters = s.fighters.map((f0, i) => {
+    const inp = inputs[i] ?? null;
+    let f = takeGuardOnly(f0, inp);
+    if (f0.act === "down" && f0.rise && inp && inp.seq > f0.seq && inp.a && elapsed >= LIFE.rise.from && s.ko !== i && f0.rise.got < f0.rise.need) {
+      const r = f0.rise;
+      const ok = t - r.last >= riseGap(f0);
+      const got = ok ? r.got + 1 : Math.max(0, r.got - 1);
+      f = { ...f, rise: { ...r, got, last: t } };
+      events.push({ k: "rise", t, to: i as 0 | 1, got, need: r.need, ok });
+    }
+    return f;
+  }) as [FighterState, FighterState];
+  const counting = (): void => {
+    if (elapsed % TICK_HZ === 0) events.push({ k: "count", t, n: elapsed / TICK_HZ + 1 });
+  };
+  if (standing) {
+    if (left > 0) {
+      counting();
+      return { ...s, tick: t, fighters, left, events };
+    }
+    const i = s.counted!.to;
+    fighters = fighters.map((f, k) => (k === i ? { ...f, composure: Math.max(f.composure, Math.min(composureCap(f), LIFE.standing.to)) } : f)) as [FighterState, FighterState];
+    return resumeAfterCount(s, fighters, t, events);
+  }
+  // who gets up now: the task done and the mandatory 8 counted
+  fighters = fighters.map((f, i) => {
+    if (f.act !== "down" || !f.rise || s.ko === i || f.rise.got < f.rise.need || elapsed < KNOCKDOWN_COUNT_TICKS) return f;
+    events.push({ k: "up", t, to: i as 0 | 1 });
+    const rise = Math.min(composureCap(f), RISE_COMPOSURE - RISE_STEP * Math.max(0, f.knockdowns - 1));
+    const composed = f.rise.last - countAt <= LIFE.rise.composedBy ? LIFE.rise.composedBonus : 0;
+    return { ...f, act: "rising" as const, actT: 0, stage: "none" as const, composure: Math.min(composureCap(f), Math.max(300, rise) + composed), idle: 0, passive: 0, rise: null };
+  }) as [FighterState, FighterState];
+  const still = ([0, 1] as const).filter((i) => fighters[i].act === "down");
+  if (!still.length) return resumeAfterCount(s, fighters, t, events);
+  if (left > 0) {
+    counting();
+    return { ...s, tick: t, fighters, left, events };
+  }
+  // the count reached 10 with a fighter still down: counted out
+  const closed = closeRound({ ...s, tick: t, fighters, left: 0, events, counted: null }, true);
+  if (still.length === 2) return finish({ ...closed, koBoth: false }, decide(closed), events);
+  const to = still[0]!;
+  events.push({ k: "ko", t, to });
+  return finish(closed, { ...decide(closed), decision: "stoppage", method: "KO", winner: (1 - to) as 0 | 1 }, events);
+}
+
+/** the count is over: both box on from the start gap round the pair's middle, the round clock running again */
+function resumeAfterCount(s: FightState, fighters: [FighterState, FighterState], t: number, events: FightEvent[]): FightState {
+  const up = fighters.map((f) => (f.act === "rising" ? f : { ...f, act: "idle" as const, actT: 0, stage: "none" as const, idle: 0, passive: 0, rise: null })) as [FighterState, FighterState];
+  const placed = placePair(up, START_GAP, midOf(up));
+  return { ...s, tick: t, fighters: placed, ...derive(s, placed), phase: "round", left: Math.max(1, s.held), held: 0, events, ko: null, counted: null };
+}
+
 /* ------------------------------------------------------------ stepFight ------------------------------------------------------------ */
 
 /** One tick. Pure: never mutates `s`. */
@@ -1224,9 +1471,11 @@ export function stepFight(s: FightState, inputs: TickInputs): FightState {
     const open = scoringRulesOf(s.rules).openScoring;
     events.push({ k: "roundEnd", t, round: s.round, points: pts, ...(open ? { card: ended.cards.at(-1)! } : {}) });
     if (s.round >= s.rules.rounds) return finish(ended, decide(ended), events);
+    if (s.life === 1) return { ...ended, phase: "rest", left: ticks(s.rules.restSeconds), fighters: ended.fighters.map(cornerStart) as [FighterState, FighterState] };
     return { ...ended, phase: "rest", left: ticks(s.rules.restSeconds) };
   }
 
+  if (s.phase === "knockdown" && s.life === 1) return stepCount(s, inputs, t, events);
   if (s.phase === "knockdown") {
     const fighters = s.fighters.map((f, i) => takeGuardOnly(f, inputs[i] ?? null)) as [FighterState, FighterState];
     const left = s.left - 1;
@@ -1255,7 +1504,16 @@ export function stepFight(s: FightState, inputs: TickInputs): FightState {
 
   // countdown / rest
   let fighters = s.fighters.map((f, i) => takeGuardOnly(f, inputs[i] ?? null)) as [FighterState, FighterState];
-  if (s.phase === "rest")
+  if (s.phase === "rest" && s.life === 1) {
+    // the corner (P3-FGT-13): what it gives back comes in evenly over the rest
+    const total = Math.max(1, ticks(s.rules.restSeconds));
+    const done = clamp(total - (s.left - 1), 0, total);
+    fighters = fighters.map((f) => {
+      if (!f.cornerWork) return f;
+      const [s0, c0, gs, gc] = f.cornerWork;
+      return { ...f, stamina: Math.max(f.stamina, s0 + Math.trunc((gs * done) / total)), composure: Math.max(f.composure, c0 + Math.trunc((gc * done) / total)) };
+    }) as [FighterState, FighterState];
+  } else if (s.phase === "rest")
     fighters = fighters.map((f) => ({
       ...f,
       stamina: Math.min(staminaCap(f), f.stamina + REGEN.restStamina),
@@ -1269,7 +1527,9 @@ export function stepFight(s: FightState, inputs: TickInputs): FightState {
   }
   const round = s.round + 1;
   events.push({ k: "bell", t, round });
-  const fresh = startLine(fighters.map((f) => ({ ...resetForBell(f), breaks: 0 })) as [FighterState, FighterState]);
+  const fresh = startLine(
+    fighters.map((f) => ({ ...resetForBell(f), breaks: 0, ...(s.life === 1 ? { wind2: false, cornerWork: null, struckRun: 0 } : {}) })) as [FighterState, FighterState],
+  );
   return {
     ...s,
     tick: t,
@@ -1337,8 +1597,10 @@ export function maxFightTicks(rules: FightRules): number {
     COUNTDOWN_TICKS +
     rules.rounds * ticks(rules.roundSeconds) +
     (rules.rounds - 1) * ticks(rules.restSeconds) +
-    2 * (STOPPAGE_KNOCKDOWNS_MATCH - 1) * KNOCKDOWN_COUNT_TICKS +
-    (KO_COUNT_TICKS - KNOCKDOWN_COUNT_TICKS) +
+    // every count of the fight (each fighter can be counted STOPPAGE_KNOCKDOWNS_MATCH − 1 times before the stoppage) run
+    // to 10 (fighter life: a get-up can take the whole count), plus the last one
+    2 * (STOPPAGE_KNOCKDOWNS_MATCH - 1) * KO_COUNT_TICKS +
+    KO_COUNT_TICKS +
     2
   );
 }
@@ -1352,7 +1614,8 @@ export function matchResultOf(s: FightState): MatchResult {
   return { ranks, scores: { [a.id]: a.points, [b.id]: b.points }, reason };
 }
 
-const countTotal = (s: FightState): number => (s.ko !== null || s.koBoth ? KO_COUNT_TICKS : KNOCKDOWN_COUNT_TICKS);
+const countTotal = (s: FightState): number =>
+  s.life === 1 ? (s.counted?.standing ? KNOCKDOWN_COUNT_TICKS : KO_COUNT_TICKS) : s.ko !== null || s.koBoth ? KO_COUNT_TICKS : KNOCKDOWN_COUNT_TICKS;
 export const countOf = (s: FightState): number | undefined =>
   s.phase === "knockdown" ? clamp(Math.trunc((countTotal(s) - s.left) / TICK_HZ) + 1, 1, countTotal(s) / TICK_HZ) : undefined;
 
@@ -1399,6 +1662,7 @@ export function snapshotOf(s: FightState, ring: RingId): BoxingSnapshot {
         z: f.z,
         ...(p.body ? { body: true } : {}),
         wear: f.wear,
+        ...(s.life === 1 ? { bodyWear: f.bodyWear, ...(f.wind2 ? { wind2: true } : {}), ...(f.rise ? { rise: { got: f.rise.got, need: f.rise.need } } : {}) } : {}),
       };
     }) as BoxingSnapshot["fighters"],
     ...(count !== undefined ? { count } : {}),
@@ -1406,6 +1670,7 @@ export function snapshotOf(s: FightState, ring: RingId): BoxingSnapshot {
     ...(sr.openScoring || s.phase === "over" ? { cards: s.cards } : {}),
     ...(s.breakLeft > 0 ? { breakLeft: s.breakLeft } : {}),
     ...(s.clinch ? { clinch: { by: s.clinch.holders[0]!, left: s.clinch.left } } : {}),
+    ...(s.life === 1 ? { life: 1 as const, ...(s.counted && s.phase === "knockdown" ? { counted: { ...s.counted } } : {}) } : {}),
   };
 }
 

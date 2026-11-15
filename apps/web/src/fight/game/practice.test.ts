@@ -45,7 +45,8 @@ describe("boxing practice session", () => {
     expect(s.over).toBe(true);
     expect(useFightBridge.getState().mine?.snap?.phase).toBe("over");
     expect(useFightBridge.getState().myEvents.some((e) => e.k === "over")).toBe(true);
-    expect(scores.length).toBeGreaterThanOrEqual(1);
+    // (a jab-only player who never defends may be stopped inside the first round: fighter life, P3-FGT-13)
+    expect(scores.length >= 1 || s.state.outcome?.decision === "stoppage").toBe(true);
   });
 });
 

@@ -242,8 +242,9 @@ describe("engine v2: feints, clinch, knockdowns", () => {
     expect(after.fighters[0].stamina).toBeGreaterThan(300 + 100);
   });
 
-  it("three knockdowns in a round stop the fight (RSC); the count separates them and they box on", () => {
-    let s = place(inRound(), 1000);
+  it("three knockdowns in a round stop the fight (RSC); the count separates them and they box on (P3-FGT-10 rules)", () => {
+    // (fighter life off: the downed fighter rises at 8 on its own; tests/life.test.ts covers the get-up task)
+    let s = place({ ...inRound(), life: undefined }, 1000);
     let downs = 0;
     for (let n = 0; n < 6 && s.phase !== "over"; n++) {
       s = { ...s, fighters: [s.fighters[0], { ...s.fighters[1], composure: 20, stamina: 900, wear: 0 }] };
