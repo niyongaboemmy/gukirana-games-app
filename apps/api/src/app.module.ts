@@ -10,6 +10,7 @@ import { FightInternalController, FightPublicController, GamesController, GamesP
 import { FightRatingService } from "./modules/games/fight-rating.service.js";
 import { GameSettingsService } from "./modules/games/game-settings.service.js";
 import { GamesService } from "./modules/games/games.service.js";
+import { RulesService } from "./modules/games/rules.service.js";
 import { SocialController } from "./modules/social/social.controller.js";
 import { SocialService } from "./modules/social/social.service.js";
 import { AdminGuard, AuthGuard, InternalGuard } from "./common/auth.js";
@@ -29,6 +30,6 @@ import { ReportsService } from "./modules/console/reports.service.js";
 @Module({
   imports: [DbModule, LedgerModule, AdminBlockModule, ArenaModule],
   controllers: [HealthController, IdentityController, WalletController, GamesController, SocialController, EconomyPublicController, EconomyAdminController, ConsoleController, BuildingsPublicController, PresenceInternalController, SuspensionsInternalController, PlayersInternalController, GamesPublicController, FightInternalController, FightPublicController],
-  providers: [IdentityService, LevelsService, GameSettingsService, FightRatingService, GamesService, SocialService, EconomyService, WalletService, ConsoleService, ModerationService, ReportsService, BuildingsService, PresenceStore, AuthGuard, InternalGuard, AdminGuard],
+  providers: [IdentityService, LevelsService, GameSettingsService, FightRatingService, RulesService, GamesService, SocialService, EconomyService, WalletService, ConsoleService, ModerationService, ReportsService, BuildingsService, PresenceStore, AuthGuard, InternalGuard, AdminGuard],
 })
 export class AppModule {}

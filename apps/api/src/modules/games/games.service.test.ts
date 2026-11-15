@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { accessAudit, createDatabase, eq, friendlyPlays, matches, users, type Database } from "@gukirana/db";
 import { keyFromSeed, signResult, type SignedMatchResult } from "@gukirana/signing";
-import { DEFAULT_FIGHT_RULES, DEFAULT_GAME_SETTINGS, type GameId } from "@gukirana/contracts";
+import { DEFAULT_FIGHT_RULES, DEFAULT_GAME_SETTINGS, GAME_RULES_VERSION, type GameId } from "@gukirana/contracts";
 import { DEFAULT_ECONOMY } from "@gukirana/money";
 import { LedgerService } from "../ledger/ledger.service.js";
 import { matchEscrow, userStars } from "../ledger/accounts.js";
@@ -14,6 +14,7 @@ import { kigaliDay } from "../../common/ids.js";
 import { GamesService, HEARTBEAT_STALE_MS } from "./games.service.js";
 import { GameSettingsService } from "./game-settings.service.js";
 import { FightRatingService } from "./fight-rating.service.js";
+import { RulesService } from "./rules.service.js";
 
 /**
  * Match money + exit rules (P1-GAME-06, docs/GAME-EXIT-RULES.md) on an in-memory Postgres (PGlite): settle, forfeit,
@@ -115,7 +116,7 @@ describe("validations first (before any escrow)", () => {
 describe("completed normally", () => {
   it("win: the winner gets the whole pot, ratings move, a replayed result pays nothing twice", async () => {
     const m = await create([a, b], 25);
-    expect(m.rules).toMatchObject({ turnSeconds: 30, reconnectSeconds: 60, maxTimeouts: 3 });
+    expect(m.rules).toMatchObject({ turnSeconds: 30, reconnectSeconds: 90, maxTimeouts: 3, maxDisconnects: 3, reconnectBudgetSeconds: 180 });
     expect(await ledger.balance(matchEscrow(m.matchId, "STAR"))).toBe(50);
     const r = await games.settle(m.matchId, result(m.matchId, { [a]: 1, [b]: 2 }));
     expect(r).toMatchObject({ status: "settled", pot: 50 });
@@ -402,5 +403,58 @@ describe("fight skill rating (P3-FGT-10): Glicko-2 on settlement only", () => {
     expect(await fr.glicko(p)).toMatchObject({ rating: out.fightRating![p]!.after });
     expect(await fr.glicko(uid(99))).toBeNull();
     await settings.update("boxing", DEFAULT_GAME_SETTINGS.boxing, "restore", "test");
+  });
+});
+
+describe("P2-NET-05: rules acceptance, resume, moderation trail", () => {
+  it("rules: stored per user + game + version, idempotent; only the current version; a new version asks again", async () => {
+    const rules = new RulesService(db);
+    const e = uid(40);
+    await db.insert(users).values({ id: e, email: "rules@example.test", username: "rules" });
+    expect((await rules.status(e)).games.find((g) => g.game === "ludo")).toMatchObject({ version: GAME_RULES_VERSION.ludo, accepted: false });
+    expect(await fail(rules.accept(e, "ludo", GAME_RULES_VERSION.ludo + 1))).toMatchObject({ code: "RULES_VERSION_OUTDATED" });
+    await rules.accept(e, "ludo", GAME_RULES_VERSION.ludo);
+    await rules.accept(e, "ludo", GAME_RULES_VERSION.ludo); // idempotent
+    const st = await rules.status(e);
+    expect(st.games.find((g) => g.game === "ludo")).toMatchObject({ accepted: true });
+    expect(st.games.find((g) => g.game === "pool")).toMatchObject({ accepted: false });
+    expect(await rules.accepted(e, "ludo")).toBe(true);
+    // the rules text changes (version bump): asked again
+    const was = GAME_RULES_VERSION.ludo;
+    (GAME_RULES_VERSION as Record<string, number>).ludo = was + 1;
+    try {
+      expect(await rules.accepted(e, "ludo")).toBe(false);
+      expect((await rules.status(e)).games.find((g) => g.game === "ludo")).toMatchObject({ version: was + 1, accepted: false });
+    } finally {
+      (GAME_RULES_VERSION as Record<string, number>).ludo = was;
+    }
+  });
+
+  it("the server refuses to seat a player without the current acceptance; resume finds only my match; a forfeit settles once with an audit row", async () => {
+    const rules = new RulesService(db);
+    const gated = new GamesService(db, ledger, new LevelsService(db, wallet), economy, wallet, settings, undefined, rules);
+    const [p, q] = [uid(41), uid(42)];
+    await db.insert(users).values([p, q].map((id, i) => ({ id, email: `gate${i}@example.test`, username: `gate${i}` })));
+    for (const u of [p, q]) await wallet.claimDaily(u);
+    await rules.accept(p, "pool", GAME_RULES_VERSION.pool);
+    expect(await gated.eligibility(q, 25, "pool")).toEqual({ ok: false, reason: "RULES_NOT_ACCEPTED" });
+    const before = await stars(q);
+    const mk = () => gated.create({ game: "pool", variant: "classic", stake: 25, players: [{ userId: p, seat: 0 }, { userId: q, seat: 1 }] });
+    expect(await fail(mk())).toMatchObject({ code: "RULES_NOT_ACCEPTED", userId: q });
+    expect(await stars(q)).toBe(before);
+    await rules.accept(q, "pool", GAME_RULES_VERSION.pool);
+    const m = await mk();
+    expect((await gated.active(p)).match).toMatchObject({ matchId: m.matchId, game: "pool", roomId: null });
+    await gated.attachRoom(m.matchId, "roomAbc");
+    expect((await gated.active(q)).match).toMatchObject({ matchId: m.matchId, roomId: "roomAbc" });
+    expect((await gated.active(uid(43))).match).toBeNull();
+    await gated.settle(m.matchId, result(m.matchId, { [p]: 1, [q]: 2 }, "forfeit"));
+    await gated.settle(m.matchId, result(m.matchId, { [p]: 1, [q]: 2 }, "forfeit")); // the room retrying: idempotent
+    expect(await stars(q)).toBe(before - 25);
+    expect(await stars(p)).toBe(before + 25);
+    expect((await gated.active(p)).match).toBeNull();
+    const audit = await db.select().from(accessAudit).where(eq(accessAudit.target, `match:${m.matchId}`));
+    expect(audit.map((x) => x.action)).toEqual(["match.forfeit"]);
+    expect(await gated.attachRoom(m.matchId, "late")).toEqual({ ok: false });
   });
 });

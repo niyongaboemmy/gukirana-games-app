@@ -32,6 +32,7 @@ import {
   rulesOf,
   type GameId,
   type MatchRefusal,
+  type ActiveMatch,
   type MatchRules,
   type PlayerOffer,
   type StakeOption,
@@ -48,6 +49,7 @@ import { LevelsService } from "../levels/levels.service.js";
 import { eloUpdate, xpForMatch } from "../levels/xp.js";
 import { GameSettingsService, writeAudit } from "./game-settings.service.js";
 import { FightRatingService } from "./fight-rating.service.js";
+import { RulesService } from "./rules.service.js";
 
 const log = createLogger("games");
 
@@ -86,6 +88,8 @@ export class GamesService implements OnModuleInit, OnModuleDestroy {
   private timer: ReturnType<typeof setInterval> | null = null;
   private readonly settings: GameSettingsService;
   private readonly fightRating: FightRatingService;
+  /** P2-NET-05 rules gate (null: not wired, e.g. unit tests that construct the service by hand — no gate) */
+  private readonly rules: RulesService | null;
 
   constructor(
     @Inject(DB) private readonly db: Db,
@@ -95,9 +99,11 @@ export class GamesService implements OnModuleInit, OnModuleDestroy {
     private readonly wallet: WalletService,
     @Optional() settings?: GameSettingsService,
     @Optional() fightRating?: FightRatingService,
+    @Optional() rules?: RulesService,
   ) {
     this.settings = settings ?? new GameSettingsService(db);
     this.fightRating = fightRating ?? new FightRatingService(db);
+    this.rules = rules ?? null;
   }
 
   onModuleInit(): void {
@@ -201,6 +207,32 @@ export class GamesService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  /**
+   * P2-NET-05 resume: the live match this player is seated in (newest first), so a reload / new tab / other device
+   * puts them straight back. Only their own seat: the room admits nobody but the match's players (onAuth).
+   */
+  async active(userId: string): Promise<{ match: ActiveMatch | null }> {
+    const [row] = await this.db
+      .select({ id: matches.id, game: matches.game, stake: matches.stake, roomId: matches.roomId, ring: matches.ring, createdAt: matches.createdAt })
+      .from(matchPlayers)
+      .innerJoin(matches, eq(matches.id, matchPlayers.matchId))
+      .where(and(eq(matchPlayers.userId, userId), eq(matches.status, "active")))
+      .orderBy(sql`${matches.createdAt} desc`)
+      .limit(1);
+    if (!row) return { match: null };
+    return { match: { matchId: row.id, game: row.game as GameId, stake: row.stake, roomId: row.roomId, ring: row.ring, createdAt: row.createdAt.toISOString() } };
+  }
+
+  /** realtime → API once the game server room exists: where the match runs (resume after a reload) */
+  async attachRoom(matchId: string, roomId: string, ring?: string): Promise<{ ok: boolean }> {
+    const rows = await this.db
+      .update(matches)
+      .set({ roomId, ...(ring ? { ring } : {}) })
+      .where(and(eq(matches.id, matchId), eq(matches.status, "active")))
+      .returning({ id: matches.id });
+    return { ok: rows.length > 0 };
+  }
+
   private async inActiveMatch(userId: string, db: Db = this.db): Promise<boolean> {
     const rows = await db
       .select({ id: matches.id })
@@ -248,6 +280,8 @@ export class GamesService implements OnModuleInit, OnModuleDestroy {
       if (!settings.enabled) return { ok: false, reason: "GAME_DISABLED" };
       if (stake > 0 && !settings.stakes.includes(stake)) return { ok: false, reason: "STAKE_NOT_ALLOWED" };
       if (stake === 0 && (await this.friendlyUsed(userId, game)) >= settings.friendlyPerDay) return { ok: false, reason: "FRIENDLY_LIMIT_REACHED", limit: settings.friendlyPerDay };
+      // P2-NET-05: nobody is seated in a live match without this game's current rules card accepted
+      if (this.rules && !(await this.rules.accepted(userId, game))) return { ok: false, reason: "RULES_NOT_ACCEPTED" };
     }
     if (await this.inActiveMatch(userId)) return { ok: false, reason: "ALREADY_IN_MATCH" };
     if (stake > 0) {
@@ -364,6 +398,11 @@ export class GamesService implements OnModuleInit, OnModuleDestroy {
     }
     // exactly one caller applies ratings + XP (a replayed result after a crash only re-posts, idempotently)
     if (!(await this.flip(matchId, "settled", { result }))) return { status: "settled", replayed: true };
+    if (result.reason === "forfeit") {
+      // moderation trail (P2-NET-05): who forfeited (leave, connection lost, timeouts); the room logs the cause
+      const loser = players.find((p) => result.ranks[p.userId] !== Math.min(...players.map((q) => result.ranks[q.userId]!)));
+      await writeAudit(this.db, "system:games", "match.forfeit", `match:${matchId}`, `${m.game}; forfeited by user:${loser?.userId ?? "?"}; stake ${m.stake} Stars each`).catch(() => undefined);
+    }
 
     const before = players.map((p) => ({ id: p.userId, rating: p.ratingBefore ?? 1500, rank: result.ranks[p.userId]! }));
     const after = eloUpdate(before);
@@ -450,6 +489,8 @@ export class GamesService implements OnModuleInit, OnModuleDestroy {
           .set({ count: sql`greatest(${friendlyPlays.count} - 1, 0)` })
           .where(and(eq(friendlyPlays.userId, p.userId), eq(friendlyPlays.game, m.game), eq(friendlyPlays.day, day)));
     }
+    if (cause === "BOTH_DISCONNECTED" || cause === "LEFT_WHILE_WAITING")
+      await writeAudit(this.db, "system:games", "match.void", `match:${matchId}`, `${m.game}; ${cause}; stake ${m.stake} Stars each refunded`).catch(() => undefined);
     return { status: "void", cause };
   }
 

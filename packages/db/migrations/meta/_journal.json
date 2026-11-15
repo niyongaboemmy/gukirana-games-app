@@ -85,6 +85,13 @@
       "when": 1794754851452,
       "tag": "0011_fight_ratings",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794757557354,
+      "tag": "0012_resume_rules",
+      "breakpoints": true
     }
   ]
 }
