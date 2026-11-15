@@ -361,6 +361,7 @@ function buildVariant(key, base, morphParams) {
   const { P, bones, J } = G;
   const V = (i) => [P[i * 3], P[i * 3 + 1], P[i * 3 + 2]];
   const bodyFaces = GROUPS.get("body");
+  const bodyV = new Set(bodyFaces.flat());
   const bodyTris = tri(bodyFaces);
   const NB = normalsOf(P, bodyFaces);
   const Nv = (i) => [NB[i * 3], NB[i * 3 + 1], NB[i * 3 + 2]];
@@ -491,7 +492,8 @@ function buildVariant(key, base, morphParams) {
   const shirtField = (i) => {
     const p = V(i);
     const side = p[0] >= 0 ? 1 : -1;
-    const fBottom = p[1] - (waistY - 0.1);
+    // (tucked in: it ends just under the trousers' waistband)
+    const fBottom = p[1] - (waistY - 0.035);
     const sh = [shoulderL[0] * side, shoulderL[1], shoulderL[2]];
     const el = [elbowL[0] * side, elbowL[1], elbowL[2]];
     const axis = norm(sub(el, sh));
@@ -500,7 +502,7 @@ function buildVariant(key, base, morphParams) {
     const fSleeve = upper > 0.25 ? len(sub(el, sh)) * 0.5 - along : 1;
     const fFore = (0.15 - (armW(i) - upper)) * 0.3;
     const front = backZ(p);
-    const fNeck = lerp(neckBaseY + 0.012, neckBaseY - 0.02, front) - p[1];
+    const fNeck = lerp(neckBaseY + 0.03, neckBaseY - 0.012, front) + 0.03 * smooth(0.035, 0.085, Math.abs(p[0])) - p[1];
     return Math.min(fBottom, fSleeve, fFore, fNeck, 0.3 - headW(i));
   };
   const hemY = kneeL[1] + 0.105;
@@ -914,27 +916,243 @@ function buildVariant(key, base, morphParams) {
   const wraps = shell("kit_wraps", bodyFaces, NB, { field: wrapBand, offset: () => 0.0035, mat: MAT.wrap, hem: 0.0025 });
 
   // referee / staff: short-sleeved shirt (tucked in), trousers, shoes
-  SM_SRC = SMOOTH_BODY;
-  const shirt = shell("ref_shirt", bodyFaces, NB, {
+  // P3-FGT-14: real cloth volume instead of a 1–3 cm shell that showed every muscle (and the bust) like a bodysuit:
+  // the shirt hangs from the chest / bust / shoulder blades straight down to a bloused tuck at the belt, with soft
+  // vertical folds; loose short sleeves flaring to the hem; the trousers hang straight from the seat / thighs.
+  const SHIRT_SURF = drapeShirt();
+  const NS = normalsOf(SHIRT_SURF, bodyFaces);
+  const shirt = shell("ref_shirt", bodyFaces, NS, {
     field: shirtField,
-    offset: (i) => 0.012 + 0.016 * smooth(spine2[1], pelvis[1] + 0.05, V(i)[1]) * (V(i)[2] > spine[2] ? 1 : 0.5),
+    offset: (i) => 0.004 + sleeveFlare(i),
     mat: MAT.shirt,
-    bridge: 1,
+    surface: SHIRT_SURF,
     hem: 0.004,
   });
-  SM_SRC = SMOOTH_TIGHTS;
+  const TROUSER_SURF = drapeTrousers(tightsFaces);
+  const NTr = normalsOf(TROUSER_SURF, tightsFaces);
   const trousers = shell(
     "ref_trousers",
     tightsFaces,
-    NT,
+    NTr,
     {
       field: (i) => Math.min(V(i)[1] - (ankleL[1] + 0.03), waistY + 0.02 - V(i)[1]),
-      bridge: 1,
-      offset: (i) => 0.012 + 0.018 * smooth(kneeL[1] + 0.2, ankleL[1] + 0.05, V(i)[1]),
+      offset: () => 0.004,
+      surface: TROUSER_SURF,
       mat: (i) => (V(i)[1] > waistY - 0.018 ? MAT.belt : MAT.trousers),
       hem: 0.005,
     },
   );
+
+  /** the short sleeve: looser towards its hem (a sleeve stands off the arm, it does not wrap it) */
+  function sleeveFlare(i) {
+    const upper = wSum(i, ["Bip01_L_UpperArm", "Bip01_R_UpperArm"]);
+    if (upper < 0.2) return 0;
+    const p = V(i);
+    const side = p[0] >= 0 ? 1 : -1;
+    const sh = [shoulderL[0] * side, shoulderL[1], shoulderL[2]];
+    const el = [elbowL[0] * side, elbowL[1], elbowL[2]];
+    const along = dot(sub(p, sh), norm(sub(el, sh))) / len(sub(el, sh));
+    return smooth(0.2, 0.5, upper) * (0.008 + 0.022 * smooth(0.05, 0.5, along));
+  }
+
+  /**
+   * Radial drape round a vertical axis: per height slice and angle round the trunk, the body's outer radius (angular
+   * max filter: the cloth bridges the cleavage, the spine groove, the sides of the chest), then from the top down the
+   * cloth may only come in towards the body slowly (it hangs from the bust / chest / shoulder blades), and it tucks
+   * back in to the belt. Returns the draped positions for every vertex index (others = the body).
+   */
+  function drapeShirt() {
+    const out = Float64Array.from(P);
+    const yTop = neckBaseY + 0.02,
+      yBot = waistY - 0.12;
+    const DY = 0.012,
+      NA = 72;
+    const rows = Math.ceil((yTop - yBot) / DY) + 1;
+    const ri = (y) => clamp(Math.round((yTop - y) / DY), 0, rows - 1);
+    const ai = (a) => ((Math.round((a / (2 * Math.PI)) * NA) % NA) + NA) % NA;
+    // the trunk vertices (no arm / head), their slice centre (mid depth) and outer radius per angle
+    const trunkV = [];
+    for (let i = 0; i < NV; i++) {
+      if (!bodyV.has(i)) continue;
+      const p = V(i);
+      if (p[1] < yBot - 0.02 || p[1] > yTop + 0.02) continue;
+      if (armW(i) > 0.35 || headW(i) > 0.4) continue;
+      trunkV.push(i);
+    }
+    const zc = new Float64Array(rows);
+    {
+      const lo = new Float64Array(rows).fill(9),
+        hi = new Float64Array(rows).fill(-9);
+      for (const i of trunkV) {
+        const k = ri(V(i)[1]);
+        lo[k] = Math.min(lo[k], V(i)[2]);
+        hi[k] = Math.max(hi[k], V(i)[2]);
+      }
+      for (let k = 0; k < rows; k++) zc[k] = lo[k] < hi[k] ? (lo[k] + hi[k]) / 2 : k ? zc[k - 1] : spine2[2];
+      // a smooth axis
+      for (let pass = 0; pass < 4; pass++) for (let k = 1; k < rows - 1; k++) zc[k] = (zc[k - 1] + zc[k] * 2 + zc[k + 1]) / 4;
+    }
+    const R = Array.from({ length: rows }, () => new Float64Array(NA));
+    for (const i of trunkV) {
+      const p = V(i);
+      const k = ri(p[1]);
+      const dz = p[2] - zc[k];
+      const a = ai(Math.atan2(p[0], dz));
+      R[k][a] = Math.max(R[k][a], Math.hypot(p[0], dz));
+    }
+    // fill empty bins, angular max filter (±4 bins = ±20°) then a blur: a convex-ish envelope
+    for (let k = 0; k < rows; k++) {
+      const r = R[k];
+      for (let pass = 0; pass < NA; pass++) for (let a = 0; a < NA; a++) if (!r[a]) r[a] = Math.max(r[(a + 1) % NA], r[(a + NA - 1) % NA]) * 0.999;
+      const mx = r.map((_, a) => Math.max(...[-4, -3, -2, -1, 0, 1, 2, 3, 4].map((d) => r[(a + d + NA) % NA])));
+      for (let a = 0; a < NA; a++) r[a] = Math.max(r[a], (mx[(a + NA - 1) % NA] + mx[a] * 2 + mx[(a + 1) % NA]) / 4);
+    }
+    // the hang: from the top down the radius may shrink by at most 0.22 per unit of height; tucked at the belt
+    const H = R.map((r) => Float64Array.from(r));
+    for (let k = 1; k < rows; k++) for (let a = 0; a < NA; a++) H[k][a] = Math.max(R[k][a], H[k - 1][a] - 0.22 * DY);
+    const tuckY = waistY + 0.01;
+    const ease = 0.012;
+    const region = [];
+    const floor = new Map();
+    const folds = new Map();
+    for (let i = 0; i < NV; i++) {
+      if (!bodyV.has(i)) continue;
+      const p = V(i);
+      if (p[1] < yBot || p[1] > yTop) continue;
+      const k = ri(p[1]);
+      const dz = p[2] - zc[k];
+      const ang = Math.atan2(p[0], dz);
+      const a = ai(ang);
+      const own = Math.hypot(p[0], dz);
+      // the bloused tuck: back in towards the body over the 9 cm above the belt (2.5 cm of overhang stays above it)
+      const t = smooth(tuckY + 0.09, tuckY - 0.005, p[1]);
+      const blouse = 0.012 * Math.exp(-(((p[1] - (tuckY + 0.035)) / 0.025) ** 2));
+      // soft vertical folds below the chest (stronger towards the tuck), none up on the shoulders
+      const fold = (0.006 * Math.sin(ang * 9 + Math.sin(ang * 3) * 1.3) + 0.003 * Math.sin(ang * 17 + p[1] * 30)) * smooth(spine2[1] + 0.08, tuckY + 0.02, p[1]) * (1 - smooth(0.12, 0.4, armW(i)));
+      let r = lerp(H[k][a] + ease, own + 0.006, t) + blouse * (1 - t);
+      folds.set(i, fold);
+      r = Math.max(r, own + 0.004);
+      // the arm side of the trunk (armpit, shoulder) and the collar line: back to the body shell
+      const w = (1 - smooth(0.12, 0.4, armW(i))) * (1 - smooth(neckBaseY - 0.09, neckBaseY - 0.025, p[1]));
+      const rr = lerp(own + 0.008, r, w);
+      const f = rr / (own || 1);
+      out[i * 3] = p[0] * f;
+      out[i * 3 + 1] = p[1];
+      out[i * 3 + 2] = zc[k] + dz * f;
+      region.push(i);
+      // (the floor: over the body by a few mm, and 1.4 cm over its smoothed shape away from the tuck: the cloth bridges
+      // small bumps like the nipples instead of printing them)
+      const sOwn = Math.hypot(SMOOTH_BODY[i * 3], SMOOTH_BODY[i * 3 + 2] - zc[k]);
+      floor.set(i, Math.max(own + 0.004, lerp(sOwn + 0.014, own + 0.004, t)));
+    }
+    // cloth is smooth: relax the draped region (the bins are coarse), never inside the body
+    for (let it = 0; it < 8; it++) {
+      const prev = Float64Array.from(out);
+      for (const i of region) {
+        let x = 0,
+          z = 0,
+          n = 0;
+        for (const q of neigh[i]) {
+          x += prev[q * 3];
+          z += prev[q * 3 + 2];
+          n++;
+        }
+        if (!n) continue;
+        out[i * 3] = lerp(prev[i * 3], x / n, 0.6);
+        out[i * 3 + 2] = lerp(prev[i * 3 + 2], z / n, 0.6);
+        const k = ri(V(i)[1]);
+        const dx = out[i * 3],
+          dz = out[i * 3 + 2] - zc[k];
+        const r = Math.hypot(dx, dz);
+        const lo = floor.get(i);
+        if (r < lo) {
+          out[i * 3] = (dx / (r || 1)) * lo;
+          out[i * 3 + 2] = zc[k] + (dz / (r || 1)) * lo;
+        }
+      }
+    }
+    // the folds go on after the relax (they are the cloth's shape, not noise)
+    for (const i of region) {
+      const k = ri(V(i)[1]);
+      const dx = out[i * 3],
+        dz = out[i * 3 + 2] - zc[k];
+      const r = Math.hypot(dx, dz) || 1;
+      const f = folds.get(i) ?? 0;
+      out[i * 3] += (dx / r) * f;
+      out[i * 3 + 2] += (dz / r) * f;
+    }
+    return out;
+  }
+
+  /** the trousers: each leg hangs straight from the seat / the thigh's widest point (the tights helper as the body) */
+  function drapeTrousers(faces) {
+    const verts = new Set();
+    for (const f of faces) for (const i of f) verts.add(i);
+    const out = Float64Array.from(P);
+    const yTop = waistY + 0.03,
+      yBot = ankleL[1];
+    const DY = 0.015,
+      NA = 48;
+    const rows = Math.ceil((yTop - yBot) / DY) + 1;
+    const ri = (y) => clamp(Math.round((yTop - y) / DY), 0, rows - 1);
+    const ai = (a) => ((Math.round((a / (2 * Math.PI)) * NA) % NA) + NA) % NA;
+    // a leg's axis at height y: hip joint → knee → ankle (per side)
+    const axisAt = (side, y) => {
+      const hip = bp(side > 0 ? "Bip01_L_Thigh" : "Bip01_R_Thigh");
+      const knee = bp(side > 0 ? "Bip01_L_Calf" : "Bip01_R_Calf");
+      const ank = bp(side > 0 ? "Bip01_L_Foot" : "Bip01_R_Foot");
+      const seg = y > knee[1] ? [knee, hip] : [ank, knee];
+      const t = clamp((y - seg[0][1]) / (seg[1][1] - seg[0][1] || 1), 0, 1);
+      return [lerp(seg[0][0], seg[1][0], t), lerp(seg[0][2], seg[1][2], t)];
+    };
+    const crotchY = pelvis[1] - 0.09;
+    for (const side of [1, -1]) {
+      const R = Array.from({ length: rows }, () => new Float64Array(NA));
+      const mine = [...verts].filter((i) => V(i)[0] * side > 0 && V(i)[1] <= yTop && V(i)[1] >= yBot);
+      for (const i of mine) {
+        const p = V(i);
+        const k = ri(p[1]);
+        const [cx, cz] = axisAt(side, p[1]);
+        const a = ai(Math.atan2(p[0] - cx, p[2] - cz));
+        R[k][a] = Math.max(R[k][a], Math.hypot(p[0] - cx, p[2] - cz));
+      }
+      for (let k = 0; k < rows; k++) {
+        const r = R[k];
+        for (let pass = 0; pass < NA; pass++) for (let a = 0; a < NA; a++) if (!r[a]) r[a] = Math.max(r[(a + 1) % NA], r[(a + NA - 1) % NA]) * 0.999;
+        const mx = r.map((_, a) => Math.max(r[(a + NA - 1) % NA], r[a], r[(a + 1) % NA]));
+        for (let a = 0; a < NA; a++) r[a] = (mx[(a + NA - 1) % NA] + mx[a] * 2 + mx[(a + 1) % NA]) / 4;
+      }
+      // straight legs: below the crotch the radius shrinks slowly (0.16 per unit height), a little looser at the hem
+      const H = R.map((r) => Float64Array.from(r));
+      for (let k = 1; k < rows; k++) {
+        const y = yTop - k * DY;
+        const slope = y < crotchY ? 0.16 : 0.6;
+        for (let a = 0; a < NA; a++) H[k][a] = Math.max(R[k][a], H[k - 1][a] - slope * DY);
+      }
+      for (const i of mine) {
+        const p = V(i);
+        const k = ri(p[1]);
+        const [cx, cz] = axisAt(side, p[1]);
+        const dx = p[0] - cx,
+          dz = p[2] - cz;
+        const own = Math.hypot(dx, dz);
+        const ang = Math.atan2(dx, dz);
+        // the inner thigh / crotch keeps close (the legs must not merge), the waist sits on the body (the belt)
+        const inner = smooth(0.3, 0.9, -Math.sin(ang) * side) * smooth(crotchY - 0.12, crotchY + 0.04, p[1]);
+        const waist = smooth(waistY - 0.06, waistY - 0.0, p[1]);
+        const band = 0.006 * waist;
+        const fold = 0.003 * Math.sin(ang * 5 + p[1] * 40) * smooth(kneeL[1] + 0.15, ankleL[1] + 0.1, p[1]);
+        let r = H[k][ai(ang)] + 0.008 + fold;
+        r = lerp(r, own + 0.006, Math.max(inner, waist)) + band;
+        r = Math.max(r, own + 0.004);
+        const f = r / (own || 1);
+        out[i * 3] = cx + dx * f;
+        out[i * 3 + 2] = cz + dz * f;
+        out[i * 3 + 1] = p[1];
+      }
+    }
+    return out;
+  }
   SM_SRC = SMOOTH_BODY;
   const shoes = new MeshBuilder("ref_shoes");
   for (const S of ["L", "R"]) loftFoot(shoes, S, { top: ankleL[1] + 0.012, slot: MAT.shoe, soleSlot: MAT.sole, laceSlot: null, pad: 0.008 });
@@ -1244,14 +1462,22 @@ function buildVariant(key, base, morphParams) {
       }
     rx = Math.min(rx, 0.06) + 0.004;
     rz = Math.min(rz || 0.055, 0.06) + 0.004;
-    for (let k = 0; k < 3; k++) {
-      const y = neckBaseY - 0.004 + 0.016 * k;
-      const grow = 1 + 0.05 * k;
+    // P3-FGT-14: a stand collar that grows out of the shirt's neckline (the lowest ring flares onto the shirt, no
+    // skin gap), and two pointed fall-down wings at the front either side of the tie
+    const H = [
+      [-0.03, 1.45],
+      [-0.012, 1.2],
+      [0.004, 1.0],
+      [0.02, 1.03],
+      [0.03, 1.07],
+    ];
+    for (const [dy, grow] of H) {
+      const y = neckBaseY + dy;
       const row = [];
       for (let u = 0; u < R; u++) {
         const th = (2 * Math.PI * u) / R;
         // the collar opens at the front
-        if (Math.abs(th) < 0.32 || Math.abs(th - 2 * Math.PI) < 0.32) {
+        if (Math.abs(th) < 0.3 || Math.abs(th - 2 * Math.PI) < 0.3) {
           row.push(-1);
           continue;
         }
@@ -1260,7 +1486,7 @@ function buildVariant(key, base, morphParams) {
       }
       ring.push(row);
     }
-    for (let k = 0; k < 2; k++)
+    for (let k = 0; k < H.length - 1; k++)
       for (let u = 0; u < R; u++) {
         const a0 = ring[k][u],
           a1 = ring[k][(u + 1) % R],
@@ -1272,15 +1498,29 @@ function buildVariant(key, base, morphParams) {
         m.face(a0, b0, a1);
         m.face(a1, b0, b1);
       }
+    // the wings: from the top of the stand at the opening, folded down and out to a point on the chest
+    for (const sgn of [-1, 1]) {
+      const th0 = sgn * 0.32,
+        th1 = sgn * 1.05;
+      const top = (th, g) => [Math.sin(th) * rx * g, neckBaseY + 0.03, cz + Math.cos(th) * rz * g + 0.004];
+      const a = top(th0, 1.12),
+        b = top(th1, 1.14);
+      const tip = [Math.sin(sgn * 0.42) * rx * 1.9, neckBaseY - 0.045, cz + rz * 1.28];
+      const n = norm(cross(sub(b, a), sub(tip, a)));
+      const nf = n[2] < 0 ? scl(n, -1) : n;
+      const ids = [a, b, tip].map((q) => m.vert(q, nf, skin, mat));
+      m.face(ids[0], ids[1], ids[2]);
+      m.face(ids[0], ids[2], ids[1]);
+    }
     return m;
   };
   const refCollar = collar("ref_collar", MAT.shirt);
   // the staff polo: the shirt shape in the polo colour, with its collar
-  const polo = shell("staff_polo", bodyFaces, NB, {
+  const polo = shell("staff_polo", bodyFaces, NS, {
     field: shirtField,
-    offset: (i) => 0.012 + 0.018 * smooth(spine2[1], pelvis[1] + 0.05, V(i)[1]) * (V(i)[2] > spine[2] ? 1 : 0.5),
+    offset: (i) => 0.005 + sleeveFlare(i),
+    surface: SHIRT_SURF,
     mat: MAT.polo,
-    bridge: 1,
     hem: 0.004,
   });
   const poloCollar = collar("staff_collar", MAT.polo);
