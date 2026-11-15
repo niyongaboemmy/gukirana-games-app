@@ -1,13 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Check, Clapperboard, DoorOpen, Flag, Hourglass, Megaphone, RotateCcw, SlidersHorizontal, Square, Trophy } from "lucide-react";
-import { CORNER_COLORS, TICK_HZ, type BoxingSnapshot, type Corner, type FighterView } from "@gukirana/contracts";
+import { CORNER_COLORS, TICK_HZ, type BoxingOutcome, type BoxingSnapshot, type Corner, type FightEvent, type FighterView } from "@gukirana/contracts";
 import { Modal } from "@/games/GameShell";
 import { useFightBridge, type MyFight } from "../bridge";
 import { gameFightActions, startPractice } from "./actions";
 import { eventFx } from "./fx";
 import { FightSettings } from "./FightSettings";
 import { actionKey, foulKey, ft, methodKey, type FgKey } from "./strings";
+import { foulText, fst, levelText, methodText, tiebreakText, type FsKey } from "./scoring-strings";
 import { playHighlights, stopReplay, useReplay } from "./replay";
 import { useFightUi } from "./ui-store";
 
@@ -132,7 +133,7 @@ function Callouts({ snap, me, now }: { snap: BoxingSnapshot; me: 0 | 1; now: num
     const age = now - at;
     if (e.k === "bell" && age < 1600) card = { title: ft("hud.bell", { n: e.round }) };
     if (e.k === "roundEnd" && age < 2600)
-      card = { title: ft("hud.roundEnd", { n: e.round }), sub: ft("hud.roundScore", { a: e.points[me], b: e.points[1 - me]! }) };
+      card = { title: ft("hud.roundEnd", { n: e.round }), sub: roundCardText(e, me) };
     if (e.k === "stoppage" && age < 3000) card = { title: ft("hud.stoppage") };
     const k = e.k as string;
     if (k === "ko" && age < 3500) card = { title: ft("hud.ko") };
@@ -149,7 +150,7 @@ function Callouts({ snap, me, now }: { snap: BoxingSnapshot; me: 0 | 1; now: num
     if (e.k === "warning" && age < 1400 && e.to === me)
       pops.push({
         id,
-        text: `${ft("hud.warning")}: ${ft(foulKey(e.foul))}${e.penalty ? ` · ${ft("hud.penalty", { n: e.penalty })}` : ""}`,
+        text: warningText(e),
         good: false,
       });
   }
@@ -193,6 +194,20 @@ function Callouts({ snap, me, now }: { snap: BoxingSnapshot; me: 0 | 1; now: num
   );
 }
 
+/** foul pop: the referee's words for the foul and the ladder level (scoring rules), older events fall back */
+function warningText(e: Extract<FightEvent, { k: "warning" }>): string {
+  const level = (e as { level?: string }).level;
+  const foul = fst(foulText(e.foul as never) as FsKey) ?? ft(foulKey(e.foul));
+  if (level) return `${fst(levelText(level as never))}: ${foul}`;
+  return `${ft("hud.warning")}: ${foul}${e.penalty ? ` · ${ft("hud.penalty", { n: e.penalty })}` : ""}`;
+}
+/** end-of-round card: the judges' cards when scoring is open ("10–9 · 10–9 · …" from my side), else the points */
+function roundCardText(e: Extract<FightEvent, { k: "roundEnd" }>, me: 0 | 1): string {
+  const card = (e as { card?: { judges?: [number, number][] } }).card;
+  if (card?.judges?.length) return `${ft("hud.judges")}: ${card.judges.map((j) => `${j[me]}–${j[1 - me]}`).join(" · ")}`;
+  return ft("hud.roundScore", { a: e.points[me], b: e.points[1 - me]! });
+}
+
 /* the scoring rules' result fields (P3-FGT-06) are optional here: older outcomes simply do not show them */
 type Card = { round: number; judges: [number, number][]; deductions?: [number, number]; knockdowns?: [number, number] };
 const cardsOf = (r: object): Card[] => ((r as { cards?: Card[] }).cards ?? []).filter((c) => Array.isArray(c?.judges) && c.judges.length > 0);
@@ -200,6 +215,15 @@ const pairOf = (r: object, k: "warnings" | "deductions"): [number, number] | nul
   const v = (r as Record<string, unknown>)[k];
   return Array.isArray(v) && v.length === 2 && (v[0] > 0 || v[1] > 0) ? (v as [number, number]) : null;
 };
+/** "Split decision", "Disqualified for: holding", "… won on countback: fewer warnings" */
+function methodLine(r: BoxingOutcome): string {
+  const x = r as BoxingOutcome & { method?: string; dqFoul?: string; tiebreak?: string };
+  if (!x.method) return ft(methodKey(undefined, r.decision));
+  let t = fst(methodText(x.method as never));
+  if (x.method === "DQ" && x.dqFoul) t += ` · ${fst("method.dqBy", { foul: fst(foulText(x.dqFoul as never)) })}`;
+  if (x.tiebreak) t += ` · ${fst(tiebreakText(x.tiebreak as never))}`;
+  return t;
+}
 function votesText(r: object, me: 0 | 1): string {
   const votes = (r as { votes?: (0 | 1 | null)[] }).votes;
   if (!Array.isArray(votes) || !votes.length) return "";
@@ -269,14 +293,24 @@ function ResultCard({ mine, onLeave }: { mine: MyFight; onLeave: () => void }) {
   if (!result) return null;
   const me = mine.corner === "red" ? 0 : 1;
   const won = result.winner === me;
-  const title =
-    result.decision === "void" ? ft("result.void") : result.winner === null ? ft("result.draw") : won ? ft("result.win") : ft("result.loss");
+  const method = (result as { method?: string }).method;
+  // both disqualified (neither boxer competing): no winner, stakes back
+  const noContest = method === "DQ" && result.winner === null;
+  const title = noContest
+    ? ft("result.noContest")
+    : result.decision === "void"
+      ? ft("result.void")
+      : result.winner === null
+        ? ft("result.draw")
+        : won
+          ? ft("result.win")
+          : ft("result.loss");
   const practice = mine.mode === "practice";
   return (
     <Modal label={title} title={title} icon={Trophy}>
       <div className="flex flex-col gap-3">
         <p className="text-center text-sm font-semibold">
-          {ft(methodKey((result as { method?: string }).method, result.decision))}
+          {noContest ? ft("result.noContestSub") : methodLine(result)}
           {votesText(result, me)}
         </p>
         <p className="text-center font-display text-4xl font-black tabular-nums">

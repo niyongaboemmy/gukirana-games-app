@@ -143,6 +143,8 @@ export const FG = {
   "caption.referee": "Referee",
   "caption.corner": "Your corner",
   "result.by.dq": "By disqualification",
+  "result.noContest": "No contest",
+  "result.noContestSub": "Neither boxer was competing: both disqualified, stakes returned.",
   "result.by.KO": "By knockout",
   "result.by.RSC": "Referee stopped the contest",
   "result.by.DQ": "By disqualification",

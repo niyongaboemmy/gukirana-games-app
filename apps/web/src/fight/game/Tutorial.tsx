@@ -6,6 +6,7 @@ import { boundKey, keyLabel, type BindAction } from "./input-map";
 import { useFightPrefs } from "./prefs";
 import { ft, type FgKey } from "./strings";
 import { useFightUi } from "./ui-store";
+import { FOUL_TUTORIAL, fst } from "./scoring-strings";
 
 /**
  * First-fight tutorial (P3-FGT-05): four short steps — guard, jab, power punches, slips / steps — in the words of the
@@ -38,12 +39,6 @@ export function Tutorial({ touch }: { touch: boolean }) {
   const stepDone = STEPS.map((s) => s.acts.some(did));
   const idx = stepDone.findIndex((d) => !d);
   const finished = idx === -1;
-  useEffect(() => {
-    if (finished && !done) {
-      const t = setTimeout(() => set({ tutorialDone: true }), 1500);
-      return () => clearTimeout(t);
-    }
-  }, [finished, done, set]);
   const vars = useMemo(() => {
     const v: Record<string, string> = {};
     for (const a of ["guard", "jab", "cross", "hook", "uppercut", "slipL", "slipR", "stepIn", "stepOut"] as BindAction[]) v[a] = keyLabel(boundKey(keys, a));
@@ -65,7 +60,23 @@ export function Tutorial({ touch }: { touch: boolean }) {
             <X size={16} />
           </button>
         </div>
-        <p className="text-sm font-semibold leading-snug phone:text-xs">{finished ? ft("tut.done") : ft(textKey, jabVars)}</p>
+        {!finished && <p className="text-sm font-semibold leading-snug phone:text-xs">{ft(textKey, jabVars)}</p>}
+        {finished && (
+          // the last card: how the fight is scored and the fouls to avoid (P3-FGT-06 rules)
+          <div className="flex max-h-[38dvh] flex-col gap-1.5 overflow-y-auto text-xs leading-snug">
+            <p className="font-bold">{fst("rules.title")}</p>
+            <p>{fst("rules.judges", { n: 5 })}</p>
+            <p>{fst("rules.ladder", { max: 3 })}</p>
+            {FOUL_TUTORIAL.map((r) => (
+              <p key={r.foul}>
+                <span className="font-bold">{fst(r.when)}</span> <span className="text-on-glass-muted">{fst(r.avoid)}</span>
+              </p>
+            ))}
+            <button type="button" className="pbtn pbtn-primary !min-h-9 !text-xs" onClick={() => set({ tutorialDone: true })}>
+              {ft("tut.done")}
+            </button>
+          </div>
+        )}
         <div className="flex gap-1.5" aria-hidden>
           {STEPS.map((s, i) => (
             <span key={s.id} className={`grid h-5 flex-1 place-items-center rounded-full text-white ${stepDone[i] ? "bg-success/85" : i === idx ? "bg-[#9b6a48]" : "bg-white/15"}`}>

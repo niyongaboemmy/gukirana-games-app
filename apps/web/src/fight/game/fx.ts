@@ -3,6 +3,7 @@ import type { BoxingSnapshot, FightEvent } from "@gukirana/contracts";
 import { bell, buzz, crowdReact, punchSound, say } from "./audio";
 import { foulKey, ft, type FgKey } from "./strings";
 import { useFightUi } from "./ui-store";
+import { foulText, fst } from "./scoring-strings";
 
 /**
  * What an event of my fight sounds and feels like (P3-FGT-05). Played on engine events only — never on a predicted
@@ -77,7 +78,7 @@ export function eventFx(e: FightEvent, me: 0 | 1, snap?: BoxingSnapshot | null):
       line("voice.fightOn", "referee");
       break;
     case "warning":
-      line("voice.warning", "referee", { foul: ft(foulKey(e.foul)) });
+      line("voice.warning", "referee", { foul: fst(foulText(e.foul)) ?? ft(foulKey(e.foul)) });
       break;
     case "stoppage":
       line("voice.stop", "referee");
