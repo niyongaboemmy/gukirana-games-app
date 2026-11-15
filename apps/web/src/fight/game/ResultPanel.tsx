@@ -218,6 +218,8 @@ export interface ResultActions {
   nextLevel?: () => void;
   findOpponent?: () => void;
   leave: () => void;
+  /** the leave button's words (default "Step out"; spectators: "Close") */
+  leaveKey?: FgKey;
 }
 
 export function ResultPanel({
@@ -272,7 +274,7 @@ export function ResultPanel({
                   )}
                   <ReplayButton />
                   <button type="button" className="pbtn pbtn-secondary flex-1" onClick={actions.leave}>
-                    <DoorOpen size={18} /> {ft("result.leave")}
+                    <DoorOpen size={18} /> {ft(actions.leaveKey ?? "result.leave")}
                   </button>
                 </div>
               )}

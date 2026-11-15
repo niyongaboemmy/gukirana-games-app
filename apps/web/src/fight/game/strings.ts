@@ -267,6 +267,7 @@ export const FG = {
   "result.decidingMoment": "Replay the deciding moment",
   "result.retry": "Try again",
   "watch.result": "Result",
+  "watch.close": "Close",
   "watch.winner": "{name} wins",
   "cam.label": "Camera",
   "cam.fight": "Side",
