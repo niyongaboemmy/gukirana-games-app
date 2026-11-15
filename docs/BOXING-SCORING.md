@@ -187,3 +187,23 @@ Tamper tests:
 All five are optional in `FightRulesSchema`. A row saved before them runs with `DEFAULT_SCORING_RULES`
 (`scoringRulesOf`). They can be edited in the staff console (Games → Fight rules → Scoring and referee) and in the
 back office. Edits apply to new fights only.
+
+## 9. Engine v2 inputs (P3-FGT-10, docs/FIGHT-GAME-V2.md)
+
+The judges, the 10-point must, the methods, the ladder and the audit are unchanged. Engine v2 adds inputs to the
+same tally. All of them are optional fields, so a v1 tally (absent = 0) scores exactly as before. v1 fights are
+replayed with the frozen copies in `src/v1/`.
+
+- **Parries** count like blocks: thrown for the puncher, `defended` for the parrier.
+- **Evades** carry `how` (slip / duck / step). All of them count as `defended`.
+- **Counters and body shots** are counted (`counters`, `body`) for the skill report. Their scoring weight is already
+  in the hit's points: a counter is worth +1.
+- **Ring generalship (`control`).** One point per 2 s of keeping the opponent on the ropes or in a corner, or per
+  4 s of holding the centre. It only counts while the controller is not being outlanded in the round.
+- **Judge weights (`generalship`).** J1 2, J2 1, J3 3, J4 2, J5 0. These weight IBA "domination by technical and
+  tactical superiority".
+- **Clinches.** A clinch the referee breaks is a "Break!" call on the clincher. The second call in a round is
+  HOLDING, through the usual ladder.
+- **DUCKING.** Ducks count with slips.
+- **The signed result** also carries each fighter's integer skill line (`stats`, FightStatLine). The API stores it
+  with the Glicko-2 rating event. Hash prefix: `boxing:v3:` for engine v2 fights, `boxing:v2:` for v1.
