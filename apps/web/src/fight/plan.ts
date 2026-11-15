@@ -194,7 +194,7 @@ export const BOXING_BENCHES: R[] = (() => {
   const out: R[] = [];
   const zs = BOXING_SIZE.d / 2 - 0.55;
   const zn = -BOXING_SIZE.d / 2 + 0.55;
-  for (let x = -BOXING_SIZE.w / 2 + 3; x <= BOXING_SIZE.w / 2 - 3; x += 4.2) if (Math.abs(x - BOXING_DOOR.x) > 3.4) out.push({ x, z: zs, w: 3, d: 0.5 });
+  for (let x = -BOXING_SIZE.w / 2 + 3; x <= BOXING_SIZE.w / 2 - 3; x += 4.2) if (Math.abs(x - BOXING_DOOR.x) > 3.4 && x < 10.5) out.push({ x, z: zs, w: 3, d: 0.5 });
   for (let x = -16.8; x <= 16.8; x += 4.2) out.push({ x, z: zn, w: 3, d: 0.5 });
   return out;
 })();

@@ -21,6 +21,8 @@ import { fightMockOn, startFightMock } from "./mock";
 import { useBoxingNetClient } from "./game/net/client";
 import { hiddenPeople } from "@/rooms/hall-hooks";
 import { fightActions } from "./actions";
+import { TrainingZone } from "./training-zone";
+import { GymLife, useGymScene } from "./gym-life";
 
 /**
  * The Boxing hall interior (P3-FGT-01, plan §4.3–4.5): a matte, floodlit sports hall — polished-but-matte concrete,
@@ -47,9 +49,12 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
     return [all.filter((r) => r.feature), all.filter((r) => !r.feature)];
   }, [rings, restKey]);
   const [mock] = useState(fightMockOn);
+  const gym = useGymScene();
   return (
     <group>
       {!mock && <LiveNet />}
+      <TrainingZone hidden={gym.hidden} dim={gym.dim} />
+      <GymLife room="boxing" lite={lite} hidden={gym.hidden} />
       <HallLights lite={lite} />
       <Shell layout={layout} lite={lite} />
       <FeatureStage />

@@ -16,6 +16,8 @@ import { ringCounts } from "./rings";
 import { F } from "./strings";
 import { FIGHT_ON } from "./flags";
 import { startFightMock } from "./mock";
+import { LobbyVenue } from "./lobby-venue";
+import { GymLife } from "./gym-life";
 
 const FONT = "/fonts/Baloo2.ttf";
 
@@ -42,6 +44,8 @@ export function LobbyScene({ layout, lite }: { layout: HallLayout; lite: boolean
       <StatusBoard />
       <group userData={{ noMerge: true }}>
         <PassageDoor />
+        <LobbyVenue />
+        <GymLife room="fight" lite={lite} />
         <LiveCount />
         <SubhallSensor />
       </group>
@@ -393,7 +397,8 @@ function StatusBoard() {
         <boxGeometry args={[b.w + 0.2, b.h + 0.2, 0.06]} />
         <meshStandardMaterial color="#0c0c0e" roughness={0.5} metalness={0.5} />
       </mesh>
-      <mesh material={mat}>
+      {/* 8 mm proud of the frame: the face used to be coplanar with the frame front and z-fought in black blocks */}
+      <mesh material={mat} position={[0, 0, 0.008]}>
         <planeGeometry args={[b.w, b.h]} />
       </mesh>
     </group>

@@ -9,6 +9,7 @@ import { RoomOverlay } from "@/rooms/RoomOverlay";
 import { AdminBlockOverlay } from "@/admin-block/AdminBlockOverlay";
 import { ArenaOverlay } from "@/arena/ArenaOverlay";
 import { FightOverlay } from "@/fight/FightOverlay";
+import { GymPrompt } from "@/fight/GymPrompt";
 import { HALLS, isHallGame } from "@/rooms/layouts";
 import { useRoom } from "@/rooms/room-store";
 import { levelForXp, useProfile } from "@/lib/profile-store";
@@ -48,7 +49,7 @@ export default function RoomPage() {
       <WorldHud />
       <MatchmakingPanel />
       <WorldControls />
-      {game === "admin" ? <AdminBlockOverlay layout={layout} /> : game === "fight" || game === "boxing" ? <FightOverlay layout={layout} /> : game === "arena" ? <ArenaOverlay layout={layout} /> : <RoomOverlay layout={layout} />}
+      {game === "admin" ? <AdminBlockOverlay layout={layout} /> : game === "fight" || game === "boxing" ? <><FightOverlay layout={layout} /><GymPrompt game={game} /></> : game === "arena" ? <ArenaOverlay layout={layout} /> : <RoomOverlay layout={layout} />}
       <RotateGuard />
     </div>
   );
