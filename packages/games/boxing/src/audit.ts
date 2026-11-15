@@ -14,6 +14,7 @@ import {
 } from "./engine.js";
 import { dqAllowed } from "./fouls.js";
 import { cardFor, decideCards, isValidCard, totalsOf } from "./scoring.js";
+import * as v1 from "./v1/index.js";
 
 /**
  * The fight log and the pre-sign audit (P3-FGT-06, docs/BOXING-SCORING.md §6).
@@ -35,6 +36,8 @@ export type FightOp =
   | { o: "void" };
 
 export interface FightLog {
+  /** the engine the log was recorded with (absent = v1, P3-FGT-06 logs; 2 = engine v2, P3-FGT-10) */
+  engine?: 2;
   players: [string, string];
   rules: FightRules;
   staked: boolean;
@@ -42,8 +45,12 @@ export interface FightLog {
 }
 
 export function newFightLog(players: [string, string], rules: FightRules, staked: boolean): FightLog {
-  return { players, rules, staked, ops: [] };
+  return { engine: 2, players, rules, staked, ops: [] };
 }
+
+/** a fight state from either engine (v1 states have no `v`) */
+export type AnyFightState = FightState | v1.FightState;
+export const isV2 = (s: AnyFightState): s is FightState => (s as { v?: number }).v === 2;
 
 /** append a step (runs of empty ticks are folded into one `idle` op) */
 export function logStep(log: FightLog, inputs: TickInputs): void {
@@ -58,8 +65,14 @@ export function logStep(log: FightLog, inputs: TickInputs): void {
 
 const NONE: TickInputs = [null, null];
 
-/** replay a log from scratch (pure) */
+/** replay a log from scratch with the engine it was recorded with (pure) */
+export function replayAny(log: FightLog): AnyFightState {
+  return log.engine === 2 ? replayFight(log) : v1.replayFight(log as v1.FightLog);
+}
+
+/** replay a v2 log from scratch (pure) */
 export function replayFight(log: FightLog): FightState {
+  if (log.engine !== 2) throw new Error("ENGINE_V1_LOG: use replayAny / v1.replayFight");
   let s = createFight(log.players, log.rules, { staked: log.staked });
   for (const op of log.ops) {
     switch (op.o) {
@@ -97,7 +110,13 @@ export const logText = (log: FightLog): string => stableStringify(log);
  * that round's tally, deductions applied exactly once, the totals and the decision type matching the cards, a DQ only
  * after the warning ladder, and (when a log is given) the replay reaching the very same state. [] = all good.
  */
-export function auditFight(s: FightState, log?: FightLog): string[] {
+export function auditFight(s: AnyFightState, log?: FightLog): string[] {
+  // a v1 fight (recorded before P3-FGT-10) is checked by the frozen v1 audit, with its own engine
+  if (!isV2(s)) {
+    if (log && log.engine === 2) return ["ENGINE_MISMATCH"];
+    return v1.auditFight(s, log as v1.FightLog | undefined);
+  }
+  if (log && log.engine !== 2) return ["ENGINE_MISMATCH"];
   const errs: string[] = [];
   const o = s.outcome;
   if (!o) return ["NOT_OVER"];
