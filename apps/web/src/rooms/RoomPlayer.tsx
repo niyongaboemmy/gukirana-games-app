@@ -214,7 +214,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   }, []);
 
   useEffect(() => {
-    cameraState.yaw = 0; // behind the player, looking into the hall
+    cameraState.yaw = arr.camYaw; // behind the player, looking the way the arrival goes (rooms/arrival; it was always 0 here,
+    // which swung the camera round in front of you as soon as you came out of the Boxing passage or reloaded)
     cameraState.pitch = 0.2; // eye-level-ish: you see the hall, not the floor
     cameraState.distance = 5.8;
     const down = (e: KeyboardEvent) => (e.target as HTMLElement)?.tagName !== "INPUT" && keys.add(e.code);
@@ -264,7 +265,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       // leaving the hall: stale chair / exit flags would hide the plaza's "Enter …" prompt and swallow E there
       useRoom.getState().set({ nearSeat: null, nearExit: false, seated: null, leaving: false });
     };
-  }, [gl, camera, w, d]);
+  }, [gl, camera, w, d, arr]);
 
   /** where you stand to take a chair (the staged sit starts here) */
   const standOf = (s: Seat) => ({ x: s.x + Math.sin(s.yaw) * (chairR + 0.13), z: s.z + Math.cos(s.yaw) * (chairR + 0.13) });
@@ -590,6 +591,10 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       const faceTo = !s.moving && !nav.target ? hooks?.face?.() : null;
       if (faceTo != null) facing.current += wrapA(faceTo - facing.current) * Math.min(1, dt * 6);
       autoFollow(cameraState, s, dt);
+      // walking out (Leave, the E prompt, or through the door): the camera comes round behind you within ~0.7 s, so you
+      // leave facing the way you go with the next place opening up in front (it used to stay in front of you, filming
+      // you walk towards it, and the cut then carried that reversed view outside) (P3-FGT-12)
+      if ((R.leaving || exited.current || (R.nearExit && Math.cos(facing.current) > 0.5)) && s.moving) cameraState.yaw += wrapA(facing.current + Math.PI - cameraState.yaw) * Math.min(1, dt * 3.5);
       if (s.moving) anim.current = run || s.speed > 2.6 ? 2 : 1;
       else {
         const e = W.emote;
@@ -859,6 +864,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
         }
       }
     }
+    // coming out of a passage: the camera behind you stays between its walls (it hugged a side wall: half the view black)
+    if (arr.lane && intro.current > 0) cx = THREE.MathUtils.clamp(cx, arr.lane.x - arr.lane.hw, arr.lane.x + arr.lane.hw);
     // keep the camera inside the room
     cx = THREE.MathUtils.clamp(cx, -w / 2 + 0.3, w / 2 - 0.3);
     cz = THREE.MathUtils.clamp(cz, -d / 2 + 0.3, d / 2 - 0.35); // camera always inside the hall

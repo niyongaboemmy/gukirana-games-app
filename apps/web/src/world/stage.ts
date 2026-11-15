@@ -10,7 +10,7 @@ import { useGate } from "./gate/gate-store";
 import { doorInset, doorLocal, ENTRY_Z, PORTALS, portalTransform } from "./layout";
 import { doorHold } from "./transition";
 import { HALLS } from "@/rooms/layouts";
-import { boxingToLobby, lobbyToBoxing } from "@/fight/plan";
+import { boxingToLobby, LOBBY_PASSAGE, lobbyToBoxing, SUBHALL_DOOR_X } from "@/fight/plan";
 import type { ArrivalVia } from "@/rooms/arrival";
 
 /**
@@ -54,6 +54,8 @@ export interface Handoff {
   fromDoor?: boolean;
   /** which door of the destination hall you come through (rooms/arrival): its own door, or a sub-hall doorway */
   via?: ArrivalVia;
+  /** the passage you come out of (the arrival camera stays between its walls) */
+  lane?: { x: number; hw: number };
   at: number;
 }
 
@@ -326,7 +328,8 @@ function hallCross(from: "fight" | "boxing", to: "fight" | "boxing", map: (x: nu
     // Boxing → lobby comes OUT through the lobby's back-wall doorway (rooms/arrival "subhall": you walk on into the
     // lobby, camera behind you in the passage); lobby → Boxing goes in through the hall's own door ("front")
     const via: ArrivalVia = to === "fight" ? "subhall" : "front";
-    return { ...map(selfPose.x, selfPose.z, selfPose.yaw), speed: 1.35, walk: 1.9, via, cam: [c.x, cam.position.y, c.z], look: [l.x, cam.position.y + fwd.y * 4, l.z] };
+    const lane = to === "fight" ? { x: SUBHALL_DOOR_X.boxing, hw: LOBBY_PASSAGE.w / 2 - 0.45 } : undefined;
+    return { ...map(selfPose.x, selfPose.z, selfPose.yaw), speed: 1.35, walk: 1.9, via, lane, cam: [c.x, cam.position.y, c.z], look: [l.x, cam.position.y + fwd.y * 4, l.z] };
   };
   const t0 = performance.now();
   let topped: "no" | "running" | "done" = "no";

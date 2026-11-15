@@ -23,7 +23,7 @@ export interface ArrivalIn {
   door: { x: number };
   size: { d: number };
   /** pose handed over by the place you came from (world/stage Handoff), already mapped into this hall */
-  hand?: { x: number; z: number; yaw: number; via?: ArrivalVia } | null;
+  hand?: { x: number; z: number; yaw: number; via?: ArrivalVia; lane?: { x: number; hw: number } } | null;
   /** an exact pose to restore (back from a game, or a reload) */
   restore?: { x: number; z: number; yaw: number } | null;
 }
@@ -42,6 +42,8 @@ export interface Arrival {
   camYaw: number;
   /** cap on the follow-camera distance during the arrival (the passage behind the doorway is short), or null */
   camMax: number | null;
+  /** the passage you come out of: the arrival camera stays inside it (x within lane.x ± lane.hw), never in its walls */
+  lane: { x: number; hw: number } | null;
 }
 
 export const INTRO_S = 1.9;
@@ -55,15 +57,15 @@ export const behind = (f: number) => wrap(f + Math.PI);
 export function arrival(a: ArrivalIn): Arrival {
   if (a.restore) {
     const { x, z, yaw } = a.restore;
-    return { kind: "restore", x, z, facing: yaw, heading: null, intro: 0, camYaw: behind(yaw), camMax: null };
+    return { kind: "restore", x, z, facing: yaw, heading: null, intro: 0, camYaw: behind(yaw), camMax: null, lane: null };
   }
   const h = a.hand;
   if (h && h.via === "subhall") {
     // out through the sub-hall doorway: on into the lobby (+z), whatever small angle you crossed the door line at; the
     // camera behind you stays inside the room's bounds (the passage behind the doorway ends at −d/2)
     const heading = 0;
-    return { kind: "subhall", x: h.x, z: h.z, facing: h.yaw, heading, intro: OUT_INTRO_S, camYaw: behind(heading), camMax: Math.max(1.6, h.z + a.size.d / 2 - 0.3) };
+    return { kind: "subhall", x: h.x, z: h.z, facing: h.yaw, heading, intro: OUT_INTRO_S, camYaw: behind(heading), camMax: Math.max(1.6, h.z + a.size.d / 2 - 0.3), lane: h.lane ?? null };
   }
-  if (h) return { kind: "front", x: h.x, z: h.z, facing: h.yaw, heading: Math.PI, intro: INTRO_S, camYaw: 0, camMax: null };
-  return { kind: "door", x: a.door.x, z: a.size.d / 2 - 1.0, facing: Math.PI, heading: Math.PI, intro: INTRO_S, camYaw: 0, camMax: null };
+  if (h) return { kind: "front", x: h.x, z: h.z, facing: h.yaw, heading: Math.PI, intro: INTRO_S, camYaw: 0, camMax: null, lane: null };
+  return { kind: "door", x: a.door.x, z: a.size.d / 2 - 1.0, facing: Math.PI, heading: Math.PI, intro: INTRO_S, camYaw: 0, camMax: null, lane: null };
 }

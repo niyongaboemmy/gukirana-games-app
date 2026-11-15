@@ -21,7 +21,9 @@ describe("hall arrival pose per direction (P3-FGT-12)", () => {
   it("Boxing hall → lobby: comes OUT of the passage facing into the lobby, never turned back towards the door", () => {
     // the person steps out of the Boxing hall's south door heading south (+z, yaw 0)
     const out = boxingToLobby(boxing.door.x, boxing.size.d / 2 + 0.7, 0.08);
-    const a = arrival({ door: lobby.door, size: lobby.size, hand: { ...out, via: "subhall" } });
+    const lane = { x: boxing.door.x, hw: 0.85 };
+    const a = arrival({ door: lobby.door, size: lobby.size, hand: { ...out, via: "subhall", lane } });
+    expect(a.lane).toEqual(lane); // the arrival camera is held between the passage walls
     expect(a.kind).toBe("subhall");
     // arrives on the lobby side of the back-wall doorway
     expect(a.z).toBeGreaterThan(BOXING_DOOR_LINE_Z);
