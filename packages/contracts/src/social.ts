@@ -81,6 +81,67 @@ export function isValidSeat(place: "plaza" | HallId, seat: unknown): seat is str
 export const plazaSeat = (id: string): SeatPose | undefined => PLAZA_SEATS.find((s) => s.id === id);
 
 // ---------------------------------------------------------------------------------------------------------------
+// Holding your place through a reload (P2-NET-06, docs/GAME-EXIT-RULES.md "Holding your place")
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * How long the server keeps a chosen place for a signed-in player whose connection ended without a deliberate leave
+ * (reload, closed tab, network loss), and the abuse limit. One config for every hall; the realtime tests shorten it.
+ */
+export const PLACE_HOLD = {
+  /** a game-table chair (seated, or waiting for an opponent at the table) */
+  seatSeconds: 60,
+  /** a Boxing ring the player waits in for an opponent */
+  ringWaitingSeconds: 60,
+  /** a Boxing ring the player practises in (the practice fight itself ran in the closed page) */
+  ringPracticeSeconds: 30,
+  /** at most this many holds per account … */
+  maxHolds: 3,
+  /** … in this window (minutes); the next drop releases the place at once */
+  windowMinutes: 15,
+  /** a released place is remembered this long for the "your place was released" notice (minutes) */
+  noticeMinutes: 10,
+} as const;
+/** halls whose chairs are held (game tables); plaza benches, offices and the arena bowl are not */
+export const HOLD_SEAT_HALLS = ["pool", "ludo", "igisoro"] as const;
+/** the holder shown in the `seats` map for a held chair (never a session id; nobody may claim it) */
+export const HELD_SEAT = "~held";
+
+export type PlaceKind = "seat" | "ring";
+/** seated / waiting for an opponent at a table (Quick Match), waiting in a ring, practising in a ring */
+export type PlaceState = "seated" | "waiting" | "practice";
+/** why a held place was released before its owner came back */
+export type PlaceReleaseReason = "EXPIRED" | "LIMIT";
+export interface PlaceInfo {
+  hall: HallId;
+  roomId: string;
+  kind: PlaceKind;
+  /** chair id (t3s1) or ring id (R7) */
+  place: string;
+  state: PlaceState;
+  /** Boxing: the waiting ring's stake; tables: the Quick Match stake while waiting */
+  stake?: number;
+  /** tables: the Quick Match game while waiting */
+  game?: string;
+  /** how long the player has waited so far (ms, time away included) → "waiting 1:20" */
+  waitedMs: number;
+}
+/**
+ * Hall room → the joining player (signed in), and `GET /place` on the realtime server:
+ *  - restored: you are back on your place (same state);
+ *  - held:     (GET /place only) your place is still held, `ms` left;
+ *  - released: your place was released while you were away (`heldS` = the hold you had, 0 for LIMIT);
+ *  - none:     nothing held or released recently.
+ */
+export type PlaceMsg =
+  | ({ status: "restored" } & PlaceInfo)
+  | ({ status: "held"; ms: number } & PlaceInfo)
+  | { status: "released"; hall: HallId; kind: PlaceKind; place: string; reason: PlaceReleaseReason; heldS: number }
+  | { status: "none" };
+/** `seat-holds` (hall room → everyone): held chair → ms left when sent */
+export type SeatHolds = Record<string, number>;
+
+// ---------------------------------------------------------------------------------------------------------------
 // Chat / DMs / calls / blocks
 // ---------------------------------------------------------------------------------------------------------------
 

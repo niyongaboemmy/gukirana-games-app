@@ -105,6 +105,11 @@ export interface RingState {
   watchers: number;
   /** server time (ms) of the last status change */
   since: number;
+  /**
+   * P2-NET-06: the waiting / practising fighter lost their connection; the ring is kept for them for `ms` more (time
+   * left when the message was sent). Nobody may take a held ring; it frees when the hold runs out.
+   */
+  held?: { ms: number };
 }
 
 /* ------------------------------------------------------------ the kit ------------------------------------------------------------ */
@@ -611,6 +616,7 @@ export const BOXING_DENIALS = [
   "HALL_FULL",
   "RATE_LIMITED",
   "SUBHALL_CLOSED",
+  "RING_HELD", // P2-NET-06: kept for a fighter who lost their connection (frees when the hold runs out)
 ] as const;
 export type BoxingDenial = (typeof BOXING_DENIALS)[number];
 /** fight room `rejected` reasons for an input */

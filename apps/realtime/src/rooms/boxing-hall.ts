@@ -27,6 +27,18 @@ import { RateLimiter } from "../social/rate.js";
 import type { Eligibility } from "../api-client.js";
 import { distanceToRing } from "./boxing-rings.js";
 
+/**
+ * P2-NET-06: what the hall asks its room to keep when a waiting / practising fighter loses their connection. The room
+ * answers with the hold (its `until`) or null (holds off, the abuse limit): then the ring frees at once, as before.
+ */
+export interface RingKeep {
+  place: RingId;
+  state: "waiting" | "practice";
+  stake?: number;
+  since: number;
+}
+export type KeepRing = (k: RingKeep) => { until: number } | null;
+
 /** What the Boxing hall logic needs from its WorldRoom (keeps world-room.ts edits small, like ArenaHost). */
 export interface BoxingHost {
   roomId: string;
@@ -124,6 +136,9 @@ export class BoxingHall {
   private pingN = 0;
   /** a fighter pressed Leave while the match was being created: applied once the room exists */
   private leaveAfterStart = new Map<RingId, string>();
+  /** P2-NET-06: rings kept for a fighter who lost their connection: ring → when the hold ends; account → its ring */
+  private heldUntil = new Map<RingId, number>();
+  private heldBy = new Map<string, RingId>();
 
   constructor(
     private readonly host: BoxingHost,
@@ -140,14 +155,30 @@ export class BoxingHall {
 
   // ---------------------------------------------------------------- join / leave
 
-  joined(sid: string): void {
-    this.host.send(sid, BoxingHallEvt.rings, [...this.rings.values()]);
-    // back after a reload while their fight runs: the ring is theirs again (kit, fight room)
+  joined(sid: string, back?: { place: string }): void {
     const uid = this.host.uidOf(sid);
+    // P2-NET-06: back inside the hold → the same ring, the same state (waiting at its stake / practice)
+    const kept = uid ? this.heldBy.get(uid) : undefined;
+    if (uid && kept && back?.place === kept) {
+      const r = this.rings.get(kept)!;
+      this.heldBy.delete(uid);
+      this.heldUntil.delete(kept);
+      if (r.red?.userId === uid && (r.status === "waiting" || r.status === "practice")) {
+        r.red.sid = sid;
+        r.red.name = this.host.nameOf(sid);
+        this.holding.set(sid, kept);
+        this.host.send(sid, BoxingHallEvt.rings, this.list());
+        this.host.send(sid, BoxingHallEvt.assigned, { ring: kept, corner: "red" });
+        this.ringChanged(r);
+        return;
+      }
+    }
+    this.host.send(sid, BoxingHallEvt.rings, this.list());
+    // back after a reload while their fight runs: the ring is theirs again (kit, fight room)
     if (!uid) return;
     for (const r of this.rings.values()) {
       const corner: Corner | null = r.red?.userId === uid ? "red" : r.blue?.userId === uid ? "blue" : null;
-      if (!corner || r.status === "free" || r.status === "practice") continue;
+      if (!corner || r.status === "free" || r.status === "practice" || this.heldUntil.has(r.id)) continue;
       const f = r[corner]!;
       if (f.sid !== sid) {
         for (const [s, id] of this.holding) if (id === r.id && s === f.sid) this.holding.delete(s);
@@ -160,7 +191,11 @@ export class BoxingHall {
     }
   }
 
-  left(sid: string): void {
+  /**
+   * The session left the hall. `keep` (P2-NET-06, a signed-in fighter whose connection ended without a deliberate
+   * leave): a waiting / practice ring is held for them instead of freed (Held · returning, nobody may take it).
+   */
+  left(sid: string, keep?: KeepRing): void {
     this.unqueue(sid);
     this.unwatch(sid);
     this.rate.forget(`${sid}:`);
@@ -171,7 +206,28 @@ export class BoxingHall {
     const r = this.rings.get(id)!;
     // a running fight keeps its ring: the fight room has its own connection + exit rules (pause, forfeit, void)
     if (r.status === "starting" || r.status === "fighting") return;
+    const uid = r.red?.sid === sid ? r.red.userId : undefined;
+    if (keep && uid && (r.status === "waiting" || r.status === "practice")) {
+      const h = keep({ place: r.id, state: r.status, ...(r.status === "waiting" ? { stake: r.stake ?? 0 } : {}), since: r.since });
+      if (h) {
+        this.holding.delete(sid);
+        this.heldUntil.set(r.id, h.until);
+        this.heldBy.set(uid, r.id);
+        this.ringChanged(r);
+        return;
+      }
+    }
     this.release(r, sid);
+  }
+
+  /** P2-NET-06: the hold ran out (or was refused): the ring is free again */
+  holdEnded(uid: string): void {
+    const id = this.heldBy.get(uid);
+    if (!id) return;
+    this.heldBy.delete(uid);
+    this.heldUntil.delete(id);
+    const r = this.rings.get(id)!;
+    if (r.red?.userId === uid && (r.status === "waiting" || r.status === "practice")) this.free(r);
   }
 
   // ---------------------------------------------------------------- latency (plan §3.4)
@@ -250,6 +306,7 @@ export class BoxingHall {
     const r = this.rings.get(ring);
     if (!r) return "UNKNOWN_RING";
     if (r.status === "closed") return "RING_CLOSED";
+    if (this.heldUntil.has(ring)) return "RING_HELD";
     if (this.holding.get(sid) === ring && r.status === "waiting") return "OWN_RING";
     if (this.holdsRing(sid)) return "ALREADY_IN_RING";
     if (this.inLiveFight(this.host.uidOf(sid))) return "ALREADY_IN_MATCH";
@@ -463,6 +520,8 @@ export class BoxingHall {
     if (!p.success) return this.deny(sid, "practice", "UNKNOWN_RING");
     if (!this.allowed(sid, "practice")) return;
     const ring = p.data.ring;
+    // back on my practice ring after a reload (P2-NET-06): a fresh practice fight in the same ring
+    if (this.holding.get(sid) === ring && this.rings.get(ring)?.status === "practice") return this.host.send(sid, BoxingHallEvt.assigned, { ring, corner: "red" });
     const why = this.ringCheck(sid, ring, false) ?? (this.rings.get(ring)!.status !== "free" ? "RING_TAKEN" : null);
     if (why) return this.deny(sid, "practice", why, ring);
     this.unqueue(sid);
@@ -656,7 +715,9 @@ export class BoxingHall {
     for (const c of ["red", "blue"] as const) {
       const f = r[c];
       if (f && this.holding.get(f.sid) === r.id) this.holding.delete(f.sid);
+      if (f?.userId && this.heldBy.get(f.userId) === r.id) this.heldBy.delete(f.userId);
     }
+    this.heldUntil.delete(r.id);
     const watchers = r.watchers;
     for (const k of Object.keys(r) as (keyof RingState)[]) if (k !== "id") delete r[k];
     Object.assign(r, { status: "free", watchers, since: Date.now() });
@@ -688,7 +749,16 @@ export class BoxingHall {
   }
 
   private ringChanged(r: RingState): void {
-    this.host.broadcast(BoxingHallEvt.ring, { ...r, ...(r.red ? { red: { ...r.red } } : {}), ...(r.blue ? { blue: { ...r.blue } } : {}) });
+    this.host.broadcast(BoxingHallEvt.ring, this.wire(r));
+  }
+  /** a ring as clients get it (a held ring carries the time left of its hold) */
+  private wire(r: RingState, now = Date.now()): RingState {
+    const until = this.heldUntil.get(r.id);
+    return { ...r, ...(r.red ? { red: { ...r.red } } : {}), ...(r.blue ? { blue: { ...r.blue } } : {}), ...(until !== undefined ? { held: { ms: Math.max(0, until - now) } } : {}) };
+  }
+  private list(): RingState[] {
+    const now = Date.now();
+    return [...this.rings.values()].map((r) => this.wire(r, now));
   }
 
   /** test / console view */

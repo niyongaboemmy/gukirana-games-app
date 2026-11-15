@@ -24,7 +24,10 @@ import {
   UnblockSchema,
   WorldMoveSchema,
   PERSONAL_REFUSALS,
+  HOLD_SEAT_HALLS,
   type HallId,
+  type PlaceMsg,
+  type SeatHolds,
 } from "@gukirana/contracts";
 import { api, ApiError } from "../api-client.js";
 import { filterChat, sanitizeName } from "../chat-filter.js";
@@ -40,9 +43,10 @@ import { PairRegistry } from "../social/pairs.js";
 import { MoveGuard } from "../social/movement.js";
 import { OfficeDesk } from "./office-desk.js";
 import { ArenaHall } from "./arena-hall.js";
-import { BoxingHall, boxingHallConfig } from "./boxing-hall.js";
+import { BoxingHall, boxingHallConfig, type RingKeep } from "./boxing-hall.js";
 import { boxingRoomOf, startBoxing } from "./boxing-room.js";
 import { arenaConfig } from "../social/arena-access.js";
+import { holdMsFor, info, placeHoldConfig, placeHolds, type Hold } from "../social/place-holds.js";
 
 /**
  * Farthest position a player may report (centimetres from the fountain, each axis). The campus (P2-WLD-12) reaches
@@ -135,6 +139,8 @@ export class WorldRoom extends Room {
   private msgSeq = 0;
   /** sessionId → unregister from the account registry (social/accounts.ts: suspension closes the session) */
   private tracked = new Map<string, () => void>();
+  /** P2-NET-06: the places this room keeps for players who lost their connection (uid → hold; social/place-holds.ts) */
+  private heldHere = new Map<string, Hold>();
 
   override async onAuth(_c: Client, options: { token?: unknown }): Promise<UserClaims | true> {
     if (!options?.token) return true; // guest
@@ -192,6 +198,13 @@ export class WorldRoom extends Room {
   }
   private broadcastSeats() {
     this.broadcast("seats", this.seats.snapshot());
+    this.broadcast("seat-holds", this.seatHolds());
+  }
+  /** P2-NET-06: chairs held for players who lost their connection → ms left (table markers show "Held · 0:42") */
+  private seatHolds(now = Date.now()): SeatHolds {
+    const out: SeatHolds = {};
+    for (const h of this.heldHere.values()) if (h.kind === "seat") out[h.place] = Math.max(0, h.until - now);
+    return out;
   }
 
   /**
@@ -600,19 +613,33 @@ export class WorldRoom extends Room {
     });
 
     // ---- Quick Match ----
-    this.onMessage("quickmatch-join", async (client, raw: { game?: unknown; stake?: unknown }) => {
-      const me = this.users.get(client.sessionId);
-      if (!me) return client.send("quickmatch", { status: "error", reason: "LOGIN_REQUIRED" });
+    this.onMessage("quickmatch-join", (client, raw: { game?: unknown; stake?: unknown }) => {
+      if (!this.users.get(client.sessionId)) return client.send("quickmatch", { status: "error", reason: "LOGIN_REQUIRED" });
       if (!isGame(raw?.game) || !isStake(raw?.stake)) return client.send("quickmatch", { status: "error", reason: "INVALID" });
-      const game = raw.game;
-      const stake = raw.stake;
+      void this.joinQuick(client, raw.game, raw.stake);
+    });
+    this.onMessage("quickmatch-leave", (client) => {
+      const me = this.users.get(client.sessionId);
+      if (me) quickMatch.leave(me.sub);
+      client.send("quickmatch", { status: "idle" });
+    });
+  }
+
+  /**
+   * Quick Match: queue (or pair at once). `resumed` keeps the original waiting time when a held place comes back
+   * (P2-NET-06: the ticket was paused while the player was away, so nothing could start without them).
+   */
+  private async joinQuick(client: Client, game: GameId, stake: number, resumed?: number): Promise<void> {
+    {
+      const me = this.users.get(client.sessionId);
+      if (!me) return;
       // checked before queueing (GAP-011): a player who can't stake this never waits, nor gets paired with someone
       const mine = await eligibilityOf(me.sub, stake, game);
       if (isRefusal(mine)) return client.send("quickmatch", { status: "error", reason: mine.reason, game, ...(mine.limit !== undefined ? { limit: mine.limit } : {}) });
       if (!this.users.has(client.sessionId)) return; // left / suspended meanwhile
-      const ticket = { userId: me.sub, since: Date.now(), notify: (e: string, p: unknown) => client.send(e, p) };
+      const ticket = { userId: me.sub, since: resumed ?? Date.now(), notify: (e: string, p: unknown) => client.send(e, p) };
       const other = quickMatch.join(game, stake, ticket);
-      if (!other) return client.send("quickmatch", { status: "waiting", game, stake });
+      if (!other) return client.send("quickmatch", { status: "waiting", game, stake, ...(resumed !== undefined ? { waitedMs: Date.now() - resumed } : {}) });
       try {
         const m = await startMatch(game, stake, [other.userId, me.sub]);
         const payload = { ...m, game, stake };
@@ -632,12 +659,7 @@ export class WorldRoom extends Room {
           client.send("quickmatch", { status: "error", ...refusalFor(e, me.sub, game) });
         }
       }
-    });
-    this.onMessage("quickmatch-leave", (client) => {
-      const me = this.users.get(client.sessionId);
-      if (me) quickMatch.leave(me.sub);
-      client.send("quickmatch", { status: "idle" });
-    });
+    }
   }
 
   private onTick(): void {
@@ -705,14 +727,88 @@ export class WorldRoom extends Room {
     };
     this.players.set(client.sessionId, player);
     this.seqs.set(client.sessionId, 0);
+    // P2-NET-06: back inside the hold → the same chair, before anyone gets the seat map
+    const back = claims ? this.reclaim(client, claims.sub) : null;
     const visible = [...this.players.values()].filter((p) => p.id === player.id || this.sees(player.id, p.id));
     client.send("snapshot", { you: player.id, players: visible });
-    client.send("seats", this.seats.snapshot());
+    if (back?.kind === "seat") this.broadcastSeats();
+    else {
+      client.send("seats", this.seats.snapshot());
+      client.send("seat-holds", this.seatHolds());
+    }
     this.desk?.onJoin(client);
     this.sendVisible(client.sessionId, "joined", player);
     if (this.arena) await this.arena.joined(client.sessionId);
-    this.boxing?.joined(client.sessionId);
+    this.boxing?.joined(client.sessionId, back?.kind === "ring" ? back : undefined);
+    if (claims) this.tellPlace(client, claims.sub, back);
+    if (back?.kind === "seat" && back.state === "waiting" && isGame(back.game) && back.stake !== undefined) void this.joinQuick(client, back.game, back.stake, back.since);
     this.presenceSoon();
+  }
+
+  // ---------------------------------------------------------------- P2-NET-06: holding your place
+
+  /** may this hall hold a place (a game-table chair or a Boxing ring)? */
+  private holdable(): boolean {
+    return placeHoldConfig.enabled && (this.hallGame === "boxing" || (HOLD_SEAT_HALLS as readonly string[]).includes(this.hallGame ?? ""));
+  }
+
+  /** the player is back: take their hold (this room only) and give the chair back (a ring is the Boxing hall's) */
+  private reclaim(client: Client, uid: string): Hold | null {
+    const h = placeHolds.take(uid, this.roomId);
+    if (!h || this.heldHere.get(uid) !== h) return null;
+    this.heldHere.delete(uid);
+    if (h.kind === "seat") this.seats.restore(uid, client.sessionId);
+    this.holdsChanged();
+    return h;
+  }
+
+  /** the joining player hears what became of their place: back on it, released while away, or nothing */
+  private tellPlace(client: Client, uid: string, back: Hold | null): void {
+    let msg: PlaceMsg;
+    if (back) msg = { status: "restored", ...info(back) };
+    else {
+      const r = placeHolds.takeReleased(uid);
+      msg = r ? { status: "released", ...r } : { status: "none" };
+    }
+    client.send("place", msg);
+  }
+
+  /** the Boxing hall wants to keep a ring for `uid`: within the abuse limit → the hold, else null (freed at once) */
+  private keepRing(uid: string, k: RingKeep): Hold | null {
+    if (!placeHolds.allow(uid)) {
+      placeHolds.noteReleased(uid, { hall: "boxing", kind: "ring", place: k.place, reason: "LIMIT", heldS: 0 });
+      return null;
+    }
+    return this.holdPlace({ uid, kind: "ring", ...k });
+  }
+
+  /** keep a place for `uid` (left without a deliberate leave) for its hold time; the timer releases it */
+  private holdPlace(h: Omit<Hold, "at" | "until" | "roomId" | "hall">): Hold | null {
+    if (!this.hallGame) return null;
+    const now = Date.now();
+    const ms = holdMsFor(h.kind, h.state);
+    const hold: Hold = { ...h, hall: this.hallGame, roomId: this.roomId, at: now, until: now + ms };
+    placeHolds.put(hold);
+    this.heldHere.set(h.uid, hold);
+    this.clock.setTimeout(() => this.expireHold(hold), ms);
+    this.holdsChanged();
+    return hold;
+  }
+
+  /** the hold ran out: the place is free again, the returning player will hear why */
+  private expireHold(h: Hold): void {
+    if (this.heldHere.get(h.uid) !== h) return;
+    this.heldHere.delete(h.uid);
+    placeHolds.drop(h.uid, h);
+    placeHolds.noteReleased(h.uid, { hall: h.hall, kind: h.kind, place: h.place, reason: "EXPIRED", heldS: Math.round((h.until - h.at) / 1000) });
+    if (h.kind === "seat" && this.seats.releaseHeld(h.uid)) this.broadcastSeats();
+    if (h.kind === "ring") this.boxing?.holdEnded(h.uid);
+    this.holdsChanged();
+  }
+
+  /** the room stays alive while it keeps a place, and closes when the last hold ends with nobody inside */
+  private holdsChanged(): void {
+    this.autoDispose = this.heldHere.size === 0;
   }
 
   private presenceTimer: { clear(): void } | null = null;
@@ -729,13 +825,36 @@ export class WorldRoom extends Room {
     void api.reportPresence(this.roomId, this.hallGame ? `hall:${this.hallGame}` : "plaza", all.length, all.filter((p) => p.verified).length);
   }
 
-  override onLeave(client: Client): void {
+  override onLeave(client: Client, consented?: boolean): void {
     const sid = client.sessionId;
     this.tracked.get(sid)?.();
     this.tracked.delete(sid);
     const me = this.users.get(sid);
+    // P2-NET-06: a chair at a game table is kept for its player when the connection ended without a deliberate leave
+    // (the Quick Match ticket is paused, not lost: nothing can start while they are away)
+    const ticket = me ? quickMatch.ticketOf(me.sub) : null;
+    const seat = this.seats.seatOf(sid);
+    let held = false;
+    if (me && seat && !consented && this.holdable() && this.hallGame !== "boxing") {
+      if (placeHolds.allow(me.sub))
+        held = !!this.holdPlace({
+          uid: me.sub,
+          kind: "seat",
+          place: seat,
+          state: ticket ? "waiting" : "seated",
+          since: ticket?.since ?? Date.now(),
+          ...(ticket ? { game: ticket.game, stake: ticket.stake } : {}),
+        });
+      else placeHolds.noteReleased(me.sub, { hall: this.hallGame!, kind: "seat", place: seat, reason: "LIMIT", heldS: 0 });
+      if (held) this.seats.hold(sid, me.sub);
+    }
     if (me) quickMatch.leave(me.sub);
-    for (const [id, p] of this.proposals) if (p.from === sid || p.to === sid) this.proposals.delete(id);
+    // a challenge to or from the leaver closes for both sides (the other one is told)
+    for (const [id, p] of this.proposals)
+      if (p.from === sid || p.to === sid) {
+        this.proposals.delete(id);
+        this.client(p.from === sid ? p.to : p.from)?.send("proposal-closed", { id, reason: "PLAYER_LEFT" });
+      }
     const call = this.calls.endFor(sid);
     if (call) this.client(call.from === sid ? call.to : call.from)?.send("call-ended", { id: call.id, reason: "LEFT" });
     this.sendVisible(sid, "left", { id: sid });
@@ -750,14 +869,19 @@ export class WorldRoom extends Room {
     this.interest.forget(sid);
     this.moveGuard.forget(sid);
     for (const inv of this.pairs.forget(sid)) this.client(inv.from === sid ? inv.to : inv.from)?.send("pair-closed", { id: inv.id, to: sid, reason: "LEFT" });
-    if (this.seats.release(sid)) this.broadcastSeats();
+    if (held) this.broadcastSeats();
+    else if (this.seats.release(sid)) this.broadcastSeats();
     this.desk?.onLeave(sid);
     this.arena?.left(sid);
-    this.boxing?.left(sid);
+    // a Boxing ring (waiting / practice) is kept the same way: the hall asks, the hold decides (abuse limit)
+    const uid = me?.sub;
+    this.boxing?.left(sid, uid && !consented && this.holdable() ? (k) => this.keepRing(uid, k) : undefined);
     this.presenceSoon();
   }
 
   override onDispose(): void {
+    for (const h of this.heldHere.values()) placeHolds.drop(h.uid, h);
+    this.heldHere.clear();
     void api.reportPresence(this.roomId, this.hallGame ? `hall:${this.hallGame}` : "plaza", 0, 0);
     this.desk?.dispose();
     if (this.arena) this.arena.report();
