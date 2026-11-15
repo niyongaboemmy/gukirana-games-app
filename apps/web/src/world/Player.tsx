@@ -78,6 +78,9 @@ function walkRoute(from: { x: number; z: number }, to: { x: number; z: number })
   return out;
 }
 
+/** Tap-to-walk routes longer than this (m) are jogged (across the campus); the last AUTO_RUN_OFF m are walked. */
+const AUTO_RUN_ON = 30;
+const AUTO_RUN_OFF = 9;
 /** Within this distance (m) of a hall door's doorstep you are "at the door" (door notices, GAP-004). */
 const DOOR_NOTICE_R = 4.5;
 
@@ -188,6 +191,8 @@ export function LocalPlayer({
   const route = useRef<{ x: number; z: number }[]>([]);
   const stuck = useRef({ t: 0, x: 0, z: 0 });
   const manual = useRef(false);
+  /** jogging along a long tap-to-walk route (see AUTO_RUN_ON) */
+  const autoRun = useRef(false);
   const still = useRef(true);
   const { camera, gl } = useThree();
   const inXR = useXR((s) => s.session != null);
@@ -291,8 +296,19 @@ export function LocalPlayer({
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
     const w = useWorld.getState();
-    // run only on purpose (Run button / Shift) — never just because the joystick hits its edge
-    const run = w.input.run || keys.has("ShiftLeft") || keys.has("ShiftRight");
+    // run on purpose (Run button / Shift) — never just because the joystick hits its edge — or on a long tap-to-walk
+    // route (across the campus to a district hall): jog while more than AUTO_RUN_ON m remain, walk the last metres
+    if (nav.target) {
+      let left = Math.hypot(nav.target.x - pos.current.x, nav.target.z - pos.current.z);
+      let prev = nav.target;
+      for (const q of route.current) {
+        left += Math.hypot(q.x - prev.x, q.z - prev.z);
+        prev = q;
+      }
+      if (left > AUTO_RUN_ON) autoRun.current = true;
+      else if (left < AUTO_RUN_OFF) autoRun.current = false;
+    } else autoRun.current = false;
+    const run = w.input.run || keys.has("ShiftLeft") || keys.has("ShiftRight") || autoRun.current;
     const entering = useTransition.getState().entering;
     if (!inXR && !entering && stepOut.current > 0 && !keys.size && Math.hypot(w.input.x, w.input.y) < 0.1 && !nav.target) {
       // stepping out of a hall: a few natural steps towards the plaza while the door closes behind

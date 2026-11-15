@@ -28,15 +28,16 @@ const FONT = "/fonts/Baloo2.ttf";
 export function LobbyScene({ layout, lite }: { layout: HallLayout; lite: boolean }) {
   const scene = useThree((s) => s.scene);
   useLayoutEffect(() => {
-    scene.background = new THREE.Color("#141416");
+    scene.background = new THREE.Color("#2b2926");
   }, [scene]);
   useEffect(() => startFightMock(), []);
   return (
     <group>
-      <hemisphereLight args={["#f6f1ea", "#3a3a3e", lite ? 1.7 : 1.35]} />
-      <ambientLight intensity={0.2} />
-      <directionalLight position={[4, 12, 8]} intensity={0.8} color="#fff3e4" />
+      <hemisphereLight args={["#fbf3e8", "#5a5650", lite ? 2.0 : 1.65]} />
+      <ambientLight intensity={0.32} />
+      <directionalLight position={[4, 12, 8]} intensity={1.15} color="#fff1df" />
       <LobbyShell layout={layout} />
+      <CeilingLights />
       <Portals />
       <StatusBoard />
       <group userData={{ noMerge: true }}>
@@ -45,6 +46,22 @@ export function LobbyScene({ layout, lite }: { layout: HallLayout; lite: boolean
         <SubhallSensor />
       </group>
     </group>
+  );
+}
+
+/** Three warm linear light strips across the ceiling (emissive, no real lights: the hemisphere + key light do the work). */
+function CeilingLights() {
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#fff3df", toneMapped: false }), []);
+  const { w, d, h } = LOBBY_SIZE;
+  const zs = [LOBBY_BACK_Z + 1.6, (LOBBY_BACK_Z + d / 2) / 2, d / 2 - 1.6];
+  return (
+    <>
+      {zs.map((z) => (
+        <mesh key={z} material={mat} position={[0, h - 0.03, z]} rotation={[Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[w - 4, 0.28]} />
+        </mesh>
+      ))}
+    </>
   );
 }
 
@@ -63,15 +80,15 @@ function LobbyShell({ layout }: { layout: HallLayout }) {
     sl.needsUpdate = true;
     return {
       floor: new THREE.MeshStandardMaterial({ map: fl, color: "#8f8b84", roughness: 0.7 }),
-      wall: new THREE.MeshStandardMaterial({ map: concreteTexture(), color: "#3e3e42", roughness: 0.9 }),
+      wall: new THREE.MeshStandardMaterial({ map: concreteTexture(), color: "#8a847a", roughness: 0.9 }),
       slats: new THREE.MeshStandardMaterial({ map: sl, color: "#b07c50", roughness: 0.75 }),
-      ceil: new THREE.MeshStandardMaterial({ color: "#1a1a1c", roughness: 0.95 }),
+      ceil: new THREE.MeshStandardMaterial({ color: "#4a4641", roughness: 0.95 }),
       panel: new THREE.MeshBasicMaterial({ color: new THREE.Color("#fff4e6").multiplyScalar(1.1), toneMapped: false }),
       bench: new THREE.MeshStandardMaterial({ map: woodTexture(), color: "#c89a6a", roughness: 0.65 }),
       steel: new THREE.MeshStandardMaterial({ color: "#1a1a1d", roughness: 0.5, metalness: 0.6 }),
       red: new THREE.MeshBasicMaterial({ color: new THREE.Color(CORNER_COLORS.red).multiplyScalar(1.6), toneMapped: false }),
       blue: new THREE.MeshBasicMaterial({ color: new THREE.Color(CORNER_COLORS.blue).multiplyScalar(1.6), toneMapped: false }),
-      passage: new THREE.MeshStandardMaterial({ color: "#2a2a2d", roughness: 0.85 }),
+      passage: new THREE.MeshStandardMaterial({ color: "#55514b", roughness: 0.85 }),
       glimpse: new THREE.MeshBasicMaterial({ color: "#d8d3c8", toneMapped: false }),
     };
   }, []);
