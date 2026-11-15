@@ -124,6 +124,86 @@ export function imigongoDiamondTexture(dark = "#1B1B1B", accent = "#B5532A", bas
 }
 
 /**
+ * Tournament Arena facade screen (P2-WLD-17): a perforated bronze panel drawn the way real perforated screens draw a
+ * motif, round holes on a ~6 cm grid whose size draws the pattern. The motif is Imigongo, refined: concentric lozenges
+ * stacked up the panel with half-lozenges on both edges (neighbouring panels complete each other into a lattice), a
+ * solid border at top and bottom. One texture = one pleated panel (about 1.9 x 11.3 m); minified it reads as a calm
+ * tonal pattern (no moire), close up as metal and holes. Deterministic (decoration, not game randomness).
+ */
+export function arenaPerforatedTexture(): THREE.CanvasTexture {
+  return cached("arena-perforated", () => {
+    const W = 256;
+    const H = 1536;
+    const { c, g } = canvas(W, H);
+    const r = rng(41);
+    // bronze sheet: a warm gradient with a faint vertical brushed grain
+    const grad = g.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, "#a8764f");
+    grad.addColorStop(0.5, "#946343");
+    grad.addColorStop(1, "#7f5236");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, W, H);
+    for (let i = 0; i < 220; i++) {
+      g.fillStyle = `rgba(${r() < 0.5 ? "255,236,214" : "40,22,10"},${0.02 + r() * 0.03})`;
+      g.fillRect(r() * W, 0, 1 + r() * 2, H);
+    }
+    const cell = 8;
+    const cols = W / cell;
+    const rows = H / cell;
+    const lozenges = 4; // stacked up the panel
+    g.fillStyle = "#1b110a";
+    for (let j = 0; j < rows; j++)
+      for (let i = 0; i < cols; i++) {
+        const u = (i + 0.5) / cols;
+        const v = (j + 0.5) / rows;
+        // solid top / bottom border (the panel's fixing zone): tiny holes only
+        const edge = Math.min(v, 1 - v);
+        let k: number;
+        if (edge < 0.035) k = 0.08;
+        else {
+          // L1 ("diamond") distance to the nearest lozenge centre: the panel middle, or a half-lozenge on an edge
+          // offset by half a period (an Imigongo lattice across neighbouring panels)
+          const vv = ((v - 0.035) / 0.93) * lozenges;
+          const dMid = Math.abs(u - 0.5) * 2 + Math.abs((vv % 1) - 0.5) * 2;
+          const dEdge = Math.min(u, 1 - u) * 2 + Math.abs(((vv + 0.5) % 1) - 0.5) * 2;
+          const d = Math.min(dMid, dEdge);
+          // concentric bands (three rings per lozenge)
+          const band = 0.5 + 0.5 * Math.cos(d * Math.PI * 6);
+          k = 0.12 + 0.88 * band * band;
+        }
+        const rad = 0.5 + k * 3.0;
+        g.beginPath();
+        g.arc(i * cell + cell / 2, j * cell + cell / 2, rad, 0, Math.PI * 2);
+        g.fill();
+      }
+    return finish("arena-perforated", c, { aniso: 8 });
+  });
+}
+
+/**
+ * Standing-seam roof metal (P2-WLD-17, the arena's dome): one pan per UV unit across (u), dark chocolate-bronze with a
+ * raised seam (a lit edge and its shadow) and a soft sheen across the pan.
+ */
+export function standingSeamTexture(): THREE.CanvasTexture {
+  return cached("standing-seam", () => {
+    const W = 128;
+    const H = 64;
+    const { c, g } = canvas(W, H);
+    const grad = g.createLinearGradient(0, 0, W, 0);
+    grad.addColorStop(0, "#56382a");
+    grad.addColorStop(0.45, "#664330");
+    grad.addColorStop(1, "#523424");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, W, H);
+    g.fillStyle = "#93684a";
+    g.fillRect(W - 7, 0, 3, H);
+    g.fillStyle = "#2a1a10";
+    g.fillRect(W - 4, 0, 4, H);
+    return finish("standing-seam", c, { aniso: 8 });
+  });
+}
+
+/**
  * Musanze lava-rock rubble (P1-WLD-03): irregular basalt stones (tileable jittered Voronoi, no coursed rows), each
  * stone grey-brown with a warm/cool jitter and vesicles, set in narrow recessed dark joints. Doubles as the bump map
  * (joints are the low points). 1 UV unit ≈ 1.2 m.
@@ -624,20 +704,21 @@ export function doorPreviewTexture(kind: IconKind, color: string, label: string)
 }
 
 /** Animated LED screen content for the arena (scrolls via texture offset). */
-export function arenaScreenTexture(): THREE.CanvasTexture {
-  return ledScreenTexture("arena-screen", ["TOURNAMENT ARENA", "MURAKAZA NEZA", "GUKIRANA PLAYGROUND", "PLAY  MEET  WIN"]);
+export function arenaScreenTexture(msgs: [string, string, string, string]): THREE.CanvasTexture {
+  // P2-WLD-17: a deep chocolate field with warm white and amber type (was a purple-blue gradient)
+  return ledScreenTexture("arena-screen", msgs, { stops: ["#1e130c", "#3b2416", "#2a1a10", "#3b2416", "#1e130c"], ink: ["#f6eee4", "#e8b67e"] });
 }
 
 /** 4-message LED screen strip (2048×150; show one quarter at a time with repeat.x = 0.25). */
-export function ledScreenTexture(key: string, msgs: [string, string, string, string]): THREE.CanvasTexture {
+export function ledScreenTexture(
+  key: string,
+  msgs: [string, string, string, string],
+  look: { stops: string[]; ink: [string, string] } = { stops: ["#22266E", "#9B51E0", "#2F80ED", "#9B51E0", "#22266E"], ink: ["#ffffff", "#FFC83D"] },
+): THREE.CanvasTexture {
   return cached(key, () => {
     const { c, g } = canvas(2048, 150);
     const grad = g.createLinearGradient(0, 0, 2048, 0);
-    grad.addColorStop(0, "#22266E");
-    grad.addColorStop(0.25, "#9B51E0");
-    grad.addColorStop(0.5, "#2F80ED");
-    grad.addColorStop(0.75, "#9B51E0");
-    grad.addColorStop(1, "#22266E");
+    look.stops.forEach((col, i) => grad.addColorStop(i / (look.stops.length - 1), col));
     g.fillStyle = grad;
     g.fillRect(0, 0, 2048, 150);
     g.fillStyle = "rgba(0,0,0,0.25)";
@@ -645,7 +726,7 @@ export function ledScreenTexture(key: string, msgs: [string, string, string, str
     g.textAlign = "center";
     g.textBaseline = "middle";
     msgs.forEach((m, i) => {
-      g.fillStyle = i % 2 ? "#FFC83D" : "#ffffff";
+      g.fillStyle = look.ink[i % 2]!;
       g.font = "900 62px system-ui, sans-serif";
       g.fillText(m, 256 + i * 512, 78, 480);
     });

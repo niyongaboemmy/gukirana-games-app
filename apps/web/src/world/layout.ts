@@ -70,7 +70,7 @@ export const PORTALS: PortalDef[] = [
   { id: "soon-left", label: "Coming Soon", sub: "Draughts", color: "#8A94A6", href: null, angleDeg: -122, kind: "soon" },
   { id: "igisoro", label: "Igisoro Court", sub: "Strategy", color: "#27AE60", href: "/room/igisoro", angleDeg: -88, kind: "igisoro", plot: "hall" },
   { id: "pool", label: "Pool Hall", sub: "8-Ball", color: "#2F80ED", href: "/room/pool", angleDeg: -44, kind: "pool", plot: "hall" },
-  { id: "arena", label: "Tournament Arena", sub: "Tournaments", color: "#9B51E0", href: ARENA_ON ? "/room/arena" : null, angleDeg: 0, kind: "arena" },
+  { id: "arena", label: "Tournament Arena", sub: "Tournaments", color: "#D6A06C", href: ARENA_ON ? "/room/arena" : null, angleDeg: 0, kind: "arena" },
   { id: "ludo", label: "Ludo Lounge", sub: "Dice & tactics", color: "#FF8A1F", href: "/room/ludo", angleDeg: 44, kind: "ludo", plot: "hall" },
   // the +88° plaza plot: the Fight Games entrance pavilion (P2-WLD-14, docs/CAMPUS-MASTER-PLAN.md §8). The main reason
   // people come gets the plaza door nearest the arrival (≈ 50 m from the spawn): the lobby on the door ring, the

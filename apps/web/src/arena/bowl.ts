@@ -19,7 +19,8 @@ import { ARENA_BOWL } from "@gukirana/contracts";
 
 export const ARENA_SIZE = { w: 56, d: 68.8, h: 18 } as const;
 export const ARENA_DOOR_Z = ARENA_SIZE.d / 2;
-export const ARENA_COLOR = "#9B51E0";
+/** the arena's accent (warm amber, the app's chocolate primary-400; P2-WLD-17, was neon purple) */
+export const ARENA_COLOR = "#D6A06C";
 
 export const FLOOR_Y = -3.2;
 /** competition floor (inside the front barrier) */
@@ -220,7 +221,9 @@ export const bowlSeat = (id: string) => SEAT_BY_ID.get(id);
 const nearestAisle = (aisles: number[], a: number) => aisles.reduce((b, x) => (Math.abs(dAng(x, a)) < Math.abs(dAng(b, a)) ? x : b), aisles[0]!);
 const lateral = (r: number, a: number, centre: number) => Math.abs(dAng(a, centre)) * D2R * r;
 const vipAt = (a: number) => SECTIONS.find((s) => s.tier === "vip" && dAng(a, s.a0) >= 0 && dAng(a, s.a1) < 0);
-const inPlayersTunnel = (x: number, z: number, r: number) => z < 0 && Math.abs(x) < PLAYERS_TUNNEL_HW && r >= FLOOR_R - 0.3 && r <= CONCOURSE.r0 + 0.05;
+// (up to where the concourse's walkable band starts, r0 + 0.25: P2-WLD-17 found a 0.2 m unwalkable seam at the top of
+// the tunnel stair that stopped participants walking out to the stage)
+const inPlayersTunnel = (x: number, z: number, r: number) => z < 0 && Math.abs(x) < PLAYERS_TUNNEL_HW && r >= FLOOR_R - 0.3 && r <= CONCOURSE.r0 + 0.3;
 const inPortal = (x: number, z: number, r: number) => z > 0 && Math.abs(x) <= PORTAL_HW && r >= CONCOURSE.r1 - 0.3 && r <= OUTER_R + 0.6;
 /** the lower rows run all round except the players' tunnel gap (170°–190°) */
 const inLowerSpan = (a: number) => !(a > 170 && a < 190);
@@ -272,7 +275,9 @@ export function groundAt(x: number, z: number): number {
     if (lateral(r, a, nearestAisle(LOWER_AISLES, a)) < 0.6) return aisleStep(r, LOWER.front, LOWER.depth, LOWER.rows, lowerTreadY, LOWER.depth * LOWER.slope, 0);
     return lowerTreadY(rowAt(r, LOWER.front, LOWER.depth, LOWER.rows));
   }
-  if (inPortal(x, z, r) || r >= OUTER_R) return 0;
+  // the lobby (walkable from 5 cm inside the drum's face, see walkable) is level with the door: standing against the
+  // drum wall must not read the upper tier's top walkway behind it (P2-WLD-17: a 3 m jump along the lobby wall)
+  if (inPortal(x, z, r) || r >= OUTER_R || (z > 0 && r >= OUTER_R - 0.05)) return 0;
   // the stairs up from the concourse (to the upper tier / into a VIP box)
   const fl = r >= STAIR.r0 ? stairAt(r, a) : null;
   if (fl && Math.abs(((a - fl.a + 540) % 360) - 180) * D2R * r < STAIR.hw && r < fl.r1) return stairY(fl, r);
@@ -332,7 +337,8 @@ export function walkable(x: number, z: number, opts: boolean | WalkOpts = false)
     const fl = stairAt(r, a, 0.15);
     return !fl || lateral(r, a, fl.a) < STAIR.hw - 0.25;
   }
-  if (r < FLOOR_R - 0.3) return !!o.floor && r < FLOOR_R - 0.5;
+  // (the floor's edge band joins the tunnel stair: no seam between the floor and the tunnel's foot, P2-WLD-17)
+  if (r < FLOOR_R - 0.3) return !!o.floor && (r < FLOOR_R - 0.5 || (z < 0 && Math.abs(x) < PLAYERS_TUNNEL_HW - 0.3));
   if (r < CONCOURSE.r0 + 0.25) {
     if (inPlayersTunnel(x, z, r)) return !!o.floor && Math.abs(x) < PLAYERS_TUNNEL_HW - 0.3;
     if (!inLowerSpan(a) || r < LOWER.front + 0.04) return false;
@@ -445,6 +451,19 @@ export function routeBetween(from: P, to: P): P[] {
     if (Math.abs(rf - rt) < 0.15) return [...alongRow(rf, angleOf(from.x, from.z), angleOf(to.x, to.z)).slice(0, -1), to];
     const back = alongRow(rt, a, angleOf(to.x, to.z));
     return [...alongRow(rf, angleOf(from.x, from.z), a), polar(rt, a), ...back.slice(0, -1), to];
+  }
+  if (same && zf.kind === "vip") {
+    // inside one box, between the floor behind the seats and the walk in front of them: round the end of the row
+    // (P2-WLD-17: the straight line ran through the seats and the walk stopped at the row)
+    const behind = (p: P) => Math.hypot(p.x, p.z) > VIP.seatR - 0.45;
+    if (behind(from) !== behind(to)) {
+      const sa = (zf as { a: number }).a;
+      const rf = Math.hypot(from.x, from.z);
+      const rt = Math.hypot(to.x, to.z);
+      // along my side of the row to the box's stair end (clear of the row), across, along the other side
+      const pts = [...alongRow(rf, angleOf(from.x, from.z), sa), polar(behind(from) ? VIP_FRONT_R : rt, sa), ...alongRow(behind(from) ? VIP_FRONT_R : rt, sa, angleOf(to.x, to.z))];
+      return [...pts.filter((q) => Math.hypot(q.x - to.x, q.z - to.z) > 1e-6), to];
+    }
   }
   if (same && zf.kind !== "concourse") return [to];
   if (zf.kind === "concourse" && zt.kind === "concourse") return [...alongRing(angleOf(from.x, from.z), angleOf(to.x, to.z)).slice(0, -1), to];

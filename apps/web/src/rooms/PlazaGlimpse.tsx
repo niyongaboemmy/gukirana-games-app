@@ -85,7 +85,7 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
       add("green", new THREE.SphereGeometry(1, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), p.x, p.h, p.z, 0, [p.r * 0.92, 0.7, p.r * 0.92]);
     }
 
-    // Tournament Arena: basalt plinth, glazed concourse, white drum and the shallow dome (ARENA is in the arena
+    // Tournament Arena: brick plinth, glazed concourse, bronze screen drum, eave and the shallow dome (ARENA is in the arena
     // door's frame: the door stands on the ring due north, so the drum centre is DOOR_RING + |cz| north of the fountain)
     // (not from inside the arena itself: its own drum would stand over its lobby)
     const az = ringPoint(0, DOOR_RING).z + ARENA.cz;
@@ -93,8 +93,10 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
     if (layout.game !== "arena") {
     add("arenaStone", new THREE.CylinderGeometry(1, 1, 1.2, seg, 1, true), 0, 0.6, az, 0, ell(ARENA.rx + 0.4, ARENA.rz + 0.4));
     add("arenaGlass", new THREE.CylinderGeometry(1, 1, 6, seg, 1, true), 0, 4.2, az, 0, ell(ARENA.rx - 0.3, ARENA.rz - 0.3));
-    add("arenaWhite", new THREE.CylinderGeometry(1, 1, ARENA.wall - 7.1, seg, 1, false), 0, 7.1 + (ARENA.wall - 7.1) / 2, az, 0, ell(ARENA.rx + 0.2, ARENA.rz + 0.2));
-    add("arenaRoof", new THREE.SphereGeometry(1, seg, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0, ARENA.wall + 0.2, az, 0, [ARENA.rx + 0.45, 5.5, ARENA.rz + 0.45]);
+    add("arenaWhite", new THREE.CylinderGeometry(1, 1, ARENA.wall + 1 - 7.1, seg, 1, false), 0, 7.1 + (ARENA.wall + 1 - 7.1) / 2, az, 0, ell(ARENA.rx + 0.4, ARENA.rz + 0.4));
+    // the cantilevered eave and the shallow dome (District.ts tournamentArena)
+    add("arenaRoof", new THREE.CylinderGeometry(1, 1, 0.9, seg, 1, false), 0, ARENA.wall + 0.55, az, 0, ell(ARENA.rx + 2.2, ARENA.rz + 2.2));
+    add("arenaRoof", new THREE.SphereGeometry(1, seg, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0, ARENA.wall + 1.0, az, 0, [ARENA.rx + 2.2, 3.4, ARENA.rz + 2.2]);
     }
 
     // every other building on the campus at its true place, height and facade material (rooms/plaza-impostor.ts: the
@@ -195,9 +197,19 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
     // the arena drum stands right beside some halls: only draw it from 8 m outside the door, so it never hangs over
     // the doorway like a canopy (the real hall exteriors are smaller than these interiors)
     const far = [new THREE.Plane(new THREE.Vector3(0, 0, 1), -(d / 2 + 8))];
-    for (const k of ["stone", "glass", "white", "roof"]) {
-      const m = out[k]!.clone();
+    // (P2-WLD-17 palette: brick plinth, the bronze perforated screen, the dark chocolate standing-seam dome)
+    for (const [k, color] of [
+      ["stone", "#8a5a42"],
+      ["glass", null],
+      ["white", "#86593b"],
+      ["roof", "#4e3324"],
+    ] as const) {
+      const m = out[k]!.clone() as THREE.MeshLambertMaterial;
       m.clippingPlanes = far;
+      if (color) {
+        m.color.set(color);
+        m.emissive.set(color).multiplyScalar(0.5);
+      }
       out[`arena${k[0]!.toUpperCase()}${k.slice(1)}`] = m;
     }
     return out;

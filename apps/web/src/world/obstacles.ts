@@ -1,7 +1,7 @@
 import { ringOf, BENCH_CLUSTER_RADIUS, BENCHES, DOOR, DOOR_RING, doorInset, doorLocal, ENTRY_Z, EXIT_KIOSK, FOUNTAIN_RADIUS, MID_ANGLES, PLAZA_RADIUS, PORTALS, RING_ANGLES, ringPoint, TOTEMS, VESTIBULE_DEPTH, WAYFINDING } from "./layout";
 import { doorOpen } from "./transition";
 import { FREE_WALK_ON, onCampusWalk } from "./campus";
-import { inBuilding } from "./footprints";
+import { ARENA_COLUMNS, ARENA_FLAG, ARENA_FLAGPOLES, inBuilding } from "./footprints";
 import { arcPoint, GATE_ARCS, PLAZA_ARCS, PLAZA_BEDS, RING_PLANTERS, type ArcBed } from "./beds";
 import { GATE_Z, GUARD_POST, KIOSK } from "./gate/Gate";
 
@@ -45,6 +45,15 @@ function arcCircles(b: ArcBed): Obstacle[] {
   });
 }
 
+/** A point of the arena door's local frame in world coordinates (the arena entrance stands on the plaza ring). */
+function arenaWorld(lx: number, lz: number) {
+  const a = PORTALS.find((p) => p.kind === "arena");
+  const d = ringPoint(a?.angleDeg ?? 0, a ? ringOf(a) : DOOR_RING);
+  const c = Math.cos(d.rotY);
+  const s = Math.sin(d.rotY);
+  return { x: d.x + lx * c + lz * s, z: d.z - lx * s + lz * c };
+}
+
 /** Static plaza furniture. */
 export const PLAZA_OBSTACLES: Obstacle[] = [
   circle(0, 0, FOUNTAIN_RADIUS + 0.2, 0.7),
@@ -56,6 +65,15 @@ export const PLAZA_OBSTACLES: Obstacle[] = [
   ...WAYFINDING.map((w) => rect(w.x, w.z, 0.76, 0.2, w.rotY, 2.6)),
   ...PLAZA_BEDS.map((b) => rect(b.x, b.z, b.hw + 0.06, b.hd + 0.06, b.rot, 0.9)),
   ...LAMPS.map((l) => circle(l.x, l.z, 0.12, 4.8)),
+  // the arena canopy's columns and the flagpoles (P2-WLD-17: you used to walk straight through them)
+  ...ARENA_COLUMNS.map((k) => {
+    const w = arenaWorld(k.x, k.z);
+    return circle(w.x, w.z, k.r + 0.04, 7);
+  }),
+  ...ARENA_FLAGPOLES.map((x) => {
+    const w = arenaWorld(x, ARENA_FLAG.z);
+    return circle(w.x, w.z, 0.1, ARENA_FLAG.pole);
+  }),
   // plaza entry gate (seen from inside): exit kiosk, guard, pylons, turnstile cabinets
   rect(EXIT_KIOSK.x, EXIT_KIOSK.z, 0.42, 0.32, EXIT_KIOSK.rotY, 1.9),
   circle(4.4, ENTRY_Z - 2.3, 0.35, 1.9),

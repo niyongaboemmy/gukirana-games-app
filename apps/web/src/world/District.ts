@@ -11,7 +11,7 @@ import { fightHall } from "@/fight/exterior";
 import { interiorPane } from "./interior-glass";
 import type { InteriorKind } from "./interior-plan";
 import { agasekeGeometry } from "./agaseke";
-import { ARENA, FOOTPRINTS, igisoroHall, LUDO_DIE, PLOTS, sitePlan, toLocal, WING_HW, wingedHall } from "./footprints";
+import { ARENA, ARENA_CANOPY, ARENA_COLUMNS, ARENA_FLAG, ARENA_FLAGPOLES, FOOTPRINTS, igisoroHall, LUDO_DIE, PLOTS, sitePlan, toLocal, WING_HW, wingedHall } from "./footprints";
 import {
   BENCHES,
   DOOR,
@@ -375,77 +375,138 @@ function igisoroCourt(b: GeoBatch, tier: string) {
   for (const x of [-2.2, 2.2]) b.box("woodDark", 1.4, 0.45, 0.5, { p: [x, 0.23, -1.6], tile: 1 });
 }
 
+/**
+ * Tournament Arena (P2-WLD-17, docs/ARENA-DESIGN.md): an elliptical drum in layers, dark chocolate and bronze with warm
+ * amber light. Bottom to top: a brick plinth with a stone coping; the continuous concourse glass band with chocolate
+ * mullions; the concourse slab edge with an amber line under its lip; the perforated bronze screen (pleated panels,
+ * an Imigongo lattice drawn by hole size) over a dark chocolate inner drum, grazed by an amber line at its foot; the
+ * chocolate crown; a cantilevered eave (bronze-chocolate fascia, amber hairline, timber soffit with downlights) and a
+ * shallow standing-seam dome rising to a glazed oculus lantern under a closed cap. The entrance: a deep cantilevered
+ * canopy on four slender columns over the glazed foyer (interior-mapped), the name in cut letters on its fascia
+ * (Plaza.tsx), the big screen in a chocolate frame with the crown lettering, Rwanda's flag on four poles.
+ * Everything is closed from every side and from above; no two faces share a plane (no flicker).
+ */
 function tournamentArena(b: GeoBatch, tier: string) {
   const { cz, rx, rz, wall } = ARENA;
   const seg = tier === "lite" ? 48 : 72;
-  const perim = Math.PI * Math.sqrt(2 * (rx * rx + rz * rz));
-  // basalt plinth, glass concourse level, concourse slab
-  b.add("lava", new THREE.CylinderGeometry(1, 1, 1.2, seg, 1, true), { p: [0, 0.6, cz], s: [rx + 0.4, 1, rz + 0.4], uv: [perim / 1.2, 1] });
-  b.add("glass", new THREE.CylinderGeometry(1, 1, 6, seg, 1, true), { p: [0, 4.2, cz], s: [rx - 0.3, 1, rz - 0.3], uv: [perim / 6, 1] });
-  b.add("white", new THREE.CylinderGeometry(1, 1, 0.6, seg), { p: [0, 7.4, cz], s: [rx + 0.6, 1, rz + 0.6] });
-  // dark inner drum behind the pleated skin
-  b.add("diamondDark", new THREE.CylinderGeometry(1, 1, wall - 7.7, seg, 1, true), {
-    p: [0, 7.7 + (wall - 7.7) / 2, cz],
-    s: [rx - 0.6, 1, rz - 0.6],
-    uv: [perim / 3, 3],
-  });
-  // pleated Imigongo skin: tilted panels around the ellipse create the rhythm of light and shadow
-  const panels = Math.round(perim / (tier === "lite" ? 2.7 : 1.85));
+  const perim = (o: number) => Math.PI * Math.sqrt(2 * ((rx + o) ** 2 + (rz + o) ** 2));
+  const ell = (o: number, y = 1): [number, number, number] => [rx + o, y, rz + o];
+  const ring = (o: number) => (a: number) => ({ x: Math.sin(a) * (rx + o), z: cz + Math.cos(a) * (rz + o) });
+  /** rotation (about y) that lays a box's local x along the ellipse's tangent at angle a */
+  const along = (a: number) => Math.atan2(Math.sin(a) * rz, Math.cos(a) * rx);
+  /** the entrance sector (behind the foyer and the canopy), where the drum's own base details give way */
+  const atEntrance = (a: number) => Math.cos(a) > 0 && Math.abs(Math.sin(a) * rx) < ARENA_CANOPY.hw + 0.3;
+
+  // ---- plinth: warm brick, cream stone coping
+  b.add("brick", new THREE.CylinderGeometry(1, 1, 1.3, seg, 1, true), { p: [0, 0.65, cz], s: ell(0.4), uv: [perim(0.4), 1.3] });
+  b.add("limestone", new THREE.CylinderGeometry(1, 1, 0.12, seg), { p: [0, 1.36, cz], s: ell(0.5) });
+
+  // ---- concourse glass band, chocolate mullions every ~2.7 m
+  b.add("glass", new THREE.CylinderGeometry(1, 1, 5.8, seg, 1, true), { p: [0, 4.32, cz], s: ell(-0.3), uv: [perim(-0.3) / 6, 1] });
+  const mullions = Math.round(perim(-0.2) / 2.7);
+  for (let i = 0; i < mullions; i++) {
+    const a = ((i + 0.5) / mullions) * Math.PI * 2;
+    if (atEntrance(a)) continue;
+    const p = ring(-0.2)(a);
+    b.box("choco", 0.12, 5.8, 0.18, { p: [p.x, 4.32, p.z], r: [0, along(a), 0] });
+  }
+
+  // ---- concourse slab edge: chocolate fascia, its soffit and top, an amber line under the lip
+  b.add("choco", new THREE.CylinderGeometry(1, 1, 0.7, seg, 1, true), { p: [0, 7.55, cz], s: ell(0.6) });
+  b.add("choco", new THREE.RingGeometry((rx - 1) / (rx + 0.6), 1, seg, 1), { p: [0, 7.2, cz], r: [Math.PI / 2, 0, 0], s: [rx + 0.6, rz + 0.6, 1] });
+  b.add("choco", new THREE.RingGeometry((rx - 1) / (rx + 0.6), 1, seg, 1), { p: [0, 7.9, cz], r: [-Math.PI / 2, 0, 0], s: [rx + 0.6, rz + 0.6, 1] });
+  b.add("led-halo", new THREE.CylinderGeometry(1, 1, 0.05, seg, 1, true), { p: [0, 7.24, cz], s: ell(0.63) });
+
+  // ---- perforated bronze screen: pleated panels (light / shadow rhythm) over the dark chocolate inner drum
+  const y0 = 7.95;
+  const y1 = wall - 0.8;
+  b.add("choco", new THREE.CylinderGeometry(1, 1, y1 - 7.9, seg, 1, true), { p: [0, 7.9 + (y1 - 7.9) / 2, cz], s: ell(-0.6) });
+  const panels = Math.round(perim(0.2) / (tier === "lite" ? 2.6 : 1.9));
   for (let i = 0; i < panels; i++) {
     const a = (i / panels) * Math.PI * 2;
-    const x = Math.sin(a) * (rx + 0.2);
-    const z = cz + Math.cos(a) * (rz + 0.2);
-    const tangent = Math.atan2(Math.cos(a) * rx, -Math.sin(a) * rz);
-    b.box("diamond", (perim / panels) * 1.05, wall - 8.2, 0.12, {
-      p: [x, 8.0 + (wall - 8.2) / 2, z],
-      r: [0, tangent + Math.PI / 2 + 0.32, 0],
-      uv: [1, 4],
-    });
+    const p = ring(0.2)(a);
+    b.box("arenaScreen", (perim(0.2) / panels) * 1.05, y1 - y0, 0.06, { p: [p.x, (y0 + y1) / 2, p.z], r: [0, along(a) + 0.32, 0] });
   }
-  // LED ribbon bands (colour-cycling material "led-halo") + roof fascia
-  b.add("led-halo", new THREE.CylinderGeometry(1, 1, 0.12, seg, 1, true), { p: [0, 7.9, cz], s: [rx + 0.65, 1, rz + 0.65] });
-  b.add("white", new THREE.CylinderGeometry(1, 1, 1.1, seg, 1, true), { p: [0, wall + 0.4, cz], s: [rx + 0.5, 1, rz + 0.5] });
-  b.add("led-halo", new THREE.CylinderGeometry(1, 1, 0.08, seg, 1, true), { p: [0, wall - 0.3, cz], s: [rx + 0.55, 1, rz + 0.55] });
-  // space-frame roof: shallow aluminium dome with radial ribs
+  // the amber grazing line at the screen's foot (uplight read at dusk)
+  b.add("led-halo", new THREE.CylinderGeometry(1, 1, 0.04, seg, 1, true), { p: [0, 7.93, cz], s: ell(0.64) });
+
+  // ---- crown band, cantilevered eave (fascia, amber hairline, timber soffit with downlights)
+  b.add("choco", new THREE.CylinderGeometry(1, 1, wall + 0.1 - y1, seg, 1, true), { p: [0, (y1 + wall + 0.1) / 2, cz], s: ell(0.58) });
+  const E = 2.2; // eave reach beyond the drum
+  const eaveY = wall + 0.1;
+  b.add("wood", new THREE.RingGeometry((rx - 0.7) / (rx + E), 1, seg, 1), { p: [0, eaveY, cz], r: [Math.PI / 2, 0, 0], s: [rx + E, rz + E, 1], uv: [1, 1] });
+  b.add("choco", new THREE.CylinderGeometry(1, 1, 0.9, seg, 1, true), { p: [0, eaveY + 0.45, cz], s: ell(E) });
+  b.add("led-halo", new THREE.CylinderGeometry(1, 1, 0.05, seg, 1, true), { p: [0, eaveY + 0.06, cz], s: ell(E + 0.02) });
+  const lamps = Math.round(perim(1.4) / 5);
+  for (let i = 0; i < lamps; i++) {
+    const p = ring(1.4)(((i + 0.5) / lamps) * Math.PI * 2);
+    b.box("lampHead", 0.42, 0.03, 0.42, { p: [p.x, eaveY - 0.02, p.z] });
+  }
+
+  // ---- roof: a shallow standing-seam dome from the eave to the oculus, a glazed lantern, a closed cap with an amber
+  // halo (one continuous closed shell: nothing floats, nothing is open from above)
+  const H = 3.4; // (the lid tops out at ~25.5 m: the aerial label floats just above it, campus-labels.ts)
+  const ocu = 0.2;
   const pts: THREE.Vector2[] = [];
-  for (let i = 0; i <= 10; i++) {
-    const t = i / 10;
-    pts.push(new THREE.Vector2(Math.cos((t * Math.PI) / 2) * 1, Math.sin((t * Math.PI) / 2) * 1));
+  for (let i = 0; i <= 16; i++) {
+    const u = i / 16; // from the eave up to the oculus (this order faces the shell outwards)
+    pts.push(new THREE.Vector2(1 - (1 - ocu) * u, H * (1 - (1 - u) ** 2)));
   }
-  b.add("alu", new THREE.LatheGeometry(pts.reverse(), seg), { p: [0, wall + 0.9, cz], s: [rx + 0.45, 5.0, rz + 0.45] });
-  for (const [k, y] of [
-    [0.82, 2.0],
-    [0.55, 3.6],
-    [0.3, 4.5],
-  ] as const)
-    b.add("steel", new THREE.TorusGeometry(1, 0.012, 4, seg), { p: [0, wall + 0.9 + y * 1.03, cz], r: [Math.PI / 2, 0, 0], s: [(rx + 0.45) * k, (rz + 0.45) * k, 12] });
-  b.add("led-halo", new THREE.TorusGeometry(3, 0.06, 6, 32), { p: [0, wall + 5.85, cz], r: [Math.PI / 2, 0, 0] });
-  // entrance: glazed lobby (curtain wall with the door, glass returns), cantilevered canopy on slender columns
-  // (interior-mapped: the foyer with its turnstiles, trophy cabinet and video wall reads through the front and returns)
+  const roofY = eaveY + 0.9;
+  b.add("arenaRoof", new THREE.LatheGeometry(pts, seg * 2), { p: [0, roofY, cz], s: ell(E), uv: [150, 1] });
+  const lantern: [number, number, number] = [(rx + E) * ocu + 0.05, 1, (rz + E) * ocu + 0.05];
+  b.add("glass", new THREE.CylinderGeometry(1, 1, 1.0, 40, 1, true), { p: [0, roofY + H + 0.35, cz], s: lantern, uv: [6, 1] });
+  // (a cream stone lid: from above it reads as the closed crown of the roof, not as a dark hole)
+  b.add("limestone", new THREE.CylinderGeometry(1, 1, 0.32, 40), { p: [0, roofY + H + 0.95, cz], s: [lantern[0] * 1.1, 1, lantern[2] * 1.1] });
+  b.add("led-halo", new THREE.CylinderGeometry(1, 1, 0.05, 40, 1, true), { p: [0, roofY + H + 0.82, cz], s: [lantern[0] * 1.1 + 0.01, 1, lantern[2] * 1.1 + 0.01] });
+
+  // ---- the big screen's chocolate frame on the drum, with the header that carries the crown lettering (Plaza.tsx)
+  b.box("choco", 17.4, 7.1, 0.5, { p: [0, 13.3, cz + rz + 0.9] });
+
+  // ---- entrance: glazed foyer (interior-mapped: the foyer with its bronze turnstiles, banners and video wall reads
+  // through the front and the returns; the returns run into the drum, no slot), chocolate mullions and transom
   glassWithDoor(b, "arena", 12.4, 6.2, -1.3, 0.14);
+  const retZ1 = -7.6;
+  const retL = -1.3 - retZ1;
   for (const s of [-1, 1]) {
-    b.box("screenFrame", 0.07, 6.2, 4.4, { p: [s * 6.17, 3.1, -3.4] });
-    interiorPane(b, "arena", "shopfront", 4.4, 6.2, [s * 6.28, 3.1, -3.4], (s * Math.PI) / 2);
+    b.box("screenFrame", 0.07, 6.2, retL, { p: [s * 6.17, 3.1, (-1.3 + retZ1) / 2] });
+    interiorPane(b, "arena", "shopfront", retL, 6.2, [s * 6.28, 3.1, (-1.3 + retZ1) / 2], (s * Math.PI) / 2);
   }
-  // vertical aluminium mullion caps every 1.5 m + transom at door head height
-  for (let x = -6; x <= 6.01; x += 1.5) if (Math.abs(x) > 1.8) b.box("alu", 0.08, 6.2, 0.1, { p: [x, 3.1, -1.2] });
-  b.box("alu", 12.4, 0.1, 0.1, { p: [0, 4.25, -1.2] });
-  // lobby floor and dark interior volume behind the glazing (read through the glass)
-  b.box("basalt", 12.2, 0.04, 4.4, { p: [0, 0.02, -3.4], tile: 1.2 });
-  b.box("white", 17, 0.45, 9, { p: [0, 7.0, -2.5] });
-  b.box("alu", 17.1, 0.12, 9.1, { p: [0, 6.73, -2.5] });
-  for (let x = -7.2; x <= 7.21; x += 2.4) b.box("lampHead", 0.08, 0.03, 8.6, { p: [x, 6.66, -2.5] });
-  b.box("led-arena", 17.1, 0.03, 0.03, { p: [0, 7.24, 2.03] });
-  for (const x of [-7.8, -4.2, 4.2, 7.8]) b.cyl("steel", 0.14, 0.18, 6.8, 10, { p: [x, 3.4, 1.4] });
-  // ticket window (left of the doors): recessed counter with an aluminium hood
+  for (let x = -6; x <= 6.01; x += 1.5) if (Math.abs(x) > 1.8) b.box("choco", 0.08, 6.2, 0.1, { p: [x, 3.1, -1.2] });
+  b.box("choco", 12.4, 0.1, 0.1, { p: [0, 4.25, -1.2] });
+  b.box("basalt", 12.2, 0.04, retL - 0.1, { p: [0, 0.02, (-1.35 + retZ1) / 2], tile: 1.2 });
+
+  // ---- the cantilevered canopy: chocolate slab, a deep fascia (the name's cut letters, an amber hairline under it),
+  // timber soffit with a grid of downlights, four slender tapered columns on stone bases
+  const C = ARENA_CANOPY;
+  const cd = C.z0 - C.z1;
+  const cmz = (C.z0 + C.z1) / 2;
+  b.box("choco", C.hw * 2, C.t, cd, { p: [0, C.y + C.t / 2, cmz] });
+  b.add("wood", new THREE.PlaneGeometry(C.hw * 2 - 0.3, cd - 0.3), { p: [0, C.y - 0.005, cmz + 0.0], r: [Math.PI / 2, 0, 0], tile: 1 });
+  b.box("choco", C.hw * 2 + 0.3, 1.1, 0.3, { p: [0, C.y + 0.2, C.z0 + 0.15] });
+  for (const s of [-1, 1]) b.box("choco", 0.3, 1.1, cd, { p: [s * (C.hw + 0.15), C.y + 0.2, cmz] });
+  b.box("led-halo", C.hw * 2 + 0.3, 0.03, 0.03, { p: [0, C.y - 0.37, C.z0 + 0.31] });
+  for (let x = -9; x <= 9.01; x += 3)
+    for (const z of [1.3, -1.9]) {
+      if (z < 0 && Math.abs(x) < 6.5) continue; // over the foyer roof line: the foyer has its own ceiling
+      b.box("lampHead", 0.5, 0.02, 0.5, { p: [x, C.y - 0.02, z] });
+    }
+  for (const c of ARENA_COLUMNS) {
+    b.cyl("choco", c.r * 0.72, c.r, C.y, 14, { p: [c.x, C.y / 2, c.z] });
+    b.cyl("limestone", c.r + 0.12, c.r + 0.14, 0.12, 16, { p: [c.x, 0.06, c.z] });
+  }
+
+  // ---- ticket window (left of the doors): recessed counter, chocolate hood, stone sill; door surround in amber
   b.box("screenFrame", 1.6, 1.2, 0.3, { p: [-4.6, 1.75, -1.15] });
-  b.box("alu", 1.9, 0.08, 0.6, { p: [-4.6, 2.42, -1.0] });
-  b.box("alu", 1.7, 0.06, 0.4, { p: [-4.6, 1.12, -0.98] });
-  // main LED screen frame on the drum (screen surface itself is animated, see Plaza.tsx)
-  b.box("screenFrame", 17, 5.4, 0.5, { p: [0, 12.6, cz + rz + 0.9] });
-  doorSurround(b, "led-arena", -1.1);
-  // flagpoles
-  for (const x of [-11.5, -10, 10, 11.5]) b.cyl("alu", 0.05, 0.07, 11, 8, { p: [x, 5.5, 3] });
+  b.box("choco", 1.9, 0.08, 0.6, { p: [-4.6, 2.42, -1.0] });
+  b.box("limestone", 1.7, 0.06, 0.4, { p: [-4.6, 1.12, -0.98] });
+  doorSurround(b, "led-halo", -1.1);
+
+  // ---- flagpoles either side of the canopy (Rwanda's flag, Ambience.tsx)
+  for (const x of ARENA_FLAGPOLES) {
+    b.cyl("alu", 0.05, 0.07, ARENA_FLAG.pole, 8, { p: [x, ARENA_FLAG.pole / 2, ARENA_FLAG.z] });
+    b.cyl("limestone", 0.22, 0.26, 0.3, 12, { p: [x, 0.15, ARENA_FLAG.z] });
+  }
 }
 
 /** Lattice of tubes between two points (crane mast / jib members). */

@@ -58,8 +58,8 @@ export const INTERIOR_ROOMS: Record<InteriorKind, InteriorRoom> = {
   ludo: { depth: 6.6, hallDepth: 14, ceiling: 4.8, tile: 5.6, near: 2.2, far: 4.4, lamps: 2.8, pane: 1.6, transom: 3.0, wall: "#c9ab8a", floor: "#c09468", ceil: "#d8c4a4", lamp: "#fff0d0", avg: "#a88a68" },
   // Igisoro Court: dark timber walls with an Imigongo band, terracotta tiles, low carved boards on stools
   igisoro: { depth: 5.2, hallDepth: 13, ceiling: 4.2, tile: 5.2, near: 1.9, far: 3.6, lamps: 2.6, pane: 0, transom: 0, wall: "#4a3020", floor: "#9a4e32", ceil: "#3a2616", lamp: "#ffd79a", avg: "#5e3a26" },
-  // Tournament Arena foyer: tall, cool-white light, turnstiles, the video wall in front of the drum
-  arena: { depth: 4.6, hallDepth: 18, ceiling: 6.1, tile: 6.0, near: 1.6, far: 3.3, lamps: 2.4, pane: 0, transom: 0, wall: "#3a3b44", floor: "#8e8a84", ceil: "#2c2d33", lamp: "#eef1ff", avg: "#4a4a54" },
+  // Tournament Arena foyer (P2-WLD-17 palette): warm light, bronze turnstiles, chocolate banners, the video wall
+  arena: { depth: 4.6, hallDepth: 18, ceiling: 6.1, tile: 6.0, near: 1.6, far: 3.3, lamps: 2.4, pane: 0, transom: 0, wall: "#4a3426", floor: "#8a7f74", ceil: "#2a1f18", lamp: "#fff0dc", avg: "#4e3b2e" },
   // Administrative Block: light lobby, ONE reception desk in timber and stone (a 13 m repeat: one per curtain wall
   // half), lounge seating, office doors and the directory
   admin: { depth: 7.0, hallDepth: 14, ceiling: 5.0, tile: 13.0, near: 2.8, far: 5.0, lamps: 2.4, pane: 0, transom: 0, wall: "#e2ddd3", floor: "#c4beb3", ceil: "#ece9e2", lamp: "#fff3e0", avg: "#b8b0a2" },

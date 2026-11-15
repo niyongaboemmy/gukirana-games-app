@@ -27,7 +27,7 @@ const STYLES: Record<PortalDef["kind"], Style> = {
   pool: { floor: "#5a3f2c", floorTex: "wood", wall: "#4a3d33", ceiling: "#2a2622", lights: 3 },
   ludo: { floor: "#b07a4a", floorTex: "herringbone", wall: "#cdb796", ceiling: "#8a6a4a", lights: 3 },
   igisoro: { floor: "#9a5b3c", floorTex: "tile", wall: "#c9a77c", ceiling: "#7a5a36", lights: 2 },
-  arena: { floor: "#8e8a84", floorTex: "tile", wall: "#d8d6d0", ceiling: "#3a3c40", lights: 3 },
+  arena: { floor: "#8a7f74", floorTex: "tile", wall: "#d4c6b4", ceiling: "#2e231b", lights: 3 },
   admin: { floor: "#b9b4ab", floorTex: "tile", wall: "#dcd8d0", ceiling: "#e6e3dd", lights: 3 },
   fight: { floor: "#77736d", floorTex: "tile", wall: "#3a3a3d", ceiling: "#1c1c1f", lights: 3 },
   soon: { floor: "#777", wall: "#777", ceiling: "#555", lights: 0 },

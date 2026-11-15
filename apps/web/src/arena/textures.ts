@@ -25,7 +25,8 @@ function tex(c: HTMLCanvasElement, repeat: [number, number] = [1, 1], srgb = tru
   return t;
 }
 const FONT = "system-ui, -apple-system, Segoe UI, sans-serif";
-const C = { charcoal: "#17161b", panel: "#211f27", text: "#ece7f2", muted: "#aaa3b8", gold: "#d8b45a", purple: "#7b5cb3", purpleDeep: "#3d2f5e", live: "#b9504a" };
+// P2-WLD-17: the house chocolate palette (was charcoal-violet): warm darks, copper as the accent, deep chocolate bands
+const C = { charcoal: "#17120e", panel: "#221a14", text: "#f1e9df", muted: "#b5a796", gold: "#d8b45a", purple: "#c08550", purpleDeep: "#3b2416", live: "#b9504a" };
 /** deterministic 0…1 hash */
 const h1 = (i: number) => {
   const x = Math.sin(i * 127.1 + 311.7) * 43758.5453;
@@ -60,7 +61,7 @@ export function paintScoreboard(g: CanvasRenderingContext2D, st: ArenaStatus | n
   g.fillRect(0, 0, W, H);
   // soft vignette panel + LED pixel grid (cosmetic, very low contrast)
   const grad = g.createRadialGradient(W / 2, H / 2, 40, W / 2, H / 2, W * 0.7);
-  grad.addColorStop(0, "#26222f");
+  grad.addColorStop(0, "#2a1f17");
   grad.addColorStop(1, C.charcoal);
   g.fillStyle = grad;
   g.fillRect(0, 0, W, H);
@@ -248,7 +249,7 @@ export function accentTexture() {
 export function plateAtlas() {
   const { c, g } = canvas(384, 64);
   for (let i = 0; i < 6; i++) {
-    g.fillStyle = "#2a2730";
+    g.fillStyle = "#2a211a";
     g.fillRect(i * 64, 0, 64, 64);
     g.fillStyle = C.gold;
     g.font = `800 40px ${FONT}`;
@@ -289,7 +290,7 @@ export function totemTexture(deg: number) {
   g.beginPath();
   g.arc(cx, cy, 84, 0, Math.PI * 2);
   g.stroke();
-  g.fillStyle = "#2c2836";
+  g.fillStyle = "#2e231b";
   g.beginPath();
   g.arc(cx, cy, 40, 0, Math.PI * 2);
   g.fill();
@@ -345,12 +346,12 @@ export function floorTexture() {
     g.fillRect(i * 16, 0, 15, 1024);
   }
   g.translate(512, 512);
-  g.strokeStyle = "#5f4e80";
+  g.strokeStyle = "#7a5236";
   g.lineWidth = 5;
   g.beginPath();
   g.arc(0, 0, 150, 0, Math.PI * 2);
   g.stroke();
-  g.fillStyle = "#3f3358";
+  g.fillStyle = "#4a2f1f";
   for (let i = 0; i < 72; i++) {
     g.save();
     g.rotate((i / 72) * Math.PI * 2);
@@ -410,7 +411,7 @@ export function paintEventBoard(g: CanvasRenderingContext2D, st: ArenaStatus | n
     g.fillText(s, 28, y + 76, 712);
   });
   if (announce) {
-    g.fillStyle = "#2a2632";
+    g.fillStyle = "#2c221b";
     g.fillRect(0, 384, 768, 48);
     g.fillStyle = C.text;
     g.font = `600 22px ${FONT}`;

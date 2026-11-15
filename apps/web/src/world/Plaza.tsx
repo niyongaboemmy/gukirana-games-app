@@ -4,7 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import { RoundedBox, Text } from "@react-three/drei";
 import * as THREE from "three";
 import { ARENA, buildDistrict } from "./District";
-import { LUDO_DIE, PLOTS } from "./footprints";
+import { ARENA_CANOPY, LUDO_DIE, PLOTS } from "./footprints";
 import { Landscape } from "./Landscape";
 import { Lighting } from "./Lighting";
 import { DOOR, DOOR_OPEN_RADIUS, DOOR_RING, doorInset, doorLocal, VESTIBULE_DEPTH, PORTALS, portalTransform, ringPoint, SERVICE_ANGLE, TOTEMS, WAYFINDING, wayfindingRows, EXPANSION_PLOTS, EXPANSION_RING, FOUNTAIN_COURT, OUTER_PROMENADE, PLAZA_RADIUS, SPAWN, type PortalDef } from "./layout";
@@ -36,8 +36,7 @@ function District({ tier }: { tier: Tier }) {
   const geos = useMemo(() => buildDistrict(tier), [tier]);
   const mats = useMemo(() => worldMaterials(tier), [tier]);
   useEffect(() => () => geos.forEach((g) => g.dispose()), [geos]);
-  // the arena's LED ribbons: a steady arena purple (P2-WLD-09: the purple → blue → gold colour cycle was one more
-  // thing moving in every view of the plaza; a calm, constant accent reads better)
+  // the arena's LED lines: a steady warm amber (P2-WLD-17; P2-WLD-09: no colour cycle, a calm constant accent)
   const halo = mats["led-halo"] as THREE.MeshBasicMaterial;
   useEffect(() => void halo.color.set(GAME_COLORS.arena).multiplyScalar(LED_BOOST[tier]), [halo, tier]);
   return (
@@ -112,13 +111,19 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
           {def.label.toUpperCase()}
           <meshStandardMaterial color="#3a3227" roughness={0.75} metalness={0.2} />
         </Text>
+      ) : def.kind === "arena" ? (
+        // cut cream letters with a warm glow on the canopy's chocolate fascia (District.ts tournamentArena, P2-WLD-17)
+        <Text font={FONT} fontSize={0.86} position={[0, ARENA_CANOPY.y + 0.2, ARENA_CANOPY.z0 + 0.31]} anchorX="center" anchorY="middle" letterSpacing={0.14}>
+          {def.label.toUpperCase()}
+          <meshStandardMaterial color="#f1e6d4" emissive="#e8b67e" emissiveIntensity={0.32} roughness={0.6} metalness={0.1} />
+        </Text>
       ) : def.kind === "igisoro" ? (
         // carved lettering on the timber fascia board hung under the porch roof (District.ts igisoroCourt)
         <Text font={FONT} fontSize={0.36} color="#f1e3c4" position={[0, 4.16, 0.9]} anchorX="center" anchorY="middle" letterSpacing={0.1}>
           {def.label.toUpperCase()}
         </Text>
       ) : (
-        <Text font={FONT} fontSize={def.kind === "arena" ? 0.4 : def.kind === "fight" ? 0.36 : 0.5} color={ledColor} position={[0, signY, signZ]} anchorX="center" anchorY="middle" letterSpacing={0.06}>
+        <Text font={FONT} fontSize={def.kind === "fight" ? 0.36 : 0.5} color={ledColor} position={[0, signY, signZ]} anchorX="center" anchorY="middle" letterSpacing={0.06}>
           {def.label.toUpperCase()}
           <meshBasicMaterial color={ledColor} toneMapped={false} />
         </Text>
@@ -296,12 +301,12 @@ function AutoDoors({ def, inset, tier, locked = false }: { def: PortalDef; inset
   );
 }
 
-/** Arena LED screen (scrolling content) and the "GUKIRANA PLAYGROUND" crown letters. */
+/** Arena LED screen (welcome messages) in its chocolate frame, the crown letters on the frame's header, the ticket sign. */
 function ArenaScreen({ tier }: { tier: Tier }) {
   const a = PORTALS.find((p) => p.kind === "arena")!;
   const { x, z, rotY } = portalTransform(a);
   const tex = useMemo(() => {
-    const t = arenaScreenTexture();
+    const t = arenaScreenTexture(W.arenaScreen);
     t.repeat.set(0.25, 1);
     return t;
   }, []);
@@ -309,21 +314,20 @@ function ArenaScreen({ tier }: { tier: Tier }) {
   useFrame(({ clock }) => {
     tex.offset.x = Math.floor(clock.elapsedTime / 12) * 0.25 + Math.min(1, (clock.elapsedTime % 12) / 1.2) * 0.25 - 0.25;
   });
-  const gold = useMemo(() => new THREE.Color(GAME_COLORS.gold).multiplyScalar(LED_BOOST[tier]), [tier]);
   return (
     <group position={[x, 0, z]} rotation={[0, rotY, 0]}>
       <mesh position={[0, 12.6, ARENA.cz + ARENA.rz + 1.17]}>
         <planeGeometry args={[16.4, 4.8]} />
-        <meshBasicMaterial map={tex} toneMapped={false} color={tier === "lite" ? "#ffffff" : "#d8d8d8"} />
+        <meshBasicMaterial map={tex} toneMapped={false} color={tier === "lite" ? "#f2f2f2" : "#cfcfcf"} />
       </mesh>
       {/* ticket window sign, left of the doors (P2-WLD-09: the two made-up event posters on the right are gone —
           the real schedule is on the plaza notice board) */}
       <Text font={FONT} fontSize={0.2} color="#f4f1ea" position={[-4.6, 2.62, -0.69]} anchorX="center" anchorY="middle" letterSpacing={0.12}>
-        TICKETS
+        {W.arenaTickets}
       </Text>
-      <Text font={FONT} fontSize={1.5} position={[0, 16.4, ARENA.cz + ARENA.rz + 0.95]} anchorX="center" anchorY="middle" letterSpacing={0.08}>
-        GUKIRANA PLAYGROUND
-        <meshBasicMaterial color={gold} toneMapped={false} />
+      <Text font={FONT} fontSize={0.92} position={[0, 15.95, ARENA.cz + ARENA.rz + 1.17]} anchorX="center" anchorY="middle" letterSpacing={0.18}>
+        {W.arenaCrown}
+        <meshStandardMaterial color="#ecd3ad" emissive="#d6a06c" emissiveIntensity={0.3} roughness={0.55} metalness={0.15} />
       </Text>
     </group>
   );

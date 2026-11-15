@@ -389,18 +389,18 @@ const KIND_DRAW: Record<InteriorKind, { near: (p: Pen) => void; far: (p: Pen) =>
   },
   arena: {
     near: (p) => {
-      // a row of ticket turnstiles with glass flaps, stanchions with the arena's purple rope
+      // a row of bronze ticket turnstiles with glass flaps, stanchions with a chocolate rope (P2-WLD-17)
       for (const x of [0.6, 1.5, 2.4, 3.3]) {
-        p.rect(x - 0.13, 0, 0.26, 1.0, "#8d939b");
-        p.rect(x - 0.13, 0.94, 0.26, 0.06, "#2a2c32");
-        p.rect(x - 0.05, 0.98, 0.1, 0.03, "#7ef0a0");
+        p.rect(x - 0.13, 0, 0.26, 1.0, "#8a5f42");
+        p.rect(x - 0.13, 0.94, 0.26, 0.06, "#2b1d14");
+        p.rect(x - 0.05, 0.98, 0.1, 0.03, "#e8b67e");
         if (x < 3.3) p.rect(x + 0.13, 0.45, 0.64, 0.45, "rgba(210,230,240,0.35)");
       }
       for (const x of [4.3, 5.4]) {
         p.rect(x - 0.02, 0, 0.04, 0.95, "#c9ced6");
         p.ellipse(x, 0.02, 0.15, 0.03, "#9aa0a8");
       }
-      p.g.strokeStyle = "#7a3cc0";
+      p.g.strokeStyle = "#5a3422";
       p.g.lineWidth = 0.035;
       p.g.beginPath();
       p.g.moveTo(4.3, 0.9);
@@ -410,14 +410,14 @@ const KIND_DRAW: Record<InteriorKind, { near: (p: Pen) => void; far: (p: Pen) =>
     far: (p) => {
       // tournament banners and the trophy cabinet
       for (const x of [0.8, 2.0]) {
-        p.rect(x - 0.4, 1.5, 0.8, 2.4, "#5b2aa0");
+        p.rect(x - 0.4, 1.5, 0.8, 2.4, "#4a2c1c");
         p.poly(
           [
             [x - 0.4, 1.5],
             [x, 1.25],
             [x + 0.4, 1.5],
           ],
-          "#5b2aa0",
+          "#4a2c1c",
         );
         p.poly(
           [
@@ -454,12 +454,12 @@ const KIND_DRAW: Record<InteriorKind, { near: (p: Pen) => void; far: (p: Pen) =>
       }
     },
     back: (p) => {
-      p.rect(0, 0, 6, BACK_H, "#3a3b44");
-      p.rect(0, 0, 6, 0.3, "#24252b");
-      // the video wall: purple to gold, a tournament bracket glowing on it
+      p.rect(0, 0, 6, BACK_H, "#4a3426");
+      p.rect(0, 0, 6, 0.3, "#2a1d15");
+      // the video wall: deep chocolate to amber, a tournament bracket glowing on it
       const gr = p.g.createLinearGradient(0, 1.3, 0, 4.6);
-      gr.addColorStop(0, "#3a1670");
-      gr.addColorStop(0.6, "#7a3cc0");
+      gr.addColorStop(0, "#2a1810");
+      gr.addColorStop(0.6, "#6a4128");
       gr.addColorStop(1, "#c88a2a");
       p.rect(0.2, 1.3, 5.6, 3.3, "#101014");
       p.poly(
@@ -481,13 +481,13 @@ const KIND_DRAW: Record<InteriorKind, { near: (p: Pen) => void; far: (p: Pen) =>
         [3.0, 2.8, 3.4],
         [3.0, 4.0, 5.2],
       ] as const)
-        p.rect(x0, y, x1 - x0, 0.05, "#f4ecff");
+        p.rect(x0, y, x1 - x0, 0.05, "#fbefe0");
       for (const [x, y0, y1] of [
         [1.8, 2.0, 2.6],
         [1.8, 3.4, 4.0],
         [2.8, 2.3, 3.7],
       ] as const)
-        p.rect(x, y0, 0.05, y1 - y0, "#f4ecff");
+        p.rect(x, y0, 0.05, y1 - y0, "#fbefe0");
       p.poly(
         [
           [3.7, 2.6],

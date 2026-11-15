@@ -257,4 +257,7 @@ if ((process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_GK_QA === 
       return s ? seatFront(s) : null;
     },
     seat: bowlSeat,
+    // walk like a tap does: snapped to the walking surface, along the venue's routes (P2-WLD-17 walk test)
+    walk: (x: number, z: number) => walkTo(snapWalkable({ x, z }, floorAllowed())),
+    ground: groundAt,
   };
