@@ -9,6 +9,9 @@ import { opponentHandLook, type HandLook } from "./hand/look";
 import { useMyHandLook } from "./hand/useHandLook";
 import { t } from "./i18n";
 
+/** the sowing hand, as a share of the (wide, 2:1) board's width: about one pit across (0.16 covered two pits and a row) */
+const IGISORO_HAND_SIZE = 0.105;
+
 type Side = 0 | 1;
 export type Cell = { side: Side; idx: number };
 export interface SowPreview {
@@ -256,7 +259,7 @@ export function IgisoroBoard({
     const r = el.getBoundingClientRect();
     const mine = step.owner === me;
     hands.sowStep(
-      { board: board.current, side: mine ? 0 : Math.PI, look: mine ? myLook : (oppLook ?? opponentHandLook("practice-igisoro-ai")), size: 0.16 },
+      { board: board.current, side: mine ? 0 : Math.PI, look: mine ? myLook : (oppLook ?? opponentHandLook("practice-igisoro-ai")), size: IGISORO_HAND_SIZE },
       { kind: step.kind, x: r.left + r.width / 2, y: r.top + r.height / 2, seeds: hand, stepMs },
     );
   }, [step?.id, real]);
