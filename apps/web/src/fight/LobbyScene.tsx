@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useEffect, useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
 import * as THREE from "three";
 import { FIGHT_SUBHALLS, CORNER_COLORS } from "@gukirana/contracts";
@@ -19,6 +19,8 @@ import { startFightMock } from "./mock";
 import { LobbyVenue } from "./lobby-venue";
 import { GymLife } from "./gym-life";
 import { HallGlimpse } from "./hall-glimpse";
+import { OutdoorView } from "@/rooms/OutdoorView";
+import { DoorGlimpse } from "@/rooms/shell";
 
 const FONT = "/fonts/Baloo2.ttf";
 
@@ -29,13 +31,13 @@ const FONT = "/fonts/Baloo2.ttf";
  * two benches and posters. Small and cheap: one static batch + the board texture.
  */
 export function LobbyScene({ layout, lite }: { layout: HallLayout; lite: boolean }) {
-  const scene = useThree((s) => s.scene);
-  useLayoutEffect(() => {
-    scene.background = new THREE.Color("#2b2926");
-  }, [scene]);
   useEffect(() => startFightMock(), []);
   return (
     <group>
+      {/* the plaza through the open front door, as in every plaza hall: the real plaza at its true bearing plus the
+          captured landscape as the backdrop (it used to be a flat dark colour behind the glass) */}
+      <OutdoorView layout={layout} lite={lite} />
+      <DoorGlimpse layout={layout} lite={lite} />
       <hemisphereLight args={["#fbf3e8", "#5a5650", lite ? 2.0 : 1.65]} />
       <ambientLight intensity={0.32} />
       <directionalLight position={[4, 12, 8]} intensity={1.15} color="#fff1df" />
