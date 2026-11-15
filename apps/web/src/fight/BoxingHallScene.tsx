@@ -10,6 +10,7 @@ import { HallRingKit } from "./assets-shim";
 import { RingSigns } from "./ring-signs";
 import { Banners, Benches, FloorMarks, LightPools } from "./hall-dressing";
 import { FEATURE_RING } from "./plan";
+import { HallGlimpse } from "./hall-glimpse";
 import { BIG_SCREEN, BOXING_DOOR, BOXING_SIZE, FEATURE_STAGE, RINGS, ringSteps } from "./plan";
 import { useRingKitRings } from "./rings";
 import { bigScreenKey, drawBigScreen } from "./screen";
@@ -184,6 +185,19 @@ function Shell({ layout, lite }: { layout: HallLayout; lite: boolean }) {
       <mesh material={mats.wall} position={[dx, (h + 3.0) / 2, d / 2 + 0.2]}>
         <boxGeometry args={[dw, h - 3.0, 0.4]} />
       </mesh>
+      {/* behind the lobby door: a short passage and the lobby beyond (not the empty background) */}
+      {[-1, 1].map((s) => (
+        <mesh key={`xp${s}`} material={mats.wall} position={[dx + s * (dw / 2 + 0.1), 1.5, d / 2 + 0.4 + 1.1]}>
+          <boxGeometry args={[0.2, 3.0, 2.2]} />
+        </mesh>
+      ))}
+      <mesh material={mats.wall} position={[dx, 3.05, d / 2 + 0.4 + 1.1]}>
+        <boxGeometry args={[dw + 0.4, 0.1, 2.2]} />
+      </mesh>
+      <mesh rotation-x={-Math.PI / 2} position={[dx, 0.002, d / 2 + 0.4 + 1.1]} material={mats.floor}>
+        <planeGeometry args={[dw, 2.2]} />
+      </mesh>
+      <HallGlimpse view="lobby" w={dw} h={3.0} position={[dx, 1.5, d / 2 + 0.4 + 2.18]} rotationY={Math.PI} />
       {/* timber slat band (lower walls) and a red light line above it */}
       <mesh material={mats.slats} position={[0, 1.6, -d / 2 + 0.03]}>
         <boxGeometry args={[w, 3.2, 0.06]} />

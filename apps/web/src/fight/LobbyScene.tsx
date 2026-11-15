@@ -18,6 +18,7 @@ import { FIGHT_ON } from "./flags";
 import { startFightMock } from "./mock";
 import { LobbyVenue } from "./lobby-venue";
 import { GymLife } from "./gym-life";
+import { HallGlimpse } from "./hall-glimpse";
 
 const FONT = "/fonts/Baloo2.ttf";
 
@@ -141,7 +142,6 @@ function LobbyShell({ layout }: { layout: HallLayout }) {
       red: new THREE.MeshBasicMaterial({ color: new THREE.Color(CORNER_COLORS.red).multiplyScalar(1.6), toneMapped: false }),
       blue: new THREE.MeshBasicMaterial({ color: new THREE.Color(CORNER_COLORS.blue).multiplyScalar(1.6), toneMapped: false }),
       passage: new THREE.MeshStandardMaterial({ color: "#55514b", roughness: 0.85 }),
-      glimpse: new THREE.MeshBasicMaterial({ color: "#d8d3c8", toneMapped: false }),
     };
   }, []);
   useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats]);
@@ -204,9 +204,7 @@ function LobbyShell({ layout }: { layout: HallLayout }) {
       <mesh rotation-x={-Math.PI / 2} position={[bx, 0.002, back - 0.4 - LOBBY_PASSAGE.d / 2]} material={mats.floor}>
         <planeGeometry args={[pw, LOBBY_PASSAGE.d]} />
       </mesh>
-      <mesh material={mats.glimpse} position={[bx, 1.5, back - 0.4 - LOBBY_PASSAGE.d + 0.02]}>
-        <planeGeometry args={[pw, 3.0]} />
-      </mesh>
+      <HallGlimpse w={pw} h={3.0} position={[bx, 1.5, back - 0.4 - LOBBY_PASSAGE.d + 0.02]} />
       {/* ceiling light panels */}
       {[-9, -3, 3, 9].map((x) => (
         <mesh key={`l${x}`} material={mats.panel} position={[x, h - 0.05, cz]}>
