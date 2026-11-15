@@ -176,7 +176,7 @@ Download: `boxer-m.glb` / `boxer-f.glb` ≈ 3.3 MB each (≈ 1.4 MB gzipped), lo
 - No stool mesh: the fighter sits on the corner (the ring kit has no stool).
 - The female referee's shirt still follows the bust closely; garment LODs and a lighter GLB (quantised morphs) are
   open.
-- Hall run (`qa/e2e/zscan.mjs hall:boxing`) — see the P3-FGT-13 report for whether it ran on the worktree stack.
+- Hall run on the worktree stack (web 3930, API 4930 on a scratch PGlite DB, realtime 3197): `qa/e2e/zscan.mjs hall:boxing` reports 0 flat z-fighting pairs and 1 wall-face pair (an unnamed white mesh against the merged hall at (43.3, -16.1), the training-zone rack area: not a ring person, not changed here). The hall staff render on the boxer body; practice starts from the hall.
 
 ## Sources
 
