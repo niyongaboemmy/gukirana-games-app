@@ -65,3 +65,75 @@ P3-FGT-06 (separate); hall dressing is P3-FGT-04. This file records the research
 4. **Presses outside a round vanished silently** (countdown, rest): now the press chip says "Wait for the bell".
 5. Testing note: the dev hook `__gkStage.show("hall:boxing")` from /world does not mount the hall HUD (the room page
    does); test from `/room/boxing`.
+
+## 5. Ring realism (P3-FGT-07)
+
+Complaint: "it looks like a person is doing nothing". Two boxers stood ~3 m apart in a near-static guard, in their
+plaza clothes (hoodie / blazer, skin-coloured baggy trousers under the trunks, oversized boot blocks), and the referee
+stood at the back with his hands clasped.
+
+### Research takeaways (ideas only — no names, assets or looks copied)
+
+- **Console boxing sims** (the long-running sim series, the recent licensed sim): the boxer is never still — a rhythm
+  bounce, weight transfer and head movement run under everything; punches carry the body (hips, rear heel); critics
+  of the newest sim single out *missing weight transfer* and *floaty footwork* as what breaks realism, and praise
+  footwork with plant / pivot steps. Takeaway: an always-on procedural layer under the clips, punches that commit the
+  body, and visible foot plants when moving.
+- **VR boxing titles**: the opponent constantly paws, feints and resets range; it targets openings and punishes
+  whiffs; hits read through a short freeze + head snap. Takeaway: lead-hand pawing / feints in idle, a few frames of
+  hit-stop, head snap scaled to power.
+- **Fighting-game feel** (genre convention): hit-stop of 2–6 frames on connection, a small camera punch, an impact
+  sound and crowd swell sell power without changing timing. Takeaway: presentation-only hit-stop that catches up, so
+  the engine and the screen never drift.
+- **Amateur boxing footage / referee manuals**: boxers work at about an arm plus a step apart (jab range), circle,
+  cut off the ring, get pushed to ropes and corners; tired boxers drop their hands, flatten their feet and clinch.
+  Referees keep a "V" with both boxers in view, never behind one or between them, move constantly with hands down
+  and open, step in at arm's length to break, and wear a white shirt, bow tie and dark trousers. Amateur rules: vest
+  in the corner colour, headgear on.
+
+### Decisions
+
+- **Real exchange range** (`present.ts gapOf`): the engine's distance (game cm, reaches 110–190) maps piecewise onto
+  the canvas so a jab at its engine reach lands at ~1 m root to root, hooks / uppercuts inside that, the far end ~2 m.
+  Before: `dist / 100` m (2.6 m at the start, never closer than ~1.4 m in practice). Engine constants unchanged.
+- **Reach fit** (`motion.ts`): the striking glove's travel is scaled to the real distance to the target (0.7–1.25×),
+  so a landed punch touches the chin / body instead of stopping short or sinking in; a reach past the clip's own (a
+  whiff) also carries the body after it (more lean, hips forward, rear heel up): misses over-extend.
+- **Ring life** (`world/human/boxing/life.ts`): an additive layer over the stance / footwork / held-guard clips — a
+  bounce on the balls of the feet (1.4–2.1 Hz, flatter when tired), front-back and side-to-side weight shifts, upper
+  body slipping off the centre line, gloves breathing, the lead glove pawing and an occasional feint (shoulder dip +
+  half jab), the rear glove circling, lower gloves and heavier feet when tired, alternating foot lifts on the beat
+  when the root glides (circling reads as footwork). Eased in from each clip's start (no pop). Deterministic: a pure
+  function of the ring clock, a per-fighter presentation seed and the meters.
+- **The pair moves round the ring** (`ringLayout`): the axis circles (engine orbit + a slow, direction-changing spin),
+  the pair's middle drifts to the ropes, into corners and back, clamped inside the ropes; the camera follows the
+  middle. Pure function of the snapshot tick + the ring id (same on every screen).
+- **Feel of a connection** (`hitFeel`, `ring-clock.ts`): hit-stop 35–85 ms (knockdown 120 ms) on clean hits, 25 ms
+  on blocks, by holding the ring's motion clock and catching up 35 % faster afterwards; a 3–9 cm camera push towards
+  the action (my own punches a little more), eased out; none with reduced motion. Impact sounds, crowd "ooh" / roar and
+  haptics were already in `fx.ts`.
+- **Sparring bot** (`packages/games/boxing/src/bot.ts`, practice only, still rng-injected and deterministic): presses
+  the next punch late in its own punch (the engine's input buffer chains them): 1-2, 1-2-3, hook-uppercut; jabs to
+  measure at long range; steps inside now and then for hooks / uppercuts and back out; presses harder when the
+  opponent is tired or shaken, eases off when tired. Level n+1 still beats level n ≥ 60 % (test). Rate ~0.4–0.8
+  punches / s (amateur-like), up from no hooks / no footwork before.
+- **Fight kit that fits** (`kit-fit.ts`): the Rocketbox bodies model their everyday clothes into the mesh and the look
+  shader only recolours them, so the kit used to be a hoodie in the corner colour over skin-coloured baggy trousers.
+  In the ring the body's own geometry is refitted once per body model (cached): thighs / calves pulled onto an
+  athletic leg profile (bare legs; the trunks and boot shafts are then fitted to the slim legs, so no boot blocks),
+  sleeves pulled onto the arm and given the hand's skin (a sleeveless vest; the skin texel is picked from the recolour
+  mask), torso bulk and the hood folded down. The everyday geometry comes back when the person leaves the ring (the
+  kit layer's undo). Headgear on (amateur rule) as before.
+- **Referee** (`kit.ts refereeLook`, `kit-mesh.ts dressReferee`, `clips.ts REF_SPEC`): always the masculine base body
+  (its shirt + trousers geometry; hood folded) in a white shirt, black trousers and shoes with a black bow tie; a
+  working stance (feet apart, knees bent, leaning in, hands open and apart at belt height) with calm weight shifts and
+  steps; he moves with the pair at the apex of the V on the far side from the camera, closer in when they are close,
+  steps in to break clinches, counts, raises the winner.
+- **First-timer guidance** (`game/coach.ts`, FightHud): the existing device-specific, skippable tutorial now sits
+  between the thumbs on phones (not over the boxers); after it, a coach line appears only when the player is stuck —
+  idle ("Step in" / "Throw the jab"), missing ("Too far"), hitting the guard ("Mix it up"), getting slipped, getting
+  hit with the hands down ("Guard up"), out of breath — one at a time, rate-limited, switchable in Settings. Pops say
+  why a punch scored or not ("Clean +2", "On their guard", "They slipped it", "Missed: too far"). The result card
+  says what to do next and offers "Next level" after a practice win.
+- **Perf** (dev ring lab, `/fight-lab?scene=1`): focus-mode ring with two fighters + referee = 34 draw calls, ~71 k
+  triangles, 60 fps desktop; 55 fps headless phone landscape at DPR 2. The kit refit is a one-off per body model.

@@ -50,7 +50,7 @@ export function Tutorial({ touch }: { touch: boolean }) {
   const textKey = `tut.${step.id}.${via}` as FgKey;
   const jabVars = step.id === "jab" ? { ...vars, key: vars.jab! } : vars;
   return (
-    <div className="pointer-events-none absolute left-3 top-[17%] w-[min(320px,44vw)] phone:left-1/2 phone:top-[21%] phone:w-[min(360px,46vw)] phone:-translate-x-1/2" role="dialog" aria-label={ft("tut.title")}>
+    <div className="pointer-events-none absolute left-3 top-[17%] w-[min(320px,44vw)] phone:top-auto phone:bottom-[11%] phone:left-1/2 phone:w-[min(360px,44vw)] phone:-translate-x-1/2" role="dialog" aria-label={ft("tut.title")}>
       <div className="glass rounded-card flex flex-col gap-2 p-3 phone:gap-1.5 phone:p-2">
         <div className="flex items-center gap-2">
           <GraduationCap size={16} className="text-gold" />

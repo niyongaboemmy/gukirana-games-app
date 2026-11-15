@@ -270,5 +270,8 @@ export function refereeSpot(phase: FightPhase, ctx: { dist: number; down: 0 | 1 
   // are close, and always moving with the action (ref manuals: keep as much of each boxer's target in view as possible)
   const t = ctx.t ?? 0;
   const close = half < 0.5 ? 0.85 : 1;
-  return { x: 0.55 * Math.sin(0.23 * t) + 0.18 * Math.sin(0.71 * t + 1), z: (1.05 + 0.18 * Math.sin(0.31 * t + 0.4)) * close, clip: "refIdle", face: 0 };
+  // the apex of the V: well off the pair line (seen in the gap between them, never hidden behind a boxer), drifting
+  // from one side to the other now and then
+  const side = Math.tanh(3 * Math.sin(0.07 * t + 0.6));
+  return { x: 0.35 * side + 0.12 * Math.sin(0.71 * t + 1), z: (1.4 + 0.15 * Math.sin(0.31 * t + 0.4)) * close, clip: "refIdle", face: 0 };
 }
