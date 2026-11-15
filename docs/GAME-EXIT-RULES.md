@@ -165,8 +165,9 @@ fight counts as gone too.
 
 | Row | Boxing meaning | Outcome |
 |---|---|---|
-| 1 | final bell: more points wins (stoppage — 3 knockdowns in a round or 4 in the match — ends it early) | settled; winner gets the pot |
-| 2 | equal points → more knockdowns → more power punches → still equal: **draw** (no draw offers in boxing) | settled as a draw, stakes back |
+| 1 | final bell: the **judges' cards** decide (5 virtual judges, 10-point must; unanimous / split / majority — docs/BOXING-SCORING.md). Early ends: **RSC** (3 knockdowns in a round or 4 in the match), **KO** (counted out: knocked down with no stamina left) | settled; winner gets the pot |
+| 1a | **DQ**: the fighter's `warningsToDq`-th warning on the referee ladder (caution → warnings, −1 on every card each). Both disqualified in the same tick → no winner | settled; the opponent gets the pot (both DQ: stakes back) |
+| 2 | no majority on the cards: a **staked** fight goes to the countback (judges ahead → card sums → knockdowns → fewer warnings → fewer cautions → power punches → clean punches → last round); a friendly, or a level countback, is a **draw** (no draw offers in boxing) | settled; countback winner gets the pot, a draw gives stakes back |
 | 3 | Leave during gloving up / the countdown / before anyone acted | void (`LEFT_BEFORE_START`) |
 | 4 | Leave after the first move (the Leave dialog shows the pot) | forfeit (`RESIGN`) |
 | 5 | disconnect: referee time-out, the clock stops, the budget runs | — |
@@ -180,6 +181,11 @@ fight counts as gone too.
 | 13–17 | settle retries, API down, room closed, stale-escrow sweep, suspension | unchanged (void, refund) |
 | 18 | practice vs AI in a free ring | nothing to settle, never counted |
 
+**Scoring + validation** (P3-FGT-06, docs/BOXING-SCORING.md): clients never send scores. The room records every
+engine call (a fight log), and before signing it replays the log and re-derives every judge's card and the decision
+(`auditFight`). A mismatch is never signed: the match is voided (`SERVER_ERROR`, stakes refunded). The signed
+`stateHash` commits to the final state and the log, and the API settles only a result whose signature verifies.
+
 **Inputs** (server checks, plan §3.2): schema (`BAD_INPUT`), `seq` strictly increasing per connection (`STALE_SEQ`),
 at most 20 messages a second (dropped, `RATE_LIMITED` once a second), at most **one press per tick** per fighter, presses
 outside a round dropped (`NOT_FIGHTING`), only the two fighters' sessions may send.
@@ -189,12 +195,16 @@ steps, one ring per person, not already in a live fight, signed in for live figh
 funds / friendly limit / break / daily limit (games API, personal reasons only to that player), median ping ≤ 300 ms.
 
 **Settings** (`game_settings` boxing, seeded **disabled**): the usual fields plus `fight { rounds 3, roundSeconds 60,
-restSeconds 15, idleSeconds 20 }` (bounds `FIGHT_RULE_BOUNDS`: 1–5 rounds, 30–180 s, 10–60 s, 10–60 s). A boxing row
+restSeconds 15, idleSeconds 20 }` (bounds `FIGHT_RULE_BOUNDS`: 1–5 rounds, 30–180 s, 10–60 s, 10–60 s) and the
+scoring block `{ judges 5, cautions 1, warningsToDq 3, openScoring true, drawTiebreak "staked" }` (bounds
+`FIGHT_SCORING_BOUNDS`: judges 3 or 5, cautions 0–3, warningsToDq 2–5; a row without them runs with the defaults). A boxing row
 saved without the block runs with the defaults. `turnSeconds` is unused. Edits apply to new fights only.
 
 | Row | Boxing test (`apps/realtime/src/rooms/boxing-room.test.ts`, api `games.service.test.ts > boxing`) |
 |---|---|
-| 1–2 | `rows 1-2 > escrowed match → bell → round → signed normal result` |
+| 1–2 | `rows 1-2 > escrowed match → bell → round → signed normal result`; engine `scoring.test.ts` (decisions, countback, KO, property tests) |
+| 1a (DQ) | `scoring + validation > DQ on the warning ladder…`; engine `scoring.test.ts > fouls and the referee ladder` |
+| audit / tamper | `scoring + validation > the signed result comes from the server's own cards…`, `> a result that fails the pre-sign audit is never signed…`; api `boxing scoring (P3-FGT-06) > … a tampered result moves no Stars` |
 | 3–4 | `rows 3-4 > before the first move…`, `> after the first move…` |
 | 5 | `rows 5-8 > back within the budget…`, `> a connection that goes silent…` |
 | 6–8 | `rows 5-8 > budget used after the first move: forfeit; before it: void; both gone: void` |
