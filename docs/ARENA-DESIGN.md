@@ -40,6 +40,8 @@ aerial view. It must read as the most important building on the campus without s
 | Palette | Purple seats in the lower bowl, slate-violet upper seats, a purple stage edge and walk-in carpet, lavender-tinted LED ribbons, violet scoreboard and totem art: the house chocolate palette appeared only on the timber walls. |
 | Walking | Three **unreachable seams** found by a new flood-fill test of the walking surface (§6.2): (1) a 0.2 m unwalkable band at the top of the players' tunnel stair, (2) another at its foot, between the tunnel and the competition floor (the controller reverts any step onto unwalkable ground, so a participant walking out to the stage stopped dead at the tunnel); (3) standing against the drum wall in the lobby read the upper tier's top walkway behind it, a **3 m jump** in body height along the lobby wall. |
 | Signage | English strings hard-coded in the 3D scene (PHOTO SPOT, EXIT · PLAZA, PLAYERS ONLY, MEDIA GANTRY, COMMENTARY, RESTROOMS, the bowl directory, TICKETS · INFO, the ribbon words). |
+| VIP routes | Inside a VIP box, a tap from the floor behind the seats to a seat front walked straight into the row and stopped (found by the browser walk test); the route now rounds the end of the row. |
+| Flicker | The scene scan (qa/e2e/zscan) found coplanar tops at the entry portal (portal blocks and the lit frame flush with the soffit, y 3.4) and the stage Ludo board 2 mm over its tray. |
 | Screens | The commentator monitors glowed blue. Data was already real (status, occupancy, the current / next event) and stays so. |
 
 What was already sound and is kept: the bowl geometry and seat model (1,224 seats from the contract, sightline audit
@@ -75,8 +77,8 @@ Principles we design by:
 - The elliptical drum (22 × 19 m half-axes, 20 m to the crown) is kept: it fits the plaza plot and the interior bowl.
 - **Cantilevered eave**: the roof sails 1.7 m beyond the screen, edged by a 0.9 m dark-bronze fascia with a warm
   hairline. Its underside is a warm timber soffit with a ring of downlights.
-- **Shallow standing-seam dome**: dark chocolate-bronze metal with radial seams rising 4.4 m from the eave to a glazed
-  **oculus lantern** (Ø ≈ 9 m) under a closed bronze cap with an amber halo. The roof is one continuous closed shell:
+- **Shallow standing-seam dome**: dark chocolate-bronze metal with radial seams rising 3.4 m from the eave to a glazed
+  **oculus lantern** (Ø ≈ 9 m; the cream stone lid tops out at about 25.5 m, just under the aerial label) under a closed bronze cap with an amber halo. The roof is one continuous closed shell:
   nothing floats, nothing is open from above.
 
 ### 4.2 Facade layers (bottom to top)
@@ -87,7 +89,7 @@ Principles we design by:
 | 1.3 – 7.2 m | Concourse glass band | continuous glazing, dark bronze mullions every ~2.7 m |
 | 7.2 – 7.9 m | Concourse slab edge | dark chocolate fascia, amber LED line under its lip |
 | 7.9 – 19.2 m | Perforated screen | pleated bronze panels, Imigongo chevrons and diamonds drawn by hole size, dark chocolate inner drum behind, an amber grazing line at the foot |
-| 19.2 – 21 m | Crown and eave | dark chocolate crown band, bronze roof fascia with the amber hairline |
+| 19.2 – 21 m | Crown and eave (roof above to ~25.5 m) | dark chocolate crown band, bronze roof fascia with the amber hairline |
 
 ### 4.3 Entrance
 
@@ -101,6 +103,7 @@ Principles we design by:
 - **Level access**: the foyer floor is level with the plaza paving (no steps, so no handrails are needed: step-free
   access for everyone). A flush stone forecourt with brass joints marks the entrance.
 - Collision: canopy columns and flagpoles are solid plaza obstacles.
+- Flags: poles 2.4 m apart (a 1.8 m cloth never overlaps its neighbour), flying above the canopy.
 
 ### 4.4 Screen and lettering
 
@@ -176,8 +179,31 @@ legroom in front of them (contract seats, server-confirmed). The floor and tunne
 - [x] Existing route, sightline, seat and venue tests still pass.
 - [x] Chocolate palette; no hard-coded scene strings; hall draw calls within the previous numbers.
 
-## 7. Performance (measured, Standard tier, desktop 1280 × 720, `renderer.info` calls per frame)
+## 7. Verification (measured)
 
-Measured with puppeteer-core on the worktree stack before and after; see the P2-WLD-17 report for the numbers per
-view. Exterior detail is merged per material (`geo.ts`): the new materials add a handful of draw calls only where the
-arena is in view, and the removed rings / torus / white bands take some away.
+**Draw calls** (Standard tier, desktop 1280 × 720, `renderer.info` calls per frame, median of ~30 frames, the same
+stack and camera poses; "before" = current main without P2-WLD-17):
+
+| View | Before | After |
+| --- | --- | --- |
+| Plaza, follow camera | 227 | 224 |
+| Arena front from the plaza | 169 | 171 |
+| Arena from the fountain | 212 | 214 |
+| Oblique (east) | 179 | 181 |
+| Close entrance | 148 | 151 |
+| Flags close-up | 140 | 144 |
+| Aerial oblique / top / side | 148 / 204 / 184 | 149 / 206 / 186 |
+| Hall: entry / bowl / stage / follow | 131 / 121 / 99 / 135 | 131 / 121 / 99 / 135 |
+
+The exterior adds three materials (dark chocolate, the perforated screen, the standing-seam roof) and removes one
+(the dark diamond drum) and the separate arena LED key (all arena LEDs share `led-halo`): +2 to +4 calls only where the
+arena is in view, fewer in the plaza follow view; the hall is unchanged (slightly fewer triangles).
+
+**Flicker scan** (`qa/e2e/zscan-lib.js`: up-facing horizontal surfaces overlapping within 4 mm; run over the whole
+height range): arena interior 3 hits before → **0**; arena exterior 0 before → **0** (the two remaining plaza hits
+are on other buildings, outside this task).
+
+**Walk test** (browser, routed like a tap, spectator): lobby west / east, portal, concourse east and north, a lower
+aisle, two lower-bowl seat fronts, an upper aisle, an upper seat front, the top walkway, a VIP box, a VIP seat front,
+the media gantry and back to the door: all reached, body height following the steps (lower bowl −1.6 m, upper tier
+3.02 m, boxes 1.7 m, gantry 1.6 m).
