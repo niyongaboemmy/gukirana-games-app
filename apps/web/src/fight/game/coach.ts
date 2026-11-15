@@ -28,6 +28,16 @@ export const COACH_WINDOW = 6000;
 export const IDLE_NUDGE = 4500;
 
 /** the tip that fits right now (null = nothing worth saying) */
+/**
+ * Out of the jab's reach right now? Engine v2 snapshots carry both boxers' places (exact, mm); older ones only the
+ * rounded distance (cm). P3-FGT-13: "Too far" only when the player really is out of range.
+ */
+export function outOfRange(snap: Pick<BoxingSnapshot, "dist" | "fighters">): boolean {
+  const [a, b] = snap.fighters;
+  if (a.x !== undefined && b.x !== undefined) return Math.hypot(b.x - a.x, (b.z ?? 0) - (a.z ?? 0)) > PUNCH_SPECS.jab.reach;
+  return snap.dist * 10 > PUNCH_SPECS.jab.reach + 10;
+}
+
 export function coachTip(i: CoachInput): CoachTip | null {
   if (i.snap.phase !== "round" || i.roundAge < 2500) return null;
   const me = i.snap.fighters[i.me];
@@ -40,13 +50,13 @@ export function coachTip(i: CoachInput): CoachTip | null {
   // taking shots with the hands down
   if (theirs("hit") >= 3 && !me.guard) return "coach.guardUp";
   // swinging at air
-  if (mine("whiff") >= 2 && myHits === 0) return i.snap.dist * 10 > PUNCH_SPECS.jab.reach ? "coach.stepIn" : "coach.timing";
+  if (mine("whiff") >= 2 && myHits === 0) return outOfRange(i.snap) ? "coach.stepIn" : "coach.timing";
   // everything lands on the gloves
   if (mine("block") >= 3 && myHits === 0) return "coach.mixUp";
   // they keep slipping
   if (mine("evade") >= 2 && myHits === 0) return "coach.feint";
   // standing still in a live round
-  if (i.now - i.lastPress > IDLE_NUDGE) return i.snap.dist * 10 > PUNCH_SPECS.jab.reach ? "coach.stepIn" : "coach.jab";
+  if (i.now - i.lastPress > IDLE_NUDGE) return outOfRange(i.snap) ? "coach.stepIn" : "coach.jab";
   // they throw, I never defend: a slip or a guard
   if (theirs("hit") >= 2 && mine("hit") === 0 && theirs("block") === 0 && theirs("evade") === 0) return "coach.defend";
   return null;

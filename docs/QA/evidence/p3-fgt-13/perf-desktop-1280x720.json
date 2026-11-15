@@ -1,0 +1,63 @@
+{
+ "perf": [
+  {
+   "n": "f1-corner-between-rounds",
+   "calls": 10,
+   "tris": 151093,
+   "fps": 60,
+   "snap": {
+    "phase": "rest",
+    "f": [
+     [
+      "idle",
+      0,
+      984,
+      1000,
+      0,
+      7,
+      null
+     ],
+     [
+      "idle",
+      0,
+      959,
+      1000,
+      0,
+      0,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "f2-corner-advice",
+   "calls": 10,
+   "tris": 151093,
+   "fps": 60,
+   "snap": {
+    "phase": "rest",
+    "f": [
+     [
+      "idle",
+      0,
+      987,
+      1000,
+      0,
+      7,
+      null
+     ],
+     [
+      "idle",
+      0,
+      967,
+      1000,
+      0,
+      0,
+      null
+     ]
+    ]
+   }
+  }
+ ],
+ "logs": []
+}

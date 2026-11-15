@@ -47,3 +47,13 @@ describe("fight coach (P3-FGT-07)", () => {
     for (const k of ["coach.stepIn", "coach.jab", "coach.timing", "coach.mixUp", "coach.feint", "coach.guardUp", "coach.defend", "coach.tired"] as const) expect(FG[k].length).toBeGreaterThan(5);
   });
 });
+
+describe("out of range (P3-FGT-13)", () => {
+  it("uses the boxers' exact places when the snapshot has them", async () => {
+    const { outOfRange } = await import("./coach");
+    const f = (x: number) => ({ x, z: 0 }) as never;
+    expect(outOfRange({ dist: 121, fighters: [f(-600), f(600)] })).toBe(true);
+    expect(outOfRange({ dist: 117, fighters: [f(-580), f(580)] })).toBe(false);
+    expect(outOfRange({ dist: 130, fighters: [{} as never, {} as never] })).toBe(true);
+  });
+});

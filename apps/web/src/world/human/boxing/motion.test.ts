@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BOXING_CLIPS, BOXING_CLIP_NAMES, PUNCHES, clipTime, clipTravel, sampleClip, type BoxingClipName } from "./clips";
-import { BoxingMotion, boxingPose } from "./motion";
+import { BoxingMotion, boxingPose, fitAim } from "./motion";
 import { GUARD, KNEEL, MIRROR_FLIP, P, POSE_SIZE, mirrorPose, newPose } from "./pose";
 
 const maxDiff = (a: Float32Array, b: Float32Array) => {
@@ -238,5 +238,44 @@ describe("motion controller", () => {
     const hard = boxingPose({ clip: "jab", start: 0, intensity: 1 }, 0.14);
     expect(soft[P.lz]).toBeCloseTo(hard[P.lz]!, 6);
     expect(Math.abs(soft[P.yaw]! - GUARD[P.yaw]!)).toBeLessThan(Math.abs(hard[P.yaw]! - GUARD[P.yaw]!));
+  });
+});
+
+describe("contact IK (P3-FGT-13)", () => {
+  it("the striking glove lands on the aim at impact, the guard is untouched, the recovery returns", () => {
+    for (const clip of ["jab", "cross", "leadHook", "rearUppercut", "rearBody"] as const) {
+      const info = BOXING_CLIPS[clip];
+      const i = info.hand === "rear" ? P.rx : P.lx;
+      const aim: [number, number, number] = [0.02, 1.2, 0.95];
+      // at impact: exactly on the aim (when the correction is under the 40 cm cap)
+      const imp = sampleClip(clip, info.impact!);
+      const off = Math.hypot(aim[0] - imp[i]!, aim[1] - imp[i + 1]!, aim[2] - imp[i + 2]!);
+      const p = sampleClip(clip, info.impact!);
+      fitAim(clip, p, aim);
+      if (off <= 0.4) {
+        expect(p[i]!).toBeCloseTo(aim[0], 4);
+        expect(p[i + 1]!).toBeCloseTo(aim[1], 4);
+        expect(p[i + 2]!).toBeCloseTo(aim[2], 4);
+      }
+      // in the guard (the first key) nothing moves
+      const g = sampleClip(clip, 0);
+      const g2 = new Float32Array(g);
+      fitAim(clip, g2, aim);
+      expect(Math.abs(g2[i + 2]! - g[i + 2]!)).toBeLessThan(1e-6);
+      // back in the guard at the end
+      const e = sampleClip(clip, info.duration);
+      const e2 = new Float32Array(e);
+      fitAim(clip, e2, aim);
+      expect(Math.abs(e2[i + 2]! - e[i + 2]!)).toBeLessThan(1e-3);
+    }
+  });
+  it("a body target takes the punch low (the hips and the lean follow)", () => {
+    const info = BOXING_CLIPS.cross;
+    const p = sampleClip("cross", info.impact!);
+    const before = p[P.hy]!;
+    const gloveY = p[P.ry]!;
+    fitAim("cross", p, [0.02, 1.08, 0.82]);
+    expect(p[P.ry]!).toBeLessThan(gloveY - 0.2);
+    expect(p[P.hy]!).toBeLessThan(before);
   });
 });
