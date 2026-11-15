@@ -2,6 +2,7 @@
 import { useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { tintByDaylight, todUniforms } from "./time-of-day/hooks";
 import { FOUNTAIN_RADIUS } from "./layout";
 import type { Tier } from "./materials";
 import { rng } from "./textures";
@@ -158,7 +159,7 @@ function Streams({ uTime }: { uTime: { value: number } }) {
         transparent: true,
         depthWrite: false,
         fog: true,
-        uniforms: { ...THREE.UniformsLib.fog, uTime },
+        uniforms: { ...THREE.UniformsLib.fog, uTime, uGkUnlit: todUniforms.uGkUnlit },
         vertexShader: /* glsl */ `
           #include <fog_pars_vertex>
           varying vec2 vUv;
@@ -171,13 +172,14 @@ function Streams({ uTime }: { uTime: { value: number } }) {
         fragmentShader: /* glsl */ `
           #include <fog_pars_fragment>
           uniform float uTime;
+          uniform vec3 uGkUnlit;
           varying vec2 vUv;
           void main() {
             float s = fract(vUv.x * 7.0 - uTime / ${PERIOD.toFixed(2)});
             float streak = 0.55 + 0.45 * smoothstep(0.0, 0.25, s) * (1.0 - smoothstep(0.55, 1.0, s));
             float edge = 1.0 - abs(vUv.y - 0.5) * 1.2;
             float a = streak * edge * (0.62 - vUv.x * 0.3);
-            gl_FragColor = vec4(vec3(0.86, 0.93, 0.97), a);
+            gl_FragColor = vec4(vec3(0.86, 0.93, 0.97) * uGkUnlit, a);
             #include <fog_fragment>
           }`,
       }),
@@ -260,7 +262,7 @@ function Droplets({ uTime }: { uTime: { value: number } }) {
         transparent: true,
         depthWrite: false,
         fog: true,
-        uniforms: { ...THREE.UniformsLib.fog, uTime },
+        uniforms: { ...THREE.UniformsLib.fog, uTime, uGkUnlit: todUniforms.uGkUnlit },
         vertexShader: /* glsl */ `
           #include <fog_pars_vertex>
           attribute float aJet; attribute float aPhase; attribute vec3 aJit;
@@ -290,12 +292,13 @@ function Droplets({ uTime }: { uTime: { value: number } }) {
           }`,
         fragmentShader: /* glsl */ `
           #include <fog_pars_fragment>
+          uniform vec3 uGkUnlit;
           varying vec2 vUv; varying float vA;
           void main() {
             vec2 q = vUv * 2.0 - 1.0;
             float d = dot(q, q);
             if (d > 1.0) discard;
-            gl_FragColor = vec4(vec3(0.9, 0.95, 1.0), (1.0 - d) * 0.6 * vA);
+            gl_FragColor = vec4(vec3(0.9, 0.95, 1.0) * uGkUnlit, (1.0 - d) * 0.6 * vA);
             #include <fog_fragment>
           }`,
       }),
@@ -359,14 +362,14 @@ function Splashes({ uTime }: { uTime: { value: number } }) {
     const fade = new THREE.InstancedBufferAttribute(new Float32Array(ripples.length).fill(0.6), 1);
     fade.setUsage(THREE.DynamicDrawUsage);
     g.setAttribute("aFade", fade);
-    const m = new THREE.MeshBasicMaterial({
+    const m = tintByDaylight(new THREE.MeshBasicMaterial({
       map: tex,
       transparent: true,
       depthWrite: false,
       color: "#eef6f8",
       polygonOffset: true,
       polygonOffsetFactor: -2,
-    });
+    }));
     m.onBeforeCompile = (sh) => {
       sh.vertexShader = sh.vertexShader
         .replace("#include <common>", "#include <common>\nattribute float aFade;\nvarying float vFade;")
@@ -383,13 +386,15 @@ function Splashes({ uTime }: { uTime: { value: number } }) {
   }, [ripples, tex]);
   const foam = useMemo(
     () =>
-      new THREE.MeshBasicMaterial({
-        map: tex,
-        transparent: true,
-        depthWrite: false,
-        opacity: 0.85,
-        color: "#f4f8f8",
-      }),
+      tintByDaylight(
+        new THREE.MeshBasicMaterial({
+          map: tex,
+          transparent: true,
+          depthWrite: false,
+          opacity: 0.85,
+          color: "#f4f8f8",
+        }),
+      ),
     [tex],
   );
   const _mx = useMemo(() => new THREE.Matrix4(), []);

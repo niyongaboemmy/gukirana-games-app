@@ -3,6 +3,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
+import { tintByDaylight } from "./time-of-day/hooks";
 import { sessionMemo } from "./session-cache";
 import { useDeferredReady } from "./deferred";
 import { BitmapTextureLoader } from "./bitmap-texture";
@@ -79,7 +80,8 @@ export function addWind(mat: THREE.Material, sway: number) {
 
 /** Camera-facing (cylindrical) impostor quad that picks one of N baked views by viewing angle. */
 function impostorMaterial(tex: THREE.Texture, frames: number): THREE.MeshBasicMaterial {
-  const m = new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.45, side: THREE.DoubleSide, fog: true });
+  // (unlit: the baked daylight follows the time of day, P2-WLD-19)
+  const m = tintByDaylight(new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.45, side: THREE.DoubleSide, fog: true }));
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uFrames = { value: frames };
     shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nuniform float uFrames;").replace(

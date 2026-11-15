@@ -20,6 +20,7 @@ import {
   woodTexture,
 } from "./textures";
 import { roofMembraneTexture } from "./roofs";
+import { emissiveByTime } from "./time-of-day/hooks";
 import { glazingMaterial } from "./glazing";
 import { GLAZED } from "./glass-capture";
 import { BENCHES, FOUNTAIN_COURT, FOUNTAIN_RADIUS, PAVING_R, PLAZA_RADIUS, PORTALS, ringPoint, SPAWN } from "./layout";
@@ -115,8 +116,9 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     basinFloor: std({ map: concreteTexture(), color: "#6d6a64", roughness: 0.9 }),
     brass: std({ color: "#9a7a45", metalness: 1, roughness: 0.45 }),
     aluBrushed: std({ map: brushedAluTexture(), color: "#d4d8de", metalness: 0.85, roughness: 0.42 }),
-    // lamp heads: a faint warm glow on the diffuser by day (no bloom)
-    lampHead: std({ color: "#f4f0e6", emissive: new THREE.Color("#ffe2b8"), emissiveIntensity: 0.15, roughness: 0.4 }),
+    // lamp heads: a faint warm glow on the diffuser by day (no bloom), lit at night (P2-WLD-19: the emissive intensity
+    // is the time-of-day uniform uGkLamp, 0.15 by day → ~3.8 after dusk: blooms)
+    lampHead: emissiveByTime(std({ color: "#f4f0e6", emissive: new THREE.Color("#ffe2b8"), emissiveIntensity: 1, roughness: 0.4 }), "uGkLamp", "gk-tod-lamp"),
     // soft contact / ambient-occlusion decals under furniture (the only grounding on Lite)
     ao: new THREE.MeshBasicMaterial({ map: blobTexture(), color: "#000000", transparent: true, opacity: tier === "lite" ? 0.5 : 0.32, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
     concrete: std({ map: concreteTexture(), roughness: 0.85, color: "#e9e4da" }),
@@ -130,8 +132,9 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     woodDark: std({ map: woodTexture(), roughness: 0.55, color: "#7a5236" }),
     brick: std({ map: brickTexture(), roughness: 0.88 }),
     // dark neutral glazing reflecting the sky (no baked sunset), sparse warm interior panes
-    glass: std(glassP(glassTex)),
-    glassCool: std(glassP(glassTexCool)),
+    // (P2-WLD-19: the lit interior panes glow ~4× after dusk: time-of-day uniform uGkWin)
+    glass: emissiveByTime(std(glassP(glassTex)), "uGkWin", "gk-tod-win"),
+    glassCool: emissiveByTime(std(glassP(glassTexCool)), "uGkWin", "gk-tod-win"),
     // see-through shopfront glass (café): the interior behind it is modelled
     glassClear: std({ color: "#3a4a52", metalness: 0, roughness: 0.04, envMapIntensity: 1.0, transparent: true, opacity: 0.32, depthWrite: false }),
     alu: std({ color: "#d8dce2", metalness: 1, roughness: 0.32 }),

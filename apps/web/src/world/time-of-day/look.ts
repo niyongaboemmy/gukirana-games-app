@@ -125,14 +125,14 @@ interface Key {
  * entries follow photographs of the Virunga foothills (short equatorial twilight: deep blue within ~25 min).
  */
 const KEYS: Key[] = [
-  { h: -90, zenith: "#04070f", horizon: "#0d1422", glow: "#0d1422", glowK: 0, fog: "#111926", fogK: 0.85, hemiSky: "#5b6f97", hemiGround: "#171c1a", hemiI: 0.95, envI: 0.55, cloud: "#1d2431", cloudA: 0.42, unlit: "#323c54" },
-  { h: -18, zenith: "#04070f", horizon: "#0d1422", glow: "#0d1422", glowK: 0, fog: "#111926", fogK: 0.85, hemiSky: "#5b6f97", hemiGround: "#171c1a", hemiI: 0.95, envI: 0.55, cloud: "#1d2431", cloudA: 0.42, unlit: "#323c54" },
-  { h: -12, zenith: "#081126", horizon: "#1a2640", glow: "#27304c", glowK: 0.25, fog: "#1b2537", fogK: 0.88, hemiSky: "#62779e", hemiGround: "#1a1f1c", hemiI: 0.95, envI: 0.55, cloud: "#272e40", cloudA: 0.45, unlit: "#3b4660" },
-  { h: -8, zenith: "#112147", horizon: "#394c72", glow: "#7d6378", glowK: 0.55, fog: "#323f5a", fogK: 0.92, hemiSky: "#7488b2", hemiGround: "#21261f", hemiI: 0.92, envI: 0.55, cloud: "#46475e", cloudA: 0.5, unlit: "#525e7c" },
-  { h: -4, zenith: "#1f3b76", horizon: "#76819f", glow: "#d98c68", glowK: 0.95, fog: "#66718d", fogK: 0.95, hemiSky: "#8d9fc6", hemiGround: "#2b3125", hemiI: 0.85, envI: 0.55, cloud: "#8a7a88", cloudA: 0.55, unlit: "#7a839a" },
-  { h: -1, zenith: "#2f5c9e", horizon: "#b2a5a6", glow: "#ff965a", glowK: 1.25, fog: "#a09ca4", fogK: 1.0, hemiSky: "#a5b5d4", hemiGround: "#363c2c", hemiI: 0.68, envI: 0.55, cloud: "#d9a28d", cloudA: 0.6, unlit: "#a3a4b1" },
-  { h: 2, zenith: "#4677ba", horizon: "#dcbfa3", glow: "#ffad6e", glowK: 1.05, fog: "#cabdb1", fogK: 1.0, hemiSky: "#b6c7de", hemiGround: "#3e4530", hemiI: 0.55, envI: 0.55, cloud: "#f2c6a3", cloudA: 0.62, unlit: "#c9c2bb" },
-  { h: 6, zenith: "#5386c6", horizon: "#e2d6c6", glow: "#ffcd98", glowK: 0.7, fog: "#cdcfcb", fogK: 1.0, hemiSky: "#c2d6ea", hemiGround: "#465034", hemiI: 0.48, envI: 0.55, cloud: "#f6dfc6", cloudA: 0.62, unlit: "#e6e0d8" },
+  { h: -90, zenith: "#04070f", horizon: "#0d1422", glow: "#0d1422", glowK: 0, fog: "#111926", fogK: 0.85, hemiSky: "#6a7ea8", hemiGround: "#1d2220", hemiI: 1.9, envI: 0.55, cloud: "#121620", cloudA: 0.34, unlit: "#38425c" },
+  { h: -18, zenith: "#04070f", horizon: "#0d1422", glow: "#0d1422", glowK: 0, fog: "#111926", fogK: 0.85, hemiSky: "#6a7ea8", hemiGround: "#1d2220", hemiI: 1.9, envI: 0.55, cloud: "#121620", cloudA: 0.34, unlit: "#38425c" },
+  { h: -12, zenith: "#081126", horizon: "#1a2640", glow: "#27304c", glowK: 0.25, fog: "#1b2537", fogK: 0.88, hemiSky: "#6f84ad", hemiGround: "#1f2420", hemiI: 1.8, envI: 0.55, cloud: "#1c2130", cloudA: 0.4, unlit: "#414c68" },
+  { h: -8, zenith: "#112147", horizon: "#394c72", glow: "#7d6378", glowK: 0.55, fog: "#323f5a", fogK: 0.92, hemiSky: "#7a8eb8", hemiGround: "#252a22", hemiI: 1.45, envI: 0.55, cloud: "#3e4058", cloudA: 0.48, unlit: "#5a6684" },
+  { h: -4, zenith: "#1f3b76", horizon: "#76819f", glow: "#d98c68", glowK: 0.95, fog: "#66718d", fogK: 0.95, hemiSky: "#95a5c8", hemiGround: "#2f3427", hemiI: 1.1, envI: 0.55, cloud: "#8a7a88", cloudA: 0.55, unlit: "#7f88a0" },
+  { h: -1, zenith: "#2f5c9e", horizon: "#b2a5a6", glow: "#ff965a", glowK: 1.25, fog: "#a09ca4", fogK: 1.0, hemiSky: "#b4b6cc", hemiGround: "#3c3e2e", hemiI: 0.78, envI: 0.55, cloud: "#d9a28d", cloudA: 0.6, unlit: "#aaa6b0" },
+  { h: 2, zenith: "#4677ba", horizon: "#dcbfa3", glow: "#ffad6e", glowK: 1.05, fog: "#cabdb1", fogK: 1.0, hemiSky: "#cfc6c4", hemiGround: "#4a4630", hemiI: 0.6, envI: 0.55, cloud: "#f2c6a3", cloudA: 0.62, unlit: "#d6c6b6" },
+  { h: 6, zenith: "#5386c6", horizon: "#e2d6c6", glow: "#ffcd98", glowK: 0.7, fog: "#cdcfcb", fogK: 1.0, hemiSky: "#d2d4d8", hemiGround: "#4e5034", hemiI: 0.5, envI: 0.55, cloud: "#f6dfc6", cloudA: 0.62, unlit: "#eee4d8" },
   { h: 12, zenith: "#578dcd", horizon: "#c9d6df", glow: "#ffeedb", glowK: 0.45, fog: "#c4d2dc", fogK: 1.0, hemiSky: "#c9def0", hemiGround: "#4a5236", hemiI: 0.45, envI: 0.55, cloud: "#f4f6f8", cloudA: 0.62, unlit: "#ffffff" },
   { h: 17, zenith: "#578dcd", horizon: "#c6d4de", glow: "#fff2e2", glowK: 0.4, fog: "#c4d2dc", fogK: 1.0, hemiSky: "#c9def0", hemiGround: "#4a5236", hemiI: 0.45, envI: 0.55, cloud: "#f4f6f8", cloudA: 0.62, unlit: "#ffffff" },
   { h: 40, zenith: "#4f88cf", horizon: "#c2d3e2", glow: "#fff6ec", glowK: 0.3, fog: "#c5d3de", fogK: 0.95, hemiSky: "#c9def0", hemiGround: "#4c5538", hemiI: 0.48, envI: 0.55, cloud: "#f6f8fa", cloudA: 0.62, unlit: "#ffffff" },
@@ -237,7 +237,8 @@ export function computeLook(sunEl: number, rising: boolean, moon: MoonIn): Look 
   // sun: physical colour and pre-exposed intensity (the reference morning = 2.6, noon capped so it never blows out)
   const sunCol = sunColour(sunEl);
   const tl = lum(transmittance(sunEl)) / REF_LUM;
-  const sunI = Math.min(2.75, 2.6 * Math.pow(Math.max(tl, 0), 0.6)) * smoothstep(-1, 4, sunEl);
+  // (an adapting eye: a low sun looks dimmer, but far less than the air mass says — compressed by ^0.4 below 17°)
+  const sunI = Math.min(2.75, 2.6 * Math.pow(Math.max(tl, 0), tl < 1 ? 0.4 : 0.6)) * smoothstep(-1, 4, sunEl);
   // the disc: bright white high up (blooms), dimmer and orange at the horizon, gone below it (terrain hides it)
   const sunDiscI = (6 + 18 * smoothstep(0, 30, sunEl)) * smoothstep(-1.2, 0.3, sunEl);
 
