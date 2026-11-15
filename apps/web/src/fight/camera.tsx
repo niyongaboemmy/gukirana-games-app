@@ -159,8 +159,10 @@ function shot(ring: RingPlace, snap: BoxingSnapshot | null, me: 0 | 1, side: num
     const dx = r.x + sd * half * ax;
     const dz = r.z + sd * half * az;
     const d = r.half + 0.9;
-    eye.set(r.x + px * d + sd * ax * 0.4, cy + 1.95, r.z + pz * d + sd * az * 0.4);
-    look.set(dx, cy + 0.55, dz);
+    // P3-FGT-14: a lower, wider angle than the old top-down one, so the referee counting over the fighter (his hands, the
+    // fingers of the count) is in the shot with the fighter on the knee
+    eye.set(r.x + px * d + sd * ax * 0.4, cy + 1.6, r.z + pz * d + sd * az * 0.4);
+    look.set(dx - sd * ax * 0.35, cy + 0.85, dz - sd * az * 0.35);
     return;
   }
   if (phase === "over" && snap) {

@@ -11,6 +11,7 @@ import { RingSigns } from "./ring-signs";
 import { Banners, Benches, FloorMarks, LightPools } from "./hall-dressing";
 import { FEATURE_RING } from "./plan";
 import { STOOL_PLACE_S } from "@/rooms/fight/ring-kit-core";
+import { useDelayed } from "./use-delayed";
 import { HallGlimpse } from "./hall-glimpse";
 import { BIG_SCREEN, BOXING_DOOR, BOXING_SIZE, FEATURE_STAGE, RINGS, ringSteps } from "./plan";
 import { useRingKitRings } from "./rings";
@@ -420,14 +421,4 @@ function BigScreen() {
       <mesh geometry={geos.faces} material={mats.face} />
     </group>
   );
-}
-
-/** `value`, `ms` later (a change shows after the delay; P3-FGT-14: the stool lands when the second has carried it in) */
-function useDelayed<T>(value: T, ms: number): T {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setV(value), ms);
-    return () => clearTimeout(id);
-  }, [value, ms]);
-  return v;
 }
