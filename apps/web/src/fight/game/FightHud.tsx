@@ -160,11 +160,11 @@ function Callouts({ snap, me, now }: { snap: BoxingSnapshot; me: 0 | 1; now: num
   const breakLeft = (snap as { breakLeft?: number }).breakLeft ?? 0;
   if (breakLeft > 0) pops.push({ id: -2, text: ft("hud.waitBreak"), good: false });
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-[28%] flex flex-col items-center gap-2 phone:top-[30%]">
+    <div className="pointer-events-none absolute inset-x-0 top-[28%] flex flex-col items-center gap-2 phone:top-[21%]">
       {snap.phase === "knockdown" && snap.count !== undefined && (
-        <div className={`${glass} flex flex-col items-center px-8 py-3`} role="status" aria-live="assertive">
+        <div className={`${glass} flex flex-col items-center px-8 py-3 phone:px-4 phone:py-1`} role="status" aria-live="assertive">
           <span className="text-xs font-bold uppercase tracking-widest text-on-glass-muted">{ft("hud.knockdown")}</span>
-          <span className="font-display text-6xl font-black tabular-nums phone:text-5xl">{snap.count}</span>
+          <span className="font-display text-6xl font-black tabular-nums phone:text-3xl">{snap.count}</span>
         </div>
       )}
       {snap.phase !== "knockdown" && card && (
