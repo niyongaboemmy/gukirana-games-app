@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { Dices, History, Plus, Save, Undo2, X } from "lucide-react";
-import { DEFAULT_FIGHT_RULES, FIGHT_RULE_BOUNDS, GAME_SETTING_BOUNDS, GameSettingsSchema, isFightGame, type FightRules, type GameSettings, type GameSettingsRow } from "@gukirana/contracts";
+import { DEFAULT_FIGHT_RULES, DRAW_TIEBREAKS, FIGHT_RULE_BOUNDS, FIGHT_SCORING_BOUNDS, GAME_SETTING_BOUNDS, GameSettingsSchema, isFightGame, scoringRulesOf, type DrawTiebreak, type FightRules, type GameSettings, type GameSettingsRow } from "@gukirana/contracts";
 import { consoleApi, errText } from "./console-api";
 import { ReasonField, reasonError } from "./user-drawer";
 import { G } from "./strings";
@@ -11,7 +11,10 @@ type NumKey = "friendlyPerDay" | "turnSeconds" | "reconnectSeconds" | "joinSecon
 const NUMBERS: NumKey[] = ["friendlyPerDay", "turnSeconds", "reconnectSeconds", "joinSeconds", "maxTimeouts", "maxMatchMinutes"];
 /** fight games (boxing, P3-FGT-01): the round block; `turnSeconds` is unused there */
 type FightKey = keyof FightRules;
-const FIGHT_NUMBERS: FightKey[] = ["rounds", "roundSeconds", "restSeconds", "idleSeconds"];
+const FIGHT_NUMBERS: (keyof typeof FIGHT_RULE_BOUNDS)[] = ["rounds", "roundSeconds", "restSeconds", "idleSeconds"];
+/** scoring + referee (P3-FGT-06, docs/BOXING-SCORING.md): judges 3 / 5, the warning ladder, open scoring, the countback */
+const SCORING_NUMBERS = ["cautions", "warningsToDq"] as const;
+const BOUNDS_OF: Partial<Record<FightKey, { min: number; max: number }>> = { ...FIGHT_RULE_BOUNDS, ...FIGHT_SCORING_BOUNDS };
 
 const whoText = (by: string) => (by.startsWith("admin-token:") ? G.backOffice : by === "system" ? G.system : /^[0-9a-f-]{36}$/i.test(by) ? G.staff : by);
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -24,8 +27,9 @@ export function settingsProblems(s: GameSettings): string[] {
     const field = String(i.path[0] ?? "");
     if (field === "fight") {
       const fk = String(i.path[1] ?? "") as FightKey;
-      const fb = FIGHT_RULE_BOUNDS[fk];
-      return fb ? G.between(G.fightFields[fk] ?? fk, fb.min, fb.max) : `${G.fightTitle}: ${i.message}`;
+      if (fk === "judges") return G.judgesOdd;
+      const fb = BOUNDS_OF[fk];
+      return fb ? G.between(G.fightFields[fk] ?? fk, fb.min, fb.max) : `${G.fightTitle}: ${G.fightFields[fk] ?? fk}`;
     }
     const label = G.fields[field] ?? field;
     const b = GAME_SETTING_BOUNDS[(field === "stakes" ? "stake" : field) as keyof typeof GAME_SETTING_BOUNDS];
@@ -49,6 +53,8 @@ function GameCard({ row, canEdit, toast, onSaved }: { row: GameSettingsRow; canE
   const setNum = (k: NumKey, v: string) => setDraft((d) => ({ ...d, [k]: v === "" ? Number.NaN : Number(v) }));
   const fightGame = isFightGame(row.game);
   const setFight = (k: FightKey, v: string) => setDraft((d) => ({ ...d, fight: { ...(d.fight ?? DEFAULT_FIGHT_RULES), [k]: v === "" ? Number.NaN : Number(v) } }));
+  const setFightValue = (patch: Partial<FightRules>) => setDraft((d) => ({ ...d, fight: { ...(d.fight ?? DEFAULT_FIGHT_RULES), ...patch } }));
+  const scoring = scoringRulesOf(draft.fight ?? DEFAULT_FIGHT_RULES);
   const toggleStake = (s: number) => setDraft((d) => ({ ...d, stakes: d.stakes.includes(s) ? d.stakes.filter((x) => x !== s) : [...d.stakes, s].sort((a, b) => a - b) }));
   const addCustom = () => {
     const n = Number(custom);
@@ -134,6 +140,57 @@ function GameCard({ row, canEdit, toast, onSaved }: { row: GameSettingsRow; canE
             })}
           </div>
           <p className="gkc-row-sub">{G.fightHelp}</p>
+          <span className="gkc-row-sub mt-2 font-bold">{G.scoringTitle}</span>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-1">
+              <label htmlFor={`${row.game}-fight-judges`} className="gkc-row-sub">
+                {G.fightFields.judges}
+              </label>
+              <div className="gkc-input">
+                <select id={`${row.game}-fight-judges`} disabled={!canEdit} value={scoring.judges} onChange={(e) => setFightValue({ judges: Number(e.target.value) })}>
+                  {[3, 5].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {SCORING_NUMBERS.map((k) => {
+              const b = FIGHT_SCORING_BOUNDS[k];
+              const id = `${row.game}-fight-${k}`;
+              const v = scoring[k];
+              return (
+                <div key={k} className="grid gap-1">
+                  <label htmlFor={id} className="gkc-row-sub">
+                    {G.fightFields[k]} <span className="gkc-muted">({b.min}–{b.max})</span>
+                  </label>
+                  <div className="gkc-input">
+                    <input id={id} type="number" inputMode="numeric" min={b.min} max={b.max} step={1} disabled={!canEdit} value={Number.isNaN(v) ? "" : v} onChange={(e) => setFight(k, e.target.value)} />
+                  </div>
+                </div>
+              );
+            })}
+            <div className="grid gap-1">
+              <label htmlFor={`${row.game}-fight-tiebreak`} className="gkc-row-sub">
+                {G.fightFields.drawTiebreak}
+              </label>
+              <div className="gkc-input">
+                <select id={`${row.game}-fight-tiebreak`} disabled={!canEdit} value={scoring.drawTiebreak} onChange={(e) => setFightValue({ drawTiebreak: e.target.value as DrawTiebreak })}>
+                  {DRAW_TIEBREAKS.map((t) => (
+                    <option key={t} value={t}>
+                      {G.tiebreaks[t]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+          <label className="gkc-row-sub flex items-center gap-2">
+            <input type="checkbox" disabled={!canEdit} checked={scoring.openScoring} onChange={(e) => setFightValue({ openScoring: e.target.checked })} />
+            {G.fightFields.openScoring}
+          </label>
+          <p className="gkc-row-sub">{G.scoringHelp}</p>
         </div>
       )}
 
