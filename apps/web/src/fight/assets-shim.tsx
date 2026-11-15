@@ -128,7 +128,9 @@ export function FighterAvatar({ look, corner, poseRef, lite = false, climbRef }:
   const kit = useMemo(() => boxingKitOverride(look, corner, { headgear: true }), [look, corner]);
   const weight = useMemo(() => ({ current: 1 }), []);
   const layer = useMemo(() => boxingLayer({ motion, kit, weight }), [motion, kit, weight]);
-  const swap = useMemo(() => new KitSwap(), []);
+  // fade IN only (P3-FGT-04): the default swap first fades the figure OUT, which on a fresh mount (you step into the
+  // ring, a spectated pair replaces its impostors) read as a blink — visible, gone, back. Dithered in over 0.35 s.
+  const swap = useMemo(() => new KitSwap(0, 0.35), []);
   const fade = useRef(0);
   const anim = useRef(0);
   const last = useRef({ key: "", react: "" });

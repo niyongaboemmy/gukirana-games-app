@@ -16,6 +16,8 @@ import { ringCounts } from "./rings";
 import { F } from "./strings";
 import { FIGHT_ON } from "./flags";
 import { startFightMock } from "./mock";
+import { LobbyVenue } from "./lobby-venue";
+import { GymLife } from "./gym-life";
 
 const FONT = "/fonts/Baloo2.ttf";
 
@@ -42,6 +44,8 @@ export function LobbyScene({ layout, lite }: { layout: HallLayout; lite: boolean
       <StatusBoard />
       <group userData={{ noMerge: true }}>
         <PassageDoor />
+        <LobbyVenue />
+        <GymLife room="fight" lite={lite} />
         <LiveCount />
         <SubhallSensor />
       </group>
@@ -271,18 +275,43 @@ function Portals() {
   );
 }
 
-/** the Boxing portal's live count ("12 fights on now"), from the ring registry */
+/**
+ * The Boxing portal's live count, from the ring registry, on a small glass plaque beside the doorway at eye level
+ * (P3-FGT-04). It used to float over the portal header at 4.3 m, which in the default walk-up framing sat at the very
+ * top of the screen, half hidden behind the HUD cards ("…nts on now" peeking out beside the profile card).
+ */
+const PLAQUE = { x: SUBHALL_DOOR_X.boxing + SUBHALL_DOOR_W / 2 + 1.15, y: 1.75, w: 1.5, h: 0.7 };
 function LiveCount() {
-  const text = useFightBridge((s) => {
+  const counts = useFightBridge((s) => {
     const n = ringCounts(s.rings);
-    return `${F.open.toUpperCase()} · ${F.fightsOn(n.fights)}`;
+    return `${n.fights}:${n.free}`;
   });
+  const [fights, free] = counts.split(":").map(Number) as [number, number];
   if (!FIGHT_ON) return null;
+  const z = LOBBY_BACK_Z + 0.03;
   return (
-    <Text font={FONT} fontSize={0.2} color="#ffffff" position={[SUBHALL_DOOR_X.boxing, 4.32, LOBBY_BACK_Z + 0.1]} anchorX="center" anchorY="middle">
-      {text}
-      <meshBasicMaterial color="#ffffff" toneMapped={false} />
-    </Text>
+    <group position={[PLAQUE.x, PLAQUE.y, z]}>
+      <mesh>
+        <boxGeometry args={[PLAQUE.w, PLAQUE.h, 0.04]} />
+        <meshStandardMaterial color="#121214" roughness={0.45} metalness={0.3} />
+      </mesh>
+      <mesh position={[-PLAQUE.w / 2 + 0.16, PLAQUE.h / 2 - 0.16, 0.022]}>
+        <circleGeometry args={[0.045, 20]} />
+        <meshBasicMaterial color={STATUS_LAMP.free} toneMapped={false} />
+      </mesh>
+      <Text font={FONT} fontSize={0.12} letterSpacing={0.12} color="#ffffff" position={[-PLAQUE.w / 2 + 0.26, PLAQUE.h / 2 - 0.16, 0.024]} anchorX="left" anchorY="middle">
+        {F.open.toUpperCase()}
+        <meshBasicMaterial color="#d8d4cc" toneMapped={false} />
+      </Text>
+      <Text font={FONT} fontSize={0.17} color="#ffffff" position={[-PLAQUE.w / 2 + 0.12, -0.02, 0.024]} anchorX="left" anchorY="middle" maxWidth={PLAQUE.w - 0.24}>
+        {F.fightsOn(fights)}
+        <meshBasicMaterial color="#ffffff" toneMapped={false} />
+      </Text>
+      <Text font={FONT} fontSize={0.13} color="#ffffff" position={[-PLAQUE.w / 2 + 0.12, -PLAQUE.h / 2 + 0.14, 0.024]} anchorX="left" anchorY="middle" maxWidth={PLAQUE.w - 0.24}>
+        {F.ringsFree(free)}
+        <meshBasicMaterial color="#bfe6cc" toneMapped={false} />
+      </Text>
+    </group>
   );
 }
 
@@ -368,7 +397,8 @@ function StatusBoard() {
         <boxGeometry args={[b.w + 0.2, b.h + 0.2, 0.06]} />
         <meshStandardMaterial color="#0c0c0e" roughness={0.5} metalness={0.5} />
       </mesh>
-      <mesh material={mat}>
+      {/* 8 mm proud of the frame: the face used to be coplanar with the frame front and z-fought in black blocks */}
+      <mesh material={mat} position={[0, 0, 0.008]}>
         <planeGeometry args={[b.w, b.h]} />
       </mesh>
     </group>

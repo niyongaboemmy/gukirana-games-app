@@ -8,6 +8,7 @@ import { useFightBridge } from "./bridge";
 import { focusNow, focusTarget, FOCUS_IDLE, publishFocus, stepFocus, useFightFocus, type FocusState } from "./focus";
 import { RING_BY_ID } from "./plan";
 import { useFightUi } from "./ui-store";
+import { useGymScene } from "./gym-life";
 
 /**
  * Focus-mode driver (P3-FGT-05, fight/focus.ts): mounted once inside the Boxing hall scene.
@@ -74,6 +75,8 @@ export function FocusMode() {
 
     // culling follows `hidden` (true only while fully dark)
     if (was.hidden && !next.hidden) uncull();
+    // the gym (training zone, staff, its ambient sound) follows: hidden only while fully dark (the fog does the fade)
+    if (useGymScene.getState().hidden !== next.hidden) useGymScene.setState({ hidden: next.hidden });
     if (next.hidden && ring && anchor.current?.parent) {
       cullAcc.current -= dt;
       if (cullAcc.current <= 0) {

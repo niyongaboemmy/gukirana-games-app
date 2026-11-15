@@ -4,15 +4,17 @@ import { FEATURE_RINGS, RING_IDS, type RingId } from "@gukirana/contracts";
  * Where the 50 rings stand in the Boxing hall (hall coordinates, metres), for the server's reach check (FIGHT-GAMES-PLAN
  * §7.1 `TOO_FAR`). The numbers mirror the web floor plan (apps/web/src/fight/plan.ts `RINGS`: 93 × 30 m hall, ring
  * pitch 6.2 × 6.4 m, R1 / R2 on the feature stage, R3–R50 row by row from the west). If the web plan moves a ring,
- * move it here too; a few metres of slack are in RING_REACH_M.
+ * move it here too; a few metres of slack are in RING_REACH_M. (P3-FGT-04: the web turned the standard rings a quarter
+ * so their steps open into the row aisles — the centres did not move; the feature ring values are re-synced to the
+ * web's R1 / R2 at z 4.6 / −5.4 with a 6.9 m platform.)
  */
 const HALL_W = 93;
 const MARGIN = 1.0;
 const PLATFORM = 4.9;
-const FEATURE_PLATFORM = 6.7;
+const FEATURE_PLATFORM = 6.9;
 const PITCH_X = 6.2;
 const ROW_Z = [9.5, 3.1, -3.3, -9.7];
-const FEATURE_Z: Record<(typeof FEATURE_RINGS)[number], number> = { R1: 4.4, R2: -6.2 };
+const FEATURE_Z: Record<(typeof FEATURE_RINGS)[number], number> = { R1: 4.6, R2: -5.4 };
 
 export interface RingSpot {
   x: number;

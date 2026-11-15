@@ -2,6 +2,7 @@
 import { ADMIN_COLLIDERS, ADMIN_COLOR, ADMIN_SEATS, ADMIN_SIZE, ADMIN_WALLS } from "@/admin-block/plan";
 import { ARENA_COLLIDERS, ARENA_COLOR, ARENA_SIZE, BOWL_SEATS } from "@/arena/bowl";
 import { BOXING_AISLES, BOXING_COLLIDERS, BOXING_DOOR, BOXING_SIZE, LOBBY_BENCHES, LOBBY_SIZE, LOBBY_WALLS } from "@/fight/plan";
+import { GYM_COLLIDERS, LOBBY_VENUE_COLLIDERS } from "@/fight/gym-plan";
 
 export type HallGame = "pool" | "ludo" | "igisoro" | "admin" | "arena" | "fight" | "boxing";
 
@@ -292,7 +293,7 @@ export const HALLS: Record<HallGame, HallLayout> = {
     spawn: { x: 0, z: LOBBY_SIZE.d / 2 - 2.4 },
     tables: [],
     seats: [],
-    colliders: LOBBY_BENCHES.map((b) => ({ ...b })),
+    colliders: [...LOBBY_BENCHES.map((b) => ({ ...b })), ...LOBBY_VENUE_COLLIDERS],
     aisles: [0],
     walls: LOBBY_WALLS,
   },
@@ -307,7 +308,7 @@ export const HALLS: Record<HallGame, HallLayout> = {
     spawn: { x: BOXING_DOOR.x, z: BOXING_SIZE.d / 2 - 2.4 },
     tables: [],
     seats: [],
-    colliders: BOXING_COLLIDERS,
+    colliders: [...BOXING_COLLIDERS, ...GYM_COLLIDERS],
     aisles: BOXING_AISLES,
   },
 };

@@ -51,6 +51,8 @@ const _sphere = new THREE.Sphere();
 const _frustum = new THREE.Frustum();
 const _pv = new THREE.Matrix4();
 const UP = new THREE.Vector3(0, 1, 0);
+/** the corner stools are drawn this far past the near-kit distance (m) */
+const STOOL_EXTRA = 10;
 /** a small hash of a lamp colour override (part of the buffer signature) */
 const lampKey = (s?: string) => {
   let h = 0;
@@ -236,7 +238,7 @@ export function RingKit({ rings, featureRing = null, tier = "standard", shadows 
     [res],
   );
 
-  const state = useRef({ lods: [] as RingLod[], prev: null as RingLod[] | null, sig: NaN });
+  const state = useRef({ lods: [] as RingLod[], prev: null as RingLod[] | null, sig: NaN, stools: [] as boolean[] });
   const feature = rings.find((r) => r.id === featureRing) ?? null;
 
   useFrame(({ camera }) => {
@@ -255,11 +257,20 @@ export function RingKit({ rings, featureRing = null, tier = "standard", shadows 
       st.lods,
     );
     st.prev = lods.slice();
+    // the stools (P3-FGT-04) reach further than the near kit — STOOL_EXTRA m past it, with the same hysteresis — so
+    // they do not pop in and out together with the near / far switch (a near ring has its stools, always)
+    const stoolR = lodOpts.near + STOOL_EXTRA;
+    for (let i = 0; i < rings.length; i++) {
+      const r = rings[i]!;
+      const d = Math.hypot(r.x - cam.x, r.z - cam.z);
+      st.stools[i] = lods[i] === "near" || (lods[i] === "far" && d < stoolR + (st.stools[i] ? lodOpts.hysteresis : 0));
+    }
+    st.stools.length = rings.length;
     // rewrite the buffers only when something changed (levels, status, rest, transforms)
     let sig = rings.length;
     for (let i = 0; i < rings.length; i++) {
       const r = rings[i]!;
-      const v = (lods[i] === "near" ? 1 : lods[i] === "far" ? 2 : 3) + 4 * (r.status.charCodeAt(0) + (r.rest ? 512 : 0) + lampKey(r.lamp)) + Math.round(r.x * 100) * 7919 + Math.round(r.z * 100) * 104729 + Math.round(r.rotY * 1000) * 15485863;
+      const v = (lods[i] === "near" ? 1 : lods[i] === "far" ? 2 : 3) + (st.stools[i] ? 8191 : 0) + 4 * (r.status.charCodeAt(0) + (r.rest ? 512 : 0) + lampKey(r.lamp)) + Math.round(r.x * 100) * 7919 + Math.round(r.z * 100) * 104729 + Math.round(r.rotY * 1000) * 15485863;
       sig = (Math.imul(sig ^ v, 2654435761) + i) | 0;
     }
     if (sig === st.sig) return;
@@ -286,7 +297,7 @@ export function RingKit({ rings, featureRing = null, tier = "standard", shadows 
       // atlas rows run top → bottom in the canvas, uv v runs bottom → top
       cell.setXY(nv, (num % ATLAS) / ATLAS, 1 - (Math.floor(num / ATLAS) + 1) / ATLAS);
       nv++;
-      if (lod === "near") {
+      if (state.current.stools[i]) {
         for (const c of ["red", "blue"] as const) {
           const s = r.rest ? stoolSpot(r, c) : stoolParked(r, c);
           _q.setFromAxisAngle(UP, s.yaw);

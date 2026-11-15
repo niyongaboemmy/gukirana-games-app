@@ -14,6 +14,15 @@ const line = (key: FgKey, who: "referee" | "corner", vars?: Record<string, strin
   say(text, who);
 };
 let cornerTimer: ReturnType<typeof setTimeout> | null = null;
+/** minimum gap between two sounds of the same kind (ms): a flurry of blocks is one tap (P3-FGT-04 rule) */
+const GAP: Record<string, number> = { hit: 110, block: 160, whiff: 200, evade: 200, knockdown: 1500, bell: 1200, roundEnd: 1200 };
+const lastAt: Record<string, number> = {};
+const due = (k: string) => {
+  const now = typeof performance !== "undefined" ? performance.now() : 0;
+  if (now - (lastAt[k] ?? -1e9) < (GAP[k] ?? 0)) return false;
+  lastAt[k] = now;
+  return true;
+};
 
 /** the corner's advice between rounds: from the round's score and the fighter's state (no randomness) */
 export function cornerLine(snap: BoxingSnapshot | null | undefined, me: 0 | 1, round: [number, number]): FgKey {
@@ -29,6 +38,7 @@ export function cornerLine(snap: BoxingSnapshot | null | undefined, me: 0 | 1, r
 export function eventFx(e: FightEvent, me: 0 | 1, snap?: BoxingSnapshot | null): void {
   const mine = "by" in e ? e.by === me : "to" in e ? e.to === me : false;
   const k = e.k as string;
+  if (!due(k)) return;
   switch (e.k) {
     case "bell":
       bell(1);

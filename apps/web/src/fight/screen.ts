@@ -21,6 +21,18 @@ const clock = (ticks: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
 
+/** everything the screen face shows, as a string: the face is redrawn only when it changes (P3-FGT-04) */
+export function bigScreenKey(): string {
+  const f = screenFight();
+  if (!f) {
+    const n = ringCounts();
+    return `hall:${n.fights}:${n.free}`;
+  }
+  const { ring, snap } = f;
+  const pts = snap ? `${snap.fighters[0].points}:${snap.fighters[1].points}` : `${ring.score?.red ?? 0}:${ring.score?.blue ?? 0}`;
+  return [ring.id, ring.red?.name, ring.blue?.name, pts, snap?.round ?? ring.round, snap?.rounds ?? ring.rounds, snap ? clock(snap.left) : ""].join("|");
+}
+
 /** draw the screen face (512 × 288 canvas) */
 export function drawBigScreen(c: HTMLCanvasElement) {
   const g = c.getContext("2d")!;

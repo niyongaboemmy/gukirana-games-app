@@ -19,7 +19,7 @@ import { gameFightActions } from "./game/actions";
 import { useFightBridge } from "./bridge";
 import { ringSteps as kitSteps } from "@/rooms/fight/ring-kit-core";
 import { kitSpec } from "./climb";
-import { RING_BY_ID } from "./plan";
+import { RING_BY_ID, RINGS, ringSteps } from "./plan";
 
 /**
  * W's test bed until G's boxing client lands (P3-FGT-01 §9 speed plan): behind `?fightmock=1` it fills the bridge with
@@ -270,7 +270,7 @@ export function startFightMock() {
     }
     if (Object.keys(patch).length) useFightBridge.setState(patch);
   }, 100);
-  if (process.env.NODE_ENV !== "production") Object.assign(window as unknown as Record<string, unknown>, { __gkFight: { bridge: useFightBridge, actions: fightActions, log: fightLog, snapshot: mockSnapshot, place: qaPlace } });
+  if (process.env.NODE_ENV !== "production") Object.assign(window as unknown as Record<string, unknown>, { __gkFight: { bridge: useFightBridge, actions: fightActions, log: fightLog, snapshot: mockSnapshot, place: qaPlace, plan: { RINGS, ringSteps } } });
 }
 
 export function stopFightMock() {

@@ -9,9 +9,9 @@ import { HallRingKit } from "./assets-shim";
 import { RingSigns } from "./ring-signs";
 import { Banners, Benches, FloorMarks, LightPools } from "./hall-dressing";
 import { FEATURE_RING } from "./plan";
-import { BIG_SCREEN, BOXING_DOOR, BOXING_SIZE, FEATURE_STAGE, RINGS } from "./plan";
+import { BIG_SCREEN, BOXING_DOOR, BOXING_SIZE, FEATURE_STAGE, RINGS, ringSteps } from "./plan";
 import { useRingKitRings } from "./rings";
-import { drawBigScreen } from "./screen";
+import { bigScreenKey, drawBigScreen } from "./screen";
 import { useFightBridge } from "./bridge";
 import { FightersLayer } from "./fighters";
 import { FightCamera } from "./camera";
@@ -21,6 +21,8 @@ import { fightMockOn, startFightMock } from "./mock";
 import { useBoxingNetClient } from "./game/net/client";
 import { hiddenPeople } from "@/rooms/hall-hooks";
 import { fightActions } from "./actions";
+import { TrainingZone } from "./training-zone";
+import { GymLife, useGymScene } from "./gym-life";
 import { FocusMode, useFocusRings } from "./FocusMode";
 
 /**
@@ -39,7 +41,7 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
     startFightMock();
     // dev QA handle (like window.__gkNav); the mock replaces it with its own
     if (process.env.NODE_ENV !== "production" && !(window as unknown as { __gkFight?: unknown }).__gkFight)
-      Object.assign(window as unknown as Record<string, unknown>, { __gkFight: { bridge: useFightBridge, actions: fightActions, log: [], hidden: hiddenPeople } });
+      Object.assign(window as unknown as Record<string, unknown>, { __gkFight: { bridge: useFightBridge, actions: fightActions, log: [], hidden: hiddenPeople, plan: { RINGS, ringSteps } } });
   }, []);
   const rings = useRingKitRings();
   const restKey = useFightBridge((st) => (st.watched?.snap?.phase === "rest" ? st.watched.ring : "") + (st.mine?.snap?.phase === "rest" ? st.mine.ring : ""));
@@ -48,6 +50,7 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
     return [all.filter((r) => r.feature), all.filter((r) => !r.feature)];
   }, [rings, restKey]);
   const [mock] = useState(fightMockOn);
+  const gym = useGymScene();
   // focus mode (P3-FGT-05): once the hall is dark around my ring, the ring kit keeps only that ring
   const shownTraining = useFocusRings(training);
   const shownFeatures = useFocusRings(features);
@@ -55,6 +58,8 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
     <group>
       {!mock && <LiveNet />}
       <FocusMode />
+      <TrainingZone hidden={gym.hidden} dim={gym.dim} />
+      <GymLife room="boxing" lite={lite} hidden={gym.hidden} />
       <HallLights lite={lite} />
       <Shell layout={layout} lite={lite} />
       <FeatureStage />
@@ -83,25 +88,30 @@ function LiveNet() {
   return null;
 }
 
+/**
+ * The hall's light (P3-FGT-04: the same warm key as the brightened lobby, so both rooms read as one building). The two
+ * feature spots stay ON whatever area is on screen: they used to be switched with the area, which changes the scene's
+ * light count, so every material of the hall recompiled at the door crossing (a hitch as you walked in) — the area's
+ * own visibility already keeps them out of the other rooms. Their targets are placed in the world (a target outside
+ * the scene graph never updates its matrix and the spots aimed at the hall origin).
+ */
 function HallLights({ lite }: { lite: boolean }) {
-  const area = useArea();
-  const spots = useRef<(THREE.SpotLight | null)[]>([]);
-  useFrame(() => {
-    for (const s of spots.current) if (s) s.visible = isOnScreen(area);
-  });
   return (
     <group userData={{ noMerge: true }}>
-      <hemisphereLight args={["#fff1de", "#4a4038", lite ? 1.7 : 1.35]} />
-      <ambientLight color="#ffe9d0" intensity={lite ? 0.3 : 0.2} />
+      <hemisphereLight args={["#fbf1e4", "#57504a", lite ? 1.85 : 1.55]} />
+      <ambientLight color="#ffe9d0" intensity={lite ? 0.34 : 0.28} />
       {/* one soft directional for shape (no shadow map over 93 m: the platforms get baked-style blobs) */}
-      <directionalLight position={[14, 30, 10]} intensity={lite ? 0.9 : 1.0} color="#fff4e6" />
+      <directionalLight position={[14, 30, 10]} intensity={lite ? 0.95 : 1.1} color="#fff1df" />
       {!lite &&
-        RINGS.filter((r) => r.feature).map((r, i) => (
+        RINGS.filter((r) => r.feature).map((r) => (
           <spotLight
             key={r.id}
-            ref={(s) => void (spots.current[i] = s)}
+            ref={(s) => {
+              if (!s) return;
+              s.target.position.set(r.x, r.canvasY, r.z);
+              s.target.updateMatrixWorld();
+            }}
             position={[r.x, 9.6, r.z + 1.5]}
-            target-position={[r.x, r.canvasY, r.z]}
             angle={0.55}
             penumbra={0.9}
             decay={0}
@@ -127,14 +137,14 @@ function Shell({ layout, lite }: { layout: HallLayout; lite: boolean }) {
     slat.repeat.set(w / 3, 1);
     slat.needsUpdate = true;
     return {
-      floor: new THREE.MeshStandardMaterial({ map: floorMap, color: "#8a8780", roughness: 0.72, metalness: 0 }),
-      wall: new THREE.MeshStandardMaterial({ map: concreteTexture(), color: "#77736d", roughness: 0.9 }),
+      floor: new THREE.MeshStandardMaterial({ map: floorMap, color: "#8f8b84", roughness: 0.72, metalness: 0 }),
+      wall: new THREE.MeshStandardMaterial({ map: concreteTexture(), color: "#86807a", roughness: 0.9 }),
       slats: new THREE.MeshStandardMaterial({ map: slat, color: "#b07c50", roughness: 0.75 }),
       ceiling: new THREE.MeshStandardMaterial({ map: concreteTexture(), color: "#4a4744", emissive: "#3a3530", emissiveIntensity: 0.9, roughness: 0.95 }),
       strip: new THREE.MeshBasicMaterial({ color: new THREE.Color("#fff0dc").multiplyScalar(0.85), toneMapped: false }),
-      truss: new THREE.MeshStandardMaterial({ color: "#121214", roughness: 0.7, metalness: 0.4 }),
-      locker: new THREE.MeshStandardMaterial({ color: "#2c2d31", roughness: 0.6, metalness: 0.3 }),
-      sponsor: new THREE.MeshStandardMaterial({ color: "#1d1d20", roughness: 0.7 }),
+      truss: new THREE.MeshStandardMaterial({ color: "#232225", roughness: 0.7, metalness: 0.4 }),
+      locker: new THREE.MeshStandardMaterial({ color: "#4d4c50", roughness: 0.6, metalness: 0.3 }),
+      sponsor: new THREE.MeshStandardMaterial({ color: "#4a3426", roughness: 0.8 }),
       line: new THREE.MeshBasicMaterial({ color: new THREE.Color("#C8322A").multiplyScalar(1.4), toneMapped: false }),
     };
   }, [w, d]);
@@ -321,11 +331,16 @@ function BigScreen() {
   const mats = useMemo(() => ({ face: new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }), frame: new THREE.MeshStandardMaterial({ color: "#0c0c0e", roughness: 0.5, metalness: 0.5 }) }), [tex]);
   useEffect(() => () => (tex.dispose(), mats.face.dispose(), mats.frame.dispose()), [tex, mats]);
   const acc = useRef(1);
+  const shown = useRef("");
   useFrame((_, dt) => {
     if (!isOnScreen(area)) return;
     acc.current += dt;
     if (acc.current < 0.1) return;
     acc.current = 0;
+    // redraw (and re-upload) only when what it shows changed: names, points, round, the clock's second
+    const key = bigScreenKey();
+    if (key === shown.current) return;
+    shown.current = key;
     drawBigScreen(tex.image as HTMLCanvasElement);
     tex.needsUpdate = true;
   });
@@ -335,14 +350,13 @@ function BigScreen() {
       <mesh material={mats.frame}>
         <boxGeometry args={[w + 0.2, h + 0.2, w + 0.2]} />
       </mesh>
+      {/* the four faces, 2 cm proud of the frame (clear of its depth even from across the hall) */}
       {[0, 1, 2, 3].map((k) => (
-        <mesh key={k} material={mats.face} rotation-y={(k * Math.PI) / 2}>
-          <group position={[0, 0, w / 2 + 0.11]}>
-            <mesh material={mats.face}>
-              <planeGeometry args={[w, h]} />
-            </mesh>
-          </group>
-        </mesh>
+        <group key={k} rotation-y={(k * Math.PI) / 2}>
+          <mesh material={mats.face} position={[0, 0, w / 2 + 0.12]}>
+            <planeGeometry args={[w, h]} />
+          </mesh>
+        </group>
       ))}
       {/* hanging cables to the trusses */}
       {[-1, 1].map((s) => (

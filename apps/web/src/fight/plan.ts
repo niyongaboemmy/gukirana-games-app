@@ -69,6 +69,13 @@ export const RING = { platform: 4.9, canvasY: 0.8, inside: 4.3 };
  *  9.8 m spectator-rail square) on the raised 1.2 m stage */
 export const FEATURE_RING = { platform: 6.9, canvasY: 1.2 + 0.8, inside: 5.9, stage: 1.2, rail: 4.9 };
 export const RING_PITCH = { x: 6.2, z: 6.4 };
+/**
+ * Standard rings stand turned a quarter (P3-FGT-04): their corner steps (red on the south side, blue on the north side)
+ * open into the 1.5 m row aisles and the front cross aisle, never towards the side walls (at rotY 0 the outer columns'
+ * steps ended 3 cm from the west / east wall) nor into the narrower 1.3 m column aisles, which stay clear for walking.
+ * The centres are unchanged (apps/realtime boxing-rings.ts mirrors them).
+ */
+export const STANDARD_ROT_Y = Math.PI / 2;
 /** wall margin, main aisle width (m) */
 const MARGIN = 1.0;
 const MAIN_AISLE = 2.0;
@@ -113,7 +120,7 @@ export const RINGS: RingPlace[] = (() => {
   let n = 3;
   rows.forEach((row, r) => {
     for (const x of [...BLOCK_COLS_X.west, ...BLOCK_COLS_X.east])
-      out.push({ id: `R${n++}` as RingId, x, z: ROW_Z[r]!, rotY: 0, feature: false, half: RING.platform / 2, canvasY: RING.canvasY, row });
+      out.push({ id: `R${n++}` as RingId, x, z: ROW_Z[r]!, rotY: STANDARD_ROT_Y, feature: false, half: RING.platform / 2, canvasY: RING.canvasY, row });
   });
   if (out.length !== RING_IDS.length) throw new Error("ring plan does not match RING_IDS");
   return out;
@@ -135,6 +142,29 @@ export const ringSteps = (r: RingPlace, corner: "red" | "blue" = "red") => {
   const f = kitSteps({ x: r.x, z: r.z, rotY: r.rotY, size: r.feature ? "pro" : "training" }, corner).foot;
   return { x: f.x, z: f.z };
 };
+
+/** the foot of both corner steps of every ring (RINGS order), for the prompt target */
+const RING_FEET = RINGS.map((r) => [ringSteps(r, "red"), ringSteps(r, "blue")] as const);
+/** standing at a ring's steps beats being nearer another ring's platform by up to this much (m) */
+const STEP_BIAS = 0.6;
+/**
+ * How far you are from using a ring (P3-FGT-04): the distance to the foot of its corner steps, or to its platform edge
+ * plus STEP_BIAS — whichever is smaller. At the foot of a ring's steps that ring wins even though the platform across
+ * the aisle is nearer (the aisles are 1.3–1.5 m: by platform distance alone the neighbour took the prompt).
+ */
+export function ringPromptDist(i: number, x: number, z: number): number {
+  const r = RINGS[i]!;
+  if (r.feature) {
+    // the raised stage is climbed only by the feature fighters: distance to this ring's half of the stage (R1 the
+    // front half, R2 the back half), so its prompt (Watch / Practice) shows at the stage edge
+    const mid = (FEATURE_STAGE.z0 + FEATURE_STAGE.z1) / 2;
+    const [z0, z1] = r.z > mid ? [mid, FEATURE_STAGE.z0] : [FEATURE_STAGE.z1, mid];
+    return Math.hypot(Math.max(0, Math.abs(x) - FEATURE_STAGE.hw), Math.max(0, z0 - z, z - z1));
+  }
+  const edge = Math.hypot(Math.max(0, Math.abs(x - r.x) - r.half), Math.max(0, Math.abs(z - r.z) - r.half));
+  const [a, b] = RING_FEET[i]!;
+  return Math.min(edge + STEP_BIAS, Math.hypot(x - a.x, z - a.z), Math.hypot(x - b.x, z - b.z));
+}
 
 /** the ring whose platform (incl. the feature stage around R1 / R2) contains the point, if any */
 export function ringAt(x: number, z: number, pad = 0): RingPlace | null {
@@ -164,7 +194,7 @@ export const BOXING_BENCHES: R[] = (() => {
   const out: R[] = [];
   const zs = BOXING_SIZE.d / 2 - 0.55;
   const zn = -BOXING_SIZE.d / 2 + 0.55;
-  for (let x = -BOXING_SIZE.w / 2 + 3; x <= BOXING_SIZE.w / 2 - 3; x += 4.2) if (Math.abs(x - BOXING_DOOR.x) > 3.4) out.push({ x, z: zs, w: 3, d: 0.5 });
+  for (let x = -BOXING_SIZE.w / 2 + 3; x <= BOXING_SIZE.w / 2 - 3; x += 4.2) if (Math.abs(x - BOXING_DOOR.x) > 3.4 && x < 10.5) out.push({ x, z: zs, w: 3, d: 0.5 });
   for (let x = -16.8; x <= 16.8; x += 4.2) out.push({ x, z: zn, w: 3, d: 0.5 });
   return out;
 })();

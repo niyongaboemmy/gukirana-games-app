@@ -4,7 +4,8 @@ import { HALLS } from "@/rooms/layouts";
 import { inBuilding, PLOTS } from "@/world/footprints";
 import { EXPANSION_PLOTS, FIGHT_WALK, PLAZA_RADIUS, PORTALS, portalTransform, RING_ROAD } from "@/world/layout";
 import { campusWalkLength, campusWalkRoute, walkDepth } from "@/world/campus";
-import { BOXING_AISLES, BOXING_SIZE, FEATURE_STAGE, FIGHT_BUILDING, hallLz, LOBBY_TO_HALL_DZ, LOBBY_BACK_Z, ringAt, RINGS, ringSteps, SUBHALL_DOOR_X } from "./plan";
+import { BOXING_AISLES, BOXING_SIZE, FEATURE_STAGE, FIGHT_BUILDING, hallLz, LOBBY_TO_HALL_DZ, LOBBY_BACK_Z, ringAt, ringPromptDist, RINGS, ringSteps, SUBHALL_DOOR_X } from "./plan";
+import { boxingRoute, boxingWalkable } from "./hooks";
 
 /** world point of a door-frame local point of the Fight hall */
 const fightPortal = PORTALS.find((p) => p.id === "fight")!;
@@ -135,6 +136,51 @@ describe("Boxing hall plan (§4.3)", () => {
     for (const r of RINGS) {
       const s = ringSteps(r);
       expect(ringAt(s.x, s.z), r.id).toBeNull();
+    }
+  });
+
+  it("you can stand at the foot of every ring's corner steps, and that ring takes the prompt there (P3-FGT-04)", () => {
+    const best = (x: number, z: number) => {
+      let bi = -1;
+      let bd = Infinity;
+      RINGS.forEach((_, j) => {
+        const d = ringPromptDist(j, x, z);
+        if (d < bd) [bi, bd] = [j, d];
+      });
+      return { id: RINGS[bi]!.id, d: bd };
+    };
+    // the feature rings: at the front of the stage (R1) and at its back (R2)
+    expect(best(0, FEATURE_STAGE.z0 + 0.4)).toMatchObject({ id: "R1" });
+    expect(best(0, FEATURE_STAGE.z1 - 0.4)).toMatchObject({ id: "R2" });
+    expect(best(0, FEATURE_STAGE.z0 + 0.4).d).toBeLessThan(1.3);
+    RINGS.forEach((r) => {
+      if (r.feature) return;
+      for (const c of ["red", "blue"] as const) {
+        const f = ringSteps(r, c);
+        // clear of the side and back walls (the outer columns' red steps used to end 3 cm from the west wall)
+        expect(BOXING_SIZE.w / 2 - Math.abs(f.x), `${r.id} ${c} side wall`).toBeGreaterThan(0.9);
+        expect(f.z + BOXING_SIZE.d / 2, `${r.id} ${c} back wall`).toBeGreaterThan(0.9);
+        expect(BOXING_SIZE.d / 2 - f.z, `${r.id} ${c} front wall`).toBeGreaterThan(0.9);
+        // open floor for someone who does not hold the ring (no platform, rail or stage of any ring)
+        expect(boxingWalkable(f.x, f.z), `${r.id} ${c} walkable`).toBe(true);
+        // that ring wins the prompt over the platform across the aisle
+        expect(best(f.x, f.z).id, `${r.id} ${c} prompt`).toBe(r.id);
+      }
+    });
+  });
+
+  it("routes from the door to every standard ring's steps over open floor (P3-FGT-04)", () => {
+    const door = { x: HALLS.boxing.door.x, z: BOXING_SIZE.d / 2 - 1.2 };
+    for (const r of RINGS) {
+      if (r.feature) continue;
+      const to = ringSteps(r, "red");
+      const legs = [door, ...boxingRoute(door, to)];
+      expect(legs[legs.length - 1]).toEqual(to);
+      for (let i = 1; i < legs.length; i++) {
+        const a = legs[i - 1]!;
+        const b = legs[i]!;
+        for (let k = 0; k <= 20; k++) expect(boxingWalkable(a.x + ((b.x - a.x) * k) / 20, a.z + ((b.z - a.z) * k) / 20), `${r.id} leg ${i}`).toBe(true);
+      }
     }
   });
 
