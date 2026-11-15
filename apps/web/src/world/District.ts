@@ -310,14 +310,14 @@ function thatchedBlock(b: GeoBatch, x0: number, x1: number, z0: number, z1: numb
     [x1 + 0.04, cz, D, 0.08, Math.PI / 2],
     [cx, z1 - 0.04, W, 0.08, 0],
   ] as const) {
-    b.box("lava", w + 0.1, 0.9, d, { p: [px, 0.45, pz], r: [0, rot, 0], tile: 1.2 });
+    b.box("lava", w + 0.1, 0.88, d, { p: [px, 0.44, pz], r: [0, rot, 0], tile: 1.2 }); // 0.88: its top used to coincide with the timber at 0.9
     b.box("imigongo", w + 0.1, 1.0, d, { p: [px, H - 0.75, pz], r: [0, rot, 0], uv: [w / 4.4, 1] });
   }
   for (const [a, c] of fronts) {
     const segs: [number, number][] = opts.hidden ? [[a, Math.min(c, opts.hidden[0])], [Math.max(a, opts.hidden[1]), c]] : [[a, c]];
     for (const [sa, sc] of segs) {
       if (sc - sa < 0.2) continue;
-      b.box("lava", sc - sa, 0.9, 0.08, { p: [(sa + sc) / 2, 0.45, z0 + 0.04], tile: 1.2 });
+      b.box("lava", sc - sa, 0.88, 0.08, { p: [(sa + sc) / 2, 0.44, z0 + 0.04], tile: 1.2 });
       b.box("imigongo", sc - sa, 1.0, 0.08, { p: [(sa + sc) / 2, H - 0.75, z0 + 0.04], uv: [(sc - sa) / 4.4, 1] });
     }
   }
@@ -644,12 +644,12 @@ function plaza(b: GeoBatch, tier: string) {
   b.add("paving", flat(new THREE.CircleGeometry(PAVING_R, ringSeg)), { p: [0, 0, 0], tile: 4.8 });
   // the fountain court: a honed granite disc framed by a basalt band (the second band halfway out was dropped: a calm
   // floor, fewer lines)
-  b.add("granite", flat(new THREE.CircleGeometry(FOUNTAIN_COURT, tier === "lite" ? 64 : 128)), { p: [0, 0.003, 0], tile: 4.8 });
+  b.add("granite", flat(new THREE.CircleGeometry(FOUNTAIN_COURT, tier === "lite" ? 64 : 128)), { p: [0, 0.005, 0], tile: 4.8 }); // 5 mm: 3 mm shimmered at distance
   for (const [r0, r1, k] of [
     [FOUNTAIN_COURT - 0.05, FOUNTAIN_COURT + 0.3, "basalt"],
     [PAVING_R, PAVING_R + 0.8, "lava"],
   ] as const)
-    b.add(k, flat(new THREE.RingGeometry(r0, r1, ringSeg, 1)), { p: [0, 0.007, 0], tile: 1.2 }); // (≥ 4 mm over the granite: no z-fighting from the gate)
+    b.add(k, flat(new THREE.RingGeometry(r0, r1, ringSeg, 1)), { p: [0, 0.016, 0], tile: 1.2 }); // (16 mm: clear of the granite 5 mm, the door thresholds 12 mm and the gate sill 10 mm — no z-fighting)
   // (no promenade lines: the floor keeps only its circles — the fountain court band, the paving edge and each door's
   // threshold; the Go To route guide draws a path when one is wanted)
   // spawn medallion: flush granite disc with a 15 mm brass inlay ring
