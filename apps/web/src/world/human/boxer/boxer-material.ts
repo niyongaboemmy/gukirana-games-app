@@ -59,6 +59,8 @@ export interface BoxerColors {
   kit?: string;
   trim?: string;
   polo?: string;
+  /** trousers colour (referee / staff black; an everyday person's own) */
+  trousers?: string;
 }
 
 export interface BoxerUniforms {
@@ -112,7 +114,7 @@ export function boxerPalette(col: BoxerColors): THREE.Color[] {
   p[SLOT.headgearTrim] = shade(kit, 0.6);
   p[SLOT.wrap] = c("#ece9e2");
   p[SLOT.shirt] = c("#f4f4f2");
-  p[SLOT.trousers] = c("#151517");
+  p[SLOT.trousers] = c(col.trousers ?? "#151517");
   p[SLOT.shoe] = c("#0c0c0d");
   p[SLOT.bowtie] = c("#0b0b0c");
   p[SLOT.polo] = c(col.polo ?? "#5a3826");
@@ -278,7 +280,8 @@ vec3 gkDetailN(vec3 n, vec3 pos, vec2 uvq, vec2 dn, float k) {
   return normalize(n + (T * dn.x + B * dn.y) * sc * k);
 }
 int gkSlot() { return int(vMat + 0.5); }
-vec4 gkSkin;`,
+vec4 gkSkin;
+float gkHairy;`,
       )
       .replace(
         "#include <clipping_planes_fragment>",
@@ -288,7 +291,7 @@ if (uNearCut.y > 0.0 && vBind.y > uNearCut.x && length(vViewPosition) < uNearCut
 {
   int gkS = int(vMat + 0.5);
   // the hairline thins out strand by strand (the shell's _ao = distance from the hairline); lashes are strands too
-  if (gkS == 19 && gkNoise(vBind * vec3(3200.0, 1400.0, 3200.0)) > min(0.72, vAo * 1.4 + 0.05)) discard;
+  if (gkS == 19 && gkNoise(vBind * vec3(3200.0, 1400.0, 3200.0)) > min(0.62, vAo * vAo * 0.9)) discard;
   if (gkS == 21 && gkNoise(vec3(vBind.x * 3000.0, vBind.y * 400.0, 0.0)) < 0.55) discard;
 }`,
       )
@@ -299,6 +302,7 @@ int gkM = gkSlot();
 vec3 gkBase = uCol[0];
 for (int k = 0; k < ${SLOTS}; k++) { if (k == gkM) gkBase = uCol[k]; }
 gkSkin = vec4(0.5);
+gkHairy = 0.0;
 if (gkM == 0) {
   // skin: the tone x the photo skin's relative variation (in sRGB: ratio^2.2 in linear), its chroma eased on darker
   // tones (a light skin's pink lips / cheeks become a deeper, browner flush on dark skin, as on real dark skin)
@@ -309,8 +313,12 @@ if (gkM == 0) {
     float dark = clamp(1.0 - tl / 0.22, 0.0, 1.0);
     ratio = mix(ratio, vec3(dot(ratio, vec3(0.3, 0.55, 0.15))), 0.5 * dark);
     float rl = max(dot(ratio, vec3(0.3, 0.55, 0.15)), 1e-3);
+    // the close-cropped hair painted on the scalp (much darker than the skin, on the head): the player's hair colour,
+    // matte (no skin sheen on hair)
+    gkHairy = vZone > 0.5 && vZone < 1.5 ? clamp((0.42 - rl) / 0.2, 0.0, 1.0) : 0.0;
     gkBase *= pow(rl, 2.2) * mix(vec3(1.0), ratio / rl, 0.75);
     gkBase = mix(gkBase, gkBase * vec3(0.78, 0.5, 0.48), vPaint.x * 0.35 * (1.0 - dark * 0.4));
+    gkBase = mix(gkBase, uHair * (0.35 + 0.9 * rl), gkHairy * 0.85);
   } else {
     gkBase = mix(gkBase, gkBase * vec3(0.66, 0.42, 0.42) + vec3(0.05, 0.0, 0.0), vPaint.x * 0.8);
   }
@@ -365,6 +373,7 @@ if (gkM == 0) {
   // pores and creases are rougher; sweat smooths the skin
   gkR = clamp(gkR + (0.5 - gkSkin.a) * 0.5, 0.3, 0.75);
   gkR = mix(gkR, 0.3, uSweat * 0.8);
+  gkR = mix(gkR, 0.8, gkHairy);
 }
 roughnessFactor = gkR;`,
       )
@@ -395,7 +404,7 @@ roughnessFactor = gkR;`,
         `#include <lights_physical_fragment>
 // second specular lobe: skin oil / sweat (sharper, weak, grows with sweat); the wet cornea; satin and leather a little;
 // fabric sheen (physical sheen, per slot)
-material.clearcoat = gkM == 0 ? 0.12 + 0.55 * uSweat : (gkM == 20 ? 1.0 : (gkM == 3 || gkM == 4 ? 0.25 : (gkM == 8 || gkM == 11 || gkM == 5 || gkM == 16 ? 0.35 : 0.0)));
+material.clearcoat = gkM == 0 ? (0.12 + 0.55 * uSweat) * (1.0 - gkHairy) : (gkM == 20 ? 1.0 : (gkM == 3 || gkM == 4 ? 0.25 : (gkM == 8 || gkM == 11 || gkM == 5 || gkM == 16 ? 0.35 : 0.0)));
 material.clearcoatRoughness = gkM == 0 ? mix(0.42, 0.18, uSweat) : (gkM == 20 ? 0.02 : 0.25);
 material.sheenColor = gkM == 0 ? gkBase * vec3(0.6, 0.35, 0.3) * 0.25 : mix(vec3(1.0), gkBase, 0.4) * gkSh;
 material.sheenRoughness = gkM == 3 || gkM == 4 ? 0.3 : 0.6;`,

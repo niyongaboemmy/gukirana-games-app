@@ -611,7 +611,9 @@ function buildVariant(key, base, morphParams) {
     const earGap = ax > 0.062 && q[2] < 0.02 && q[2] > -0.05 && q[1] < eyeY + 0.03 ? -0.01 : 0;
     return q[1] - line + earGap;
   };
-  const hairCover = (i) => isHeadV(i) && hairField(i) > 0.004;
+  // (the scalp stays drawn under the hair: the skin texture carries a close-cropped natural hairline, the shell adds
+  // the strands over it, partly open)
+  const hairCover = () => false;
   const trunksCoverBody = (i) => {
     const p = V(i);
     return p[1] < waistY + 0.005 && p[1] > kneeL[1] + 0.09 && !isArm(i);
@@ -1499,10 +1501,10 @@ function buildVariant(key, base, morphParams) {
   SM_SRC = SMOOTH_BODY;
   const hairCap = shell("hair_cap", bodyFaces, NB, {
     field: hairField,
-    offset: (i) => 0.003 + 0.004 * smooth(eyeL[1] + 0.04, headC[1] + 0.1, V(i)[1]),
+    offset: (i) => 0.0018 + 0.0035 * smooth(eyeL[1] + 0.05, headC[1] + 0.1, V(i)[1]),
     mat: MAT.hair,
     hem: 0.0005,
-    edgeAo: 0.018,
+    edgeAo: 0.03,
   });
 
   // the referee's bow tie and the shirt / polo collar: small rigid pieces at the throat on the neck / upper spine

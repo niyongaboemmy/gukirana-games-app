@@ -17,7 +17,7 @@ import { boxerMaterial, type BoxerColors, type BoxerUniforms } from "./boxer-mat
  * library drive it unchanged.
  */
 export type BoxerGender = "m" | "f";
-export type BoxerOutfit = "boxer" | "referee" | "staff";
+export type BoxerOutfit = "boxer" | "referee" | "staff" | "casual";
 export const BOXER_URL: Record<BoxerGender, string> = { m: "/assets/characters/boxer-m.glb", f: "/assets/characters/boxer-f.glb" };
 
 /** body cover bits (build.mjs COVER) */
@@ -27,6 +27,9 @@ const OUTFIT_MESHES: Record<BoxerOutfit, { meshes: string[]; cover: number; head
   boxer: { meshes: ["body", "kit_vest", "kit_trunks", "kit_boots", "kit_socks", "kit_gloves", "kit_headgear", "kit_wraps"], cover: COVER.vest | COVER.trunks | COVER.boots | COVER.gloves | COVER.headgear, headgear: true },
   referee: { meshes: ["body", "ref_shirt", "ref_collar", "ref_bowtie", "ref_trousers", "ref_shoes", "hair_cap"], cover: COVER.shirt | COVER.trousers | COVER.shoes | COVER.hair, headgear: false },
   staff: { meshes: ["body", "staff_polo", "staff_collar", "ref_trousers", "ref_shoes", "hair_cap"], cover: COVER.shirt | COVER.trousers | COVER.shoes | COVER.hair, headgear: false },
+  // P3-FGT-15: an everyday person (the realistic human out of the ring): a draped tee in the look's top colour,
+  // trousers in its bottom colour, shoes
+  casual: { meshes: ["body", "staff_polo", "ref_trousers", "ref_shoes", "hair_cap"], cover: COVER.shirt | COVER.trousers | COVER.shoes | COVER.hair, headgear: false },
 };
 
 export interface BoxerSpec {

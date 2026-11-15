@@ -3,7 +3,7 @@ import { useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import type { AvatarLook } from "@/world/outfits";
+import { OUTFITS, type AvatarLook } from "@/world/outfits";
 import { BoxingRig } from "../boxing/rig";
 import type { BoxingMotion } from "../boxing/motion";
 import { P } from "../boxing/pose";
@@ -61,6 +61,17 @@ export interface BoxerAvatarProps {
   fingers?: { current: CountSign | null };
 }
 
+/** an everyday person's colours from their look (world/outfits.ts catalogue): the top's colour (accent-coloured tops take
+ * the player's top / accent colour), the bottom's colour (prints and wraps read as a dark neutral here) */
+function casualTop(look: AvatarLook): string {
+  const it = OUTFITS.find((o) => o.id === look.outfit.top);
+  const c = it?.color ?? "accent";
+  return c === "accent" ? (look.topColor ?? look.accent) : it?.print ? "#e9e4da" : c;
+}
+function casualBottom(look: AvatarLook): string {
+  const it = OUTFITS.find((o) => o.id === look.outfit.bottom);
+  return it && !it.print && it.color !== "accent" ? it.color : "#23252e";
+}
 const BEARD: Record<string, number> = { none: 0, stubble: 0.45, shadow: 0.35, moustache: 0.55, goatee: 0.6, chinstrap: 0.6, short: 0.78, full: 0.95 };
 const BROW: Record<string, number> = { thin: 0.55, natural: 0.85, arched: 0.85, straight: 0.9, full: 1, bold: 1 };
 const _v = new THREE.Vector3();
@@ -78,7 +89,7 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
     const facial = gender === "m" ? (BEARD[look.face?.facialHair ?? "none"] ?? 0) : 0;
     return makeBoxer(gltf.scene, extras, {
       outfit,
-      colors: { skin: look.skinTone, hair: look.hairColor, iris: look.face?.eyeColor ?? "#3d2314", kit, polo },
+      colors: { skin: look.skinTone, hair: look.hairColor, iris: look.face?.eyeColor ?? "#3d2314", kit, polo: polo ?? (outfit === "casual" ? casualTop(look) : undefined), trousers: outfit === "casual" ? casualBottom(look) : undefined },
       build: buildOf(outfit === "boxer" ? klass : 0.1, seed, look.age),
       noHeadgear,
       noGloves,

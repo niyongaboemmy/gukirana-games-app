@@ -150,7 +150,9 @@ export function BoxerLab({ q, setInfo }: { q: URLSearchParams; setInfo: (s: stri
     m.play({ clip, start: 0, blend: 0 });
     return m;
   }, [clip]);
-  const clock = useMemo(() => () => at, [at]);
+  // play=1: the clip runs in real time (walking strips), else frozen at `at`
+  const play = q.get("play") === "1";
+  const clock = useMemo(() => (play ? () => at + performance.now() / 1000 : () => at), [at, play]);
   const weight = useMemo(() => ({ current: bind ? 0 : 1 }), [bind]);
   const probe = useRef<BoxerProbe | null>(null);
   const fingers = useMemo(() => ({ current: q.get("count") ? countSign(Number(q.get("count"))) : null }), [q]);
@@ -164,7 +166,11 @@ export function BoxerLab({ q, setInfo }: { q: URLSearchParams; setInfo: (s: stri
     set("eyes", q.get("feyes"));
     set("nose", q.get("fnose"));
     set("lips", q.get("flips"));
-    return { ...LOOK[gender], face: f };
+    // P3-FGT-15: tone=<SKIN_TONES index> · age=young|adult|senior · top / bottom=<outfit item id> (the everyday person)
+    const base = LOOK[gender];
+    const tone = q.get("tone");
+    const outfitQ = { ...base.outfit, ...(q.get("top") ? { top: q.get("top")! } : {}), ...(q.get("bottom") ? { bottom: q.get("bottom")! } : {}) };
+    return { ...base, face: f, outfit: outfitQ, ...(tone ? { skinTone: SKIN_TONES[Number(tone)] ?? base.skinTone } : {}), ...(q.get("age") ? { age: q.get("age") as AvatarLook["age"] } : {}) };
   }, [q, gender]);
   const { scene } = useThree();
   useEffect(() => setInfo(`boxer ${gender} ${outfit} · ${clip} @ ${at.toFixed(2)} s${debug ? ` · ${debug}` : ""}${bind ? " · bind" : ""}`), [gender, outfit, clip, at, debug, bind, setInfo]);
@@ -198,7 +204,7 @@ export function BoxerLab({ q, setInfo }: { q: URLSearchParams; setInfo: (s: stri
   }, [debug, q, scene]);
   return (
     <>
-      <BoxerAvatar look={look} outfit={outfit} kit="#c0262d" polo="#2b2e34" motion={motion} clock={clock} weight={weight} seed={7} klass={0} noHeadgear={q.get("headgear") === "0"} bare={q.get("bare") === "1"} fingers={fingers} src={q.get("glb") === "before" ? `/assets/characters/_before/boxer-${gender}.glb` : undefined} probe={probe} />
+      <BoxerAvatar look={look} outfit={outfit} kit="#c0262d" polo={outfit === "casual" ? undefined : "#2b2e34"} motion={motion} clock={clock} weight={weight} seed={7} klass={0} noHeadgear={q.get("headgear") === "0"} bare={q.get("bare") === "1"} fingers={fingers} src={q.get("glb") === "before" ? `/assets/characters/_before/boxer-${gender}.glb` : undefined} probe={probe} />
       {q.get("cmp") === "1" && <Reference look={LOOK[gender]} motion={motion} clock={clock} />}
       <CamRig q={q} probe={probe} />
     </>
