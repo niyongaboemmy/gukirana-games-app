@@ -650,6 +650,16 @@ export default function SceneCanvas() {
   useLayoutEffect(() => {
     useStage.setState({ tier, fx });
   }, [tier, fx]);
+  // P3-FGT-12: bloom coming back on (or flipping off and on) in the middle of a view is a whole-picture blink — every
+  // light strip, sign and lamp gains and loses its glow. A recovered frame rate only turns it back on at the next area
+  // switch, under the doorway dissolve; a slow frame rate still turns it off at once (once: it is never re-enabled
+  // within the same view).
+  const fxPending = useRef(false);
+  useEffect(() => {
+    if (!fxPending.current) return;
+    fxPending.current = false;
+    setFx(tier === "standard");
+  }, [view, tier]);
   return (
     <>
     <ProgressBridge />
@@ -675,7 +685,20 @@ export default function SceneCanvas() {
     >
       {/* Dynamic quality (§16.3): drop bloom first when frame time is over budget, restore when it recovers. Only
           after the first reveal: loading frames are slow by nature and must not blur the DPR or flip bloom mid-reveal. */}
-      {hud && <PerformanceMonitor onDecline={() => setFx(false)} onIncline={() => setFx(tier === "standard")} flipflops={3} onFallback={() => setFx(false)} />}
+      {hud && (
+        <PerformanceMonitor
+          onDecline={() => {
+            fxPending.current = false;
+            setFx(false);
+          }}
+          onIncline={() => void (fxPending.current = tier === "standard")}
+          flipflops={3}
+          onFallback={() => {
+            fxPending.current = false;
+            setFx(false);
+          }}
+        />
+      )}
       {hud && <AdaptiveDpr pixelated={false} />}
       <XR store={xrStore}>
         <Stage />

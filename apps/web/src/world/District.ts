@@ -625,27 +625,16 @@ function plaza(b: GeoBatch, tier: string) {
   const flat = (geo: THREE.BufferGeometry) => geo.rotateX(-Math.PI / 2);
   const ringSeg = tier === "lite" ? 96 : 192;
   b.add("paving", flat(new THREE.CircleGeometry(PAVING_R, ringSeg)), { p: [0, 0, 0], tile: 4.8 });
-  // the fountain court: a honed granite disc, framed by a basalt band; a second band halfway out to the edge
+  // the fountain court: a honed granite disc framed by a basalt band (the second band halfway out was dropped: a calm
+  // floor, fewer lines)
   b.add("granite", flat(new THREE.CircleGeometry(FOUNTAIN_COURT, tier === "lite" ? 64 : 128)), { p: [0, 0.003, 0], tile: 4.8 });
   for (const [r0, r1, k] of [
     [FOUNTAIN_COURT - 0.05, FOUNTAIN_COURT + 0.3, "basalt"],
-    [20.6, 20.8, "basalt"],
     [PAVING_R, PAVING_R + 0.8, "lava"],
   ] as const)
     b.add(k, flat(new THREE.RingGeometry(r0, r1, ringSeg, 1)), { p: [0, 0.007, 0], tile: 1.2 }); // (≥ 4 mm over the granite: no z-fighting from the gate)
-  // promenades: from the fountain court to every door, a 3.6 m walk edged by two flush basalt strips, with a slim
-  // LED line in each game's colour down the middle (§6.2)
-  for (const p of PORTALS) {
-    const key = p.kind === "soon" ? "led-soon" : `led-${p.kind}`;
-    const r0 = FOUNTAIN_COURT + 0.3;
-    const len = DOOR_RING - 3 - r0;
-    const mid = ringPoint(p.angleDeg, r0 + len / 2);
-    const a = (p.angleDeg * Math.PI) / 180;
-    b.box("basalt", 0.3, 0.008, len, { p: [mid.x, 0.004, mid.z], r: [0, mid.rotY, 0], tile: 1.2 });
-    b.box(key, 0.04, 0.004, len, { p: [mid.x, 0.009, mid.z], r: [0, mid.rotY, 0] });
-    for (const s of [-1, 1])
-      b.box("basalt", 0.2, 0.008, len, { p: [mid.x + s * 1.8 * Math.cos(a), 0.004, mid.z + s * 1.8 * Math.sin(a)], r: [0, mid.rotY, 0], tile: 1.2 });
-  }
+  // (no promenade lines: the floor keeps only its circles — the fountain court band, the paving edge and each door's
+  // threshold; the Go To route guide draws a path when one is wanted)
   // spawn medallion: flush granite disc with a 15 mm brass inlay ring
   b.add("granite", flat(new THREE.CircleGeometry(1.1, 48)), { p: [SPAWN.x, 0.005, SPAWN.z], tile: 2.4 });
   b.add("brass", flat(new THREE.RingGeometry(1.1, 1.115, 96)), { p: [SPAWN.x, 0.009, SPAWN.z] });

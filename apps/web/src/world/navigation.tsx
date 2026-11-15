@@ -48,7 +48,7 @@ export const nav = {
 // dev-only hook for automated walk-through tests (like window.__gkCam)
 if ((process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_GK_QA === "1") && typeof window !== "undefined") (window as unknown as { __gkNav: typeof nav }).__gkNav = nav;
 
-const TURN_RATE = 2.4; // rad/s for keyboard turning
+const TURN_RATE = 1.5; // rad/s for keyboard turning (eased in and out: see motion.tv)
 const ARRIVE = 0.3; // m
 
 export const markManualCamera = () => (nav.lastManualCam = performance.now());
@@ -82,7 +82,7 @@ export interface SteerResult {
  * so starts take ~0.35 s and stops ~0.25 s instead of a single frame), the direction of the last step (a released
  * S key decays backwards, never glides forwards) and the camera yaw latched while the joystick is held.
  */
-const motion = { v: 0, dir: 1, last: 0, joyYaw: null as number | null, lateral: false, followFor: 0 };
+const motion = { v: 0, tv: 0, camFacing: null as number | null, dir: 1, last: 0, joyYaw: null as number | null, lateral: false, followFor: 0 };
 
 /** Joystick radial dead zone + response curve: a small thumb movement is a slow walk, not instant full pace. */
 const stickMag = (m: number) => Math.pow(THREE.MathUtils.clamp((m - 0.12) / 0.88, 0, 1), 1.4);
@@ -100,12 +100,16 @@ export function steer(i: SteerInput): SteerResult {
   let dir = 1;
   let mode: SteerResult["mode"] = null;
   // turning is rate-limited like a real body: brisk on the spot, gentler while walking (no whip turns)
-  const maxTurn = (7 - 1.5 * Math.min(1, motion.v / Math.max(0.1, i.walkSpeed))) * i.dt;
+  const maxTurn = (4.2 - 1.2 * Math.min(1, motion.v / Math.max(0.1, i.walkSpeed))) * i.dt;
   const turnTowards = (h: number) => {
     facing += THREE.MathUtils.clamp(wrap(h - facing), -maxTurn, maxTurn);
   };
 
-  if (turn) facing -= turn * TURN_RATE * i.dt; // right = clockwise seen from above
+  // A/D turning eases in and out (~0.3 s) instead of snapping to full rate: smoother, easier to aim
+  if (turn && Math.sign(motion.tv) === -turn) motion.tv = 0; // reversing: never carry a turn the other way first
+  motion.tv += (turn * TURN_RATE - motion.tv) * (1 - Math.exp(-i.dt * (turn ? 7 : 14)));
+  if (!turn && Math.abs(motion.tv) < 0.02) motion.tv = 0;
+  if (motion.tv) facing -= motion.tv * i.dt; // right = clockwise seen from above
   if (fwd) {
     heading = facing;
     mag = 1;
@@ -191,13 +195,19 @@ export function steer(i: SteerInput): SteerResult {
  * the joystick does not drag the camera at all while you walk sideways (no motion-sickness spin).
  */
 export function autoFollow(cam: { yaw: number }, s: Pick<SteerResult, "facing" | "moving" | "turning" | "mode">, dt: number) {
+  let turned = motion.camFacing == null ? 0 : wrap(s.facing - motion.camFacing);
+  if (Math.abs(turned) > 0.5) turned = 0; // a jump (door, teleport, seat), not a turn
+  motion.camFacing = s.facing;
   if ((!s.moving && !s.turning) || performance.now() - nav.lastManualCam < 1200 || (s.mode === "joy" && motion.lateral)) {
     motion.followFor = 0;
     return;
   }
   const err = wrap(s.facing + Math.PI - cam.yaw);
   if (s.mode === "keys" || (s.turning && !s.mode)) {
-    cam.yaw += err * Math.min(1, dt * 7);
+    // the camera turns exactly as much as the person did (so it never swings the other way first to catch up an old
+    // offset), and only while walking closes the remaining offset gently
+    cam.yaw += turned;
+    if (s.moving) cam.yaw += wrap(err - turned) * Math.min(1, dt * 1.8);
     return;
   }
   motion.followFor += dt;
