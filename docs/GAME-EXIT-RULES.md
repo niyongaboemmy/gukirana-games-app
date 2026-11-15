@@ -96,6 +96,82 @@ lose the connection or time out — so there is never a reason to idle instead o
   / `LEFT_WHILE_WAITING`.
 - Kill switch: `NEXT_PUBLIC_FF_RESUME=0` (web resume on load; the server-side waits are always on).
 
+## Holding your place (P2-NET-06)
+
+Everything **before** a live match starts (and between matches): the place a player has chosen in a hall. Live matches
+keep the "Resume" rules above; this section covers the chair, the table and the ring.
+
+### Every chosen place, before P2-NET-06
+
+| Place | Game / hall | Where it lived | On reload / closed tab | On network loss |
+|---|---|---|---|---|
+| Seated at a table (chair claimed) | Ludo Lounge, Pool hall, Igisoro court | server: hall room `SeatRegistry` (seat → session); client `useRoom.seated` | seat freed at once; you land at the hall door, standing | seat freed at once; the auto-reconnect lands you at the hall door |
+| Waiting for an opponent at your table (seat + Quick Match) | same | server: seat + the in-process Quick Match queue (by account); client `useMatch.quick` | ticket dropped, seat freed | same |
+| A table "reserved" by a challenge | same | nothing is reserved: a challenge is a proposal between two people (60 s), the table is not part of it | the proposal was deleted silently (the other side was not told) | same |
+| Ring claimed, waiting for an opponent | Boxing hall | server: `BoxingHall` ring registry (`waiting`, red corner = session) | ring freed at once | ring freed at once |
+| Practice at a ring | Boxing hall | server marks the ring `practice`; the fight itself runs in the browser (AI level is client only) | ring freed, the practice fight is gone | same |
+| Fight starting / running | Boxing hall | fight room (P2-NET-05) | the ring stays the fighters' (P2-NET-05 waits) | same |
+| Result on the ring (8 s) | Boxing hall | server | your corner frees; the ring frees after the result | same |
+| Watching a ring (spectator) | Boxing hall | server watcher set | dropped (not a place: watching is free for all) | same |
+| Plaza bench, admin office chair, arena bowl seat | plaza / admin / arena | server seats | freed at once | freed at once |
+| Which hall / area you are in | all | the URL (`/room/<game>`), stage area | a reload keeps the URL: same hall, but at its door | same hall, at its door |
+
+### The rules (decided)
+
+1. **Who gets a hold.** Signed-in players only (the place must go back to the same account). A guest's place frees at
+   once, as before.
+2. **What is held.** A game-table chair (Ludo, Pool, Igisoro) with its Quick Match ticket, a Boxing ring you wait in,
+   and a Boxing ring you practise in. Plaza benches, office chairs, arena seats and watching are not held.
+3. **When.** The connection to the hall ends **without** a deliberate leave: reload, closed tab, network loss, the
+   phone going to sleep. A deliberate leave releases at once, with no hold: Stand up, walking away from the chair,
+   Leave / walking out through the door, Cancel at the ring, Step out, opening Practice vs AI or a live match from
+   the table (the page change is a deliberate leave; the return point re-seats you afterwards if the chair is free).
+4. **How long** (`PLACE_HOLD` in `packages/contracts/src/social.ts`; tests shorten them):
+
+   | Place | Hold |
+   |---|---|
+   | Table chair (seated or waiting for an opponent) | **60 s** |
+   | Boxing ring, waiting for an opponent | **60 s** |
+   | Boxing ring, practice | **30 s** |
+
+5. **Abuse limit.** At most **3 holds per account in 15 minutes**. The 4th drop in that window releases the place at
+   once (as before P2-NET-06) and the returning player is told why.
+6. **What others see.** The place is **Held** (not free, not waiting): the chair cannot be taken, the table shows
+   "Held · returning (0:42)" in the table picker and its light band turns grey-amber, the ring sign, the ring prompt
+   and the lobby status board show "Held · returning (0:42)". Nobody can join a held ring or sit in a held chair.
+7. **While held, nothing can start.** The Quick Match ticket is paused (taken out of the queue) and the waiting ring
+   cannot be joined, so no match can be created for an absent player and **no stake is ever locked by a hold**
+   (holds never touch the ledger). A challenge sent to or from the absent player closes at once (`PLAYER_LEFT`,
+   both sides told).
+8. **Coming back inside the hold** (same account, a new connection to the same hall instance): the same chair or ring
+   and the same state: still seated, still waiting (the Quick Match ticket goes back into the queue with its original
+   waiting time), still waiting in the ring at the same stake, practice at the same AI level (a fresh practice fight:
+   the old one ran in the closed page). Never another user: holds are keyed by account id, and every claim of a held
+   place by anyone else is refused (`taken` / `RING_HELD`).
+9. **When the hold runs out** the place is free again for everyone, the waiting state is cleared, and the player
+   coming back later lands at the hall door with a short notice: "Your place at Ring 7 was released after 60 s
+   away." (the server remembers a released place for 10 minutes for that notice).
+10. **Hand-over to a live match.** A hold never becomes a match by itself (rule 7). Once a match starts, the match
+    rules (P2-NET-05) apply and the place record is cleared: table games leave the hall for `/match/<room>` (return
+    point → the same chair afterwards if it is free); in Boxing the ring belongs to the fight, then shows the result
+    and frees as before.
+
+### How it works
+
+- **Server** (`apps/realtime/src/social/place-holds.ts`): one in-process registry of holds by account (hall, room,
+  place, state, Quick Match ticket / stake, until), the abuse counter and the recent releases. The hall room
+  (`world-room.ts`) holds a chair on a non-consented leave (`SeatRegistry.hold`, the seat map shows `~held`, plus
+  `seat-holds` with the time left), the Boxing hall (`boxing-hall.ts`) marks the ring `held: { ms }`. The room stays
+  alive while it holds a place (`autoDispose` off) and closes when the last hold ends with nobody inside. On join the
+  room sends `place` = `restored` / `released` (with the reason) / `none`.
+- **Ask on load:** `GET <realtime>/place` (Bearer access token) → my hold or my recent release.
+- **Client** (`apps/web/src/lib/place-hold.ts`): `localStorage["gk-place"]` = hall, room id, chair or ring, state,
+  stake, AI level, time (no secrets), cleared on a deliberate leave, a released place and a match start. On load the
+  root layout asks the server (after the live-match check) and goes to the hall; the hall joins the same room
+  (`joinById`, then the normal join) and starts you on the chair / at the ring steps; the server's `place` answer
+  confirms it or shows the notice.
+- Kill switches: `FF_PLACE_HOLD=0` (realtime: no holds) and `NEXT_PUBLIC_FF_PLACE_HOLD=0` (web: no restore on load).
+
 ## Rules card (P2-NET-05)
 
 Before a **live** match of a game — challenging, accepting a challenge, Quick Match, a ring claim / join / quick
