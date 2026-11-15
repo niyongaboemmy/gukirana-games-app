@@ -12,6 +12,7 @@ import { useFightPrefs } from "./game/prefs";
 import { clampInRing, layoutOf, ringSeed, shakeFor } from "./present";
 import { cameraKick } from "./ring-clock";
 import { replaySnap } from "./game/replay";
+import { RING_SIZES } from "@/rooms/fight/ring-kit-core";
 
 /**
  * Fight camera + watch cameras (P3-FGT-01 §4.3, redesigned in P3-FGT-05). Runs after the hall's follow camera (frame
@@ -68,6 +69,48 @@ export function fightShot(ring: RingPlace, snap: BoxingSnapshot | null, me: 0 | 
   eye.z = ring.z + c.z;
 }
 
+/**
+ * Ropes out of the shot (P3-FGT-14): when the eye is outside the ropes, the line of sight crosses the rope line on its
+ * way in; if it does so within ROPE_CLEAR of a rope, a rope runs across the middle of the frame. The eye then rises or
+ * drops (the least it takes) so the sight line goes through the middle of a gap between two ropes, or over the top
+ * rope. Applied to the shot target, before the operator's damping: a smooth adjustment, never a jump.
+ * Rope heights / post line from the ring's own kit (rooms/fight/ring-kit-core).
+ */
+export const ROPE_CLEAR = 0.11;
+export function clearRopes(ring: Pick<RingPlace, "x" | "z" | "rotY" | "canvasY" | "feature">, eye: THREE.Vector3, look: THREE.Vector3): number {
+  const D = RING_SIZES[ring.feature ? "pro" : "training"];
+  const co = Math.cos(ring.rotY);
+  const sn = Math.sin(ring.rotY);
+  const loc = (x: number, z: number) => [(x - ring.x) * co - (z - ring.z) * sn, (x - ring.x) * sn + (z - ring.z) * co] as const;
+  const [eu, ev] = loc(eye.x, eye.z);
+  const [lu, lv] = loc(look.x, look.z);
+  const P = D.post;
+  // where the sight line enters the rope square (largest t of the planes it must cross); none if the eye is inside
+  let t = -1;
+  for (const [a, b] of [
+    [eu, lu],
+    [ev, lv],
+  ] as const) {
+    if (Math.abs(a) <= P) continue;
+    if (Math.abs(b) >= P || Math.abs(a - b) < 1e-6) return 0;
+    t = Math.max(t, (a - Math.sign(a) * P) / (a - b));
+  }
+  if (t < 0 || t >= 0.98) return 0;
+  const yAt = (ey: number) => ey + t * (look.y - ey) - ring.canvasY;
+  const ropes = D.ropes;
+  const y = yAt(eye.y);
+  if (ropes.every((h) => Math.abs(y - h) >= ROPE_CLEAR)) return 0;
+  // the candidate crossings: the middle of each gap, over the top rope; the nearest one wins
+  const targets = [...ropes.slice(1).map((h, i) => (h + ropes[i]!) / 2), ropes[ropes.length - 1]! + 0.32];
+  let best = targets[0]!;
+  for (const c of targets) if (Math.abs(c - y) < Math.abs(best - y)) best = c;
+  // eye height that puts the crossing there: y_c = e(1 − t) + look·t
+  const ey = (best + ring.canvasY - t * look.y) / (1 - t);
+  const dy = Math.max(ring.canvasY + 0.45, Math.min(ring.canvasY + 3.2, ey)) - eye.y;
+  eye.y += dy;
+  return dy;
+}
+
 /** how far from the ring centre (each axis, ring frame) the fight camera may stand */
 const CAM_LIM = (ring: RingPlace) => ring.half - 0.5;
 /** how far a shot's eye would stand outside the camera limit (m; 0 = inside) */
@@ -116,8 +159,10 @@ function shot(ring: RingPlace, snap: BoxingSnapshot | null, me: 0 | 1, side: num
     const dx = r.x + sd * half * ax;
     const dz = r.z + sd * half * az;
     const d = r.half + 0.9;
-    eye.set(r.x + px * d + sd * ax * 0.4, cy + 1.95, r.z + pz * d + sd * az * 0.4);
-    look.set(dx, cy + 0.55, dz);
+    // P3-FGT-14: a lower, wider angle than the old top-down one, so the referee counting over the fighter (his hands, the
+    // fingers of the count) is in the shot with the fighter on the knee
+    eye.set(r.x + px * d + sd * ax * 0.4, cy + 1.6, r.z + pz * d + sd * az * 0.4);
+    look.set(dx - sd * ax * 0.35, cy + 0.85, dz - sd * az * 0.35);
     return;
   }
   if (phase === "over" && snap) {
@@ -240,6 +285,8 @@ export function FightCamera() {
       _eye.set(r.x + -az * side.current * d, r.canvasY + 1.25, r.z + ax * side.current * d);
       _look.set(r.x, r.canvasY + 1.2, r.z);
     }
+    // ropes out of the middle of the frame (every shot whose eye is outside the ropes)
+    clearRopes(r, _eye, _look);
     if (!seeded.current) {
       seeded.current = true;
       eye.current.copy(_eye);

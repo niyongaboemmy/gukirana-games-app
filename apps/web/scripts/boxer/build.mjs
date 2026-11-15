@@ -11,8 +11,9 @@
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { jointPos, macroTargets, morph, readObj, readSkeleton } from "./mh.mjs";
+import { jointPos, macroTargets, morph, readObj, readSkeleton, readTarget } from "./mh.mjs";
 import { writeGlb } from "./glb.mjs";
+import { shoulderShare, weightBytes } from "./skin-math.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "../../public/assets/characters");
@@ -77,10 +78,15 @@ const SIDES = [
 function finalBones() {
   const b = [
     ["Bip01", null, ["root"]],
-    ["Bip01_Pelvis", "Bip01", ["root", "pelvis.L", "pelvis.R"]],
-    ["Bip01_Spine", "Bip01_Pelvis", ["spine05", "spine04"]],
-    ["Bip01_Spine1", "Bip01_Spine", ["spine03"]],
-    ["Bip01_Spine2", "Bip01_Spine1", ["spine02", "spine01", "breast.L", "breast.R"]],
+    // P3-FGT-14: the spine pivots sit where the rig's reference body (Rocketbox) has them — Spine at the lower back,
+    // Spine1 at the bottom of the ribs, Spine2 at the upper chest (≈ 11 cm under the shoulder joints). With MakeHuman's
+    // spine02 as the chest pivot (25 cm under the shoulders) every lean / turn of the authored poses swung the shoulders
+    // ~15 cm further forward than on the reference body: the guard folded the arms shut and the elbows flared out at
+    // shoulder height (docs/FIGHT-REALISM-V4.md §1).
+    ["Bip01_Pelvis", "Bip01", ["root", "pelvis.L", "pelvis.R", "spine05"]],
+    ["Bip01_Spine", "Bip01_Pelvis", ["spine04", "spine03"]],
+    ["Bip01_Spine1", "Bip01_Spine", ["spine02"]],
+    ["Bip01_Spine2", "Bip01_Spine1", ["spine01", "breast.L", "breast.R"]],
     ["Bip01_Neck", "Bip01_Spine2", ["neck01", "neck02", "neck03"]],
     ["Bip01_Head", "Bip01_Neck", ["head"]],
     ["Bip01_Jaw", "Bip01_Head", ["jaw", "special04", "tongue00", "tongue01", "tongue02", "tongue03", "tongue04", "tongue05.L", "tongue05.R", "tongue06.L", "tongue06.R", "tongue07.L", "tongue07.R", "oris05", "oris06", "oris06.L", "oris06.R", "oris07.L", "oris07.R"]],
@@ -92,7 +98,11 @@ function finalBones() {
       [`Bip01_${S}_LowerLid`, "Bip01_Head", [`orbicularis04${s}`]],
       [`Bip01_${S}_Brow`, "Bip01_Head", [`oculi01${s}`, `oculi02${s}`]],
       [`Bip01_${S}_MouthCorner`, "Bip01_Head", [`risorius03${s}`, `risorius02${s}`]],
-      [`Bip01_${S}_Clavicle`, "Bip01_Spine2", [`clavicle${s}`, `shoulder01${s}`]],
+      // P3-FGT-14: the clavicles hang from the NECK, as in the reference (3ds Max biped / Rocketbox) rig the boxing
+      // poses were authored on: the rig turns the neck part-way back towards the opponent (between the chest and the
+      // head aim), and the shoulders follow it. Under Spine2 they took the full chest turn: the lead shoulder sat
+      // ~14 cm further forward than authored, inside the guard.
+      [`Bip01_${S}_Clavicle`, "Bip01_Neck", [`clavicle${s}`, `shoulder01${s}`]],
       [`Bip01_${S}_UpperArm`, `Bip01_${S}_Clavicle`, [`upperarm01${s}`, `upperarm02${s}`]],
       [`Bip01_${S}_Forearm`, `Bip01_${S}_UpperArm`, [`lowerarm01${s}`, `lowerarm02${s}`]],
       [`Bip01_${S}_Hand`, `Bip01_${S}_Forearm`, [`wrist${s}`, `metacarpal1${s}`, `metacarpal2${s}`, `metacarpal3${s}`, `metacarpal4${s}`]],
@@ -108,6 +118,13 @@ function finalBones() {
       [`Bip01_${S}_Toe0`, `Bip01_${S}_Foot`, [1, 2, 3, 4, 5].flatMap((t) => [1, 2, 3].map((k) => `toe${t}-${k}${s}`))],
     );
   }
+  // P3-FGT-14 helper bones (appended: the other indices stay put), driven by boxer/helpers.ts after the rig:
+  //  - ShoulderHelper: at the shoulder joint under the clavicle, turning HALF as far as the upper arm. The deltoid /
+  //    armpit skin that MakeHuman weights to the clavicle and the chest (≈ 30 % next to the joint) rides on it, so the
+  //    shoulder rounds over a raised arm instead of staying behind as a lump with a crease;
+  //  - ForearmTwist: on the forearm axis, rolling HALF the hand's twist (MakeHuman's lowerarm02 weights): no candy
+  //    wrapper at the wrist when the fist turns over.
+  for (const [S, s] of SIDES) b.push([`Bip01_${S}_ShoulderHelper`, `Bip01_${S}_Clavicle`, [`upperarm01${s}`]], [`Bip01_${S}_ForearmTwist`, `Bip01_${S}_Forearm`, [`lowerarm02${s}`]]);
   return b;
 }
 
@@ -130,23 +147,59 @@ const finalOf = (mh) => {
 };
 /** per vertex: up to 4 [final bone, weight] */
 const NV = BASE.length / 3;
-const VW = (() => {
+const top4 = (m) => {
+  const top = [...m.entries()].filter(([, w]) => w > 0).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const s = top.reduce((n, [, w]) => n + w, 0) || 1;
+  return top.length ? top.map(([b, w]) => [b, w / s]) : [[FINAL_INDEX.get("Bip01_Head"), 1]];
+};
+const mergedWeights = (map) => {
   const acc = Array.from({ length: NV }, () => new Map());
   for (const [bone, list] of Object.entries(MHW)) {
-    const f = finalOf(bone);
+    const f = map(bone);
     for (const [vi, w] of list) acc[vi].set(f, (acc[vi].get(f) ?? 0) + w);
   }
-  return acc.map((m) => {
-    const top = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
-    const s = top.reduce((n, [, w]) => n + w, 0) || 1;
-    return top.length ? top.map(([b, w]) => [b, w / s]) : [[FINAL_INDEX.get("Bip01_Head"), 1]];
-  });
-})();
+  return acc;
+};
+/** the merged MakeHuman weights: the garment / region tests are designed on these */
+const VW0 = mergedWeights(finalOf).map(top4);
+/** the skin weights: lowerarm02 on the forearm twist helper, the shoulder corrective (see shoulderCorrective) */
+const VW = shoulderCorrective(mergedWeights((mh) => (/^lowerarm02\./.test(mh) ? FINAL_INDEX.get(`Bip01_${mh.endsWith(".L") ? "L" : "R"}_ForearmTwist`) : finalOf(mh)))).map(top4);
 const wOf = (vi, name) => {
   const k = FINAL_INDEX.get(name);
-  for (const [b, w] of VW[vi]) if (b === k) return w;
+  for (const [b, w] of VW0[vi]) if (b === k) return w;
   return 0;
 };
+
+/**
+ * The shoulder corrective (P3-FGT-14): round each shoulder joint, the share of a vertex's weight on the bones that do
+ * NOT follow the arm (clavicle, chest, neck) moves onto the ShoulderHelper (half the arm's turn), fully on the deltoid
+ * cap / armpit next to the joint, fading out 9 → 15 cm from it and medially towards the collarbone / pec. Exported
+ * maths in skin-math.mjs (tested).
+ */
+function shoulderCorrective(acc) {
+  for (const [S, s] of SIDES) {
+    const j = jointPos(skel, BASE, `upperarm01${s}____head`).map((v) => v * DM);
+    const helper = FINAL_INDEX.get(`Bip01_${S}_ShoulderHelper`);
+    const statics = ["Bip01_Spine1", "Bip01_Spine2", "Bip01_Neck", `Bip01_${S}_Clavicle`].map((n) => FINAL_INDEX.get(n));
+    const arm = [`Bip01_${S}_UpperArm`].map((n) => FINAL_INDEX.get(n));
+    for (let i = 0; i < NV; i++) {
+      const p = [BASE[i * 3] * DM, BASE[i * 3 + 1] * DM, BASE[i * 3 + 2] * DM];
+      if (Math.sign(p[0]) !== Math.sign(j[0])) continue;
+      const m = acc[i];
+      const f = shoulderShare(p, j, arm.reduce((n, b) => n + (m.get(b) ?? 0), 0) / ([...m.values()].reduce((n, w) => n + w, 0) || 1));
+      if (f <= 0) continue;
+      let moved = 0;
+      for (const b of statics) {
+        const w = m.get(b) ?? 0;
+        if (!w) continue;
+        m.set(b, w * (1 - f));
+        moved += w * f;
+      }
+      if (moved > 0) m.set(helper, (m.get(helper) ?? 0) + moved);
+    }
+  }
+  return acc;
+}
 const wSum = (vi, names) => names.reduce((n, x) => n + wOf(vi, x), 0);
 
 function variantPositions(params) {
@@ -173,7 +226,46 @@ function geometry(pdm) {
   const bones = FB.map(([name, parent, mh]) => ({ name, parent: parent ? FINAL_INDEX.get(parent) : -1, pos: J(`${mh[0]}____head`) }));
   // the toe bone sits at the ball of the foot (the foot's tail)
   for (const [S, s] of SIDES) bones[FINAL_INDEX.get(`Bip01_${S}_Toe0`)].pos = J(`foot${s}____tail`);
-  return { P, bones, J, minY };
+  return { P, bones, J, minY, torso: torsoSlices(P, bones) };
+}
+
+/**
+ * The torso's volume for the rig's arm keep-out (P3-FGT-14): horizontal slices from the lower back to the neck base,
+ * each [y, half width, front z, back z] relative to the Spine2 joint (bind pose), from the body vertices that belong to
+ * the trunk (arm / head weight under 10 %). The boxing poses were authored on a slimmer reference body: without it the
+ * rear forearm of the guard sat inside this chest.
+ */
+function torsoSlices(P, bones) {
+  const at = (n) => bones[FINAL_INDEX.get(n)].pos;
+  const s2 = at("Bip01_Spine2");
+  const y0 = at("Bip01_Spine")[1];
+  const y1 = at("Bip01_Neck")[1];
+  const STEP = (y1 - y0) / 12;
+  const n = 13;
+  const rows = Array.from({ length: n }, (_, k) => ({ y: y0 + ((y1 - y0) * k) / (n - 1), hw: 0, zf: -1, zb: 1 }));
+  const body = new Set();
+  for (const f of GROUPS.get("body")) for (const i of f) body.add(i);
+  const trunk = (i) => {
+    let off = 0;
+    for (const [b, w] of VW0[i]) {
+      const name = FB[b][0];
+      if (/(Arm|Forearm|Hand|Finger|Head|Jaw|Eye|Lid|Brow|Mouth)/.test(name)) off += w;
+    }
+    return off < 0.1;
+  };
+  for (const i of body) {
+    if (!trunk(i)) continue;
+    const y = P[i * 3 + 1];
+    const k = Math.round(((y - y0) / (y1 - y0)) * (n - 1));
+    if (k < 0 || k >= n || Math.abs(rows[k].y - y) > STEP * 0.6) continue;
+    const r = rows[k];
+    r.hw = Math.max(r.hw, Math.abs(P[i * 3]));
+    r.zf = Math.max(r.zf, P[i * 3 + 2]);
+    r.zb = Math.min(r.zb, P[i * 3 + 2]);
+  }
+  // (a row the trunk vertices miss, up in the neck, takes the row under it)
+  for (let k = 1; k < n; k++) if (rows[k].hw === 0) Object.assign(rows[k], { hw: rows[k - 1].hw, zf: rows[k - 1].zf, zb: rows[k - 1].zb });
+  return rows.map((r) => [r.y - s2[1], r.hw, r.zf - s2[2], r.zb - s2[2]].map((v) => +v.toFixed(4)));
 }
 
 /** smooth vertex normals over a face list (area-weighted) */
@@ -244,11 +336,7 @@ class MeshBuilder {
     const u8n = (arr) => Uint8Array.from(arr, (x) => Math.round(clamp(x, 0, 1) * 255));
     // weights as normalised bytes: each vertex's four re-summed to exactly 255
     const w8 = new Uint8Array(this.w.length);
-    for (let v = 0; v < this.w.length; v += 4) {
-      const q = [0, 1, 2, 3].map((k) => Math.round(this.w[v + k] * 255));
-      q[0] += 255 - (q[0] + q[1] + q[2] + q[3]);
-      w8.set(q, v);
-    }
+    for (let v = 0; v < this.w.length; v += 4) w8.set(weightBytes([0, 1, 2, 3].map((k) => this.w[v + k])), v);
     const attrs = {
       POSITION: { data: Float32Array.from(this.p), size: 3 },
       NORMAL: { data: Float32Array.from(this.n), size: 3 },
@@ -273,6 +361,7 @@ function buildVariant(key, base, morphParams) {
   const { P, bones, J } = G;
   const V = (i) => [P[i * 3], P[i * 3 + 1], P[i * 3 + 2]];
   const bodyFaces = GROUPS.get("body");
+  const bodyV = new Set(bodyFaces.flat());
   const bodyTris = tri(bodyFaces);
   const NB = normalsOf(P, bodyFaces);
   const Nv = (i) => [NB[i * 3], NB[i * 3 + 1], NB[i * 3 + 2]];
@@ -280,8 +369,9 @@ function buildVariant(key, base, morphParams) {
 
   // landmarks
   const pelvis = bp("Bip01_Pelvis");
-  const spine = bp("Bip01_Spine");
-  const spine2 = bp("Bip01_Spine2");
+  // (garment landmarks keep the MakeHuman spine joints they were designed on, whatever the rig pivots are)
+  const spine = J("spine05____head");
+  const spine2 = J("spine02____head");
   const neck = bp("Bip01_Neck");
   const head = bp("Bip01_Head");
   const shoulderL = bp("Bip01_L_UpperArm");
@@ -374,21 +464,36 @@ function buildVariant(key, base, morphParams) {
     const p = V(i);
     const side = p[0] >= 0 ? 1 : -1;
     const fBottom = p[1] - (waistY - 0.075);
-    // arm hole: farther than R from a point just under the shoulder joint
-    const hole = [shoulderX * side * 0.98, shoulderL[1] - 0.045, shoulderL[2] - 0.005];
-    const fArm = len(sub(p, hole)) - 0.118;
-    const fArmW = (0.22 - armW(i)) * 0.3;
+    // P3-FGT-14: a singlet's arm hole, cut geometrically: an ellipse seen from the side round the shoulder joint (top
+    // over the shoulder, bottom ~8 cm under the armpit fold) on the part of the body lateral of the strap line. It
+    // used to be "arm weight > 22 %", which on MakeHuman's weights opened the vest down the ribs and across the pec,
+    // jagged at the shoulder: the arm read as coming out of a hole in the person, not out of the shoulder.
+    void side;
+    // (sized by the shoulder width: the feminine body is ~20 % narrower and the strap must survive between the
+    // neckline and the hole)
+    const sc = shoulderX / 0.207;
+    const ey = (p[1] - (shoulderL[1] - 0.05 * sc)) / (0.15 * sc);
+    const ez = (p[2] - (shoulderL[2] - 0.012)) / (0.088 * sc);
+    // (a rounded intersection: the strap's corner at the top of the hole is a curve, not a point)
+    const a = (1 - Math.hypot(ey, ez)) * 0.088 * sc,
+      b = Math.abs(p[0]) - (shoulderX - 0.09 * sc);
+    const k = 0.025,
+      hk = Math.max(k - Math.abs(a - b), 0) / k;
+    const inHole = Math.min(a, b) - hk * hk * k * 0.25;
+    const fArm = -inHole;
+    const fArmW = (0.6 - armW(i)) * 0.3;
     // neckline: a round scoop at the front, higher at the back
-    const ax = Math.abs(p[0]);
+    const ax = Math.abs(p[0]) / sc;
     const front = backZ(p);
-    const lineY = lerp(neckBaseY - 0.012 + 0.016 * smooth(0.03, 0.09, ax), neckBaseY - 0.088 + 0.07 * smooth(0.02, 0.1, ax), front);
+    const lineY = lerp(neckBaseY - 0.012 + 0.016 * smooth(0.03, 0.09, ax), neckBaseY - 0.088 * sc + 0.07 * sc * smooth(0.02, 0.1, ax), front);
     const fNeck = lineY - p[1];
     return Math.min(fBottom, fArm, fArmW, fNeck, 0.3 - headW(i));
   };
   const shirtField = (i) => {
     const p = V(i);
     const side = p[0] >= 0 ? 1 : -1;
-    const fBottom = p[1] - (waistY - 0.1);
+    // (tucked in: it ends just under the trousers' waistband)
+    const fBottom = p[1] - (waistY - 0.035);
     const sh = [shoulderL[0] * side, shoulderL[1], shoulderL[2]];
     const el = [elbowL[0] * side, elbowL[1], elbowL[2]];
     const axis = norm(sub(el, sh));
@@ -397,7 +502,7 @@ function buildVariant(key, base, morphParams) {
     const fSleeve = upper > 0.25 ? len(sub(el, sh)) * 0.5 - along : 1;
     const fFore = (0.15 - (armW(i) - upper)) * 0.3;
     const front = backZ(p);
-    const fNeck = lerp(neckBaseY + 0.012, neckBaseY - 0.02, front) - p[1];
+    const fNeck = lerp(neckBaseY + 0.03, neckBaseY - 0.012, front) + 0.03 * smooth(0.035, 0.085, Math.abs(p[0])) - p[1];
     return Math.min(fBottom, fSleeve, fFore, fNeck, 0.3 - headW(i));
   };
   const hemY = kneeL[1] + 0.105;
@@ -811,27 +916,243 @@ function buildVariant(key, base, morphParams) {
   const wraps = shell("kit_wraps", bodyFaces, NB, { field: wrapBand, offset: () => 0.0035, mat: MAT.wrap, hem: 0.0025 });
 
   // referee / staff: short-sleeved shirt (tucked in), trousers, shoes
-  SM_SRC = SMOOTH_BODY;
-  const shirt = shell("ref_shirt", bodyFaces, NB, {
+  // P3-FGT-14: real cloth volume instead of a 1–3 cm shell that showed every muscle (and the bust) like a bodysuit:
+  // the shirt hangs from the chest / bust / shoulder blades straight down to a bloused tuck at the belt, with soft
+  // vertical folds; loose short sleeves flaring to the hem; the trousers hang straight from the seat / thighs.
+  const SHIRT_SURF = drapeShirt();
+  const NS = normalsOf(SHIRT_SURF, bodyFaces);
+  const shirt = shell("ref_shirt", bodyFaces, NS, {
     field: shirtField,
-    offset: (i) => 0.012 + 0.016 * smooth(spine2[1], pelvis[1] + 0.05, V(i)[1]) * (V(i)[2] > spine[2] ? 1 : 0.5),
+    offset: (i) => 0.004 + sleeveFlare(i),
     mat: MAT.shirt,
-    bridge: 1,
+    surface: SHIRT_SURF,
     hem: 0.004,
   });
-  SM_SRC = SMOOTH_TIGHTS;
+  const TROUSER_SURF = drapeTrousers(tightsFaces);
+  const NTr = normalsOf(TROUSER_SURF, tightsFaces);
   const trousers = shell(
     "ref_trousers",
     tightsFaces,
-    NT,
+    NTr,
     {
       field: (i) => Math.min(V(i)[1] - (ankleL[1] + 0.03), waistY + 0.02 - V(i)[1]),
-      bridge: 1,
-      offset: (i) => 0.012 + 0.018 * smooth(kneeL[1] + 0.2, ankleL[1] + 0.05, V(i)[1]),
+      offset: () => 0.004,
+      surface: TROUSER_SURF,
       mat: (i) => (V(i)[1] > waistY - 0.018 ? MAT.belt : MAT.trousers),
       hem: 0.005,
     },
   );
+
+  /** the short sleeve: looser towards its hem (a sleeve stands off the arm, it does not wrap it) */
+  function sleeveFlare(i) {
+    const upper = wSum(i, ["Bip01_L_UpperArm", "Bip01_R_UpperArm"]);
+    if (upper < 0.2) return 0;
+    const p = V(i);
+    const side = p[0] >= 0 ? 1 : -1;
+    const sh = [shoulderL[0] * side, shoulderL[1], shoulderL[2]];
+    const el = [elbowL[0] * side, elbowL[1], elbowL[2]];
+    const along = dot(sub(p, sh), norm(sub(el, sh))) / len(sub(el, sh));
+    return smooth(0.2, 0.5, upper) * (0.008 + 0.022 * smooth(0.05, 0.5, along));
+  }
+
+  /**
+   * Radial drape round a vertical axis: per height slice and angle round the trunk, the body's outer radius (angular
+   * max filter: the cloth bridges the cleavage, the spine groove, the sides of the chest), then from the top down the
+   * cloth may only come in towards the body slowly (it hangs from the bust / chest / shoulder blades), and it tucks
+   * back in to the belt. Returns the draped positions for every vertex index (others = the body).
+   */
+  function drapeShirt() {
+    const out = Float64Array.from(P);
+    const yTop = neckBaseY + 0.02,
+      yBot = waistY - 0.12;
+    const DY = 0.012,
+      NA = 72;
+    const rows = Math.ceil((yTop - yBot) / DY) + 1;
+    const ri = (y) => clamp(Math.round((yTop - y) / DY), 0, rows - 1);
+    const ai = (a) => ((Math.round((a / (2 * Math.PI)) * NA) % NA) + NA) % NA;
+    // the trunk vertices (no arm / head), their slice centre (mid depth) and outer radius per angle
+    const trunkV = [];
+    for (let i = 0; i < NV; i++) {
+      if (!bodyV.has(i)) continue;
+      const p = V(i);
+      if (p[1] < yBot - 0.02 || p[1] > yTop + 0.02) continue;
+      if (armW(i) > 0.35 || headW(i) > 0.4) continue;
+      trunkV.push(i);
+    }
+    const zc = new Float64Array(rows);
+    {
+      const lo = new Float64Array(rows).fill(9),
+        hi = new Float64Array(rows).fill(-9);
+      for (const i of trunkV) {
+        const k = ri(V(i)[1]);
+        lo[k] = Math.min(lo[k], V(i)[2]);
+        hi[k] = Math.max(hi[k], V(i)[2]);
+      }
+      for (let k = 0; k < rows; k++) zc[k] = lo[k] < hi[k] ? (lo[k] + hi[k]) / 2 : k ? zc[k - 1] : spine2[2];
+      // a smooth axis
+      for (let pass = 0; pass < 4; pass++) for (let k = 1; k < rows - 1; k++) zc[k] = (zc[k - 1] + zc[k] * 2 + zc[k + 1]) / 4;
+    }
+    const R = Array.from({ length: rows }, () => new Float64Array(NA));
+    for (const i of trunkV) {
+      const p = V(i);
+      const k = ri(p[1]);
+      const dz = p[2] - zc[k];
+      const a = ai(Math.atan2(p[0], dz));
+      R[k][a] = Math.max(R[k][a], Math.hypot(p[0], dz));
+    }
+    // fill empty bins, angular max filter (±4 bins = ±20°) then a blur: a convex-ish envelope
+    for (let k = 0; k < rows; k++) {
+      const r = R[k];
+      for (let pass = 0; pass < NA; pass++) for (let a = 0; a < NA; a++) if (!r[a]) r[a] = Math.max(r[(a + 1) % NA], r[(a + NA - 1) % NA]) * 0.999;
+      const mx = r.map((_, a) => Math.max(...[-4, -3, -2, -1, 0, 1, 2, 3, 4].map((d) => r[(a + d + NA) % NA])));
+      for (let a = 0; a < NA; a++) r[a] = Math.max(r[a], (mx[(a + NA - 1) % NA] + mx[a] * 2 + mx[(a + 1) % NA]) / 4);
+    }
+    // the hang: from the top down the radius may shrink by at most 0.22 per unit of height; tucked at the belt
+    const H = R.map((r) => Float64Array.from(r));
+    for (let k = 1; k < rows; k++) for (let a = 0; a < NA; a++) H[k][a] = Math.max(R[k][a], H[k - 1][a] - 0.22 * DY);
+    const tuckY = waistY + 0.01;
+    const ease = 0.012;
+    const region = [];
+    const floor = new Map();
+    const folds = new Map();
+    for (let i = 0; i < NV; i++) {
+      if (!bodyV.has(i)) continue;
+      const p = V(i);
+      if (p[1] < yBot || p[1] > yTop) continue;
+      const k = ri(p[1]);
+      const dz = p[2] - zc[k];
+      const ang = Math.atan2(p[0], dz);
+      const a = ai(ang);
+      const own = Math.hypot(p[0], dz);
+      // the bloused tuck: back in towards the body over the 9 cm above the belt (2.5 cm of overhang stays above it)
+      const t = smooth(tuckY + 0.09, tuckY - 0.005, p[1]);
+      const blouse = 0.012 * Math.exp(-(((p[1] - (tuckY + 0.035)) / 0.025) ** 2));
+      // soft vertical folds below the chest (stronger towards the tuck), none up on the shoulders
+      const fold = (0.006 * Math.sin(ang * 9 + Math.sin(ang * 3) * 1.3) + 0.003 * Math.sin(ang * 17 + p[1] * 30)) * smooth(spine2[1] + 0.08, tuckY + 0.02, p[1]) * (1 - smooth(0.12, 0.4, armW(i)));
+      let r = lerp(H[k][a] + ease, own + 0.006, t) + blouse * (1 - t);
+      folds.set(i, fold);
+      r = Math.max(r, own + 0.004);
+      // the arm side of the trunk (armpit, shoulder) and the collar line: back to the body shell
+      const w = (1 - smooth(0.12, 0.4, armW(i))) * (1 - smooth(neckBaseY - 0.09, neckBaseY - 0.025, p[1]));
+      const rr = lerp(own + 0.008, r, w);
+      const f = rr / (own || 1);
+      out[i * 3] = p[0] * f;
+      out[i * 3 + 1] = p[1];
+      out[i * 3 + 2] = zc[k] + dz * f;
+      region.push(i);
+      // (the floor: over the body by a few mm, and 1.4 cm over its smoothed shape away from the tuck: the cloth bridges
+      // small bumps like the nipples instead of printing them)
+      const sOwn = Math.hypot(SMOOTH_BODY[i * 3], SMOOTH_BODY[i * 3 + 2] - zc[k]);
+      floor.set(i, Math.max(own + 0.004, lerp(sOwn + 0.014, own + 0.004, t)));
+    }
+    // cloth is smooth: relax the draped region (the bins are coarse), never inside the body
+    for (let it = 0; it < 8; it++) {
+      const prev = Float64Array.from(out);
+      for (const i of region) {
+        let x = 0,
+          z = 0,
+          n = 0;
+        for (const q of neigh[i]) {
+          x += prev[q * 3];
+          z += prev[q * 3 + 2];
+          n++;
+        }
+        if (!n) continue;
+        out[i * 3] = lerp(prev[i * 3], x / n, 0.6);
+        out[i * 3 + 2] = lerp(prev[i * 3 + 2], z / n, 0.6);
+        const k = ri(V(i)[1]);
+        const dx = out[i * 3],
+          dz = out[i * 3 + 2] - zc[k];
+        const r = Math.hypot(dx, dz);
+        const lo = floor.get(i);
+        if (r < lo) {
+          out[i * 3] = (dx / (r || 1)) * lo;
+          out[i * 3 + 2] = zc[k] + (dz / (r || 1)) * lo;
+        }
+      }
+    }
+    // the folds go on after the relax (they are the cloth's shape, not noise)
+    for (const i of region) {
+      const k = ri(V(i)[1]);
+      const dx = out[i * 3],
+        dz = out[i * 3 + 2] - zc[k];
+      const r = Math.hypot(dx, dz) || 1;
+      const f = folds.get(i) ?? 0;
+      out[i * 3] += (dx / r) * f;
+      out[i * 3 + 2] += (dz / r) * f;
+    }
+    return out;
+  }
+
+  /** the trousers: each leg hangs straight from the seat / the thigh's widest point (the tights helper as the body) */
+  function drapeTrousers(faces) {
+    const verts = new Set();
+    for (const f of faces) for (const i of f) verts.add(i);
+    const out = Float64Array.from(P);
+    const yTop = waistY + 0.03,
+      yBot = ankleL[1];
+    const DY = 0.015,
+      NA = 48;
+    const rows = Math.ceil((yTop - yBot) / DY) + 1;
+    const ri = (y) => clamp(Math.round((yTop - y) / DY), 0, rows - 1);
+    const ai = (a) => ((Math.round((a / (2 * Math.PI)) * NA) % NA) + NA) % NA;
+    // a leg's axis at height y: hip joint → knee → ankle (per side)
+    const axisAt = (side, y) => {
+      const hip = bp(side > 0 ? "Bip01_L_Thigh" : "Bip01_R_Thigh");
+      const knee = bp(side > 0 ? "Bip01_L_Calf" : "Bip01_R_Calf");
+      const ank = bp(side > 0 ? "Bip01_L_Foot" : "Bip01_R_Foot");
+      const seg = y > knee[1] ? [knee, hip] : [ank, knee];
+      const t = clamp((y - seg[0][1]) / (seg[1][1] - seg[0][1] || 1), 0, 1);
+      return [lerp(seg[0][0], seg[1][0], t), lerp(seg[0][2], seg[1][2], t)];
+    };
+    const crotchY = pelvis[1] - 0.09;
+    for (const side of [1, -1]) {
+      const R = Array.from({ length: rows }, () => new Float64Array(NA));
+      const mine = [...verts].filter((i) => V(i)[0] * side > 0 && V(i)[1] <= yTop && V(i)[1] >= yBot);
+      for (const i of mine) {
+        const p = V(i);
+        const k = ri(p[1]);
+        const [cx, cz] = axisAt(side, p[1]);
+        const a = ai(Math.atan2(p[0] - cx, p[2] - cz));
+        R[k][a] = Math.max(R[k][a], Math.hypot(p[0] - cx, p[2] - cz));
+      }
+      for (let k = 0; k < rows; k++) {
+        const r = R[k];
+        for (let pass = 0; pass < NA; pass++) for (let a = 0; a < NA; a++) if (!r[a]) r[a] = Math.max(r[(a + 1) % NA], r[(a + NA - 1) % NA]) * 0.999;
+        const mx = r.map((_, a) => Math.max(r[(a + NA - 1) % NA], r[a], r[(a + 1) % NA]));
+        for (let a = 0; a < NA; a++) r[a] = (mx[(a + NA - 1) % NA] + mx[a] * 2 + mx[(a + 1) % NA]) / 4;
+      }
+      // straight legs: below the crotch the radius shrinks slowly (0.16 per unit height), a little looser at the hem
+      const H = R.map((r) => Float64Array.from(r));
+      for (let k = 1; k < rows; k++) {
+        const y = yTop - k * DY;
+        const slope = y < crotchY ? 0.16 : 0.6;
+        for (let a = 0; a < NA; a++) H[k][a] = Math.max(R[k][a], H[k - 1][a] - slope * DY);
+      }
+      for (const i of mine) {
+        const p = V(i);
+        const k = ri(p[1]);
+        const [cx, cz] = axisAt(side, p[1]);
+        const dx = p[0] - cx,
+          dz = p[2] - cz;
+        const own = Math.hypot(dx, dz);
+        const ang = Math.atan2(dx, dz);
+        // the inner thigh / crotch keeps close (the legs must not merge), the waist sits on the body (the belt)
+        const inner = smooth(0.3, 0.9, -Math.sin(ang) * side) * smooth(crotchY - 0.12, crotchY + 0.04, p[1]);
+        const waist = smooth(waistY - 0.06, waistY - 0.0, p[1]);
+        const band = 0.006 * waist;
+        const fold = 0.003 * Math.sin(ang * 5 + p[1] * 40) * smooth(kneeL[1] + 0.15, ankleL[1] + 0.1, p[1]);
+        let r = H[k][ai(ang)] + 0.008 + fold;
+        r = lerp(r, own + 0.006, Math.max(inner, waist)) + band;
+        r = Math.max(r, own + 0.004);
+        const f = r / (own || 1);
+        out[i * 3] = cx + dx * f;
+        out[i * 3 + 2] = cz + dz * f;
+        out[i * 3 + 1] = p[1];
+      }
+    }
+    return out;
+  }
   SM_SRC = SMOOTH_BODY;
   const shoes = new MeshBuilder("ref_shoes");
   for (const S of ["L", "R"]) loftFoot(shoes, S, { top: ankleL[1] + 0.012, slot: MAT.shoe, soleSlot: MAT.sole, laceSlot: null, pad: 0.008 });
@@ -1141,14 +1462,22 @@ function buildVariant(key, base, morphParams) {
       }
     rx = Math.min(rx, 0.06) + 0.004;
     rz = Math.min(rz || 0.055, 0.06) + 0.004;
-    for (let k = 0; k < 3; k++) {
-      const y = neckBaseY - 0.004 + 0.016 * k;
-      const grow = 1 + 0.05 * k;
+    // P3-FGT-14: a stand collar that grows out of the shirt's neckline (the lowest ring flares onto the shirt, no
+    // skin gap), and two pointed fall-down wings at the front either side of the tie
+    const H = [
+      [-0.03, 1.45],
+      [-0.012, 1.2],
+      [0.004, 1.0],
+      [0.02, 1.03],
+      [0.03, 1.07],
+    ];
+    for (const [dy, grow] of H) {
+      const y = neckBaseY + dy;
       const row = [];
       for (let u = 0; u < R; u++) {
         const th = (2 * Math.PI * u) / R;
         // the collar opens at the front
-        if (Math.abs(th) < 0.32 || Math.abs(th - 2 * Math.PI) < 0.32) {
+        if (Math.abs(th) < 0.3 || Math.abs(th - 2 * Math.PI) < 0.3) {
           row.push(-1);
           continue;
         }
@@ -1157,7 +1486,7 @@ function buildVariant(key, base, morphParams) {
       }
       ring.push(row);
     }
-    for (let k = 0; k < 2; k++)
+    for (let k = 0; k < H.length - 1; k++)
       for (let u = 0; u < R; u++) {
         const a0 = ring[k][u],
           a1 = ring[k][(u + 1) % R],
@@ -1169,21 +1498,95 @@ function buildVariant(key, base, morphParams) {
         m.face(a0, b0, a1);
         m.face(a1, b0, b1);
       }
+    // the wings: from the top of the stand at the opening, folded down and out to a point on the chest
+    for (const sgn of [-1, 1]) {
+      const th0 = sgn * 0.32,
+        th1 = sgn * 1.05;
+      const top = (th, g) => [Math.sin(th) * rx * g, neckBaseY + 0.03, cz + Math.cos(th) * rz * g + 0.004];
+      const a = top(th0, 1.12),
+        b = top(th1, 1.14);
+      const tip = [Math.sin(sgn * 0.42) * rx * 1.9, neckBaseY - 0.045, cz + rz * 1.28];
+      const n = norm(cross(sub(b, a), sub(tip, a)));
+      const nf = n[2] < 0 ? scl(n, -1) : n;
+      const ids = [a, b, tip].map((q) => m.vert(q, nf, skin, mat));
+      m.face(ids[0], ids[1], ids[2]);
+      m.face(ids[0], ids[2], ids[1]);
+    }
     return m;
   };
   const refCollar = collar("ref_collar", MAT.shirt);
   // the staff polo: the shirt shape in the polo colour, with its collar
-  const polo = shell("staff_polo", bodyFaces, NB, {
+  const polo = shell("staff_polo", bodyFaces, NS, {
     field: shirtField,
-    offset: (i) => 0.012 + 0.018 * smooth(spine2[1], pelvis[1] + 0.05, V(i)[1]) * (V(i)[2] > spine[2] ? 1 : 0.5),
+    offset: (i) => 0.005 + sleeveFlare(i),
+    surface: SHIRT_SURF,
     mat: MAT.polo,
-    bridge: 1,
     hem: 0.004,
   });
   const poloCollar = collar("staff_collar", MAT.polo);
 
   const meshes = [bodyMesh, vest, trunks, boots, socks, gloves, headgear, wraps, shirt, refCollar, bowtie, trousers, shoes, polo, poloCollar, hairCap];
-  return { key, G, meshes, landmarks: { headC, eyeL, eyeR, kit: [Math.abs(thighL[0]), pelvis[1] - 0.07, trunksTop, hemY] }, morphParams };
+  return { key, G, meshes, landmarks: { headC, eyeL, eyeR, kit: [Math.abs(thighL[0]), pelvis[1] - 0.07, trunksTop, hemY], torso: G.torso }, morphParams };
+}
+
+/* ------------------------------------------------------------ the player's face on the boxer head (P3-FGT-14) ------------------------------------------------------------ */
+/**
+ * The avatar's face choices (world/face.ts: shape, eyes, nose, lips) as MakeHuman face targets (data/targets/head,
+ * eyes, nose, mouth; CC0). The first option of each list in face.ts that reads as the base mesh has no target (oval,
+ * almond, rounded, medium). Each option is one sparse morph target of the body mesh; the runtime bakes the chosen
+ * ones (boxer-body.ts). Weights are kept moderate: a boxer's face, recognisably the player's choice, never a caricature.
+ */
+const FACE_MORPHS = {
+  "shape:round": [["head/head-round", 0.75], ["head/head-fat-incr", 0.3]],
+  "shape:square": [["head/head-square", 0.85]],
+  "shape:heart": [["head/head-invertedtriangular", 0.8]],
+  "shape:long": [["head/head-scale-vert-incr", 0.55], ["head/head-scale-horiz-decr", 0.25]],
+  "eyes:round": [["eyes/l-eye-height2-incr", 0.6], ["eyes/r-eye-height2-incr", 0.6]],
+  "eyes:hooded": [["eyes/l-eye-eyefold-down", 0.7], ["eyes/r-eye-eyefold-down", 0.7]],
+  "eyes:narrow": [["eyes/l-eye-height2-decr", 0.55], ["eyes/r-eye-height2-decr", 0.55]],
+  "eyes:deep": [["eyes/l-eye-eyefold-concave", 0.7], ["eyes/r-eye-eyefold-concave", 0.7]],
+  "nose:broad": [["nose/nose-scale-horiz-incr", 0.55], ["nose/nose-flaring-incr", 0.45]],
+  "nose:straight": [["nose/nose-greek-incr", 0.5], ["nose/nose-hump-decr", 0.4]],
+  "nose:narrow": [["nose/nose-scale-horiz-decr", 0.55], ["nose/nose-point-width-decr", 0.4]],
+  "nose:wide": [["nose/nose-nostrils-width-incr", 0.7], ["nose/nose-flaring-incr", 0.4]],
+  "lips:full": [["mouth/mouth-upperlip-volume-incr", 0.6], ["mouth/mouth-lowerlip-volume-incr", 0.6]],
+  "lips:thin": [["mouth/mouth-upperlip-volume-decr", 0.6], ["mouth/mouth-lowerlip-volume-decr", 0.6]],
+  "lips:wide": [["mouth/mouth-scale-horiz-incr", 0.6]],
+  "lips:bow": [["mouth/mouth-cupidsbow-incr", 0.8]],
+};
+/** per face option: MakeHuman vertex → delta (m) */
+const FACE_DELTAS = Object.fromEntries(
+  Object.entries(FACE_MORPHS).map(([name, list]) => {
+    const d = new Map();
+    for (const [file, w] of list) {
+      const t = readTarget(join(MH, "targets", `${file}.target`));
+      for (let i = 0; i < t.length; i += 4) {
+        const k = t[i];
+        const cur = d.get(k) ?? [0, 0, 0];
+        cur[0] += t[i + 1] * w * DM;
+        cur[1] += t[i + 2] * w * DM;
+        cur[2] += t[i + 3] * w * DM;
+        d.set(k, cur);
+      }
+    }
+    return [name, d];
+  }),
+);
+/** the body mesh's face targets: its vertices that come from a moved MakeHuman vertex */
+function faceMorphs(mb) {
+  return Object.entries(FACE_DELTAS).map(([name, d]) => {
+    const indices = [];
+    const values = [];
+    for (let k = 0; k < mb.count; k++) {
+      const src = mb.src[k];
+      if (typeof src !== "number" || src < 0) continue;
+      const v = d.get(src);
+      if (!v || Math.hypot(v[0], v[1], v[2]) < 2e-5) continue;
+      indices.push(k);
+      values.push(v[0], v[1], v[2]);
+    }
+    return { name, indices, values: Float32Array.from(values) };
+  });
 }
 
 /* ------------------------------------------------------------ variants: body types as morph targets ------------------------------------------------------------ */
@@ -1240,15 +1643,21 @@ for (const [key, spec] of Object.entries(GENDERS)) {
       }
       return d;
     });
+    // the player's face shape (P3-FGT-14): sparse targets on the body's head vertices (MakeHuman CC0 face targets)
+    if (mb.name === "body") built.sparseMorphs = faceMorphs(mb);
     return built;
   });
   // shell vertices that were not tracked (hem strips) inherit nothing: fine (they are tiny); rigid pieces use the bone
   const boneMorph = Object.fromEntries(morphNames.map((m, k) => [m, morphGeo[k].bones.map((b, i) => b.pos.map((v, a) => +(v - base.G.bones[i].pos[a]).toFixed(5)))]));
+  // the torso slices per body-type morph, as deltas (the runtime blends them like the joints)
+  const torsoMorph = Object.fromEntries(morphNames.map((m, k) => [m, morphGeo[k].torso.map((r, i) => r.map((v, a) => +(v - base.G.torso[i][a]).toFixed(4)))]));
   const extras = {
     boxerBody: 1,
     source: "MakeHuman 1.x (CC0 1.0): base.obj, macrodetails targets, default.mhskel, default_weights.mhw",
     morphs: morphNames,
+    faceMorphs: Object.keys(FACE_MORPHS),
     boneMorph,
+    torsoMorph,
     landmarks: base.landmarks,
     mat: MAT,
     cover: COVER,

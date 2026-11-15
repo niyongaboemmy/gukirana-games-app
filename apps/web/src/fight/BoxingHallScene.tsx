@@ -10,12 +10,15 @@ import { HallRingKit } from "./assets-shim";
 import { RingSigns } from "./ring-signs";
 import { Banners, Benches, FloorMarks, LightPools } from "./hall-dressing";
 import { FEATURE_RING } from "./plan";
+import { STOOL_PLACE_S } from "@/rooms/fight/ring-kit-core";
+import { useDelayed } from "./use-delayed";
 import { HallGlimpse } from "./hall-glimpse";
 import { BIG_SCREEN, BOXING_DOOR, BOXING_SIZE, FEATURE_STAGE, RINGS, ringSteps } from "./plan";
 import { useRingKitRings } from "./rings";
 import { bigScreenKey, drawBigScreen } from "./screen";
 import { useFightBridge } from "./bridge";
 import { FightersLayer } from "./fighters";
+import { Judges } from "./judges";
 import { FightCamera } from "./camera";
 import { RingCloseInfo } from "./ring-info";
 import "./hooks"; // registers the Boxing hall's hall hooks
@@ -49,10 +52,12 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
   }, []);
   const rings = useRingKitRings();
   const restKey = useFightBridge((st) => (st.watched?.snap?.phase === "rest" ? st.watched.ring : "") + (st.mine?.snap?.phase === "rest" ? st.mine.ring : ""));
+  // (the ring kit's stool comes in once the corner's second has carried it over the ropes: fighters.tsx CornerTeam)
+  const placedKey = useDelayed(restKey, STOOL_PLACE_S * 1000);
   const [features, training] = useMemo(() => {
-    const all = rings.map((r) => ({ ...r, number: Number(r.id.slice(1)), rest: restKey.includes(r.id) }));
+    const all = rings.map((r) => ({ ...r, number: Number(r.id.slice(1)), rest: placedKey.includes(r.id) && restKey.includes(r.id) }));
     return [all.filter((r) => r.feature), all.filter((r) => !r.feature)];
-  }, [rings, restKey]);
+  }, [rings, restKey, placedKey]);
   const [mock] = useState(fightMockOn);
   const gym = useGymScene();
   // focus mode (P3-FGT-05): once the hall is dark around my ring, the ring kit keeps only that ring
@@ -80,6 +85,7 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
       <group userData={{ noMerge: true }}>
         <RingCloseInfo />
         <FightersLayer lite={lite} />
+        <Judges lite={lite} />
         <BagWorker lite={lite} />
         <FightCamera />
       </group>
