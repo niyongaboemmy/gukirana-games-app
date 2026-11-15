@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { useFightBridge } from "../bridge";
-import { GLOVE_UP_TICKS, PracticeSession } from "./practice";
+import { DEFAULT_FIGHT_RULES } from "@gukirana/contracts";
+import { createFight, PUNCH_SPECS } from "@gukirana/boxing";
+import { ASSIST_HOLD, assistStep, GLOVE_UP_TICKS, PracticeSession } from "./practice";
+import { DRILL_SECONDS, drillDone } from "./Tutorial";
 
 const lcg = (seed: number) => {
   let x = seed >>> 0 || 1;
@@ -43,5 +46,38 @@ describe("boxing practice session", () => {
     expect(useFightBridge.getState().mine?.snap?.phase).toBe("over");
     expect(useFightBridge.getState().myEvents.some((e) => e.k === "over")).toBe(true);
     expect(scores.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("Easy mode (practice only)", () => {
+  const base = () => {
+    const f = createFight(["me", "ai"], DEFAULT_FIGHT_RULES);
+    return { ...f, phase: "round" as const, fighters: [{ ...f.fighters[0], act: "idle" as const }, { ...f.fighters[1], act: "idle" as const }] as typeof f.fighters };
+  };
+  it("raises the guard while their punch is on its way, not otherwise", () => {
+    const s = base();
+    expect(assistStep(s, 0, false, null).guard).toBe(false);
+    const incoming = { ...s, fighters: [s.fighters[0], { ...s.fighters[1], act: "cross" as const, resolved: false }] as typeof s.fighters };
+    expect(assistStep(incoming, 0, false, null).guard).toBe(true);
+    expect(assistStep(incoming, 0, true, null).guard).toBe(true);
+  });
+  it("steps in for a punch pressed out of range, then throws it; a busy press waits, then expires", () => {
+    const far = { ...base(), dist: PUNCH_SPECS.jab.reach + 40 };
+    const a = assistStep(far, 0, false, { a: "jab", age: 0 });
+    expect(a.send).toBe("stepIn");
+    expect(a.pending?.a).toBe("jab");
+    const near = { ...base(), dist: PUNCH_SPECS.jab.reach - 10 };
+    expect(assistStep(near, 0, false, a.pending).send).toBe("jab");
+    const busy = { ...near, fighters: [{ ...near.fighters[0], act: "jab" as const }, near.fighters[1]] as typeof near.fighters };
+    expect(assistStep(busy, 0, false, { a: "cross", age: 0 })).toMatchObject({ send: null, pending: { a: "cross", age: 1 } });
+    expect(assistStep(busy, 0, false, { a: "cross", age: ASSIST_HOLD }).pending).toBeNull();
+  });
+});
+
+describe("training drill", () => {
+  it("ticks each step from what the fight showed", () => {
+    expect(drillDone({ jabs: 0, blocked: 0, slipped: 0, combo: false })).toEqual({ jab: false, block: false, slip: false, combo: false });
+    expect(drillDone({ jabs: 2, blocked: 1, slipped: 0, combo: true })).toEqual({ jab: true, block: true, slip: false, combo: true });
+    expect(DRILL_SECONDS).toBe(60);
   });
 });

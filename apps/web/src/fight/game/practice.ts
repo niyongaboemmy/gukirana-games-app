@@ -1,5 +1,6 @@
 import {
   DEFAULT_FIGHT_RULES,
+  isPunch,
   type BoxingAction,
   type FightEvent,
   type FightInput,
@@ -11,6 +12,7 @@ import {
   boxingBotInput,
   createFight,
   hashFight,
+  PUNCH_SPECS,
   isBusy,
   isTooTired,
   snapshotOf,
@@ -39,6 +41,43 @@ async function recordPractice(id: string, state: FightState): Promise<void> {
   useFightUi.getState().setRecord({ id, hash, kind: "practice" });
 }
 
+/**
+ * Easy mode (P3-FGT-09), PRACTICE ONLY: client-side input help so the first fights work on the first try. It never
+ * touches a live fight (the live client has no such path) and never changes the engine's rules — it only decides
+ * which ordinary inputs to send, the same ones a player could press:
+ *  - auto-guard: while I stand idle and the opponent's punch is on its way, the guard goes up (unless I am punching);
+ *  - forgiving timing: a punch pressed while I am still busy waits (up to ASSIST_HOLD ticks) instead of being lost;
+ *  - auto-close: a punch pressed out of range first steps in, then throws.
+ */
+export const ASSIST_HOLD = 15;
+export interface AssistPending {
+  a: BoxingAction;
+  age: number;
+}
+export function assistStep(s: FightState, i: 0 | 1, guardHeld: boolean, pending: AssistPending | null): { guard: boolean; send: BoxingAction | null; pending: AssistPending | null } {
+  const me = s.fighters[i];
+  const opp = s.fighters[1 - i]!;
+  const idle = me.act === "idle";
+  const incoming = isPunch(opp.act) && !opp.resolved;
+  let send: BoxingAction | null = null;
+  let next: AssistPending | null = pending;
+  if (pending) {
+    if (pending.age >= ASSIST_HOLD) next = null;
+    else if (idle) {
+      const reach = isPunch(pending.a) ? PUNCH_SPECS[pending.a].reach : Infinity;
+      if (isPunch(pending.a) && s.dist > reach) {
+        send = "stepIn";
+        next = { a: pending.a, age: pending.age + 1 };
+      } else {
+        send = pending.a;
+        next = null;
+      }
+    } else next = { a: pending.a, age: pending.age + 1 };
+  }
+  const guard = guardHeld || (idle && incoming && !send && !next);
+  return { guard, send, pending: next };
+}
+
 /** the integer rng the practice bot needs (practice seeds it from @gukirana/fairness, tests with a fixed one) */
 export interface PracticeRng {
   int(min: number, max: number): number;
@@ -64,6 +103,9 @@ export class PracticeSession {
   private guard = false;
   private guardSent = false;
   private press: BoxingAction | null = null;
+  /** Easy mode (practice only, P3-FGT-09): see assistStep */
+  assist = false;
+  private pending: AssistPending | null = null;
   private introLeft = GLOVE_UP_TICKS;
   private onRoundEnd?: (round: number, score: [number, number]) => void;
   /** the practice fight's id (fight record) */
@@ -150,10 +192,19 @@ export class PracticeSession {
       return;
     }
     let mine: FightInput | null = null;
-    if (this.press || this.guard !== this.guardSent) {
-      mine = this.press ? { seq: this.seq++, a: this.press, g: this.guard } : { seq: this.seq++, g: this.guard };
+    let press = this.press;
+    let guard = this.guard;
+    if (this.assist && this.state.phase === "round") {
+      if (press) this.pending = { a: press, age: 0 };
+      const st = assistStep(this.state, 0, this.guard, this.pending);
+      press = st.send;
+      guard = st.guard;
+      this.pending = st.pending;
+    }
+    if (press || guard !== this.guardSent) {
+      mine = press ? { seq: this.seq++, a: press, g: guard } : { seq: this.seq++, g: guard };
       this.press = null;
-      this.guardSent = this.guard;
+      this.guardSent = guard;
     }
     const bot = boxingBotInput(this.state, 1, this.level, this.rng);
     this.state = stepFight(this.state, [mine, bot]);

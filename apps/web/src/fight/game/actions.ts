@@ -75,8 +75,13 @@ export function startPractice(ring: RingId, level: number, name = "", rules?: Fi
     onRoundEnd: (round, score) => live.practiceScore?.(ring, round, score),
   });
   runner = new PracticeRunner(session, practiceHz(useFightPrefs.getState().speed));
+  // Easy mode: practice only (the live client has no assist path at all)
+  session.assist = useFightPrefs.getState().assist;
   runner.run();
-  unsubSpeed = useFightPrefs.subscribe((p) => runner?.setHz(practiceHz(p.speed)));
+  unsubSpeed = useFightPrefs.subscribe((p) => {
+    runner?.setHz(practiceHz(p.speed));
+    if (session) session.assist = p.assist;
+  });
   live.practiceStart?.(ring);
   return session;
 }
