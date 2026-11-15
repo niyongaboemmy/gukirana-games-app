@@ -1,7 +1,7 @@
 // P2-WLD-20 door audit: every hall door from the plaza (front closed, oblique, the user's close angle, approaching /
 // opening / open, looking into the lobby) and from inside the hall looking back at the entrance; plus draw calls
 // (ground / aerial) and the GPU memory of the glass captures (window.__gkGlass).
-//   BASE=http://localhost:3970 OUT=/tmp/doors node door-audit.mjs [desktop|phone] [pool ludo …]
+//   BASE=http://localhost:3970 OUT=/tmp/doors [TOD=780] node door-audit.mjs [desktop|phone] [pool ludo …]
 import puppeteer from "puppeteer-core";
 import fs from "node:fs";
 import path from "node:path";
@@ -74,6 +74,11 @@ const calls = () =>
     c.sort((a, b) => a - b);
     return c[c.length >> 1];
   });
+// TOD=<minutes since midnight>: pin the time of day (P2-WLD-19 dev hook) so day and night runs compare
+if (process.env.TOD) {
+  await page.evaluate((m) => window.__gkTod?.pin(m, true), +process.env.TOD);
+  await sleep(8000);
+}
 const report = { base: BASE, vp: tag, perf: {}, glass: null };
 report.perf.ground = await calls();
 await page.evaluate(() => Object.assign(window.__gkCam, { distance: 640 }));

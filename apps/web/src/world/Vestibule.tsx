@@ -134,14 +134,16 @@ function lobbyFloor(style: Style, w: number, len: number, mat: { w: number; from
   return t;
 }
 
-/** A box whose faces all sample one column of the wall wash (u fixed; v too if given): an even wash across a narrow panel. */
-function washedBox(w: number, h: number, d: number, u: number, v?: number): THREE.BufferGeometry {
+/**
+ * A box whose faces all sample one column of the wall wash (u fixed): an even wash across a narrow panel. `v`: a
+ * number = that row everywhere; [centre y, wall height] = the row of each vertex's height on the wall (panels at
+ * different heights read as one wall).
+ */
+function washedBox(w: number, h: number, d: number, u: number, v: number | [number, number]): THREE.BufferGeometry {
   const g = new THREE.BoxGeometry(w, h, d);
   const uv = g.getAttribute("uv") as THREE.BufferAttribute;
-  for (let i = 0; i < uv.count; i++) {
-    uv.setX(i, u);
-    if (v !== undefined) uv.setY(i, v);
-  }
+  const pos = g.getAttribute("position") as THREE.BufferAttribute;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, u, typeof v === "number" ? v : THREE.MathUtils.clamp((v[0] + pos.getY(i)) / v[1], 0, 1));
   return g;
 }
 
@@ -278,8 +280,8 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
   const back = useMemo(() => {
     const u = 0.5 / Math.max(1, s.lights);
     return {
-      side: washedBox(side + 0.02, h + 0.02, 0.1, u),
-      over: washedBox(DW + 0.02, h + 0.02 - DH, 0.092, u),
+      side: washedBox(side + 0.02, h + 0.02, 0.1, u, [(h + 0.02) / 2, h]),
+      over: washedBox(DW + 0.02, h + 0.02 - DH, 0.092, u, [(DH + h + 0.02) / 2, h]),
       // the soffit samples the wash's dim foot: an even glow
       ceiling: washedBox(w + 0.2, 0.1, depth + 0.12, u, 0.03),
     };

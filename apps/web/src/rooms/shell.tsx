@@ -170,7 +170,7 @@ export function AutoDoor({ x, z, w }: { x: number; z: number; w: number; color: 
   // leaves hang so their bottom rail clears the floor by 1 cm
   const cy = 0.01 + 0.08 + H / 2;
   return (
-    // gkSouth: the entrance, left out of the glass captures (they look into the room through the door line)
+    // gkSouth: the entrance (a tag kept from the P2-WLD-18 interior captures, which no longer exist: P2-WLD-20)
     <group position={[x, 0, z]} userData={{ noMerge: true, gkSouth: true }}>
       {/* sliding leaves: never part of the room's static batch; each leaf's parts are batched on their own */}
       <group ref={left} position={[-w / 4, cy, -0.1]} userData={{ noMerge: true }}>
@@ -340,7 +340,7 @@ const SHOPFRONTS: Partial<Record<HallLayout["game"], { w: number; mullions: numb
  * The entrance wall. For a hall with a glazed shopfront outside (Pool Hall, Ludo Lounge, Administrative Block) the same
  * glazing is in it, seen from inside: smoked glass either side of the door and over it, the real plaza beyond
  * (DoorGlimpse / PlazaGlimpse at its true bearing, the hall's captured landscape behind), the facade's own fins, piers
- * and pylons right outside. Marked `gkSouth`: left out of the glass captures (world/GlassCapture), which look IN.
+ * and pylons right outside. Marked `gkSouth` (the entrance side; the interior captures that used it are gone, P2-WLD-20).
  */
 export function SouthWall({ layout, children }: { layout: HallLayout; children: React.ReactNode }) {
   const { w, d, h } = layout.size;
@@ -460,7 +460,7 @@ export function DoorGlimpse({ layout, lite = false }: { layout: HallLayout; lite
   const { d } = layout.size;
   const z0 = d / 2 + 0.3;
   return (
-    // (outside the hall: left out of the glass captures, gkSouth)
+    // (outside the hall: gkSouth)
     <group userData={{ noMerge: true, gkSouth: true }}>
       <PlazaGlimpse layout={layout} lite={lite} />
       {/* basalt threshold through the wall opening (the plaza impostor starts 35 cm outside the wall face) */}
