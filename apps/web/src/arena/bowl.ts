@@ -452,6 +452,19 @@ export function routeBetween(from: P, to: P): P[] {
     const back = alongRow(rt, a, angleOf(to.x, to.z));
     return [...alongRow(rf, angleOf(from.x, from.z), a), polar(rt, a), ...back.slice(0, -1), to];
   }
+  if (same && zf.kind === "vip") {
+    // inside one box, between the floor behind the seats and the walk in front of them: round the end of the row
+    // (P2-WLD-17: the straight line ran through the seats and the walk stopped at the row)
+    const behind = (p: P) => Math.hypot(p.x, p.z) > VIP.seatR - 0.45;
+    if (behind(from) !== behind(to)) {
+      const sa = (zf as { a: number }).a;
+      const rf = Math.hypot(from.x, from.z);
+      const rt = Math.hypot(to.x, to.z);
+      // along my side of the row to the box's stair end (clear of the row), across, along the other side
+      const pts = [...alongRow(rf, angleOf(from.x, from.z), sa), polar(behind(from) ? VIP_FRONT_R : rt, sa), ...alongRow(behind(from) ? VIP_FRONT_R : rt, sa, angleOf(to.x, to.z))];
+      return [...pts.filter((q) => Math.hypot(q.x - to.x, q.z - to.z) > 1e-6), to];
+    }
+  }
   if (same && zf.kind !== "concourse") return [to];
   if (zf.kind === "concourse" && zt.kind === "concourse") return [...alongRing(angleOf(from.x, from.z), angleOf(to.x, to.z)).slice(0, -1), to];
   const out = toConcourse(from, zf);

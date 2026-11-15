@@ -17,8 +17,10 @@ import {
   VIP,
   groundAt,
   polar,
+  routeBetween,
   seatFront,
   walkable,
+  type P,
   type WalkOpts,
 } from "./bowl";
 
@@ -162,6 +164,26 @@ describe("arena walking graph (P2-WLD-17)", () => {
       const y = groundAt(0, z);
       expect(prev - y, `tunnel @ ${z.toFixed(2)}`).toBeLessThanOrEqual(0.3);
       prev = y;
+    }
+  });
+
+  it("inside a VIP box, between the floor behind the seats and the seat fronts, the route rounds the row", () => {
+    const ok = (from: P, route: P[]) => {
+      let at = from;
+      for (const p of route) {
+        const n = Math.max(2, Math.ceil(Math.hypot(p.x - at.x, p.z - at.z) / 0.05));
+        for (let k = 0; k <= n; k++) if (!walkable(at.x + ((p.x - at.x) * k) / n, at.z + ((p.z - at.z) * k) / n)) return false;
+        at = p;
+      }
+      return true;
+    };
+    for (const s of BOWL_SEATS.filter((x) => x.table.startsWith("V"))) {
+      const f = seatFront(s);
+      for (const back of [polar(24.2, s.a), polar(25.0, s.a + 3)]) {
+        if (!walkable(back.x, back.z)) continue;
+        expect(ok(back, routeBetween(back, f)), `${s.id} from behind`).toBe(true);
+        expect(ok(f, routeBetween(f, back)), `${s.id} to behind`).toBe(true);
+      }
     }
   });
 });
