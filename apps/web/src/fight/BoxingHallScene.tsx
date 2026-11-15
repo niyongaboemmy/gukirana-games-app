@@ -23,6 +23,7 @@ import { hiddenPeople } from "@/rooms/hall-hooks";
 import { fightActions } from "./actions";
 import { TrainingZone } from "./training-zone";
 import { GymLife, useGymScene } from "./gym-life";
+import { BagWorker } from "./bag-work";
 import { FocusMode, useFocusRings } from "./FocusMode";
 
 /**
@@ -76,6 +77,7 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
       <group userData={{ noMerge: true }}>
         <RingCloseInfo />
         <FightersLayer lite={lite} />
+        <BagWorker lite={lite} />
         <FightCamera />
       </group>
     </group>

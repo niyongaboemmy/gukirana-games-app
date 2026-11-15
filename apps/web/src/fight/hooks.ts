@@ -3,6 +3,7 @@ import { kitFor, type RingId } from "@gukirana/contracts";
 import { selfPose, useWorld } from "@/lib/world-store";
 import { hallHooks, type P } from "@/rooms/hall-hooks";
 import { useFightBridge } from "./bridge";
+import { bagActive } from "./bag-work";
 import { onStepsFootprint, stepHeight } from "@/rooms/fight/ring-kit-core";
 import { kitSpec, ringBase } from "./climb";
 import { BOXING_AISLES, BOXING_SIZE, FEATURE_RING, FEATURE_STAGE, inFeatureStage, RING_BY_ID, ringAt, RINGS } from "./plan";
@@ -128,6 +129,8 @@ hallHooks.boxing = {
   },
   chairR: 0.3,
   frozen: () => {
+    // training at a bag (fight/bag-work): the bag layer has your avatar
+    if (bagActive()) return true;
     const m = useFightBridge.getState().mine;
     return !!m && !!m.snap && m.snap.phase !== "over";
   },

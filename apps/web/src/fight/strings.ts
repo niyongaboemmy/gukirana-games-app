@@ -79,6 +79,8 @@ export const F = {
   /* gym life (P3-FGT-04): training wall, staff, venue props, lobby reception */
   hitBag: "Hit the bag",
   hitSpeedBag: "Work the speed bag",
+  shadowBox: "Shadow box at the mirror",
+  bag: { jab: "Jab", cross: "Cross", hook: "Hook", uppercut: "Uppercut", auto: "Auto combo", autoOn: "Auto: on", stop: "Stop", hint: "J jab · K cross · L hook · I uppercut · A / D circle · E stop" },
   drink: "Drink some water",
   sitDown: "Sit down",
   gymNote: "Just for fun: no Stars, no score",

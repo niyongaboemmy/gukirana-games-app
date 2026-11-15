@@ -16,6 +16,8 @@ import { BOXING_CLIPS, type BoxingClipName } from "@/world/human/boxing/clips";
 import { alongPath, GYM_PROPS, STAFF, type GymProp, type StaffSpot } from "./gym-plan";
 import { gymTimer, hitBag } from "./training-zone";
 import { F } from "./strings";
+import { isBagStation } from "./bag-plan";
+import { startBagWork } from "./bag-work";
 
 /**
  * Gym life (P3-FGT-04): the hall's staff and trainers, and the cosmetic training props players can use.
@@ -91,6 +93,12 @@ function bell(gain: number) {
   }
 }
 
+/** your own bag work's sounds (fight/bag-work): a thud on the heavy bag, the speed bag's rebound tick */
+export function bagSound(kind: "thud" | "tick", gain: number) {
+  if (kind === "thud") thud(gain);
+  else tick(gain, 1600);
+}
+
 /* ---------------- player interactions (cosmetic) ---------------- */
 
 interface GymUi {
@@ -106,29 +114,12 @@ export const useGymUi = create<GymUi>()(() => ({ prop: null, busyUntil: 0 }));
  * `dim` (0…1) fades the training wall. The Boxing hall scene passes these to <TrainingZone> / <GymLife>.
  */
 export const useGymScene = create<{ hidden: boolean; dim: number }>()(() => ({ hidden: false, dim: 1 }));
-const SEQ_BAG: [number, number, number][] = [
-  // [delay s, power, side]: jab, jab, cross
-  [0.05, 0.55, -0.4],
-  [0.4, 0.55, -0.4],
-  [0.75, 1.0, 0.5],
-];
-/** play the prop's cosmetic action (from the prompt) */
+/** use a prop (from the prompt): the bags and the mirror start your bag work (fight/bag-work); the water a sip */
 export function actOnProp(p: GymProp) {
   const now = performance.now();
   if (now < useGymUi.getState().busyUntil) return;
   useGymUi.setState({ busyUntil: now + 1300 });
-  if (p.kind === "heavyBag")
-    for (const [d, pw, side] of SEQ_BAG)
-      setTimeout(() => {
-        hitBag(p.id, pw, side);
-        thud(0.9 * pw);
-      }, d * 1000);
-  else if (p.kind === "speedBag")
-    for (let k = 0; k < 8; k++)
-      setTimeout(() => {
-        hitBag(p.id, 0.25, k % 2 ? 1 : -1);
-        tick(0.8, 1600);
-      }, k * 140);
+  if (isBagStation(p.kind)) startBagWork(p);
   else if (p.kind === "water") tick(0.6, 900);
 }
 const PROP_IN = 0.75;
