@@ -45,7 +45,7 @@ const smooth = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 const _tr: [number, number, number] = [0, 0, 0];
 
 /** reactions scale with intensity (a light tap barely moves the head); punches only in commitment (body turn) */
-const SCALED_REACTION = new Set<BoxingClipName>(["hitHeadLight", "hitHeadHeavy", "hitBodyLight", "hitBodyHeavy"]);
+const SCALED_REACTION = new Set<BoxingClipName>(["hitHeadLight", "hitHeadHeavy", "hitBodyLight", "hitBodyHeavy", "hitHookFromLead", "hitHookFromRear", "hitUppercut", "hitStraight", "hitBodyLead", "hitBodyRear", "blockImpact", "parried"]);
 const COMMIT = [P.yaw, P.chest, P.lean, P.bend, P.hx, P.hz, P.fLheel, P.fRheel, P.effort];
 
 export class BoxingMotion {

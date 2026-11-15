@@ -66,7 +66,25 @@ export type BoxingClipName =
   | "refCount"
   | "refBreak"
   | "refStart"
-  | "refRaise";
+  | "refRaise"
+  // walking (P3-FGT-13: the ring people walk without the plaza's mocap): gloves at the chest / arms swinging
+  | "walk"
+  | "refWalk"
+  // directional hit reactions and contact (P3-FGT-13, docs/FIGHT-REALISM-V3.md §4)
+  | "hitHookFromLead"
+  | "hitHookFromRear"
+  | "hitUppercut"
+  | "hitStraight"
+  | "hitBodyLead"
+  | "hitBodyRear"
+  | "blockImpact"
+  | "parry"
+  | "parried"
+  | "refSignal"
+  | "refWave"
+  | "cornerCoach"
+  | "cornerTowel"
+  | "judgeSit";
 
 export type ClipKind = "stance" | "footwork" | "punch" | "defence" | "reaction" | "ceremony" | "referee";
 
@@ -179,7 +197,7 @@ const PIVOT: Def = (() => {
 })();
 
 
-const DEFS: Record<BoxingClipName, Def> = {
+const DEFS: Partial<Record<BoxingClipName, Def>> = {
   guard: { kind: "stance", duration: 1, loop: true, impact: null, keys: keys(G, [[0, {}], [1, {}]]) },
   // light bounce on the balls of the feet, weight rocking front ↔ back, gloves riding with the body
   guardIdle: {
@@ -759,6 +777,268 @@ const DEFS: Record<BoxingClipName, Def> = {
   },
 };
 
+
+/* ---------------- P3-FGT-13: walking, directional hit reactions, contact, the referee's signals, the corner, judges ---------------- */
+
+/** a walking cycle (0.9 s, two steps of ~0.6 m at 1.4 m/s): feet in the root frame, the root carried by the caller */
+function walkKeys(arms: (k: number) => PoseSpec): Key[] {
+  const base = pose(STAND, { hips: [0, 0.9, 0], lean: 0.04, head: [0.04, 0, 0], leadFootYaw: 0.05, rearFootYaw: -0.05, leadKnee: [0.05, 0, 1], rearKnee: [-0.05, 0, 1] });
+  const at = (k: number): PoseSpec => {
+    // k: 0 → lead foot forward, 0.5 → rear foot forward
+    const a = 2 * Math.PI * k;
+    const lz = 0.29 * Math.cos(a);
+    const rz = -0.29 * Math.cos(a);
+    const lLift = Math.max(0, Math.sin(a)) ** 1.5 * 0.085;
+    const rLift = Math.max(0, -Math.sin(a)) ** 1.5 * 0.085;
+    return {
+      leadFoot: [0.1, lLift, lz],
+      rearFoot: [-0.1, rLift, rz],
+      leadHeel: lLift > 1e-6 ? 0 : Math.max(0, -Math.cos(a) * 0.35),
+      rearHeel: rLift > 1e-6 ? 0 : Math.max(0, Math.cos(a) * 0.35),
+      hips: [0.015 * Math.cos(a), 0.89 + 0.018 * Math.abs(Math.sin(a)), 0],
+      yaw: -0.07 * Math.cos(a),
+      chest: 0.1 * Math.cos(a),
+      ...arms(k),
+    };
+  };
+  const out: Key[] = [];
+  for (let i = 0; i <= 8; i++) out.push({ t: (0.9 * i) / 8, p: pose(base, at(i / 8)) });
+  return out;
+}
+const MORE_DEFS: Partial<Record<BoxingClipName, Def>> = {
+  // a boxer walking in the ring (to the corner, round the referee): gloves held loosely at the chest
+  walk: {
+    kind: "footwork",
+    duration: 0.9,
+    loop: true,
+    impact: null,
+    events: [
+      { t: 0, kind: "step" },
+      { t: 0.45, kind: "step" },
+    ],
+    keys: walkKeys((k) => ({
+      lead: [0.15, 1.12 + 0.012 * Math.cos(4 * Math.PI * k), 0.2],
+      rear: [-0.15, 1.12 + 0.012 * Math.cos(4 * Math.PI * k), 0.2],
+      leadPole: [0.8, -1, -0.4],
+      rearPole: [-0.8, -1, -0.4],
+      leadPalm: [-0.6, -0.2, -0.75],
+      rearPalm: [0.6, -0.2, -0.75],
+      fist: 1,
+      focus: 0.3,
+    })),
+  },
+  // the referee / staff walking: arms swinging against the legs, hands relaxed
+  refWalk: {
+    kind: "referee",
+    duration: 0.9,
+    loop: true,
+    impact: null,
+    events: [
+      { t: 0, kind: "step" },
+      { t: 0.45, kind: "step" },
+    ],
+    keys: walkKeys((k) => {
+      const a = 2 * Math.PI * k;
+      return {
+        lead: [0.22, 0.86, -0.13 * Math.cos(a) + 0.02],
+        rear: [-0.22, 0.86, 0.13 * Math.cos(a) + 0.02],
+        leadPole: [0.4, 0, -1],
+        rearPole: [-0.4, 0, -1],
+        leadPalm: [-1, 0, 0],
+        rearPalm: [1, 0, 0],
+        fist: 0.3,
+      };
+    }),
+  },
+
+  // ---- head shots: the head goes the way the punch travels (hook → sideways, uppercut → up, straight → back)
+  // a lead hook (the other's left) lands on my right cheek: the head snaps to my left, the torso gives with it
+  hitHookFromLead: {
+    kind: "reaction",
+    duration: 0.55,
+    impact: 0,
+    keys: keys(G, [
+      [0, {}],
+      [0.06, { head: [0.02, 0.62, 0.34], bend: 0.12, chest: 0.12, yaw: -0.34, hips: [0.03, 0.85, -0.02], lead: [0.17, 1.38, 0.24], rear: [-0.02, 1.4, 0.13], wince: 1, eyes: 0.6, jaw: 0.25, focus: 0 }],
+      [0.18, { head: [0.08, 0.36, 0.18], bend: 0.06, chest: 0.04, yaw: -0.4, hips: [0.02, 0.85, -0.015], wince: 0.6, eyes: 0.2, jaw: 0.1 }],
+      [0.55, { head: [0.16, 0.08, 0], bend: 0, chest: -0.08, yaw: -0.46, hips: [0, 0.855, -0.01], lead: gL(), rear: gR(), wince: 0, eyes: 0, jaw: 0, focus: 0.6 }],
+    ]),
+  },
+  // a rear hook (the other's right) lands on my left cheek: the head snaps to my right
+  hitHookFromRear: {
+    kind: "reaction",
+    duration: 0.55,
+    impact: 0,
+    keys: keys(G, [
+      [0, {}],
+      [0.06, { head: [0.02, -0.5, -0.36], bend: -0.12, chest: -0.2, yaw: -0.62, hips: [-0.03, 0.85, -0.02], lead: [0.04, 1.4, 0.24], rear: [-0.16, 1.38, 0.1], wince: 1, eyes: 0.6, jaw: 0.25, focus: 0 }],
+      [0.18, { head: [0.08, -0.22, -0.18], bend: -0.06, chest: -0.12, yaw: -0.54, hips: [-0.02, 0.85, -0.015], wince: 0.6, eyes: 0.2, jaw: 0.1 }],
+      [0.55, { head: [0.16, 0.08, 0], bend: 0, chest: -0.08, yaw: -0.46, hips: [0, 0.855, -0.01], lead: gL(), rear: gR(), wince: 0, eyes: 0, jaw: 0, focus: 0.6 }],
+    ]),
+  },
+  // an uppercut under the chin: the head snaps up and back, up onto the toes, gloves fly apart
+  hitUppercut: {
+    kind: "reaction",
+    duration: 0.62,
+    impact: 0,
+    keys: keys(G, [
+      [0, {}],
+      [0.07, { head: [-0.62, 0.06, 0.04], lean: -0.1, chest: 0.05, hips: [0, 0.88, -0.04], leadHeel: 0.35, rearHeel: 0.55, lead: [0.2, 1.48, 0.2], rear: [-0.18, 1.46, 0.1], wince: 1, eyes: 0.7, jaw: 0.35, focus: 0 }],
+      [0.22, { head: [-0.2, 0.08, 0.02], lean: 0.04, hips: [0, 0.86, -0.03], leadHeel: 0.1, rearHeel: 0.3, wince: 0.6, eyes: 0.25, jaw: 0.1 }],
+      [0.62, { head: [0.16, 0.08, 0], lean: 0.13, chest: -0.08, hips: [0, 0.855, -0.01], leadHeel: 0, rearHeel: 0.22, lead: gL(), rear: gR(), wince: 0, eyes: 0, jaw: 0, focus: 0.6 }],
+    ]),
+  },
+  // a straight (jab / cross) on the chin: the head snaps straight back, the weight rocks onto the rear foot
+  hitStraight: {
+    kind: "reaction",
+    duration: 0.45,
+    impact: 0,
+    keys: keys(G, [
+      [0, {}],
+      [0.05, { head: [-0.36, 0.1, 0.02], lean: -0.04, hips: [0, 0.853, -0.05], lead: [0.11, 1.42, 0.22], rear: [-0.07, 1.41, 0.11], leadHeel: 0.15, rearHeel: 0.05, wince: 1, eyes: 0.5, focus: 0 }],
+      [0.16, { head: [-0.04, 0.09, 0.01], lean: 0.08, hips: [0, 0.854, -0.03], wince: 0.5, eyes: 0.1 }],
+      [0.45, { head: [0.16, 0.08, 0], lean: 0.13, hips: [0, 0.855, -0.01], lead: gL(), rear: gR(), leadHeel: 0, rearHeel: 0.22, wince: 0, eyes: 0, focus: 0.6 }],
+    ]),
+  },
+  // ---- body shots: the torso folds over the side that was hit, the elbow on that side clamps down, a breath out
+  // the other's lead hook lands on my right side (the liver): fold to the right, the rear glove drops to the ribs
+  hitBodyLead: {
+    kind: "reaction",
+    duration: 0.8,
+    impact: 0,
+    keys: keys(G, [
+      [0, {}],
+      [0.08, { lean: 0.46, bend: -0.26, chest: -0.1, hips: [-0.02, 0.79, -0.04], head: [0.38, 0.1, -0.16], rear: [-0.13, 1.1, 0.08], rearPole: [-0.4, -1, 0.1], lead: [0.12, 1.3, 0.2], wince: 1, effort: 0.5, jaw: 0.45, eyes: 0.35, focus: 0 }],
+      [0.3, { lean: 0.34, bend: -0.16, hips: [-0.01, 0.81, -0.03], head: [0.3, 0.1, -0.08], rear: [-0.11, 1.2, 0.1], wince: 0.7, jaw: 0.35 }],
+      [0.8, { lean: 0.13, bend: 0, chest: -0.08, hips: [0, 0.855, -0.01], head: [0.16, 0.08, 0], lead: gL(), rear: gR(), rearPole: [-0.3, -1, -0.2], wince: 0, effort: 0, jaw: 0, eyes: 0, focus: 0.6 }],
+    ]),
+  },
+  // the other's rear hand to my left side / the solar plexus: fold forward and to the left, the lead elbow clamps
+  hitBodyRear: {
+    kind: "reaction",
+    duration: 0.8,
+    impact: 0,
+    keys: keys(G, [
+      [0, {}],
+      [0.08, { lean: 0.48, bend: 0.22, chest: 0.02, hips: [0.02, 0.79, -0.05], head: [0.4, 0.04, 0.14], lead: [0.13, 1.1, 0.1], leadPole: [0.4, -1, 0.1], rear: [-0.1, 1.28, 0.16], wince: 1, effort: 0.5, jaw: 0.45, eyes: 0.35, focus: 0 }],
+      [0.3, { lean: 0.35, bend: 0.13, hips: [0.01, 0.81, -0.03], head: [0.3, 0.06, 0.07], lead: [0.12, 1.2, 0.14], wince: 0.7, jaw: 0.35 }],
+      [0.8, { lean: 0.13, bend: 0, chest: -0.08, hips: [0, 0.855, -0.01], head: [0.16, 0.08, 0], lead: gL(), rear: gR(), leadPole: [0.35, -1, -0.15], wince: 0, effort: 0, jaw: 0, eyes: 0, focus: 0.6 }],
+    ]),
+  },
+  // ---- contact on the guard and the hands
+  // a punch absorbed on the gloves: they are driven back towards the face, the chin tucks, a little give in the knees
+  blockImpact: {
+    kind: "defence",
+    duration: 0.34,
+    impact: 0.04,
+    keys: keys(G, [
+      [0, {}],
+      [0.04, { lead: [0.09, 1.5, 0.14], rear: [-0.08, 1.5, 0.1], leadPalm: [-0.2, 0, -1], rearPalm: [0.2, 0, -1], leadPole: [0.15, -1, 0.4], rearPole: [-0.15, -1, 0.4], head: [0.36, 0.05, 0], hips: [0, 0.835, -0.04], lean: 0.1, effort: 0.7, shrugLead: 0.7, shrugRear: 0.7 }],
+      [0.14, { lead: [0.09, 1.52, 0.17], rear: [-0.08, 1.52, 0.13], hips: [0, 0.845, -0.025] }],
+      [0.34, { lead: gL(), rear: gR(), leadPalm: [-0.55, -0.1, -0.83], rearPalm: [0.45, -0.1, -0.88], leadPole: [0.35, -1, -0.15], rearPole: [-0.3, -1, -0.2], head: [0.16, 0.08, 0], hips: [0, 0.855, -0.01], lean: 0.13, effort: 0, shrugLead: 0.15, shrugRear: 0 }],
+    ]),
+  },
+  // the parry: the rear glove taps the straight across, off the centre line, and comes straight back
+  parry: {
+    kind: "defence",
+    duration: 0.34,
+    impact: 0.08,
+    keys: keys(G, [
+      [0, {}],
+      [0.08, { rear: [0.07, 1.46, 0.33], rearPalm: [0.9, 0, -0.3], rearPole: [-0.6, -1, -0.2], yaw: -0.58, head: [0.2, 0.14, 0], focus: 1, shrugRear: 0.4 }],
+      [0.16, { rear: [0.04, 1.45, 0.26] }],
+      [0.34, { rear: gR(), rearPalm: [0.45, -0.1, -0.88], rearPole: [-0.3, -1, -0.2], yaw: -0.46, head: [0.16, 0.08, 0], focus: 0.6, shrugRear: 0 }],
+    ]),
+  },
+  // parried: my punch knocked off line — the arm swept across, the weight carried past, back to the guard late
+  parried: {
+    kind: "reaction",
+    duration: 0.55,
+    impact: 0,
+    keys: keys(G, [
+      [0, {}],
+      [0.08, { lead: [-0.12, 1.38, 0.58], rear: [-0.16, 1.35, 0.5], leadPalm: [0, -1, 0], rearPalm: [0, -1, 0], yaw: -0.2, chest: 0.12, lean: 0.24, hips: [-0.03, 0.84, 0.04], rearHeel: 0.5, wince: 0.3, focus: 0.3 }],
+      [0.25, { lead: [0.0, 1.4, 0.4], rear: [-0.12, 1.4, 0.3], yaw: -0.34, lean: 0.18, hips: [-0.01, 0.85, 0.01] }],
+      [0.55, { lead: gL(), rear: gR(), leadPalm: [-0.55, -0.1, -0.83], rearPalm: [0.45, -0.1, -0.88], yaw: -0.46, chest: -0.08, lean: 0.13, hips: [0, 0.855, -0.01], rearHeel: 0.22, wince: 0, focus: 0.6 }],
+    ]),
+  },
+
+  // ---- the referee's signals
+  // a warning / "stop" signal: one arm straight out at the fighter, the other hand on the hip (short)
+  refSignal: {
+    kind: "referee",
+    duration: 1.4,
+    impact: 0.35,
+    then: "refIdle",
+    keys: keys(pose(STAND, REF_SPEC()), [
+      [0, {}],
+      [0.35, { lead: [0.15, 1.38, 0.62], leadPole: [1, -0.2, -0.3], leadPalm: [0, -0.2, 1], rear: [-0.24, 0.98, 0.06], rearPole: [-1, -0.2, 0.2], fist: 0, lean: 0.06, hips: [0, 0.88, 0], head: [0.05, 0.1, 0], focus: 1 }],
+      [1.0, { lead: [0.15, 1.38, 0.6] }],
+      [1.4, { ...REF_SPEC() }],
+    ]),
+  },
+  // waving it off (stoppage / KO): both arms crossing above the head, twice
+  refWave: {
+    kind: "referee",
+    duration: 1.6,
+    impact: 0.3,
+    then: "refIdle",
+    keys: keys(pose(STAND, REF_SPEC()), [
+      [0, {}],
+      [0.3, { lead: [-0.14, 1.95, 0.22], rear: [0.14, 1.95, 0.2], leadPole: [1, 0, -0.5], rearPole: [-1, 0, -0.5], leadPalm: [0, 0, 1], rearPalm: [0, 0, 1], fist: 0, hips: [0, 0.9, 0], lean: 0, head: [-0.08, 0, 0], focus: 1 }],
+      [0.55, { lead: [0.52, 1.72, 0.18], rear: [-0.52, 1.72, 0.18] }],
+      [0.8, { lead: [-0.14, 1.95, 0.22], rear: [0.14, 1.95, 0.2] }],
+      [1.05, { lead: [0.52, 1.72, 0.18], rear: [-0.52, 1.72, 0.18] }],
+      [1.6, { ...REF_SPEC() }],
+    ]),
+  },
+  // ---- the corner between rounds (staff on the apron, outside the ropes, leaning in over the top rope)
+  // the coach: hands working while he talks — a point, a chop, both palms (advice), leaning over the ropes
+  cornerCoach: {
+    kind: "referee",
+    duration: 3.2,
+    loop: true,
+    impact: null,
+    keys: keys(pose(STAND, { lean: 0.28, hips: [0, 0.9, -0.02], head: [0.25, 0, 0], fist: 0.3, leadFoot: [0.13, 0, 0.02], rearFoot: [-0.13, 0, -0.02] }), [
+      [0, { lead: [0.18, 1.2, 0.38], rear: [-0.18, 1.2, 0.36], leadPole: [0.8, -0.6, -0.3], rearPole: [-0.8, -0.6, -0.3], leadPalm: [-0.6, 0, 0.8], rearPalm: [0.6, 0, 0.8] }],
+      [0.8, { lead: [0.12, 1.32, 0.5], leadPalm: [0, -0.3, 1], rear: [-0.2, 1.12, 0.3], head: [0.22, 0.1, 0] }],
+      [1.6, { lead: [0.18, 1.16, 0.42], rear: [-0.06, 1.3, 0.46], rearPalm: [0.2, -1, 0.2], head: [0.27, -0.06, 0] }],
+      [2.4, { lead: [0.22, 1.24, 0.42], rear: [-0.22, 1.24, 0.42], leadPalm: [-0.4, 0.3, 0.8], rearPalm: [0.4, 0.3, 0.8], head: [0.2, 0, 0] }],
+      [3.2, { lead: [0.18, 1.2, 0.38], rear: [-0.18, 1.2, 0.36], leadPalm: [-0.6, 0, 0.8], rearPalm: [0.6, 0, 0.8], head: [0.25, 0, 0] }],
+    ]),
+  },
+  // the second (cutman): a towel / the water bottle to the seated fighter's face, then fanning
+  cornerTowel: {
+    kind: "referee",
+    duration: 2.4,
+    loop: true,
+    impact: null,
+    keys: keys(pose(STAND, { lean: 0.32, hips: [0, 0.88, -0.02], head: [0.3, 0, 0], fist: 0.6, leadFoot: [0.14, 0, 0.02], rearFoot: [-0.14, 0, -0.02] }), [
+      [0, { lead: [0.1, 1.1, 0.42], rear: [-0.12, 1.14, 0.44], leadPole: [0.8, -0.6, -0.3], rearPole: [-0.8, -0.6, -0.3], leadPalm: [-0.3, -0.3, 0.9], rearPalm: [0.3, -0.3, 0.9] }],
+      [0.6, { lead: [0.06, 1.16, 0.48], rear: [-0.08, 1.2, 0.5] }],
+      [1.2, { lead: [0.24, 1.25, 0.36], rear: [-0.1, 1.08, 0.44], leadPalm: [-1, 0, 0.2] }],
+      [1.5, { lead: [0.3, 1.3, 0.3] }],
+      [1.8, { lead: [0.2, 1.22, 0.38] }],
+      [2.4, { lead: [0.1, 1.1, 0.42], rear: [-0.12, 1.14, 0.44], leadPalm: [-0.3, -0.3, 0.9] }],
+    ]),
+  },
+  // a judge at the ringside table: seated, forearms on the table, looking up at the ring, a note now and then
+  judgeSit: {
+    kind: "referee",
+    duration: 6,
+    loop: true,
+    impact: null,
+    keys: keys(pose(SIT, { hips: [0, 0.56, -0.04], lean: 0.1, fist: 0.4, smile: 0, jaw: 0, focus: 0.7 }), [
+      [0, { lead: [0.2, 0.78, 0.36], rear: [-0.2, 0.78, 0.36], leadPalm: [0, -1, 0], rearPalm: [0, -1, 0], head: [-0.12, 0.05, 0] }],
+      [2.2, { head: [-0.14, -0.1, 0] }],
+      [3.2, { rear: [-0.12, 0.79, 0.4], head: [0.42, 0, 0], lean: 0.2 }],
+      [4.2, { rear: [-0.08, 0.79, 0.38], head: [0.4, 0.05, 0] }],
+      [6, { lead: [0.2, 0.78, 0.36], rear: [-0.2, 0.78, 0.36], head: [-0.12, 0.05, 0], lean: 0.1 }],
+    ]),
+  },
+};
+Object.assign(DEFS, MORE_DEFS);
+
 function VICTORY_SPEC(): PoseSpec {
   return {
     hips: [0, 0.905, 0],
@@ -840,14 +1120,15 @@ function WINNER_SPEC(): PoseSpec {
  * at belt height (ready to step in between), eyes up on the boxers — never upright with the hands clasped.
  */
 function REF_SPEC(): PoseSpec {
+  // P3-FGT-13: hands loosely in front of the stomach, elbows down by the sides (never arms akimbo)
   return {
     hips: [0, 0.855, 0],
-    lead: [0.2, 1.04, 0.27],
-    rear: [-0.2, 1.04, 0.27],
-    leadPole: [0.8, -0.5, -0.3],
-    rearPole: [-0.8, -0.5, -0.3],
-    leadPalm: [-0.5, -0.3, 0.6],
-    rearPalm: [0.5, -0.3, 0.6],
+    lead: [0.12, 1.07, 0.3],
+    rear: [-0.12, 1.07, 0.3],
+    leadPole: [0.3, -1, -0.45],
+    rearPole: [-0.3, -1, -0.45],
+    leadPalm: [-0.7, -0.5, 0.3],
+    rearPalm: [0.7, -0.5, 0.3],
     leadFoot: [0.17, 0, 0.03],
     rearFoot: [-0.17, 0, -0.03],
     fist: 0.15,
@@ -907,9 +1188,9 @@ export const TOUCH_DISTANCE = 0.92;
 /* ---------------- the clip table ---------------- */
 
 /** clips that leave the guard (down, on the stool, standing up): the deep stance follows each key's body (pose.ts stanceWeight) */
-const KEYED_STANCE = new Set<BoxingClipName>(["knockdown", "count", "getUp", "cornerSit", "cornerRest", "cornerStand", "victory", "victoryHold", "defeat", "defeatHold", "winnerRaised"]);
+const KEYED_STANCE = new Set<BoxingClipName>(["walk", "knockdown", "count", "getUp", "cornerSit", "cornerRest", "cornerStand", "victory", "victoryHold", "defeat", "defeatHold", "winnerRaised"]);
 const CLIPS = {} as Record<BoxingClipName, ClipDef>;
-for (const [name, d] of Object.entries(DEFS) as [BoxingClipName, Def][]) {
+for (const [name, d] of Object.entries(DEFS as Record<BoxingClipName, Def>) as [BoxingClipName, Def][]) {
   const loop = d.loop ?? false;
   // P3-FGT-09 deep stance: every fighter clip moves onto it (in full while boxing; per key where the body leaves the
   // guard); the referee keeps his own stance

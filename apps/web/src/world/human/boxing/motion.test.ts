@@ -166,7 +166,8 @@ describe("blend continuity (no pops)", () => {
   it("every clip is continuous from the guard and back (or into its follow-up)", () => {
     for (const n of BOXING_CLIP_NAMES) {
       const c = BOXING_CLIPS[n];
-      if (c.kind === "referee" || ["count", "cornerRest", "victoryHold", "defeatHold", "getUp", "cornerStand"].includes(n)) continue;
+      // (walk: entered from standing with its own 0.2 s blend, P3-FGT-13)
+      if (c.kind === "referee" || ["count", "cornerRest", "victoryHold", "defeatHold", "getUp", "cornerStand", "walk"].includes(n)) continue;
       continuous((m) => m.play({ clip: n, start: 0.1 }), 0, 0.1 + Math.min(4, c.duration + 0.3));
     }
   });
