@@ -1,6 +1,7 @@
 "use client";
 import type { BoxingSnapshot, FightEvent } from "@gukirana/contracts";
-import { bell, buzz, crowdReact, punchSound, say } from "./audio";
+import { bell, buzz, crowdReact, outcomeCue, punchSound, say } from "./audio";
+import { punchVerdict } from "./outcome";
 import { foulKey, ft, type FgKey } from "./strings";
 import { useFightUi } from "./ui-store";
 import { foulText, fst } from "./scoring-strings";
@@ -39,6 +40,9 @@ export function cornerLine(snap: BoxingSnapshot | null | undefined, me: 0 | 1, r
 export function eventFx(e: FightEvent, me: 0 | 1, snap?: BoxingSnapshot | null): void {
   const mine = "by" in e ? e.by === me : "to" in e ? e.to === me : false;
   const k = e.k as string;
+  // my punch's outcome tone (P3-FGT-09), one per punch, before the flurry throttle
+  const v = punchVerdict(e, me);
+  if (v?.mine) outcomeCue(v.outcome);
   if (!due(k)) return;
   switch (e.k) {
     case "bell":

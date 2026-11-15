@@ -22,6 +22,8 @@ export interface RingLife {
   tired: number;
   /** root speed across the ring right now (m/s; drives the shuffle) */
   move: number;
+  /** 0 … 1 shaken (low balance / composure): a slow wobble at the knees and hips, the head rolling (P3-FGT-09) */
+  daze?: number;
   /** the referee's calmer variant */
   official?: boolean;
 }
@@ -75,7 +77,23 @@ export function addRingLife(out: Pose, t: number, l: RingLife, w: number, hands:
   const slip = Math.sin(TAU * (0.47 * t + so2 * 2.3)) * (0.6 + 0.4 * Math.sin(TAU * 0.11 * t));
   out[P.hz] = out[P.hz]! + 0.035 * fb * w;
   out[P.hx] = out[P.hx]! + 0.022 * lr * w;
-  out[P.lean] = out[P.lean]! + (0.05 * fb + 0.04 * tired) * w;
+  // tired: slouched (more lean, chin dropping), shoulders heaving with heavy breaths (P3-FGT-09)
+  out[P.lean] = out[P.lean]! + (0.05 * fb + 0.09 * tired) * w;
+  const breath = Math.sin(TAU * ((0.42 + 0.25 * tired) * t + so2));
+  out[P.shrugL] = Math.min(1, Math.max(0, out[P.shrugL]! + 0.18 * tired * breath * w));
+  out[P.shrugR] = Math.min(1, Math.max(0, out[P.shrugR]! + 0.18 * tired * breath * w));
+  out[P.hp] = out[P.hp]! + 0.06 * tired * w;
+  // shaken: the legs go soft — a slow lurch at the hips and knees, the head rolling with it
+  const daze = Math.min(1, Math.max(0, l.daze ?? 0));
+  if (daze > 0.001) {
+    const wob = Math.sin(TAU * (0.6 * t + so)) * daze * w;
+    out[P.hx] = out[P.hx]! + 0.05 * wob;
+    out[P.hy] = out[P.hy]! - 0.025 * daze * w * (0.5 + 0.5 * Math.sin(TAU * 1.1 * t));
+    out[P.bend] = out[P.bend]! + 0.08 * wob;
+    out[P.hroll] = out[P.hroll]! - 0.12 * wob;
+    out[P.ly] = out[P.ly]! - 0.05 * daze * w;
+    out[P.ry] = out[P.ry]! - 0.05 * daze * w;
+  }
   out[P.bend] = out[P.bend]! + 0.07 * slip * w;
   out[P.chest] = out[P.chest]! + 0.06 * Math.sin(TAU * (0.37 * t + so)) * w;
   out[P.hroll] = out[P.hroll]! + 0.06 * slip * w;

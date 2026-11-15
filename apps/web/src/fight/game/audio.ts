@@ -83,6 +83,30 @@ export function punchSound(kind: "jab" | "cross" | "hook" | "uppercut", landed: 
   }
 }
 
+/**
+ * The outcome cue of MY punch (P3-FGT-09), under the impact sound: one consistent short tone per outcome so the ear
+ * learns it — landed a bright rising pair, blocked a dull low knock, slipped / missed a soft falling note.
+ */
+export function outcomeCue(kind: "landed" | "blocked" | "slipped" | "missed"): void {
+  const ctx = uiAudio();
+  if (!ctx || !ok()) return;
+  const t = ctx.currentTime + 0.02;
+  const notes: [number, number, number][] = kind === "landed" ? [[880, 0, 0.07], [1320, 0.07, 0.09]] : kind === "blocked" ? [[220, 0, 0.09]] : [[520, 0, 0.12]];
+  for (const [f, at, len] of notes) {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = kind === "blocked" ? "triangle" : "sine";
+    o.frequency.setValueAtTime(f, t + at);
+    if (kind === "slipped" || kind === "missed") o.frequency.exponentialRampToValueAtTime(f * 0.6, t + at + len);
+    g.gain.setValueAtTime(0.0001, t + at);
+    g.gain.exponentialRampToValueAtTime(kind === "landed" ? 0.05 : 0.04, t + at + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + at + len);
+    o.connect(g).connect(out(ctx));
+    o.start(t + at);
+    o.stop(t + at + len + 0.02);
+  }
+}
+
 /** a struck boxing bell: `n` rings (1 = box, 3 = end of the round) */
 export function bell(n = 1): void {
   const ctx = uiAudio();

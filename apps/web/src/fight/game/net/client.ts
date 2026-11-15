@@ -67,6 +67,8 @@ interface FightResultMsg {
   cause?: string;
   loser?: string;
   outcome: BoxingOutcome | null;
+  /** the signed result's state hash (P3-FGT-06): shown in the fight record */
+  stateHash?: string;
   settlement: { xp?: Record<string, number> } | null;
   pending?: boolean;
 }
@@ -151,6 +153,7 @@ async function openFight(m: { ring: RingId; roomId: string; matchId: string; cor
     const cur = useFightBridge.getState().mine;
     const xp = me ? (r.settlement?.xp?.[me] ?? 0) : 0;
     setMine({ settled: { stars: starsFor(r, cur?.stake ?? 0), xp } });
+    useFightUi.getState().setRecord({ id: m.matchId, hash: r.stateHash ?? null, kind: "match" });
     // the result card reads the outcome from the feed: make sure it is there even when no `over` event came
     if (r.outcome && !useFightUi.getState().result) useFightUi.getState().push([{ k: "over", t: cur?.snap?.tick ?? 0, result: r.outcome }]);
   });

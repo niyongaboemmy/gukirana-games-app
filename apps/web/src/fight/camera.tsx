@@ -9,7 +9,7 @@ import { RING_BY_ID, type RingPlace } from "./plan";
 import { useFightUi } from "./ui-store";
 import { useFightUi as useGameUi } from "./game/ui-store";
 import { useFightPrefs } from "./game/prefs";
-import { ringLayout, ringSeed, shakeFor } from "./present";
+import { clampInRing, ringLayout, ringSeed, shakeFor } from "./present";
 import { cameraKick } from "./ring-clock";
 import { replaySnap } from "./game/replay";
 
@@ -44,6 +44,30 @@ export function broadcastFrame(gap: number, aspect = 16 / 9): { dist: number; ey
 }
 
 export function fightShot(ring: RingPlace, snap: BoxingSnapshot | null, me: 0 | 1, side: number, mode: "fight" | "behind", eye: THREE.Vector3, look: THREE.Vector3, aspect = 16 / 9): void {
+  shot(ring, snap, me, side, mode, eye, look, aspect);
+  // the operator stays inside the ropes (P3-FGT-09): a close shot never ends up behind a corner post or the ropes
+  // (FightCamera cuts to the other side first when the pair works the ropes on the camera's side)
+  const c = clampInRing(eye.x - ring.x, eye.z - ring.z, ring.rotY, CAM_LIM(ring));
+  eye.x = ring.x + c.x;
+  eye.z = ring.z + c.z;
+}
+
+/** how far from the ring centre (each axis, ring frame) the fight camera may stand */
+const CAM_LIM = (ring: RingPlace) => ring.half - 0.5;
+/** how far a shot's eye would stand outside the camera limit (m; 0 = inside) */
+export function shotOutside(ring: RingPlace, snap: BoxingSnapshot | null, me: 0 | 1, side: number, mode: "fight" | "behind", aspect: number): number {
+  shot(ring, snap, me, side, mode, _probe, _probeL, aspect);
+  const c = Math.cos(ring.rotY);
+  const sn = Math.sin(ring.rotY);
+  const x = _probe.x - ring.x;
+  const z = _probe.z - ring.z;
+  const lim = CAM_LIM(ring);
+  return Math.max(0, Math.abs(x * c - z * sn) - lim, Math.abs(x * sn + z * c) - lim);
+}
+const _probe = new THREE.Vector3();
+const _probeL = new THREE.Vector3();
+
+function shot(ring: RingPlace, snap: BoxingSnapshot | null, me: 0 | 1, side: number, mode: "fight" | "behind", eye: THREE.Vector3, look: THREE.Vector3, aspect: number): void {
   // the pair as the fighters layer places it (P3-FGT-07 ringLayout: circling, drifting round the ring); the shots
   // frame the pair's middle, which moves, so the camera operator follows it (the corner shot stays on the ring)
   const lay = snap ? ringLayout(snap, ring.half, ringSeed(ring.id)) : { cx: 0, cz: 0, th: 0, half: 0.75 };
@@ -126,6 +150,7 @@ export function FightCamera() {
   const kick = useRef(0);
   const seen = useRef(0);
   const clock = useRef(0);
+  const lastCut = useRef(-10);
   useFrame((_, raw) => {
     if (!isOnScreen(area)) {
       w.current = 0;
@@ -165,7 +190,17 @@ export function FightCamera() {
     const me: 0 | 1 = mine?.corner === "blue" ? 1 : 0;
     const mode = mine ? ui.fightCam : ui.watchCam;
     const aspect = (camera as THREE.PerspectiveCamera).aspect ?? 16 / 9;
-    if (mine) fightShot(r, snap, me, side.current, autoShot(mode, snap), _eye, _look, aspect);
+    const shotMode = autoShot(mode, snap);
+    if (mine && shotMode === "fight" && clock.current - lastCut.current > 2.5) {
+      // the pair works the ropes on our side: cut to the open side (a broadcast cut, not a swing through the boxers)
+      const out = shotOutside(r, snap, me, side.current, shotMode, aspect);
+      if (out > 0.35 && shotOutside(r, snap, me, -side.current, shotMode, aspect) < out * 0.5) {
+        side.current = -side.current;
+        seeded.current = false;
+        lastCut.current = clock.current;
+      }
+    }
+    if (mine) fightShot(r, snap, me, side.current, shotMode, _eye, _look, aspect);
     else if (mode === "overhead") {
       _eye.set(r.x + -az * side.current * 2.2, r.canvasY + 6.8, r.z + ax * side.current * 2.2);
       _look.set(r.x, r.canvasY + 0.6, r.z);

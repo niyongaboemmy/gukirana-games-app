@@ -573,6 +573,8 @@ function bootShafts(body: THREE.SkinnedMesh, root: THREE.Object3D, pts: BodyPoin
 
 export interface Dressing {
   objects: THREE.Object3D[];
+  /** skin sheen 0…1 (P3-FGT-09: builds with the work done) */
+  setSweat?(v: number): void;
   dispose(): void;
 }
 
@@ -765,6 +767,12 @@ export function dressBody(root: THREE.Object3D, arms: ArmBones[], materials: THR
 
   return {
     objects,
+    setSweat(v: number) {
+      for (const m of materials) {
+        const u = m.userData.gkUniforms as LookUniforms | undefined;
+        if (u?.uSweat) u.uSweat.value = v;
+      }
+    },
     dispose() {
       for (const o of objects) o.removeFromParent();
       for (const o of objects)

@@ -10,6 +10,7 @@ import {
   beginFight,
   boxingBotInput,
   createFight,
+  hashFight,
   isBusy,
   isTooTired,
   snapshotOf,
@@ -19,6 +20,24 @@ import {
 } from "@gukirana/boxing";
 import { useFightBridge } from "../bridge";
 import { useFightUi } from "./ui-store";
+
+/**
+ * The practice fight record (P3-FGT-09): the SHA-256 of the final engine state (the same canonical state the live
+ * room commits to in its signed stateHash), so the result card can show a checkable line for practice too.
+ */
+export async function practiceHash(state: FightState): Promise<string | null> {
+  try {
+    const bytes = new TextEncoder().encode(`boxing:practice:v1:${hashFight(state)}`);
+    const d = await crypto.subtle.digest("SHA-256", bytes);
+    return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return null;
+  }
+}
+async function recordPractice(id: string, state: FightState): Promise<void> {
+  const hash = await practiceHash(state);
+  useFightUi.getState().setRecord({ id, hash, kind: "practice" });
+}
 
 /** the integer rng the practice bot needs (practice seeds it from @gukirana/fairness, tests with a fixed one) */
 export interface PracticeRng {
@@ -47,6 +66,9 @@ export class PracticeSession {
   private press: BoxingAction | null = null;
   private introLeft = GLOVE_UP_TICKS;
   private onRoundEnd?: (round: number, score: [number, number]) => void;
+  /** the practice fight's id (fight record) */
+  readonly id: string;
+  private recorded = false;
 
   constructor(opts: {
     ring: RingId;
@@ -54,12 +76,14 @@ export class PracticeSession {
     rng: PracticeRng;
     name: string;
     rules?: FightRules;
+    id?: string;
     onRoundEnd?: (round: number, score: [number, number]) => void;
   }) {
     this.ring = opts.ring;
     this.level = opts.level;
     this.rng = opts.rng;
     this.onRoundEnd = opts.onRoundEnd;
+    this.id = opts.id ?? `practice-${opts.ring}`;
     const rules = opts.rules ?? DEFAULT_FIGHT_RULES;
     const fresh = createFight(["me", "ai"], rules);
     this.state = { ...fresh, fighters: [{ ...fresh.fighters[0], guard: false }, fresh.fighters[1]] };
@@ -136,6 +160,10 @@ export class PracticeSession {
     const myEvents = events.length ? [...b.myEvents, ...events].slice(-MAX_PENDING_EVENTS) : b.myEvents;
     useFightBridge.setState({ mine: { ...b.mine, snap, predicted, begun }, myEvents });
     if (events.length) useFightUi.getState().push(events);
+    if (this.state.phase === "over" && !this.recorded) {
+      this.recorded = true;
+      void recordPractice(this.id, this.state);
+    }
     for (const e of events) if (e.k === "roundEnd") this.onRoundEnd?.(e.round, e.points);
   }
 }

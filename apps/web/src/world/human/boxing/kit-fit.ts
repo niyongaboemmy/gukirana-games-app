@@ -235,12 +235,10 @@ export function kitFitGeometry(mesh: THREE.SkinnedMesh, mode: FitMode = "boxer",
   for (let i = 0; i < n; i++) {
     p.fromBufferAttribute(pos, i);
     let limbW = 0,
-      armW = 0,
       torsoW = 0;
     for (let k = 0; k < 4; k++) {
       const b = si.getComponent(i, k);
       const w = sw.getComponent(i, k);
-      if (armBones.has(b)) armW += w;
       if (legBones.has(b) || armBones.has(b)) limbW += w;
       if (torso.has(b)) torsoW += w;
     }

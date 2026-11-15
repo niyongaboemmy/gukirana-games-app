@@ -1,5 +1,5 @@
 "use client";
-import type { BoxingAction, RingId } from "@gukirana/contracts";
+import type { BoxingAction, FightRules, RingId } from "@gukirana/contracts";
 import { createFairRng, newSeed } from "@gukirana/fairness";
 import type { BotLevel } from "@gukirana/boxing";
 import { useFightBridge } from "../bridge";
@@ -58,7 +58,7 @@ let unsubSpeed: (() => void) | null = null;
 const clampLevel = (n: number): BotLevel => Math.min(5, Math.max(1, Math.round(n))) as BotLevel;
 
 /** start (or restart) a practice fight in `ring` against the AI at `level` */
-export function startPractice(ring: RingId, level: number, name = ""): PracticeSession {
+export function startPractice(ring: RingId, level: number, name = "", rules?: FightRules): PracticeSession {
   stopPractice(false);
   const seed = newSeed();
   // practice AI variety only; the fight itself has no randomness (plan §3.1)
@@ -69,6 +69,8 @@ export function startPractice(ring: RingId, level: number, name = ""): PracticeS
     level: clampLevel(level),
     rng,
     name,
+    id: `practice-${ring}-${seed.slice(0, 12)}`,
+    rules,
     onRoundEnd: (round, score) => live.practiceScore?.(ring, round, score),
   });
   runner = new PracticeRunner(session, practiceHz(useFightPrefs.getState().speed));
