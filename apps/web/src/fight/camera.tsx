@@ -109,7 +109,10 @@ export function FightCamera() {
     const mine = b.mine;
     const ringId = mine ? mine.ring : ui.watchCam && b.watched ? b.watched.ring : null;
     const on = !!ringId;
-    if (ringId) ringRef.current = RING_BY_ID[ringId] ?? null;
+    if (ringId && ringRef.current?.id !== ringId) {
+      ringRef.current = RING_BY_ID[ringId] ?? null;
+      seeded.current = false;
+    }
     // blend weight: ~1.1 s in, ~0.8 s out
     w.current = Math.max(0, Math.min(1, w.current + (on ? dt / 1.1 : -dt / 0.8)));
     const r = ringRef.current;

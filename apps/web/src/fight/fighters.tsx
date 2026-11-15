@@ -128,7 +128,7 @@ export function FightersLayer({ lite }: { lite: boolean }) {
     const kept = slots.filter((s) => s.src === "loop").map((s) => RING_BY_ID[s.ring]!).filter((r) => free(r) && dist(r) < FULL_OUT);
     const fresh = RINGS.filter((r) => free(r) && !kept.includes(r) && dist(r) < FULL_IN).sort((a, c) => dist(a) - dist(c));
     // focus mode (fighter): the neighbours sink into the dark, no full avatars for them
-    if (!(focusNow.mode === "fighter" && focusNow.k > 0)) for (const r of [...kept, ...fresh].slice(0, cap)) out.push({ ring: r.id, src: "loop" });
+    if (!(focusNow.mode && focusNow.k > 0)) for (const r of [...kept, ...fresh].slice(0, cap)) out.push({ ring: r.id, src: "loop" });
     const key = out.map((s) => `${s.ring}:${s.src}`).join(",");
     if (key !== slots.map((s) => `${s.ring}:${s.src}`).join(",")) setSlots(out);
   });
@@ -322,7 +322,9 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
     });
     // the referee: on the far side of the pair from the camera, stepping in to count, break and raise the winner
     if (withRef && refG.current) {
-      if (!ph.refSide) ph.refSide = (camera.position.x - place.x) * -az + (camera.position.z - place.z) * ax >= 0 ? -1 : 1;
+      // stay on the far side of the pair from the camera (he walks round when the camera changes sides)
+      const camSide = (camera.position.x - place.x) * -az + (camera.position.z - place.z) * ax >= 0 ? 1 : -1;
+      if (!ph.refSide || ph.refSide === camSide) ph.refSide = -camSide;
       const spot = refereeSpot(phase, { dist: snap.dist, down, winner: winner === -1 ? null : (winner as 0 | 1), breaking, half: place.half });
       const px = -az * ph.refSide;
       const pz = ax * ph.refSide;

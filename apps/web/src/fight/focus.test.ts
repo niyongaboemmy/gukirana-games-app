@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CULL_AT, eased, FADE_IN_S, FOCUS_IDLE, focusTarget, ringCulled, SPECTATOR_DIM, stepFocus, type FocusState, type FocusTarget } from "./focus";
+import { CULL_AT, keepRadius, eased, FADE_IN_S, FOCUS_IDLE, focusTarget, ringCulled, SPECTATOR_DIM, stepFocus, type FocusState, type FocusTarget } from "./focus";
 
 const run = (s: FocusState, t: FocusTarget, secs: number, dt = 1 / 60) => {
   const seen: FocusState[] = [];
@@ -36,10 +36,12 @@ describe("focus mode state", () => {
     const out = run(first, { ring: null, mode: null }, 2).s;
     expect(out).toEqual(FOCUS_IDLE);
   });
-  it("spectators get the lighter version: dimmed, never culled", () => {
+  it("spectators get the lighter version: dimmed, only what the fog swallowed is culled, other rings stay", () => {
     const { s } = run(FOCUS_IDLE, { ring: "R3", mode: "spectator" }, 2);
     expect(s.k).toBeCloseTo(SPECTATOR_DIM, 5);
-    expect(s.hidden).toBe(false);
+    expect(s.hidden).toBe(true);
+    expect(ringCulled("R4", s)).toBe(false);
+    expect(keepRadius("spectator", 2.45)).toBeGreaterThan(keepRadius("fighter", 2.45));
   });
   it("a ring change fades out first, then in around the new ring", () => {
     const a = run(FOCUS_IDLE, { ring: "R7", mode: "fighter" }, 2).s;
@@ -51,9 +53,9 @@ describe("focus mode state", () => {
     expect(b.k).toBe(1);
   });
   it("culling helpers and easing", () => {
-    expect(ringCulled("R3", { ring: "R7", hidden: true })).toBe(true);
-    expect(ringCulled("R7", { ring: "R7", hidden: true })).toBe(false);
-    expect(ringCulled("R3", { ring: "R7", hidden: false })).toBe(false);
+    expect(ringCulled("R3", { ring: "R7", hidden: true, mode: "fighter" })).toBe(true);
+    expect(ringCulled("R7", { ring: "R7", hidden: true, mode: "fighter" })).toBe(false);
+    expect(ringCulled("R3", { ring: "R7", hidden: false, mode: "fighter" })).toBe(false);
     expect(eased(0)).toBe(0);
     expect(eased(1)).toBe(1);
     expect(eased(0.5)).toBeCloseTo(0.5);

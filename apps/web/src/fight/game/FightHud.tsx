@@ -99,6 +99,8 @@ function FighterPanel({ f, name, me, side }: { f: FighterView; name: string; me:
 }
 
 function CenterClock({ snap, practiceLevel }: { snap: BoxingSnapshot; practiceLevel?: number }) {
+  const held = useRef(0);
+  if (snap.phase === "round") held.current = snap.left;
   const label =
     snap.phase === "rest"
       ? ft("hud.rest")
@@ -113,7 +115,7 @@ function CenterClock({ snap, practiceLevel }: { snap: BoxingSnapshot; practiceLe
     <div className={`${glass} flex shrink-0 flex-col items-center px-4 py-1.5 phone:px-3 phone:py-1`}>
       <span className="text-[11px] font-bold uppercase tracking-wide text-on-glass-muted">{label}</span>
       <span className="font-display text-3xl font-black tabular-nums leading-tight phone:text-2xl">
-        {snap.phase === "knockdown" ? clock(0) : clock(snap.left)}
+        {snap.phase === "knockdown" ? clock(held.current) : clock(snap.left)}
       </span>
       {practiceLevel !== undefined && (
         <span className="text-[10px] font-bold text-on-glass-muted">{ft("hud.practiceLevel", { n: practiceLevel })}</span>
@@ -245,9 +247,9 @@ function Highlights() {
 }
 
 /** the referee / corner line under the scoreboard (captions are always on) */
-function Caption({ now }: { now: number }) {
+function Caption({ now, hide }: { now: number; hide?: boolean }) {
   const c = useFightUi((s) => s.caption);
-  if (!c || now - c.at > 2600) return null;
+  if (!c || now - c.at > 2600 || hide) return null;
   return (
     <div className="pointer-events-none absolute inset-x-0 top-[19%] flex justify-center phone:top-[24%]" aria-live="polite">
       <div className={`${glass} gk-fade-up flex items-center gap-2 px-4 py-1.5 text-sm font-bold phone:text-xs`}>
@@ -480,7 +482,7 @@ export function FightHud() {
         </button>
       </div>
       <Callouts snap={snap} me={me} now={now} />
-      <Caption now={now} />
+      <Caption now={now} hide={snap.phase === "knockdown" && useFightUi.getState().caption?.who === "referee"} />
       <PressChip now={now} />
       <ReplayBadge />
       <div className="pointer-events-auto">

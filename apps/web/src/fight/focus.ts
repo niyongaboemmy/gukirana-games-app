@@ -73,8 +73,9 @@ export function stepFocus(s: FocusState, t: FocusTarget, dt: number): FocusState
     ring = t.ring;
     mode = t.mode;
   }
+  // cull only at the end of the fade (fighter: all but the ring; spectator: what the fog has fully swallowed);
   // un-cull as soon as the fade turns back (still dark: nothing shows yet)
-  const hidden = mode === "fighter" && k >= CULL_AT && goal >= CULL_AT;
+  const hidden = goal > 0 && k >= goal * CULL_AT;
   if (ring === s.ring && mode === s.mode && k === s.k && hidden === s.hidden) return s;
   return { ring, mode, k, hidden };
 }
@@ -113,4 +114,8 @@ export function publishFocus(s: FocusState): void {
 }
 
 /** is this ring culled right now (another ring than the focus ring, while fully focused)? */
-export const ringCulled = (id: RingId, f: Pick<FocusState, "ring" | "hidden"> = focusNow): boolean => f.hidden && f.ring !== null && f.ring !== id;
+export const ringCulled = (id: RingId, f: Pick<FocusState, "ring" | "hidden" | "mode"> = focusNow): boolean => f.hidden && f.mode === "fighter" && f.ring !== null && f.ring !== id;
+/** how far from the focus ring centre things stay drawn once culled (m): the ring itself, or the fog's reach */
+export const keepRadius = (mode: FocusMode | null, half: number): number => (mode === "spectator" ? half + SPECTATOR_FOG.far + 1 : half + 1.6);
+/** spectator fog (m past the camera's distance to the ring): the neighbours stay, the far hall sinks */
+export const SPECTATOR_FOG = { near: 2, far: 16 };

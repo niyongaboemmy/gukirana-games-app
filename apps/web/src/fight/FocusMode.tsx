@@ -5,7 +5,7 @@ import * as THREE from "three";
 import type { RingId } from "@gukirana/contracts";
 import { isOnScreen, useArea } from "@/world/stage";
 import { useFightBridge } from "./bridge";
-import { focusNow, focusTarget, FOCUS_IDLE, publishFocus, stepFocus, useFightFocus, type FocusState } from "./focus";
+import { eased, focusNow, focusTarget, FOCUS_IDLE, keepRadius, publishFocus, SPECTATOR_DIM, SPECTATOR_FOG, stepFocus, useFightFocus, type FocusState } from "./focus";
 import { RING_BY_ID } from "./plan";
 import { useFightUi } from "./ui-store";
 import { useGymScene } from "./gym-life";
@@ -50,6 +50,10 @@ export function FocusMode() {
     culled.current = [];
     decided.current = new WeakSet();
   };
+  useEffect(() => {
+    // dev QA handle: the focus state + the world UI store (watch cameras)
+    if (process.env.NODE_ENV !== "production") Object.assign(window as unknown as Record<string, unknown>, { __gkFocus: { now: focusNow, ui: useFightUi } });
+  }, []);
   useEffect(
     () => () => {
       uncull();
@@ -75,12 +79,13 @@ export function FocusMode() {
     // culling follows `hidden` (true only while fully dark)
     if (was.hidden && !next.hidden) uncull();
     // the gym (training zone, staff, its ambient sound) follows: hidden only while fully dark (the fog does the fade)
-    if (useGymScene.getState().hidden !== next.hidden) useGymScene.setState({ hidden: next.hidden });
+    const gymHidden = next.hidden && next.mode === "fighter";
+    if (useGymScene.getState().hidden !== gymHidden) useGymScene.setState({ hidden: gymHidden });
     if (next.hidden && ring && anchor.current?.parent) {
       cullAcc.current -= dt;
       if (cullAcc.current <= 0) {
         cullAcc.current = 0.5; // late-mounting LODs / props are picked up on the next pass
-        cullPass(anchor.current.parent, ring, culled.current, decided.current);
+        cullPass(anchor.current.parent, ring, keepRadius(next.mode, ring.half), culled.current, decided.current);
       }
     }
 
@@ -102,12 +107,13 @@ export function FocusMode() {
     const d = Math.hypot(camera.position.x - ring.x, camera.position.z - ring.z);
     const spectator = next.mode === "spectator";
     // fighter: black a little past the far ropes; spectator: the neighbouring rings stay half visible
-    const nearF = d + (spectator ? ring.half + 2 : ring.half * 0.5);
-    const farF = d + (spectator ? ring.half + 16 : ring.half + 5.5);
-    const ee = Math.min(1, e);
+    const nearF = d + (spectator ? ring.half + SPECTATOR_FOG.near : ring.half * 0.5);
+    const farF = d + (spectator ? ring.half + SPECTATOR_FOG.far : ring.half + 5.5);
+    // progress of this mode's own fade (the spectator fade stops at SPECTATOR_DIM)
+    const ee = Math.min(1, spectator ? e / eased(SPECTATOR_DIM) : e);
     fog.near = THREE.MathUtils.lerp(nearF + 120, nearF, ee);
     fog.far = THREE.MathUtils.lerp(farF + 240, farF, ee);
-    if (saved.current.bg && scene.background instanceof THREE.Color) scene.background.copy(_c.copy(saved.current.bg).lerp(DARK, ee));
+    if (saved.current.bg && scene.background instanceof THREE.Color) scene.background.copy(_c.copy(saved.current.bg).lerp(DARK, spectator ? ee * 0.8 : ee));
     // the spot pool
     if (spot.current) {
       spot.current.position.set(ring.x, ring.canvasY + 7.5, ring.z + 0.8);
@@ -127,8 +133,7 @@ export function FocusMode() {
 }
 
 /** hide every object under `root` that does not reach the focus ring (huge objects spanning the hall are kept) */
-function cullPass(root: THREE.Object3D, ring: { x: number; z: number; half: number; canvasY: number }, culled: THREE.Object3D[], decided: WeakSet<THREE.Object3D>) {
-  const keepR = ring.half + 1.6;
+function cullPass(root: THREE.Object3D, ring: { x: number; z: number; half: number; canvasY: number }, keepR: number, culled: THREE.Object3D[], decided: WeakSet<THREE.Object3D>) {
   const visit = (o: THREE.Object3D) => {
     if (o.userData?.focusKeep) return;
     const m = o as THREE.Mesh;
@@ -158,7 +163,7 @@ function cullPass(root: THREE.Object3D, ring: { x: number; z: number; half: numb
 
 /** BoxingHallScene hook: the ring-kit fields only keep the focus ring once the hall is fully dark */
 export function useFocusRings<T extends { id: RingId }>(rings: T[]): T[] {
-  const hidden = useFightFocus((s) => s.hidden);
+  const hidden = useFightFocus((s) => s.hidden && s.mode === "fighter");
   const ring = useFightFocus((s) => s.ring);
   return useMemo(() => (hidden && ring ? rings.filter((r) => r.id === ring) : rings), [rings, hidden, ring]);
 }

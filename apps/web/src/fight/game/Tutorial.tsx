@@ -50,25 +50,25 @@ export function Tutorial({ touch }: { touch: boolean }) {
   const textKey = `tut.${step.id}.${via}` as FgKey;
   const jabVars = step.id === "jab" ? { ...vars, key: vars.jab! } : vars;
   return (
-    <div className="pointer-events-auto absolute left-3 top-[17%] w-[min(320px,44vw)] phone:left-2 phone:top-[22%] phone:w-[min(280px,40vw)]" role="dialog" aria-label={ft("tut.title")}>
+    <div className="pointer-events-none absolute left-3 top-[17%] w-[min(320px,44vw)] phone:left-1/2 phone:top-[21%] phone:w-[min(360px,46vw)] phone:-translate-x-1/2" role="dialog" aria-label={ft("tut.title")}>
       <div className="glass rounded-card flex flex-col gap-2 p-3 phone:gap-1.5 phone:p-2">
         <div className="flex items-center gap-2">
           <GraduationCap size={16} className="text-gold" />
           <span className="flex-1 font-display text-sm font-black">{ft("tut.title")}</span>
           <span className="text-[11px] font-bold text-on-glass-muted">{ft("tut.step", { n: finished ? STEPS.length : idx + 1, total: STEPS.length })}</span>
-          <button type="button" aria-label={ft("tut.skip")} className="icon-button grid size-8 place-items-center rounded-full" onClick={() => set({ tutorialDone: true })}>
+          <button type="button" aria-label={ft("tut.skip")} className="icon-button pointer-events-auto grid size-8 place-items-center rounded-full" onClick={() => set({ tutorialDone: true })}>
             <X size={16} />
           </button>
         </div>
         {!finished && <p className="text-sm font-semibold leading-snug phone:text-xs">{ft(textKey, jabVars)}</p>}
         {finished && (
           // the last card: how the fight is scored and the fouls to avoid (P3-FGT-06 rules)
-          <div className="flex max-h-[38dvh] flex-col gap-1.5 overflow-y-auto text-xs leading-snug">
+          <div className="pointer-events-auto flex max-h-[38dvh] flex-col gap-1.5 overflow-y-auto text-xs leading-snug phone:max-h-[30dvh]">
             <p className="font-bold">{fst("rules.title")}</p>
-            <p>{fst("rules.judges", { n: 5 })}</p>
+            <p className="phone:hidden">{fst("rules.judges", { n: 5 })}</p>
             <p>{fst("rules.ladder", { max: 3 })}</p>
             {FOUL_TUTORIAL.map((r) => (
-              <p key={r.foul}>
+              <p key={r.foul} className="phone:hidden">
                 <span className="font-bold">{fst(r.when)}</span> <span className="text-on-glass-muted">{fst(r.avoid)}</span>
               </p>
             ))}

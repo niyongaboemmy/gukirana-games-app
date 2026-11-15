@@ -38,7 +38,7 @@ export function FightOverlay() {
     <div className="gk-fight-overlay pointer-events-none fixed inset-0 z-30 select-none" data-fight-surface-overlay="1">
       <FightHud />
       {touch && fighting && <TouchPads />}
-      {fighting && <Tutorial touch={touch} />}
+      {fighting && mine.snap.phase !== "knockdown" && <Tutorial touch={touch} />}
     </div>
   );
 }
