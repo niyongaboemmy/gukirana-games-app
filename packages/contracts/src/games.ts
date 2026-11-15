@@ -196,7 +196,7 @@ export const VoidMatchSchema = z.object({ cause: VoidCauseSchema.optional() }).d
  * changes in substance: every player is asked to accept again before their next live match of that game. Number
  * changes from the console (turn time, waits) are shown on the card but do not need a new acceptance.
  */
-export const GAME_RULES_VERSION: Record<GameId, number> = { igisoro: 1, ludo: 1, pool: 1, boxing: 1 };
+export const GAME_RULES_VERSION: Record<GameId, number> = { igisoro: 1, ludo: 1, pool: 1, boxing: 2 };
 export const AcceptRulesSchema = z.object({ game: GameIdSchema, version: z.number().int().min(1).max(10_000) });
 export type AcceptRules = z.infer<typeof AcceptRulesSchema>;
 /** GET /games/rules: per game, the current rules version and whether I accepted it */

@@ -764,7 +764,7 @@ function buildVariant(key, base, morphParams) {
         const yy = cy < 0 ? spring * (0.5 + 0.5 * cx * 0) : (ht - 0.004) * sp(cy, 0.85) * (0.3 + 0.7 * cap);
         const h = Math.max(0, cy < 0 ? spring : yy) + (cy < 0 ? 0 : 0.004);
         const pos = add(add(A, add(scl(fwd, uu), scl(side, v))), [0, 0, 0]);
-        pos[1] = h;
+        pos[1] = h + 0.003; // (3 mm off the floor: a sole flush with the canvas z-fights)
         const n = norm(add(scl(side, cx), [0, cy < -0.2 ? -1 : cy, 0]));
         const kToe = smooth(ballU - 0.02, ballU + 0.03, uu);
         const sl = cy < -0.15 ? soleSlot : laceSlot !== null && cy > 0.75 && uu > 0.0 && uu < ballU - 0.01 ? laceSlot : slot;

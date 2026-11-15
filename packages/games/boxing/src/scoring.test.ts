@@ -334,7 +334,7 @@ describe("fouls and the referee ladder", () => {
 
   it("KO: knocked down with no stamina left → the count runs to 10 and the fight ends (P3-FGT-10 rules)", () => {
     // (fighter life off; with it on, an exhausted fighter gets a harder get-up task instead: life.test.ts)
-    let s = { ...inRound(100), life: undefined };
+    let s: FightState = { ...inRound(100), life: undefined };
     s.fighters[1] = { ...s.fighters[1], composure: 30, stamina: 50 };
     s = play(s, 15, (k) => [k === 0 ? "jab" : null, null]).s;
     expect(s.phase).toBe("knockdown");
