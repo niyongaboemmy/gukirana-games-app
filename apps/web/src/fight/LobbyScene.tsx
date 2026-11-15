@@ -19,6 +19,7 @@ import { startFightMock } from "./mock";
 import { LobbyVenue } from "./lobby-venue";
 import { GymLife } from "./gym-life";
 import { HallGlimpse } from "./hall-glimpse";
+import { goToRingFromLobby } from "./ring-goto";
 import { OutdoorView } from "@/rooms/OutdoorView";
 import { DoorGlimpse } from "@/rooms/shell";
 
@@ -421,76 +422,207 @@ function SubhallSensor() {
   return null;
 }
 
-/** the live ring status board on the east wall: 50 cells in hall order, colour + ring number, redrawn at 1 Hz */
+/**
+ * The live ring status board on the east wall (P3-FGT-08 follow-up): a lit LED screen in a slim bezel with glare and
+ * a soft spill on the wall. Every ring is a card (number, status, live score); tap / click a card and you are walked
+ * there — through the passage into the Boxing hall and along the aisles to that ring's steps (fight/ring-goto).
+ * Redrawn at 1 Hz, and at once when the hovered card changes.
+ */
 function StatusBoard() {
   const area = useArea();
   const tex = useMemo(() => {
     const c = document.createElement("canvas");
-    c.width = 1024;
-    c.height = 512;
+    c.width = BOARD_PX.w;
+    c.height = BOARD_PX.h;
     const t = new THREE.CanvasTexture(c);
     t.colorSpace = THREE.SRGBColorSpace;
-    t.anisotropy = 4;
+    t.anisotropy = 8;
     return t;
   }, []);
   const mat = useMemo(() => new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }), [tex]);
-  useEffect(() => () => (tex.dispose(), mat.dispose()), [tex, mat]);
+  const glare = useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = 256;
+    c.height = 128;
+    const g = c.getContext("2d")!;
+    const gr = g.createLinearGradient(0, 0, 256, 128);
+    gr.addColorStop(0, "rgba(255,255,255,0.10)");
+    gr.addColorStop(0.35, "rgba(255,255,255,0.03)");
+    gr.addColorStop(0.36, "rgba(255,255,255,0)");
+    gr.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = gr;
+    g.fillRect(0, 0, 256, 128);
+    const t = new THREE.CanvasTexture(c);
+    return new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, toneMapped: false });
+  }, []);
+  useEffect(() => () => (tex.dispose(), mat.dispose(), glare.map?.dispose(), glare.dispose()), [tex, mat, glare]);
+  const hover = useRef<number>(-1);
   const acc = useRef(2);
+  const redraw = () => {
+    drawBoard(tex.image as HTMLCanvasElement, hover.current);
+    tex.needsUpdate = true;
+  };
   useFrame((_, dt) => {
     acc.current += dt;
     if (acc.current < 1 || (!isOnScreen(area) && acc.current < 10)) return;
     acc.current = 0;
-    drawBoard(tex.image as HTMLCanvasElement);
-    tex.needsUpdate = true;
+    redraw();
   });
+  const cellOf = (uv?: THREE.Vector2) => (uv ? boardCellAt(uv.x * BOARD_PX.w, (1 - uv.y) * BOARD_PX.h) : -1);
+  const setHover = (i: number) => {
+    if (i === hover.current) return;
+    hover.current = i;
+    document.body.style.cursor = i >= 0 ? "pointer" : "";
+    redraw();
+  };
+  useEffect(() => () => void (document.body.style.cursor = ""), []);
   const b = LOBBY_BOARD;
   return (
     <group position={[b.x, b.y, b.z]} rotation-y={-Math.PI / 2} userData={{ noMerge: true }}>
-      <mesh position={[0, 0, -0.03]}>
-        <boxGeometry args={[b.w + 0.2, b.h + 0.2, 0.06]} />
-        <meshStandardMaterial color="#0c0c0e" roughness={0.5} metalness={0.5} />
+      {/* the light the screen throws on the wall around it */}
+      <mesh position={[0, 0, -0.07]}>
+        <planeGeometry args={[b.w + 1.4, b.h + 1.0]} />
+        <meshBasicMaterial color="#5fb47a" transparent opacity={0.07} depthWrite={false} toneMapped={false} />
       </mesh>
-      {/* 8 mm proud of the frame: the face used to be coplanar with the frame front and z-fought in black blocks */}
-      <mesh material={mat} position={[0, 0, 0.008]}>
+      {/* slim aluminium bezel on a wall mount */}
+      <mesh position={[0, 0, -0.045]}>
+        <boxGeometry args={[b.w + 0.12, b.h + 0.12, 0.07]} />
+        <meshStandardMaterial color="#1b1c1f" roughness={0.35} metalness={0.8} />
+      </mesh>
+      <mesh position={[0, -b.h / 2 - 0.035, 0.0]}>
+        <boxGeometry args={[0.5, 0.012, 0.012]} />
+        <meshBasicMaterial color="#6fdc8c" toneMapped={false} />
+      </mesh>
+      {/* the screen: 8 mm proud of the bezel (coplanar faces z-fought) */}
+      <mesh
+        material={mat}
+        position={[0, 0, 0.008]}
+        onPointerMove={(e) => setHover(cellOf(e.uv))}
+        onPointerOut={() => setHover(-1)}
+        onClick={(e) => {
+          const i = cellOf(e.uv);
+          const r = RINGS[i];
+          if (!r || (useFightBridge.getState().rings[r.id]?.status ?? "free") === "closed") return;
+          e.stopPropagation();
+          // the click fires after the floor-tap handler: this route replaces the tap's walk target
+          goToRingFromLobby(r.id);
+        }}
+      >
+        <planeGeometry args={[b.w, b.h]} />
+      </mesh>
+      <mesh material={glare} position={[0, 0, 0.012]} raycast={() => null}>
         <planeGeometry args={[b.w, b.h]} />
       </mesh>
     </group>
   );
 }
 
-function drawBoard(c: HTMLCanvasElement) {
+/** board canvas (px) and its card grid: 10 × 5 cards under a header, a legend row at the bottom */
+const BOARD_PX = { w: 1600, h: 800 };
+const GRID = { cols: 10, x0: 40, y0: 128, cw: 152, ch: 104, gap: 12 };
+/** which card (index into RINGS) is under a canvas point, or -1 */
+export function boardCellAt(px: number, py: number): number {
+  const cx = Math.floor((px - GRID.x0) / GRID.cw);
+  const cy = Math.floor((py - GRID.y0) / (GRID.ch + GRID.gap));
+  if (cx < 0 || cx >= GRID.cols || cy < 0) return -1;
+  if (py - GRID.y0 - cy * (GRID.ch + GRID.gap) > GRID.ch) return -1;
+  const i = cy * GRID.cols + cx;
+  return i < RINGS.length ? i : -1;
+}
+
+const rr = (g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
+  g.beginPath();
+  g.roundRect(x, y, w, h, r);
+};
+
+function drawBoard(c: HTMLCanvasElement, hover = -1) {
   const g = c.getContext("2d")!;
   const rings = useFightBridge.getState().rings;
-  g.fillStyle = "#0e0e10";
-  g.fillRect(0, 0, c.width, c.height);
-  g.fillStyle = "#ffffff";
-  g.font = "700 40px sans-serif";
+  const W = c.width;
+  const H = c.height;
+  // LED panel: near-black with a faint vertical falloff
+  const bg = g.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#141518");
+  bg.addColorStop(1, "#0b0b0d");
+  g.fillStyle = bg;
+  g.fillRect(0, 0, W, H);
+  // header: live dot, title, counts, clock
   g.textBaseline = "middle";
+  g.fillStyle = "#e5483c";
+  g.beginPath();
+  g.arc(58, 62, 11, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "#f5efe6";
   g.textAlign = "left";
-  g.fillText(`${F.boxingHall} · ${F.statusBoard}`, 32, 44);
+  g.font = "800 54px system-ui, sans-serif";
+  g.fillText(`${F.boxingHall} · ${F.statusBoard}`, 86, 62);
   const n = ringCounts(rings);
   g.textAlign = "right";
-  g.font = "500 28px sans-serif";
-  g.fillStyle = "#cfcfcf";
-  g.fillText(`${F.fightsOn(n.fights)} · ${F.ringsFree(n.free)}`, c.width - 32, 44);
-  // 10 × 5 grid of cells
-  const cw = 92;
-  const ch = 70;
-  const x0 = (c.width - cw * 10) / 2;
-  const y0 = 96;
+  g.font = "600 34px system-ui, sans-serif";
+  g.fillStyle = "#cfc8bd";
+  const now = new Date();
+  const clock = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  g.fillText(`${F.fightsOn(n.fights)} · ${F.ringsFree(n.free)}   ${clock}`, W - 40, 62);
+  g.fillStyle = "rgba(255,255,255,0.08)";
+  g.fillRect(40, 104, W - 80, 2);
+  // cards
   g.textAlign = "center";
   RINGS.forEach((r, i) => {
-    const st = rings[r.id]?.status ?? "free";
-    const x = x0 + (i % 10) * cw;
-    const y = y0 + Math.floor(i / 10) * (ch + 10);
-    g.fillStyle = STATUS_LAMP[st];
-    g.globalAlpha = st === "closed" ? 0.4 : 1;
-    g.fillRect(x + 4, y, cw - 8, ch);
+    const e = rings[r.id];
+    const st = e?.status ?? "free";
+    const x = GRID.x0 + (i % GRID.cols) * GRID.cw + 6;
+    const y = GRID.y0 + Math.floor(i / GRID.cols) * (GRID.ch + GRID.gap);
+    const w = GRID.cw - 12;
+    const h = GRID.ch;
+    const col = STATUS_LAMP[st];
+    g.globalAlpha = st === "closed" ? 0.45 : 1;
+    const cg = g.createLinearGradient(0, y, 0, y + h);
+    cg.addColorStop(0, shade(col, 1.12));
+    cg.addColorStop(1, shade(col, 0.82));
+    g.fillStyle = cg;
+    rr(g, x, y, w, h, 12);
+    g.fill();
+    if (i === hover) {
+      g.strokeStyle = "#ffffff";
+      g.lineWidth = 5;
+      rr(g, x - 2, y - 2, w + 4, h + 4, 14);
+      g.stroke();
+    }
     g.globalAlpha = 1;
-    g.fillStyle = st === "practice" || st === "waiting" ? "#111111" : "#ffffff";
-    g.font = "700 28px sans-serif";
-    g.fillText(r.id.slice(1), x + cw / 2, y + ch * 0.38);
-    g.font = "500 15px sans-serif";
-    g.fillText(F.status[st], x + cw / 2, y + ch * 0.76);
+    const dark = st === "practice" || st === "waiting";
+    g.fillStyle = dark ? "#121212" : "#ffffff";
+    g.font = "800 40px system-ui, sans-serif";
+    g.fillText(r.id.slice(1), x + w / 2, y + h * 0.34);
+    g.font = "600 20px system-ui, sans-serif";
+    const live = e?.score && (st === "fighting" || st === "result") ? `${e.score.red} – ${e.score.blue}` : F.status[st];
+    g.fillText(live, x + w / 2, y + h * 0.7);
+    if (r.feature) {
+      g.font = "800 13px system-ui, sans-serif";
+      g.fillText(F.boardMain, x + w / 2, y + 14);
+    }
   });
+  // legend + hint
+  const ly = H - 40;
+  g.textAlign = "left";
+  g.font = "600 24px system-ui, sans-serif";
+  let lx = 44;
+  for (const st of ["free", "waiting", "fighting", "practice"] as const) {
+    g.fillStyle = STATUS_LAMP[st];
+    rr(g, lx, ly - 12, 24, 24, 6);
+    g.fill();
+    g.fillStyle = "#cfc8bd";
+    g.fillText(F.status[st], lx + 34, ly);
+    lx += 34 + g.measureText(F.status[st]).width + 40;
+  }
+  g.textAlign = "right";
+  g.fillStyle = "#f5efe6";
+  g.font = "700 26px system-ui, sans-serif";
+  g.fillText(F.boardHint, W - 44, ly);
+}
+
+/** a hex colour scaled in brightness (card gradients) */
+function shade(hex: string, k: number) {
+  const v = parseInt(hex.slice(1), 16);
+  const c = (s: number) => Math.max(0, Math.min(255, Math.round(((v >> s) & 255) * k)));
+  return `rgb(${c(16)},${c(8)},${c(0)})`;
 }
