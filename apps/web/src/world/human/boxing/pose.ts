@@ -201,7 +201,7 @@ export function pose(base: Pose, spec: PoseSpec): Pose {
  * hand's length in front of the face, the rear glove by the chin, elbows down over the ribs, palms turned in.
  * Rear heel slightly up (ready to push off).
  */
-export const GUARD: Pose = pose(newPose(), {
+export const GUARD_AUTHOR: Pose = pose(newPose(), {
   hips: [0, 0.855, -0.01],
   yaw: -0.46,
   chest: -0.08,
@@ -233,8 +233,54 @@ export const GUARD: Pose = pose(newPose(), {
   shrugRear: 0,
 });
 
+export const GUARD: Pose = pose(GUARD_AUTHOR, {
+  // P3-FGT-09: a deeper athletic stance — knees bent (hips ~4 cm lower), the feet where they were (travel / pivots are
+  // authored round them), weight forward
+  // on the balls of the feet, torso leaning in and bladed, chin tucked behind the lead shoulder, both gloves up at the
+  // cheekbones with the elbows in over the ribs
+  hips: [0, 0.815, -0.02],
+  yaw: -0.5,
+  chest: -0.08,
+  lean: 0.21,
+  bend: 0,
+  head: [0.27, 0.1, 0],
+  lead: [0.11, 1.445, 0.27],
+  leadPole: [0.3, -1, -0.12],
+  leadPalm: [-0.55, -0.1, -0.83],
+  rear: [-0.07, 1.435, 0.15],
+  rearPole: [-0.25, -1, -0.15],
+  rearPalm: [0.45, -0.1, -0.88],
+  leadHeel: 0.08,
+  rearHeel: 0.32,
+  leadKnee: [0.3, 0, 1],
+  rearKnee: [-0.15, 0, 1],
+  fist: 1,
+  focus: 0.6,
+  effort: 0,
+  wince: 0,
+  smile: 0,
+  jaw: 0,
+  eyes: 0,
+  shrugLead: 0.3,
+  shrugRear: 0.12,
+});
+
+/**
+ * The clips are authored round GUARD_AUTHOR (the P3-FGT-02 stance); P3-FGT-09 deepened the stance. clips.ts moves an
+ * authored key by (GUARD − GUARD_AUTHOR), weighted by how close its body (hips height, feet) is to the guard: punches,
+ * defence, footwork and reactions take the full deep stance; kneeling, sitting and standing poses none; keys in
+ * between (getting up, sitting down) blend, so every hand-over stays continuous.
+ */
+const BODY_CH = [P.hy, P.fLx, P.fLz, P.fRx, P.fRz] as const;
+export function stanceWeight(p: Pose): number {
+  let d = 0;
+  for (const i of BODY_CH) d = Math.max(d, Math.abs(p[i]! - GUARD_AUTHOR[i]!));
+  const x = Math.min(1, Math.max(0, 1 - d / 0.16));
+  return x * x * (3 - 2 * x);
+}
+
 /** Standing relaxed (referee, a boxer out of the ring stance): feet under the hips, hands loose. */
-export const STAND: Pose = pose(GUARD, {
+export const STAND: Pose = pose(GUARD_AUTHOR, {
   hips: [0, 0.9, 0],
   yaw: 0,
   chest: 0,
@@ -259,7 +305,7 @@ export const STAND: Pose = pose(GUARD, {
 });
 
 /** Down on one knee after a knockdown (rear knee on the canvas, lead foot planted, lead glove on the lead knee). */
-export const KNEEL: Pose = pose(GUARD, {
+export const KNEEL: Pose = pose(GUARD_AUTHOR, {
   hips: [0.02, 0.56, -0.08],
   yaw: -0.3,
   chest: -0.05,
@@ -292,7 +338,7 @@ export const KNEEL: Pose = pose(GUARD, {
  * hips on a 0.55 m stool, feet wide and forward, gloves resting on the thighs, leaning in a little, breathing hard.
  */
 export const STOOL_HEIGHT = 0.55;
-export const SIT: Pose = pose(GUARD, {
+export const SIT: Pose = pose(GUARD_AUTHOR, {
   hips: [0, STOOL_HEIGHT + 0.1, -0.06],
   yaw: 0,
   chest: 0,

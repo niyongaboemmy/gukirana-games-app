@@ -1,4 +1,4 @@
-import { GUARD, KNEEL, P, pose, POSE_SIZE, SIT, STAND, newPose, type Pose, type PoseSpec, type V3 } from "./pose";
+import { GUARD, GUARD_AUTHOR, KNEEL, P, pose, POSE_SIZE, SIT, STAND, newPose, stanceWeight, type Pose, type PoseSpec, type V3 } from "./pose";
 
 /**
  * Boxing motion library (P3-FGT-02): procedural, licence-safe, deterministic clips on the Rocketbox rig. Each clip
@@ -114,10 +114,10 @@ interface ClipDef extends BoxingClipInfo {
 /* ---------------- authoring helpers ---------------- */
 
 const add = (a: V3, d: V3): V3 => [a[0] + d[0], a[1] + d[1], a[2] + d[2]];
-const gL = (): V3 => [GUARD[P.lx]!, GUARD[P.ly]!, GUARD[P.lz]!];
-const gR = (): V3 => [GUARD[P.rx]!, GUARD[P.ry]!, GUARD[P.rz]!];
-const gLF = (): V3 => [GUARD[P.fLx]!, 0, GUARD[P.fLz]!];
-const gRF = (): V3 => [GUARD[P.fRx]!, 0, GUARD[P.fRz]!];
+const gL = (): V3 => [GUARD_AUTHOR[P.lx]!, GUARD_AUTHOR[P.ly]!, GUARD_AUTHOR[P.lz]!];
+const gR = (): V3 => [GUARD_AUTHOR[P.rx]!, GUARD_AUTHOR[P.ry]!, GUARD_AUTHOR[P.rz]!];
+const gLF = (): V3 => [GUARD_AUTHOR[P.fLx]!, 0, GUARD_AUTHOR[P.fLz]!];
+const gRF = (): V3 => [GUARD_AUTHOR[P.fRx]!, 0, GUARD_AUTHOR[P.fRz]!];
 /** both guard gloves shifted by d */
 const hands = (d: V3): PoseSpec => ({ lead: add(gL(), d), rear: add(gR(), d) });
 
@@ -136,7 +136,7 @@ type Def = Omit<ClipDef, "name" | "recovery" | "then" | "events" | "loop"> & Par
 
 /* ---------------- the library ---------------- */
 
-const G = GUARD;
+const G = GUARD_AUTHOR;
 
 /** the pivot, computed so the lead foot stays exactly where it is while the root turns about it */
 const PIVOT: Def = (() => {
@@ -160,7 +160,7 @@ const PIVOT: Def = (() => {
     s = Math.sin(turn);
   const rx = end[0] + rf[0] * c + rf[2] * s;
   const rz = end[1] - rf[0] * s + rf[2] * c;
-  const ry = GUARD[P.fRyaw]! + turn;
+  const ry = GUARD_AUTHOR[P.fRyaw]! + turn;
   return {
     kind: "footwork",
     duration: 0.5,
@@ -171,8 +171,8 @@ const PIVOT: Def = (() => {
     keys: keys(G, [
       [0, {}],
       [0.12, { leadHeel: 0.35, hips: [0, 0.85, 0] }],
-      [0.3, { leadHeel: 0.3, leadFootYaw: GUARD[P.fLyaw]! + turn * 0.6, rearFoot: [(rf[0] + rx) / 2 - 0.05, 0.04, (rf[2] + rz) / 2 - 0.04], rearFootYaw: (GUARD[P.fRyaw]! + ry) / 2 }],
-      [0.4, { leadHeel: 0.05, leadFootYaw: GUARD[P.fLyaw]! + turn, rearFoot: [rx, 0, rz], rearFootYaw: ry }],
+      [0.3, { leadHeel: 0.3, leadFootYaw: GUARD_AUTHOR[P.fLyaw]! + turn * 0.6, rearFoot: [(rf[0] + rx) / 2 - 0.05, 0.04, (rf[2] + rz) / 2 - 0.04], rearFootYaw: (GUARD_AUTHOR[P.fRyaw]! + ry) / 2 }],
+      [0.4, { leadHeel: 0.05, leadFootYaw: GUARD_AUTHOR[P.fLyaw]! + turn, rearFoot: [rx, 0, rz], rearFootYaw: ry }],
       [0.5, { leadHeel: 0, hips: [0, 0.855, -0.01] }],
     ]),
   };
@@ -567,7 +567,7 @@ const DEFS: Record<BoxingClipName, Def> = {
       [0.7, { hips: [0.03, 0.75, -0.06], lean: 0.3, yaw: -0.4, rearFoot: [-0.14, 0.05, -0.38], rearHeel: 0.5, rearKnee: [-0.1, -0.2, 1], lead: [0.15, 1.1, 0.3], rear: [-0.12, 1.1, 0.16], leadPole: [0.5, -1, -0.2], rearPole: [-0.4, -1, -0.2], head: [0.2, 0.06, 0], wince: 0.2, eyes: 0 }],
       [0.85, { rearFoot: [-0.14, 0, -0.24], rearHeel: 0.3, rearKnee: [-0.1, 0, 1] }],
       [1.1, { hips: [0, 0.85, -0.01], lean: 0.15, yaw: -0.46, chest: -0.08, ...hands([0, -0.02, 0]), leadPalm: [-0.55, -0.1, -0.83], rearPalm: [0.45, -0.1, -0.88], head: [0.16, 0.08, 0], jaw: 0.1, wince: 0, focus: 0.5 }],
-      [1.4, { ...specOf(GUARD) }],
+      [1.4, { ...specOf(GUARD_AUTHOR) }],
     ]),
   },
   // tied up: both arms over the other's arms, head on their shoulder, leaning in (loop)
@@ -594,7 +594,7 @@ const DEFS: Record<BoxingClipName, Def> = {
       [0.3, { yaw: -0.1, chest: 0, hips: [0, 0.88, 0], lead: [0.07, 1.3, 0.4], rear: [-0.07, 1.3, 0.4], leadPole: [0.6, -1, -0.3], rearPole: [-0.6, -1, -0.3], leadPalm: [0, -1, 0], rearPalm: [0, -1, 0], head: [0.2, 0, 0], smile: 0.35, focus: 0.2 }],
       [0.5, { lead: [0.065, 1.3, 0.46], rear: [-0.065, 1.3, 0.46], head: [0.3, 0, 0] }],
       [0.75, { lead: [0.08, 1.32, 0.36], rear: [-0.08, 1.32, 0.36], head: [0.18, 0, 0] }],
-      [1.2, { ...specOf(GUARD) }],
+      [1.2, { ...specOf(GUARD_AUTHOR) }],
     ]),
   },
   // walk to the corner is the caller's; this sits down onto the stool (root = the stool centre)
@@ -630,7 +630,7 @@ const DEFS: Record<BoxingClipName, Def> = {
     keys: keys(SIT, [
       [0, {}],
       [0.4, { hips: [0, 0.75, 0.02], lean: 0.38, leadFoot: [0.18, 0, 0.3], rearFoot: [-0.18, 0, 0.26], ...hands([0, -0.15, 0.05]), leadPalm: [-0.55, -0.1, -0.83], rearPalm: [0.45, -0.1, -0.88], leadPole: [0.35, -1, -0.15], rearPole: [-0.3, -1, -0.2], jaw: 0, focus: 0.5 }],
-      [0.9, { ...specOf(GUARD) }],
+      [0.9, { ...specOf(GUARD_AUTHOR) }],
     ]),
   },
   // both arms up, chest open, looking up, a big smile (→ victoryHold)
@@ -906,9 +906,22 @@ export const TOUCH_DISTANCE = 0.92;
 
 /* ---------------- the clip table ---------------- */
 
+/** clips that leave the guard (down, on the stool, standing up): the deep stance follows each key's body (pose.ts stanceWeight) */
+const KEYED_STANCE = new Set<BoxingClipName>(["knockdown", "count", "getUp", "cornerSit", "cornerRest", "cornerStand", "victory", "victoryHold", "defeat", "defeatHold", "winnerRaised"]);
 const CLIPS = {} as Record<BoxingClipName, ClipDef>;
 for (const [name, d] of Object.entries(DEFS) as [BoxingClipName, Def][]) {
   const loop = d.loop ?? false;
+  // P3-FGT-09 deep stance: every fighter clip moves onto it (in full while boxing; per key where the body leaves the
+  // guard); the referee keeps his own stance
+  if (d.kind !== "referee") {
+    const full = !KEYED_STANCE.has(name);
+    d.keys = d.keys.map((k) => {
+      const w = full ? 1 : stanceWeight(k.p);
+      const out = newPose();
+      for (let i = 0; i < POSE_SIZE; i++) out[i] = k.p[i]! + (GUARD[i]! - GUARD_AUTHOR[i]!) * w;
+      return { t: k.t, p: out };
+    });
+  }
   const impactEvents: ClipEvent[] = d.impact !== null && d.impact > 0 && d.kind !== "reaction" ? [{ t: d.impact, kind: "impact" }] : [];
   CLIPS[name] = {
     ...d,

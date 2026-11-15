@@ -71,6 +71,10 @@ export interface LookUniforms {
    * silver in beard and brows] (world/age.ts)
    */
   uAge: { value: THREE.Vector4 };
+  /** P3-FGT-09: how much of the photo's garment texture shows through the top colour (0.85 everyday; the ring vest is smoother) */
+  uTopDetail: { value: number };
+  /** P3-FGT-09: sweat sheen on bare skin (0 dry … 1 soaked; the ring raises it with effort, lighting reads the form) */
+  uSweat: { value: number };
 }
 
 /**
@@ -206,6 +210,8 @@ export function lookUniforms(look: AvatarLook, meta: HumanModelMeta, isHead: boo
     uBottomPrint: { value: printTex(bottom?.print) },
     uBottomPrintOn: { value: bottom?.print ? 1 : 0 },
     uClothes: { value: keepClothes ? 0 : 1 },
+    uTopDetail: { value: 0.85 },
+    uSweat: { value: 0 },
     uSpecMap: { value: meta.specInMask && isHead ? 1 : 0 },
     ...faceUniforms(look.face ?? DEFAULT_FACE, isHead ? frame : null),
   };
@@ -219,7 +225,7 @@ uniform vec3 uTop; uniform float uTopRef;
 uniform vec3 uBottom; uniform float uBottomRef;
 uniform vec3 uShoes; uniform float uShoesRef;
 uniform vec3 uHair; uniform float uHairRef; uniform float uHairToSkin;
-uniform float uLegsSkin; uniform float uClothes;
+uniform float uLegsSkin; uniform float uClothes; uniform float uTopDetail; uniform float uSweat;
 uniform sampler2D uTopPrint; uniform float uTopPrintOn;
 uniform sampler2D uBottomPrint; uniform float uBottomPrintOn;
 float gkDetail(float l, float ref, float k) { return mix(1.0, pow(clamp(l / max(ref, 1e-4), 0.0, 3.5), 0.8), k); }
@@ -553,7 +559,7 @@ const RECOLOUR = /* glsl */ `
     vec3 gkTopC = uTopPrintOn > 0.5 ? texture2D(uTopPrint, vMapUv * 7.0).rgb : uTop;
     vec3 gkBotC = uBottomPrintOn > 0.5 ? texture2D(uBottomPrint, vMapUv * 7.0).rgb : uBottom;
     gkBotC = mix(gkBotC * gkDetail(gkL, uBottomRef, 0.85), uSkin * gkDetail(gkL, uBottomRef, 0.1), uLegsSkin);
-    gkCol = mix(gkCol, gkTopC * gkDetail(gkL, uTopRef, 0.85), gkM.g * uClothes);
+    gkCol = mix(gkCol, gkTopC * gkDetail(gkL, uTopRef, uTopDetail), gkM.g * uClothes);
     gkCol = mix(gkCol, gkBotC, gkM.b * uClothes);
     float gkShoe = clamp(1.0 - gkM.r - gkM.g - gkM.b, 0.0, 1.0);
     gkCol = mix(gkCol, min(uShoes * gkDetail(gkL, uShoesRef, 0.85), vec3(0.7)), gkShoe * uClothes);
@@ -575,6 +581,8 @@ const ROUGH = /* glsl */ `
   float gkGloss = smoothstep(0.04, 0.42, gkSpec);
   roughnessFactor = mix(roughnessFactor, uSpecMap > 0.5 ? mix(0.78, 0.6, gkGloss) : 0.68, clamp(gkM2.r + gkM2.g * uHairToSkin, 0.0, 1.0));
   if (uIsHead < 0.5) roughnessFactor = mix(roughnessFactor, 0.75, clamp(1.0 - gkM2.r - gkM2.g - gkM2.b, 0.0, 1.0));
+  // ring sweat (P3-FGT-09): bare skin turns satin, so the key / rim light catches the shoulders, arms and back
+  roughnessFactor -= uSweat * 0.34 * gkM2.r * (1.0 - gkM2.g);
   if (uIsHead > 0.5) {
     // soft, broad sheen on the forehead, nose bridge and cheekbones (a little more on deep skin, which needs it to
     // read its form); still matte overall, never glare (P2-AVA-11)
