@@ -1,5 +1,5 @@
 "use client";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { BoxingSnapshot } from "@gukirana/contracts";
@@ -13,6 +13,36 @@ import { clampInRing, layoutOf, ringSeed, shakeFor } from "./present";
 import { cameraKick } from "./ring-clock";
 import { replaySnap } from "./game/replay";
 import { RING_SIZES } from "@/rooms/fight/ring-kit-core";
+import { bindPosition, easeLook, eyeFrom, FPV_FOV, HIDE_UP, fpvLook, fpvPhase, fpvProbes, HEAD_FOLLOW, HEAD_FOLLOW_REDUCED, headPose, hideSphere, viewDir } from "./fpv";
+import type { BoxerProbe } from "@/world/human/boxer/BoxerAvatar";
+
+const _hp = new THREE.Vector3();
+const _hq = new THREE.Quaternion();
+const _op = new THREE.Vector3();
+const _fe = new THREE.Vector3();
+const _fd = new THREE.Vector3();
+const _fl = new THREE.Vector3();
+/** per body: its bind-space hide sphere (first person) */
+const HIDE = new WeakMap<BoxerProbe["inst"], THREE.Vector4>();
+function setHidden(p: BoxerProbe | null, on: boolean) {
+  if (!p) return;
+  const u = p.inst.uniforms.uHide.value;
+  const near = p.inst.uniforms.uNearCut.value;
+  if (!on) {
+    u.w = 0;
+    near.set(0, 0);
+    return;
+  }
+  let h = HIDE.get(p.inst);
+  if (!h) {
+    const head = p.inst.bone("Bip01_Head");
+    h = hideSphere(head ? bindPosition(p.inst.mesh, head, new THREE.Vector3()) : new THREE.Vector3(0, 1.6, 0), new THREE.Vector4());
+    HIDE.set(p.inst, h);
+  }
+  u.copy(h);
+  // (the shoulders / vest straps / upper chest close to the eye in a punch or a turn: not drawn within 16 cm)
+  near.set(h.y - HIDE_UP - 0.22, 0.16);
+}
 
 /**
  * Fight camera + watch cameras (P3-FGT-01 §4.3, redesigned in P3-FGT-05). Runs after the hall's follow camera (frame
@@ -227,10 +257,68 @@ export function FightCamera() {
   const lastCut = useRef(-10);
   /** P3-FGT-13: the impact camera — a short push-in on a big hit (0 → 1 → 0 over IMPACT_S) */
   const impact = useRef(-10);
+  /** P3-FGT-15: first person — blend weight, smoothed eye / view, the lens it replaced, the body whose head is hidden */
+  const fpvW = useRef(0);
+  const fEye = useRef(new THREE.Vector3());
+  const fDir = useRef(new THREE.Vector3(0, 0, 1));
+  const baseLens = useRef<{ fov: number; near: number } | null>(null);
+  const hidden = useRef<BoxerProbe | null>(null);
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    // the free look: right-drag (mouse) / drag (touch, outside the pads), eased back to centre on release
+    const el = gl.domElement;
+    let last: { x: number; y: number; id: number } | null = null;
+    const down = (e: PointerEvent) => {
+      // (a left click is a jab: the mouse looks round with the right button; touch drags on the open view)
+      if (fpvW.current < 0.5 || (e.pointerType === "mouse" && e.button !== 2)) return;
+      last = { x: e.clientX, y: e.clientY, id: e.pointerId };
+      fpvLook.held = true;
+    };
+    const move = (e: PointerEvent) => {
+      if (!last || e.pointerId !== last.id) return;
+      fpvLook.yaw -= (e.clientX - last.x) * 0.006;
+      fpvLook.pitch += (e.clientY - last.y) * 0.006;
+      last = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    };
+    const up = (e: PointerEvent) => {
+      if (last && e.pointerId === last.id) {
+        last = null;
+        fpvLook.held = false;
+      }
+    };
+    const menu = (e: Event) => {
+      if (fpvW.current >= 0.5) e.preventDefault();
+    };
+    el.addEventListener("pointerdown", down);
+    el.addEventListener("contextmenu", menu);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    return () => {
+      el.removeEventListener("pointerdown", down);
+      el.removeEventListener("contextmenu", menu);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+    };
+  }, [gl]);
+  const restoreLens = () => {
+    const pc = camera as THREE.PerspectiveCamera;
+    if (baseLens.current) {
+      pc.fov = baseLens.current.fov;
+      pc.near = baseLens.current.near;
+      pc.updateProjectionMatrix();
+      baseLens.current = null;
+    }
+    setHidden(hidden.current, false);
+    hidden.current = null;
+    fpvW.current = 0;
+  };
   useFrame((_, raw) => {
     if (!isOnScreen(area)) {
       w.current = 0;
       seeded.current = false;
+      if (fpvW.current > 0 || baseLens.current) restoreLens();
       return;
     }
     const dt = Math.min(raw, 0.05);
@@ -249,6 +337,7 @@ export function FightCamera() {
     const r = ringRef.current;
     if (w.current <= 0 || !r) {
       seeded.current = false;
+      if (fpvW.current > 0 || baseLens.current) restoreLens();
       return;
     }
     // the follow camera's pose this frame (blend source)
@@ -320,6 +409,46 @@ export function FightCamera() {
     kick.current = Math.max(kick.current * Math.exp(-dt * 11), reduced ? 0 : cameraKick.v);
     cameraKick.v = 0;
     if (kick.current > 0.001) camera.position.add(_eye.subVectors(_look, camera.position).normalize().multiplyScalar(kick.current * s));
+    // P3-FGT-15: first person — in my eyes, over everything above (the broadcast pose is the blend source)
+    const meP = fpvProbes.me;
+    const themP = fpvProbes.them;
+    const meDown = !!snap && !!mine && snap.fighters[me]?.act === "down";
+    const wantFpv = !!mine && ui.fightCam === "first" && !!snap && fpvPhase(snap.phase, meDown) && snap.phase !== "intro" && !!meP && !!themP && headPose(meP, _hp, _hq);
+    fpvW.current = Math.max(0, Math.min(1, fpvW.current + (wantFpv ? dt / 0.55 : -dt / 0.45)));
+    const fs = smooth(fpvW.current) * s;
+    if (fs > 0 && meP && themP) {
+      if (wantFpv) {
+        themP.head(_op);
+        eyeFrom(_hp, _hq, _fe);
+        easeLook(fpvLook, dt);
+        // gamepad right stick looks around too
+        const pad = typeof navigator !== "undefined" && navigator.getGamepads ? navigator.getGamepads()?.find((g) => g) : null;
+        if (pad && (Math.abs(pad.axes[2] ?? 0) > 0.2 || Math.abs(pad.axes[3] ?? 0) > 0.2)) {
+          fpvLook.yaw -= (pad.axes[2] ?? 0) * dt * 1.8;
+          fpvLook.pitch += (pad.axes[3] ?? 0) * dt * 1.8;
+        }
+        viewDir(_fe, _op, _hq, reduced ? HEAD_FOLLOW_REDUCED : HEAD_FOLLOW, fpvLook.yaw, fpvLook.pitch, _fd);
+        // the eye follows the head tightly (no lag behind my own body), the view a touch softer (no jitter)
+        if (fpvW.current < 0.05) {
+          fEye.current.copy(_fe);
+          fDir.current.copy(_fd);
+        }
+        fEye.current.lerp(_fe, 1 - Math.exp(-dt * 30));
+        fDir.current.lerp(_fd, 1 - Math.exp(-dt * (reduced ? 6 : 14))).normalize();
+      }
+      const pc = camera as THREE.PerspectiveCamera;
+      if (!baseLens.current) baseLens.current = { fov: pc.fov, near: pc.near };
+      pc.fov = baseLens.current.fov + (FPV_FOV - baseLens.current.fov) * fs;
+      pc.near = fs > 0.5 ? 0.03 : baseLens.current.near;
+      pc.updateProjectionMatrix();
+      if (hidden.current !== meP) setHidden(hidden.current, false);
+      hidden.current = meP;
+      setHidden(meP, fs > 0.35);
+      camera.position.lerp(fEye.current, fs);
+      // a connection still gives a small push, smaller than the broadcast one (the head already moves the view)
+      if (kick.current > 0.001) camera.position.addScaledVector(fDir.current, kick.current * 0.25 * fs);
+      _look.lerp(_fl.copy(fEye.current).addScaledVector(fDir.current, 3), fs);
+    } else if (baseLens.current) restoreLens();
     camera.lookAt(_look);
   }, 0.5);
   return null;

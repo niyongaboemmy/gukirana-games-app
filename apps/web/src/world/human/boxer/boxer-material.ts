@@ -83,6 +83,8 @@ export interface BoxerUniforms {
   uTex: { value: number };
   /** first person: bind-space sphere (xyz centre, w radius; w = 0 off) whose fragments are not drawn */
   uHide: { value: THREE.Vector4 };
+  /** first person: above this bind height (shoulders, upper chest, neck) nothing nearer the camera than y m is drawn */
+  uNearCut: { value: THREE.Vector2 };
   /** flushed face 0…1 (effort, heat), separate from the hit redness */
   uFlush: { value: number };
 }
@@ -176,6 +178,7 @@ export function boxerMaterial(
     uIrisMap: { value: null },
     uTex: { value: 0 },
     uHide: { value: new THREE.Vector4(0, 0, 0, 0) },
+    uNearCut: { value: new THREE.Vector2(0, 0) },
     uFlush: { value: 0 },
   };
   if (typeof window !== "undefined") {
@@ -240,6 +243,7 @@ uniform sampler2D uDetailMap;
 uniform sampler2D uIrisMap;
 uniform float uTex;
 uniform vec4 uHide;
+uniform vec2 uNearCut;
 uniform float uFlush;
 flat varying float vMat;
 varying float vAo;
@@ -280,6 +284,7 @@ vec4 gkSkin;`,
         "#include <clipping_planes_fragment>",
         `#include <clipping_planes_fragment>
 if (uHide.w > 0.0 && distance(vBind, uHide.xyz) < uHide.w) discard;
+if (uNearCut.y > 0.0 && vBind.y > uNearCut.x && length(vViewPosition) < uNearCut.y) discard;
 {
   int gkS = int(vMat + 0.5);
   // the hairline thins out strand by strand (the shell's _ao = distance from the hairline); lashes are strands too
@@ -376,8 +381,8 @@ roughnessFactor = gkR;`,
   normal = gkPerturb(-vViewPosition, normal, dh, faceDirection);
   if (uTex > 0.5 && uDetail > 0.0) {
     if (gkM == 0) {
-      vec2 dn = texture2D(uDetailMap, vGkUv * 38.0).rg * 2.0 - 1.0;
-      normal = gkDetailN(normal, -vViewPosition, vGkUv * 38.0, dn, 0.28 * uDetail);
+      vec2 dn = texture2D(uDetailMap, vGkUv * 56.0).rg * 2.0 - 1.0;
+      normal = gkDetailN(normal, -vViewPosition, vGkUv * 56.0, dn, 0.2 * uDetail);
     } else if (gkM == 1 || gkM == 14 || gkM == 18 || gkM == 23) {
       vec2 dn = texture2D(uDetailMap, vGkUv * 70.0).ba * 2.0 - 1.0;
       normal = gkDetailN(normal, -vViewPosition, vGkUv * 70.0, dn, 0.8 * uDetail);

@@ -290,6 +290,7 @@ export const FG = {
   "watch.close": "Close",
   "watch.winner": "{name} wins",
   "cam.label": "Camera",
+  "cam.first": "My eyes",
   "cam.fight": "Side",
   "cam.behind": "Behind",
   "cam.auto": "Auto",
