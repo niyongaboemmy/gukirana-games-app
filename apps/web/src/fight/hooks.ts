@@ -1,6 +1,6 @@
 "use client";
 import { kitFor, type RingId } from "@gukirana/contracts";
-import { useWorld } from "@/lib/world-store";
+import { selfPose, useWorld } from "@/lib/world-store";
 import { hallHooks, type P } from "@/rooms/hall-hooks";
 import { useFightBridge } from "./bridge";
 import { stepHeight } from "@/rooms/fight/ring-kit-core";
@@ -105,7 +105,13 @@ hallHooks.boxing = {
   ground: boxingGround,
   route: boxingRoute,
   camClamp: (c) => {
-    const k = boxingCamLift(c.x, c.z);
+    // the camera itself, and the back part of the view line from you to it (a ring between you and the camera puts
+    // its ropes and fighters right in front of the lens even when the camera stands just past it)
+    let k = 0;
+    for (let i = 0; i <= 5; i++) {
+      const f = 0.35 + (0.65 * i) / 5;
+      k = Math.max(k, boxingCamLift(selfPose.x + (c.x - selfPose.x) * f, selfPose.z + (c.z - selfPose.z) * f));
+    }
     if (k > 0 && c.y < CAM_OVER_RING_Y) c.y += (CAM_OVER_RING_Y - c.y) * k;
   },
   chairR: 0.3,
