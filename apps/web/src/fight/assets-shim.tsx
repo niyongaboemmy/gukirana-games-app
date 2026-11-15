@@ -53,7 +53,8 @@ const TRAINING_LOD = { standard: { near: 15 }, lite: { near: 9 } } as const;
  */
 export function HallRingKit({ rings, size, y = 0, lite }: { rings: HallRing[]; size: RingSize; y?: number; lite: boolean }) {
   const specs = useMemo<RingSpec[]>(
-    () => rings.map((r) => ({ id: r.id, x: r.x, z: r.z, rotY: r.rotY, status: kitStatus(r.status), lamp: STATUS_LAMP[r.status], number: r.number, rest: r.rest, size })),
+    // the front feature ring (R1) turns its extras so its third judges' table faces the stage front, not R2
+    () => rings.map((r) => ({ id: r.id, x: r.x, z: r.z, rotY: r.rotY, status: kitStatus(r.status), lamp: STATUS_LAMP[r.status], number: r.number, rest: r.rest, size, extrasYaw: r.id === "R1" ? Math.PI : 0 })),
     [rings, size],
   );
   const tier = lite ? "lite" : "standard";

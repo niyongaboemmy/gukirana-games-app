@@ -16,7 +16,7 @@ export const TRAINING_FLOOR = { x0: 12, x1: 45, z0: 13.85, z1: S };
 /** the line people stand on to use a prop (just in front of the rubber) */
 const STAND_Z = 13.65;
 
-export type GymPropKind = "heavyBag" | "speedBag" | "water";
+export type GymPropKind = "heavyBag" | "speedBag" | "water" | "mirror";
 export interface GymProp {
   id: string;
   kind: GymPropKind;
@@ -44,6 +44,8 @@ export const GYM_PROPS: GymProp[] = [
   prop("bag-2", "heavyBag", 26.8, S - 0.65),
   prop("speed-bag", "speedBag", 32.2, S - 0.42),
   prop("water", "water", 38.4, S - 0.4),
+  // shadow boxing in front of the mirror (P3-FGT-08), beside the staff trainer's spot
+  prop("mirror", "mirror", 15.0, S - 0.05),
 ];
 export const HEAVY_BAGS = GYM_PROPS.filter((p) => p.kind === "heavyBag");
 /** decorative training kit along the wall */

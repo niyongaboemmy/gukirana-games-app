@@ -2,6 +2,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { blobTexture, concreteTexture, woodTexture } from "@/world/textures";
 import { isOnScreen, useArea } from "@/world/stage";
 import type { HallLayout } from "@/rooms/layouts";
@@ -23,6 +24,8 @@ import { hiddenPeople } from "@/rooms/hall-hooks";
 import { fightActions } from "./actions";
 import { TrainingZone } from "./training-zone";
 import { GymLife, useGymScene } from "./gym-life";
+import { GYM_DECOR } from "./gym-plan";
+import { BagWorker } from "./bag-work";
 import { FocusMode, useFocusRings } from "./FocusMode";
 
 /**
@@ -76,6 +79,7 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
       <group userData={{ noMerge: true }}>
         <RingCloseInfo />
         <FightersLayer lite={lite} />
+        <BagWorker lite={lite} />
         <FightCamera />
       </group>
     </group>
@@ -229,6 +233,30 @@ function Shell({ layout, lite }: { layout: HallLayout; lite: boolean }) {
       <mesh material={mats.sponsor} position={[0, 5.0, -d / 2 + 0.05]}>
         <boxGeometry args={[16, 4, 0.08]} />
       </mesh>
+      {/* P3-FGT-08: padded wall behind the training wall (the bags hang there): 1.2 m panels with a seam, in the
+          sponsor wall's brown (merged with it: no extra draw call) */}
+      {Array.from({ length: 27 }, (_, i) => 12.6 + i * 1.22)
+        .filter((x) => x < GYM_DECOR.mirror.x0 - 0.65 || x > GYM_DECOR.mirror.x1 + 0.65)
+        .map((x) => (
+        <mesh key={`pad${x}`} material={mats.sponsor} position={[x, 1.15, d / 2 - 0.06]}>
+          <boxGeometry args={[1.18, 1.9, 0.08]} />
+        </mesh>
+      ))}
+      {/* ventilation: two round galvanised ducts along the hall under the trusses, with drop diffusers (the lockers'
+          metal: merged with them) */}
+      {[-9.2, 9.2].map((z) => (
+        <group key={`duct${z}`}>
+          <mesh material={mats.locker} position={[0, h - 2.15, z]} rotation-z={Math.PI / 2}>
+            <cylinderGeometry args={[0.32, 0.32, w - 5, 14, 1, true]} />
+          </mesh>
+          {!lite &&
+            Array.from({ length: 9 }, (_, i) => -36 + i * 9).map((x) => (
+              <mesh key={x} material={mats.locker} position={[x, h - 2.62, z]}>
+                <boxGeometry args={[0.5, 0.22, 0.5]} />
+              </mesh>
+            ))}
+        </group>
+      ))}
     </group>
   );
 }
@@ -239,7 +267,7 @@ function FeatureStage() {
   const mats = useMemo(
     () => ({
       stage: new THREE.MeshStandardMaterial({ color: "#232326", roughness: 0.8 }),
-      rail: new THREE.MeshStandardMaterial({ color: "#151517", roughness: 0.5, metalness: 0.6 }),
+      rail: new THREE.MeshStandardMaterial({ color: "#151517", roughness: 0.7, metalness: 0.4 }), // the trusses' finish (one batch)
       edge: new THREE.MeshBasicMaterial({ color: new THREE.Color("#C8322A").multiplyScalar(1.3), toneMapped: false }),
     }),
     [],
@@ -277,23 +305,26 @@ function FeatureStage() {
 
 /* ------------------------------------------------------------ light panels + contact shadows ------------------------------------------------------------ */
 
-/** an emissive light panel over every ring (instanced; no real light per ring) */
+/**
+ * An emissive light panel over every ring (no real light per ring). P3-FGT-08: plain static boxes in the roof strips'
+ * unlit warm look, so the hall's static merge folds them into the strips' batch (one draw call fewer than an instanced
+ * mesh of their own).
+ */
 function RingPanels() {
-  const ref = useRef<THREE.InstancedMesh>(null);
-  const geo = useMemo(() => new THREE.BoxGeometry(1, 0.08, 1), []);
   const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: new THREE.Color("#ffe8c8").multiplyScalar(0.95), toneMapped: false }), []);
-  useLayoutEffect(() => {
-    const m = new THREE.Matrix4();
-    RINGS.forEach((r, i) => {
-      const s = r.feature ? 3.0 : 1.9;
-      m.compose(new THREE.Vector3(r.x, r.feature ? 9.4 : 7.4, r.z), new THREE.Quaternion(), new THREE.Vector3(s, 1, s));
-      ref.current!.setMatrixAt(i, m);
-    });
-    ref.current!.instanceMatrix.needsUpdate = true;
-    ref.current!.computeBoundingSphere();
-  }, []);
-  useEffect(() => () => (geo.dispose(), mat.dispose()), [geo, mat]);
-  return <instancedMesh ref={ref} args={[geo, mat, RINGS.length]} userData={{ noMerge: true }} />;
+  useEffect(() => () => mat.dispose(), [mat]);
+  return (
+    <group>
+      {RINGS.map((r) => {
+        const s = r.feature ? 3.0 : 1.9;
+        return (
+          <mesh key={r.id} material={mat} position={[r.x, r.feature ? 9.4 : 7.4, r.z]}>
+            <boxGeometry args={[s, 0.08, s]} />
+          </mesh>
+        );
+      })}
+    </group>
+  );
 }
 
 /** baked-style soft shadows under the platforms (one instanced decal) */
@@ -345,25 +376,24 @@ function BigScreen() {
     tex.needsUpdate = true;
   });
   const { x, z, y, w, h } = BIG_SCREEN;
+  // P3-FGT-08: the four faces are one geometry and the frame carries its cables (2 draw calls instead of 7)
+  const geos = useMemo(() => {
+    const faces = mergeGeometries(
+      [0, 1, 2, 3].map((k) => new THREE.PlaneGeometry(w, h).translate(0, 0, w / 2 + 0.12).rotateY((k * Math.PI) / 2)),
+    )!;
+    const cableH = BOXING_SIZE.h - 1.6 - y - h / 2;
+    const frame = mergeGeometries([
+      new THREE.BoxGeometry(w + 0.2, h + 0.2, w + 0.2),
+      ...[-1, 1].map((s) => new THREE.BoxGeometry(0.03, cableH, 0.03).translate(s * (w / 2 - 0.3), h / 2 + cableH / 2, 0)),
+    ])!;
+    return { faces, frame };
+  }, [w, h, y]);
+  useEffect(() => () => (geos.faces.dispose(), geos.frame.dispose()), [geos]);
   return (
     <group position={[x, y, z]} userData={{ noMerge: true }}>
-      <mesh material={mats.frame}>
-        <boxGeometry args={[w + 0.2, h + 0.2, w + 0.2]} />
-      </mesh>
+      <mesh geometry={geos.frame} material={mats.frame} />
       {/* the four faces, 2 cm proud of the frame (clear of its depth even from across the hall) */}
-      {[0, 1, 2, 3].map((k) => (
-        <group key={k} rotation-y={(k * Math.PI) / 2}>
-          <mesh material={mats.face} position={[0, 0, w / 2 + 0.12]}>
-            <planeGeometry args={[w, h]} />
-          </mesh>
-        </group>
-      ))}
-      {/* hanging cables to the trusses */}
-      {[-1, 1].map((s) => (
-        <mesh key={s} material={mats.frame} position={[s * (w / 2 - 0.3), h / 2 + (BOXING_SIZE.h - 1.6 - y - h / 2) / 2, 0]}>
-          <boxGeometry args={[0.03, BOXING_SIZE.h - 1.6 - y - h / 2, 0.03]} />
-        </mesh>
-      ))}
+      <mesh geometry={geos.faces} material={mats.face} />
     </group>
   );
 }

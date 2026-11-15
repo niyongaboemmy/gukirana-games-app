@@ -29,6 +29,8 @@ export interface RingSpec {
   size?: RingSize;
   /** status lamp colour override (e.g. practice in white, a blinking result); default STATUS_COLORS[status] */
   lamp?: string;
+  /** extra turn of the feature extras (judges' tables, truss) about the ring centre, e.g. π to face a stage front */
+  extrasYaw?: number;
 }
 
 export interface RingDims {
@@ -227,6 +229,22 @@ export function stepHeight(r: Placed, x: number, z: number): number | null {
   if (Math.sign(lx) !== Math.sign(lz) || Math.abs(Math.abs(lz) - stepZ(d)) > 0.42) return null;
   const k = Math.min(2, Math.floor((out - ax) / d.stepRun));
   return (d.deck / 3) * (k + 1);
+}
+
+/** half width of a set of corner steps across its run (the treads are 0.8 m wide, the hand rails at ±0.42) */
+export const STEP_HALF_W = 0.44;
+
+/**
+ * Is hall point (x, z) on (or within `pad` m of) the footprint of one of the ring's corner steps — the block from
+ * the platform skirt out to the bottom tread, rails included (P3-FGT-08)? A walker who may not climb is kept off it
+ * (with a body-radius pad) so their feet never stand inside the treads at floor height.
+ */
+export function onStepsFootprint(r: Placed, x: number, z: number, pad = 0): boolean {
+  const d = dimsOf(r);
+  const [lx, lz] = toRing(r, x, z);
+  if (Math.sign(lx) !== Math.sign(lz)) return false;
+  const ax = Math.abs(lx);
+  return ax > d.half - 0.01 && ax < d.half + 3 * d.stepRun + pad && Math.abs(Math.abs(lz) - stepZ(d)) < STEP_HALF_W + pad;
 }
 
 /* ---------------- LOD / culling ---------------- */

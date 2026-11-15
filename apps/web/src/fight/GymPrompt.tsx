@@ -10,6 +10,8 @@ import { sitDown } from "@/rooms/RoomPlayer";
 import { useSocial } from "@/social/social-store";
 import { useFightBridge } from "./bridge";
 import { actOnProp, useGymUi } from "./gym-life";
+import { bagPress, stopBagWork, toggleBagAuto, useBagControls, useBagWork } from "./bag-work";
+import type { BagPunch } from "./bag-plan";
 import { F } from "./strings";
 import { useFightUi } from "./ui-store";
 
@@ -29,7 +31,9 @@ export function GymPrompt({ game }: { game: string }) {
   const phone = usePhoneHud();
   // the watch bar has priority: no gym prompt while you watch a ring
   const watching = useFightBridge((s) => !!s.watched);
-  const show = game === "boxing" && !nearExit && !ring && !inFight && !seated && !watching;
+  const training = useBagWork((s) => !!s.prop);
+  useBagControls();
+  const show = game === "boxing" && !nearExit && !ring && !inFight && !seated && !watching && !training;
   const seat = show && !prop ? nearSeat : null;
   const act = () => {
     if (prop) {
@@ -46,6 +50,7 @@ export function GymPrompt({ game }: { game: string }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
+  if (game === "boxing" && training) return <BagPanel phone={phone} />;
   if (!show || (!prop && !seat)) return null;
   const Icon = prop ? (prop.kind === "water" ? Droplets : Dumbbell) : Armchair;
   const label = prop
@@ -53,7 +58,9 @@ export function GymPrompt({ game }: { game: string }) {
       ? F.hitBag
       : prop.kind === "speedBag"
         ? F.hitSpeedBag
-        : F.drink
+        : prop.kind === "mirror"
+          ? F.shadowBox
+          : F.drink
     : F.sitDown;
   return (
     <div className="pointer-events-none fixed inset-0 z-20 text-white">
@@ -63,6 +70,31 @@ export function GymPrompt({ game }: { game: string }) {
           <Icon size={phone ? 16 : 20} /> {label}
         </button>
       </div>
+    </div>
+  );
+}
+
+const PUNCHES = ["jab", "cross", "hook", "uppercut"] as const satisfies readonly BagPunch[];
+/** bag work controls (P3-FGT-08): four punch buttons (thumb-sized on phones), auto combo, stop; the keys in a hint */
+function BagPanel({ phone }: { phone: boolean }) {
+  const auto = useBagWork((s) => s.auto);
+  const btn = `chip pointer-events-auto grid place-items-center font-semibold select-none touch-none ${phone ? "size-14 rounded-full text-xs" : "h-11 min-w-20 rounded-xl px-3 text-sm"}`;
+  return (
+    <div className="pointer-events-none fixed inset-0 z-20 text-white">
+      <div className={`absolute gap-2 ${phone ? "bottom-[88px] right-3 grid grid-cols-3" : "bottom-24 left-1/2 flex -translate-x-1/2 items-end"}`}>
+        {PUNCHES.map((p) => (
+          <button key={p} type="button" className={btn} onPointerDown={(e) => (e.preventDefault(), bagPress(p))}>
+            {F.bag[p]}
+          </button>
+        ))}
+        <button type="button" className={`${btn} ${auto ? "border-l-primary-400/90" : ""}`} onClick={toggleBagAuto}>
+          {auto ? F.bag.autoOn : F.bag.auto}
+        </button>
+        <button type="button" className={btn} onClick={stopBagWork}>
+          {F.bag.stop}
+        </button>
+      </div>
+      {!phone && <div className="absolute bottom-14 left-1/2 -translate-x-1/2 text-xs text-white/70">{F.bag.hint}</div>}
     </div>
   );
 }

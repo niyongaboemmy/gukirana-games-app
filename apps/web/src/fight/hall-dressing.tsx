@@ -5,6 +5,9 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { woodTexture } from "@/world/textures";
 import { BOXING_AISLES, BOXING_BENCHES, BOXING_SIZE, FEATURE_ZONE_HW, RINGS, ROW_Z } from "./plan";
 import { F } from "./strings";
+import type { RingStatus } from "@gukirana/contracts";
+import { useRingStatuses } from "./rings";
+import { BOXING_DOOR, FEATURE_STAGE } from "./plan";
 
 /**
  * Boxing hall dressing (P3-FGT-03, plan §4.4): calm arena realism on a small budget.
@@ -36,8 +39,30 @@ function poolTexture() {
   return poolTex;
 }
 
+/**
+ * The pool under each ring takes a hint of its live status (P3-FGT-08, the registry only: an unreported ring is free):
+ * free rings sit in a cool green-white light, busy ones in warm light, waiting amber, closed rings go dim — free vs busy
+ * reads across the hall at a glance, with the number signs saying it in words. Instance colours: still one draw call.
+ */
+const POOL_TINT: Record<RingStatus, string> = {
+  free: "#b9f2c8",
+  waiting: "#ffd98a",
+  starting: "#ffc2a6",
+  fighting: "#ffc2a6",
+  result: "#ffc2a6",
+  practice: "#ffffff",
+  closed: "#4a4a4a",
+};
 export function LightPools({ lite }: { lite: boolean }) {
   const ref = useRef<THREE.InstancedMesh>(null);
+  const statuses = useRingStatuses();
+  useLayoutEffect(() => {
+    const m = ref.current;
+    if (!m) return;
+    const c = new THREE.Color();
+    RINGS.forEach((r, i) => m.setColorAt(i, c.set(POOL_TINT[statuses[i] ?? "free"])));
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+  }, [statuses]);
   const geo = useMemo(() => new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), []);
   const mat = useMemo(() => new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: lite ? 0.3 : 0.42, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -3 }), [lite]);
   useLayoutEffect(() => {
@@ -56,6 +81,24 @@ export function LightPools({ lite }: { lite: boolean }) {
 const FEATURE_STAGE_TOP = 1.215;
 
 /* ---------------- floor markings ---------------- */
+
+/** a painted floor arrow (chevron head on a short shaft, ~1 m long) at (x, z) pointing along `yaw` (0 = +z) */
+export function floorArrow(x: number, z: number, yaw: number): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0.55);
+  shape.lineTo(0.34, 0.12);
+  shape.lineTo(0.12, 0.12);
+  shape.lineTo(0.12, -0.45);
+  shape.lineTo(-0.12, -0.45);
+  shape.lineTo(-0.12, 0.12);
+  shape.lineTo(-0.34, 0.12);
+  shape.closePath();
+  const g = new THREE.ShapeGeometry(shape);
+  g.rotateX(-Math.PI / 2);
+  g.rotateY(yaw + Math.PI);
+  g.translate(x, 0.009, z);
+  return g;
+}
 
 /** painted lines (one merged geometry): aisle edges, the front cross aisle, a safety square round every ring */
 export function FloorMarks() {
@@ -87,6 +130,13 @@ export function FloorMarks() {
       line(r.x - k, r.z, 0.06, 2 * k);
       line(r.x + k, r.z, 0.06, 2 * k);
     }
+    // painted wayfinding arrows (P3-FGT-08): from the lobby door up the west main aisle to the rings, along the cross
+    // aisle east to the training gym, and back to the exit; each a chevron head on a short shaft
+    const arrow = (x: number, z: number, yaw: number) => parts.push(floorArrow(x, z, yaw));
+    const westAisle = -(FEATURE_ZONE_HW + 1);
+    for (const z of [8, 2, -4]) arrow(westAisle, z, Math.PI); // north, into the hall
+    for (const x of [0, 6, 12]) arrow(x, zA + 0.75, Math.PI / 2); // east along the cross aisle, towards the gym
+    arrow(BOXING_DOOR.x + 1.6, d / 2 - 1.1, 0); // south, to the lobby door
     const geo = mergeGeometries(parts)!;
     parts.forEach((p) => p.dispose());
     return { geo, mat: new THREE.MeshStandardMaterial({ color: "#d8cdb4", roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -1 }) };
@@ -132,7 +182,7 @@ export function Benches() {
     const legs = mergeGeometries(l)!;
     s.forEach((x) => x.dispose());
     l.forEach((x) => x.dispose());
-    return { seat, legs, mats: { wood: new THREE.MeshStandardMaterial({ map: wood, color: "#c08a5a", roughness: 0.7 }), steel: new THREE.MeshStandardMaterial({ color: "#232326", roughness: 0.55, metalness: 0.5 }) } };
+    return { seat, legs, mats: { wood: new THREE.MeshStandardMaterial({ map: wood, color: "#c08a5a", roughness: 0.7 }), steel: new THREE.MeshStandardMaterial({ color: "#232326", roughness: 0.7, metalness: 0.4 }) } }; // steel: the trusses' finish (one batch)
   }, []);
   useEffect(() => () => (seat.dispose(), legs.dispose(), mats.wood.map?.dispose(), mats.wood.dispose(), mats.steel.dispose()), [seat, legs, mats]);
   return (
@@ -143,7 +193,7 @@ export function Benches() {
   );
 }
 
-/* ---------------- banners ---------------- */
+/* ---------------- banners + wayfinding signs ---------------- */
 
 const BANNERS = [
   { title: F.bannerBoxing, sub: F.hall, bg: "#5a3a26" },
@@ -151,34 +201,66 @@ const BANNERS = [
   { title: F.bannerFairPlay, sub: F.bannerFairPlaySub, bg: "#7a2a24" },
   { title: F.bannerGlovesUp, sub: F.bannerGlovesUpSub, bg: "#2a2a2e" },
 ];
+/**
+ * Hanging wayfinding signs (P3-FGT-08), in the banners' atlas and mesh (no extra draw call): the way out over the lobby
+ * door, "Find a fight" over the west main aisle as you walk in, the training gym over the cross aisle, the feature
+ * rings over the stage front. Double-faced (two planes back to back, each reading the right way).
+ */
+const SIGNS = [
+  { title: F.wayExit, sub: F.wayExitSub, bg: "#1d4a32" },
+  { title: F.wayFight, sub: F.wayFightSub, bg: "#141416" },
+  { title: F.wayGym, sub: F.wayGymSub, bg: "#141416" },
+  { title: F.wayFeature, sub: F.wayFeatureSub, bg: "#141416" },
+];
+const BW = 256;
+const BH = 768;
+const SW = 512;
+const SH = 128;
+const ATLAS_W = BW * BANNERS.length;
+const ATLAS_H = BH + SH * Math.ceil(SIGNS.length / 2);
 
 function bannerAtlas() {
-  const cw = 256;
-  const ch = 768;
   const cv = document.createElement("canvas");
-  cv.width = cw * BANNERS.length;
-  cv.height = ch;
+  cv.width = ATLAS_W;
+  cv.height = ATLAS_H;
   const g = cv.getContext("2d")!;
   BANNERS.forEach((b, i) => {
-    const x = i * cw;
+    const x = i * BW;
     g.fillStyle = b.bg;
-    g.fillRect(x, 0, cw, ch);
+    g.fillRect(x, 0, BW, BH);
     // hem lines and a chocolate / white stripe
     g.fillStyle = "rgba(255,255,255,0.85)";
-    g.fillRect(x + 18, 40, cw - 36, 4);
-    g.fillRect(x + 18, ch - 44, cw - 36, 4);
+    g.fillRect(x + 18, 40, BW - 36, 4);
+    g.fillRect(x + 18, BH - 44, BW - 36, 4);
     g.save();
-    g.translate(x + cw / 2, ch / 2);
+    g.translate(x + BW / 2, BH / 2);
     g.rotate(-Math.PI / 2);
     g.fillStyle = "#ffffff";
     g.textAlign = "center";
     g.textBaseline = "middle";
     g.font = "800 92px sans-serif";
-    g.fillText(b.title.toUpperCase(), 0, -26, ch - 120);
+    g.fillText(b.title.toUpperCase(), 0, -26, BH - 120);
     g.font = "600 36px sans-serif";
     g.fillStyle = "rgba(255,255,255,0.75)";
-    g.fillText(b.sub.toUpperCase(), 0, 56, ch - 120);
+    g.fillText(b.sub.toUpperCase(), 0, 56, BH - 120);
     g.restore();
+  });
+  SIGNS.forEach((s, i) => {
+    const x = (i % 2) * SW;
+    const y = BH + Math.floor(i / 2) * SH;
+    g.fillStyle = s.bg;
+    g.fillRect(x, y, SW, SH);
+    g.strokeStyle = "rgba(255,255,255,0.22)";
+    g.lineWidth = 4;
+    g.strokeRect(x + 6, y + 6, SW - 12, SH - 12);
+    g.fillStyle = "#ffffff";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.font = "800 50px sans-serif";
+    g.fillText(s.title.toUpperCase(), x + SW / 2, y + 48, SW - 40);
+    g.font = "600 26px sans-serif";
+    g.fillStyle = "rgba(255,255,255,0.78)";
+    g.fillText(s.sub, x + SW / 2, y + 96, SW - 40);
   });
   const t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -186,7 +268,19 @@ function bannerAtlas() {
   return t;
 }
 
-/** vertical banners (1.6 × 4.8 m) on the end walls and over the locker banks */
+/** where the signs hang: x, y, z, rotY of the front face, sign index */
+function signSpots(): [number, number, number, number, number][] {
+  const { d } = BOXING_SIZE;
+  const zA = ROW_Z[0]! + 2.45 + 0.35;
+  return [
+    [BOXING_DOOR.x, 3.5, d / 2 - 0.12, Math.PI, 0],
+    [-(FEATURE_ZONE_HW + 1), 3.7, 11.4, 0, 1],
+    [9.0, 3.7, zA + 0.75, -Math.PI / 2, 2],
+    [0, 4.9, FEATURE_STAGE.z0 + 0.9, 0, 3],
+  ];
+}
+
+/** vertical banners (1.6 × 4.8 m) on the end walls and over the locker banks, and the wayfinding signs */
 export function Banners() {
   const { geo, mat } = useMemo(() => {
     const { w, d } = BOXING_SIZE;
@@ -199,11 +293,37 @@ export function Banners() {
     const parts = spots.map(([x, z, ry, b]) => {
       const g = new THREE.PlaneGeometry(1.6, 4.8);
       const uv = g.getAttribute("uv") as THREE.BufferAttribute;
-      for (let i = 0; i < uv.count; i++) uv.setX(i, (b + uv.getX(i)) / BANNERS.length);
+      // banner cells: the top BH of the atlas
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, (b + uv.getX(i)) / BANNERS.length, 1 - (BH / ATLAS_H) * (1 - uv.getY(i)));
       g.rotateY(ry);
       g.translate(x, 6.4, z);
       return g;
     });
+    for (const [x, y, z, ry, k] of signSpots()) {
+      const u0 = (k % 2) * (SW / ATLAS_W);
+      const v1 = 1 - (BH + Math.floor(k / 2) * SH) / ATLAS_H;
+      const v0 = v1 - SH / ATLAS_H;
+      for (const back of [0, 1]) {
+        const g = new THREE.PlaneGeometry(2.4, 0.6);
+        const uv = g.getAttribute("uv") as THREE.BufferAttribute;
+        for (let i = 0; i < uv.count; i++) uv.setXY(i, u0 + uv.getX(i) * (SW / ATLAS_W), v0 + uv.getY(i) * (v1 - v0));
+        g.translate(0, 0, 0.012);
+        g.rotateY(ry + (back ? Math.PI : 0));
+        g.translate(x, y, z);
+        parts.push(g);
+      }
+      // the sign's hanging rods
+      for (const sx of [-1, 1]) {
+        const rod = new THREE.BoxGeometry(0.02, 1.2, 0.02);
+        rod.translate(sx * 1.0, 0.9, 0);
+        rod.rotateY(ry);
+        rod.translate(x, y, z);
+        // (a rod samples the dark ground at the edge of a dark sign cell)
+        const uv = rod.getAttribute("uv") as THREE.BufferAttribute;
+        for (let i = 0; i < uv.count; i++) uv.setXY(i, 2 / ATLAS_W, 1 - (BH + SH * 1.5) / ATLAS_H);
+        parts.push(rod);
+      }
+    }
     const geo = mergeGeometries(parts)!;
     parts.forEach((p) => p.dispose());
     return { geo, mat: new THREE.MeshStandardMaterial({ map: bannerAtlas(), roughness: 0.95, side: THREE.DoubleSide }) };
