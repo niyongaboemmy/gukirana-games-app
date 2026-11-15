@@ -47,7 +47,9 @@ export function buildGate(tier: Tier, Z: number = GATE_Z, variant: "arrival" | "
     // to the ring road, and the paved compound just inside the gate (turnstiles → wardrobe → avenue)
     const seg = tier === "lite" ? 48 : 96;
     b.add("paving", flat(new THREE.CircleGeometry(19, seg, Math.PI, Math.PI)), { p: [0, 0.018, Z], tile: 4 });
-    b.add("lava", flat(new THREE.RingGeometry(19, 19.6, seg, 1, Math.PI, Math.PI)), { p: [0, 0.022, Z], tile: 1.2 });
+    // the basalt edge band 6 mm over the link paving below (whose top is at 0.022): it used to sit exactly at 0.022 and
+    // z-fought into a broken, flickering line where the link crosses it
+    b.add("lava", flat(new THREE.RingGeometry(19, 19.6, seg, 1, Math.PI, Math.PI)), { p: [0, 0.028, Z], tile: 1.2 });
     // (P2-WLD-12: the link now ends at the drop-off kerb on the campus boundary, world/Frontage.tsx)
     const road = FORECOURT.layby.z0;
     if (road > Z + 18.8) b.box("paving", 8, 0.02, road - (Z + 18.8), { p: [0, 0.012, (road + Z + 18.8) / 2], tile: 4 });
