@@ -27,11 +27,11 @@ export function FightFacadeBoard() {
         {F.hall.toUpperCase()}
         <meshBasicMaterial color={[1.9, 1.85, 1.78]} toneMapped={false} />
       </Text>
-      {/* the rooftop light box over the pavilion, turned towards the arrival (P2-WLD-14): both faces */}
+      {/* the rooftop light box over the pavilion, turned towards the arrival (P2-WLD-14): both faces; it names the sport so it never repeats the main sign */}
       <group position={[ROOF_SIGN.x, ROOF_SIGN.y, ROOF_SIGN.z]} rotation-y={ROOF_SIGN.rotY}>
         {[0, Math.PI].map((face) => (
-          <Text key={face} rotation-y={face} font={FONT} fontSize={1.05} position={[Math.sin(face) * 0.19, 0.04, Math.cos(face) * 0.19]} anchorX="center" anchorY="middle" letterSpacing={0.06}>
-            {F.hall.toUpperCase()}
+          <Text key={face} rotation-y={face} font={FONT} fontSize={1.05} position={[Math.sin(face) * 0.19, 0.04, Math.cos(face) * 0.19]} anchorX="center" anchorY="middle" letterSpacing={0.14}>
+            {F.subhall.boxing.toUpperCase()}
             <meshBasicMaterial color={[2.2, 0.55, 0.45]} toneMapped={false} />
           </Text>
         ))}
