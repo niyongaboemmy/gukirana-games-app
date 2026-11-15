@@ -27,6 +27,7 @@ import { arenaGate } from "@/arena/flags";
 import { FightFacadeBoard } from "@/fight/FacadeBoard";
 import { NearOnly, StaticMerge } from "./static-merge";
 import { PlayerOfDayHolo } from "./PlayerOfDayHolo";
+import { screenNight } from "./night/material-hooks";
 import { campusWalkLength } from "./campus";
 
 const FONT = "/fonts/Baloo2.ttf";
@@ -306,6 +307,9 @@ function ArenaScreen({ tier }: { tier: Tier }) {
     t.repeat.set(0.25, 1);
     return t;
   }, []);
+  // the screen at night levels (P2-WLD-21): ~60 % of its day brightness after dusk, no glare against the dark sky
+  const screenMat = useMemo(() => screenNight(new THREE.MeshBasicMaterial({ map: tex, toneMapped: false, color: tier === "lite" ? "#f2f2f2" : "#cfcfcf" })), [tex, tier]);
+  useEffect(() => () => screenMat.dispose(), [screenMat]);
   // one message every 12 s with a slow 1.2 s slide (was 5 s / 0.6 s: a screen flipping in every plaza view)
   useFrame(({ clock }) => {
     tex.offset.x = Math.floor(clock.elapsedTime / 12) * 0.25 + Math.min(1, (clock.elapsedTime % 12) / 1.2) * 0.25 - 0.25;
@@ -314,7 +318,7 @@ function ArenaScreen({ tier }: { tier: Tier }) {
     <group position={[x, 0, z]} rotation={[0, rotY, 0]}>
       <mesh position={[0, 12.6, ARENA.cz + ARENA.rz + 1.17]}>
         <planeGeometry args={[16.4, 4.8]} />
-        <meshBasicMaterial map={tex} toneMapped={false} color={tier === "lite" ? "#f2f2f2" : "#cfcfcf"} />
+        <primitive object={screenMat} attach="material" />
       </mesh>
       {/* ticket window sign, left of the doors (P2-WLD-09: the two made-up event posters on the right are gone —
           the real schedule is on the plaza notice board) */}

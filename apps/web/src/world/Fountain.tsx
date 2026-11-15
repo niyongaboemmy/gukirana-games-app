@@ -86,9 +86,23 @@ function Water({ uTime }: { uTime: { value: number } }) {
     });
     m.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = uTime;
+      sh.uniforms.uGkNight = todUniforms.uGkNight;
       sh.fragmentShader =
-        "uniform float uTime;\n" +
+        "uniform float uTime;\nuniform float uGkNight;\n" +
         sh.fragmentShader.replace(
+          "#include <emissivemap_fragment>",
+          /* glsl */ `#include <emissivemap_fragment>
+        if (uGkNight > 0.001) {
+          // underwater pool lights (P2-WLD-21): a ring of warm spots round the plinth (the Agaseke's uplights) and one
+          // under each jet nozzle, wavering with the ripples; a faint teal glow through the whole basin
+          vec2 gkP = vNormalMapUv * 2.5 + normal.xy * 0.18;
+          float gkR = length(gkP);
+          float gkA = atan(gkP.x, gkP.y);
+          float gkInner = exp(-pow(gkR - 1.45, 2.0) * 18.0) * (0.55 + 0.45 * pow(0.5 + 0.5 * cos(gkA * 6.0 - 1.56), 3.0));
+          float gkOuter = exp(-pow(gkR - ${(FOUNTAIN_RADIUS - 0.75).toFixed(2)}, 2.0) * 10.0) * pow(0.5 + 0.5 * cos(gkA * 10.0), 6.0);
+          totalEmissiveRadiance += uGkNight * (vec3(1.0, 0.78, 0.5) * (gkInner * 0.9 + gkOuter * 1.1) + vec3(0.05, 0.16, 0.17));
+        }`,
+        ).replace(
           "#include <normal_fragment_maps>",
           /* glsl */ `
         {
@@ -159,7 +173,7 @@ function Streams({ uTime }: { uTime: { value: number } }) {
         transparent: true,
         depthWrite: false,
         fog: true,
-        uniforms: { ...THREE.UniformsLib.fog, uTime, uGkUnlit: todUniforms.uGkUnlit },
+        uniforms: { ...THREE.UniformsLib.fog, uTime, uGkUnlit: todUniforms.uGkUnlit, uGkNight: todUniforms.uGkNight },
         vertexShader: /* glsl */ `
           #include <fog_pars_vertex>
           varying vec2 vUv;
@@ -173,13 +187,17 @@ function Streams({ uTime }: { uTime: { value: number } }) {
           #include <fog_pars_fragment>
           uniform float uTime;
           uniform vec3 uGkUnlit;
+          uniform float uGkNight;
           varying vec2 vUv;
           void main() {
             float s = fract(vUv.x * 7.0 - uTime / ${PERIOD.toFixed(2)});
             float streak = 0.55 + 0.45 * smoothstep(0.0, 0.25, s) * (1.0 - smoothstep(0.55, 1.0, s));
             float edge = 1.0 - abs(vUv.y - 0.5) * 1.2;
             float a = streak * edge * (0.62 - vUv.x * 0.3);
-            gl_FragColor = vec4(vec3(0.86, 0.93, 0.97) * uGkUnlit, a);
+            // at night the jets are lit from the nozzle lights below them (P2-WLD-21): bright at the nozzle, warm-white,
+            // fading along the arc
+            vec3 lit = vec3(1.0, 0.86, 0.66) * uGkNight * (0.35 + 1.4 * (1.0 - vUv.x) * (1.0 - vUv.x));
+            gl_FragColor = vec4(vec3(0.86, 0.93, 0.97) * uGkUnlit + lit, min(1.0, a * (1.0 + 0.6 * uGkNight)));
             #include <fog_fragment>
           }`,
       }),
@@ -262,7 +280,7 @@ function Droplets({ uTime }: { uTime: { value: number } }) {
         transparent: true,
         depthWrite: false,
         fog: true,
-        uniforms: { ...THREE.UniformsLib.fog, uTime, uGkUnlit: todUniforms.uGkUnlit },
+        uniforms: { ...THREE.UniformsLib.fog, uTime, uGkUnlit: todUniforms.uGkUnlit, uGkNight: todUniforms.uGkNight },
         vertexShader: /* glsl */ `
           #include <fog_pars_vertex>
           attribute float aJet; attribute float aPhase; attribute vec3 aJit;
@@ -293,12 +311,13 @@ function Droplets({ uTime }: { uTime: { value: number } }) {
         fragmentShader: /* glsl */ `
           #include <fog_pars_fragment>
           uniform vec3 uGkUnlit;
+          uniform float uGkNight;
           varying vec2 vUv; varying float vA;
           void main() {
             vec2 q = vUv * 2.0 - 1.0;
             float d = dot(q, q);
             if (d > 1.0) discard;
-            gl_FragColor = vec4(vec3(0.9, 0.95, 1.0) * uGkUnlit, (1.0 - d) * 0.6 * vA);
+            gl_FragColor = vec4(vec3(0.9, 0.95, 1.0) * uGkUnlit + vec3(1.0, 0.86, 0.66) * 0.7 * uGkNight, (1.0 - d) * 0.6 * vA);
             #include <fog_fragment>
           }`,
       }),
