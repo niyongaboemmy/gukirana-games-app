@@ -1,11 +1,11 @@
 "use client";
 import { kitFor, type RingId } from "@gukirana/contracts";
 import { useWorld } from "@/lib/world-store";
-import { hallHooks } from "@/rooms/hall-hooks";
+import { hallHooks, type P } from "@/rooms/hall-hooks";
 import { useFightBridge } from "./bridge";
 import { stepHeight } from "@/rooms/fight/ring-kit-core";
 import { kitSpec, ringBase } from "./climb";
-import { FEATURE_RING, inFeatureStage, RING_BY_ID, ringAt, RINGS } from "./plan";
+import { BOXING_AISLES, BOXING_SIZE, FEATURE_RING, FEATURE_STAGE, inFeatureStage, RING_BY_ID, ringAt, RINGS } from "./plan";
 
 const FEATURE_STAGE_Y = FEATURE_RING.stage;
 
@@ -53,9 +53,61 @@ export function boxingWalkable(x: number, z: number): boolean {
   return true;
 }
 
+/** the front cross aisle's walking line (between row A and the south-wall benches) */
+const CROSS_Z = BOXING_SIZE.d / 2 - 1.75;
+/** the straight line a → b is open floor for a walker (sampled every 0.3 m, the end points' own rings allowed) */
+function clear(a: P, b: P): boolean {
+  const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.3));
+  for (let k = 1; k < n; k++) if (!boxingWalkable(a.x + ((b.x - a.x) * k) / n, a.z + ((b.z - a.z) * k) / n)) return false;
+  return true;
+}
+const nearestAisle = (x: number) => BOXING_AISLES.reduce((b, a) => (Math.abs(a - x) < Math.abs(b - x) ? a : b), BOXING_AISLES[0]!);
+/**
+ * Walking routes through the hall (P3-FGT-04: tap-to-walk, "Find a free ring", Leave): straight when the line is open,
+ * else along the ring-free north–south aisles and the front cross aisle (Manhattan, never through a platform, a rail or
+ * the feature stage). The last point is the destination.
+ */
+export function boxingRoute(from: P, to: P): P[] {
+  if (clear(from, to)) return [to];
+  const a = nearestAisle(from.x);
+  const b = nearestAisle(to.x);
+  const out: P[] = [];
+  if (Math.abs(from.x - a) > 0.2) out.push({ x: a, z: from.z });
+  if (Math.abs(a - b) > 0.2) out.push({ x: a, z: CROSS_Z }, { x: b, z: CROSS_Z });
+  if (Math.abs(to.x - b) > 0.2) out.push({ x: b, z: to.z });
+  out.push(to);
+  return out;
+}
+
+/** a follow camera over a ring rises to this height (m): above the ropes and the fighters' heads */
+const CAM_OVER_RING_Y = 4.0;
+/**
+ * The follow camera behind you in a 1.3–1.5 m aisle often lands over the next ring, right among its ropes and fighters
+ * (P3-FGT-04). Over a ring (its rail + 0.3 m, or the feature stage) it rises smoothly towards CAM_OVER_RING_Y — a
+ * continuous lift by how deep it is inside, so crossing a ring's edge never bumps the view.
+ */
+export function boxingCamLift(x: number, z: number): number {
+  let lift = 0;
+  for (const r of RINGS) {
+    const h = r.feature ? 0 : r.half + 0.5;
+    if (!h) continue;
+    const depth = Math.min(h - Math.abs(x - r.x), h - Math.abs(z - r.z));
+    if (depth > 0) lift = Math.max(lift, Math.min(1, depth / 1.2));
+  }
+  const s = FEATURE_STAGE;
+  const fd = Math.min(s.hw + 0.9 - Math.abs(x), s.z0 + 0.9 - z, z - (s.z1 - 0.9));
+  if (fd > 0) lift = Math.max(lift, Math.min(1, fd / 1.2));
+  return lift * lift * (3 - 2 * lift);
+}
+
 hallHooks.boxing = {
   walkable: boxingWalkable,
   ground: boxingGround,
+  route: boxingRoute,
+  camClamp: (c) => {
+    const k = boxingCamLift(c.x, c.z);
+    if (k > 0 && c.y < CAM_OVER_RING_Y) c.y += (CAM_OVER_RING_Y - c.y) * k;
+  },
   chairR: 0.3,
   frozen: () => {
     const m = useFightBridge.getState().mine;
