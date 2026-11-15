@@ -82,6 +82,8 @@ const COL = {
   stringer: "#45484f",
   rail: "#3a3d43",
   bucket: "#c9ccd1",
+  bucketRim: "#9ea3aa",
+  towel: "#ece8df",
   bottle: "#d8e4ef",
   board: "#1d1f24",
   lampHouse: "#2a2c31",
@@ -187,6 +189,11 @@ function ropes(p: Parts, K: RingDims, near: boolean) {
       }
     });
     if (near) {
+      // tie-ups: a dark lashing collar where each rope meets the corner pads
+      for (const h of K.ropes) {
+        const y = K.deck + h;
+        for (const E of [A.clone().lerp(B, 0.012), B.clone().lerp(A, 0.012)]) p.cyl(0.03, 0.03, 0.05, E.x, y, E.z, COL.spacer, 6);
+      }
       // rope spacers (vertical straps) at a third and two thirds of each side
       for (const t of [1 / 3, 2 / 3]) {
         const at = A.clone().lerp(B, t);
@@ -251,15 +258,32 @@ function steps(p: Parts, K: RingDims, near: boolean) {
 function setDressing(p: Parts, K: RingDims) {
   for (const c of ["red", "blue"] as const) {
     const [sx, sz] = CORNERS[c];
-    // bucket + water bottle on the floor beside the steps
+    const tint = c === "red" ? COL.red : COL.blue;
+    // the corner's floor kit beside the steps (P3-FGT-08): water bucket, spit bucket with its funnel, two bottles
     const x = sx * (K.half + 0.35),
       z = sz * (stepZ(K) - 0.85);
     const bucket = new THREE.CylinderGeometry(0.16, 0.13, 0.3, 14, 1, true);
     p.add(bucket, COL.bucket, new THREE.Matrix4().makeTranslation(x, 0.15, z));
     p.cyl(0.13, 0.13, 0.01, x, 0.012, z, COL.bucket, 14);
-    p.cyl(0.15, 0.15, 0.02, x, 0.22, z, c === "red" ? COL.red : COL.blue, 14); // water inside, tinted
-    p.cyl(0.035, 0.035, 0.2, x + sx * 0.28, 0.1, z + 0.05, COL.bottle, 8);
-    p.cyl(0.02, 0.028, 0.04, x + sx * 0.28, 0.22, z + 0.05, c === "red" ? COL.red : COL.blue, 8);
+    p.cyl(0.165, 0.165, 0.018, x, 0.3, z, COL.bucketRim, 14); // rolled rim
+    p.cyl(0.15, 0.15, 0.02, x, 0.22, z, "#7e9aa6", 14); // water, a little ice-grey
+    const sp = z - sz * 0.32;
+    p.cyl(0.12, 0.1, 0.24, x, 0.12, sp, "#2a2c31", 12); // spit bucket
+    p.add(new THREE.CylinderGeometry(0.12, 0.03, 0.1, 12, 1, true), "#3b3e44", new THREE.Matrix4().makeTranslation(x, 0.29, sp)); // its funnel
+    for (const [k, dz] of [
+      [0, 0.05],
+      [1, 0.14],
+    ] as const) {
+      const bx = x + sx * (0.28 + k * 0.06);
+      p.cyl(0.035, 0.035, 0.2, bx, 0.1, z + dz, COL.bottle, 8);
+      p.cyl(0.02, 0.028, 0.04, bx, 0.22, z + dz, tint, 8);
+    }
+    // a corner towel folded over the barrier rail next to the kit (two drops and the fold on the top tube)
+    const rx = sx * K.rail,
+      tz = sz * (stepZ(K) - 1.1),
+      th = K.railH;
+    p.box(0.05, 0.03, 0.34, rx, th + 0.02, tz, COL.towel);
+    for (const s2 of [-1, 1]) p.box(0.012, 0.36, 0.34, rx + s2 * 0.035, th - 0.16, tz, COL.towel);
   }
 }
 
@@ -395,28 +419,47 @@ export function stoolGeometry(): THREE.BufferGeometry {
   return p.geometry();
 }
 
-/** the feature ring's extras: judges' table + chairs on one side, the bell, an overhead lighting truss */
+/**
+ * The feature rings' ringside (P3-FGT-08), in the pro ring frame: three judges' tables on the stage just outside the
+ * apron (local −z, +x and −x sides), each with a chair facing the ring, a scoresheet and a pen; the timekeeper's bell
+ * on the −z table; an overhead lighting truss with its lamp housings. Instanced over both feature rings (the hall turns
+ * one of them so its −z side faces the stage front).
+ */
 export function featureExtrasGeometry(): THREE.BufferGeometry {
   const K = RING;
   const p = new Parts();
-  const z = -(K.rail + 1.4);
-  p.box(3.2, 0.06, 0.7, 0, 0.76, z, "#2b2e34");
-  p.box(3.2, 0.7, 0.04, 0, 0.38, z - 0.33, "#1f4fb0");
-  for (const x of [-1.3, 1.3]) p.box(0.06, 0.74, 0.6, x, 0.37, z, "#2b2e34");
-  for (const x of [-1, 0, 1]) {
-    p.box(0.45, 0.05, 0.45, x, 0.46, z - 0.7, "#3a3d43");
-    p.box(0.45, 0.5, 0.05, x, 0.72, z - 0.92, "#3a3d43");
+  const off = K.half + 0.45; // table centre line, 0.15 m off the skirt
+  const table = (rot: number, bell: boolean) => {
+    const m = (x: number, y: number, z: number) => new THREE.Matrix4().makeRotationY(rot).multiply(new THREE.Matrix4().makeTranslation(x, y, z));
+    const add = (g: THREE.BufferGeometry, col: C, x: number, y: number, z: number) => p.add(g, col, m(x, y, z));
+    // the table: top, a modesty panel in the venue's dark red cloth, two trestle legs
+    add(new THREE.BoxGeometry(1.8, 0.04, 0.55), "#2b2e34", 0, 0.76, -off);
+    add(new THREE.BoxGeometry(1.8, 0.62, 0.02), "#5e1a1c", 0, 0.42, -off - 0.26);
+    for (const x of [-0.8, 0.8]) add(new THREE.BoxGeometry(0.05, 0.74, 0.5), "#1d1f24", x, 0.37, -off);
+    // scoresheet + pen in front of the judge's seat (light paper on the dark top), a water glass
+    add(new THREE.BoxGeometry(0.21, 0.004, 0.3), "#efece4", 0, 0.782, -off + 0.02);
+    add(new THREE.CylinderGeometry(0.005, 0.005, 0.14, 5).rotateZ(Math.PI / 2), "#1b1c1f", 0.16, 0.786, -off + 0.02);
+    add(new THREE.CylinderGeometry(0.03, 0.026, 0.1, 8), "#c9d6de", -0.5, 0.83, -off);
+    // the judge's chair behind the table, facing the ring
+    add(new THREE.BoxGeometry(0.44, 0.05, 0.42), "#3a3d43", 0, 0.46, -off - 0.52);
+    add(new THREE.BoxGeometry(0.44, 0.46, 0.05), "#3a3d43", 0, 0.72, -off - 0.73);
     for (const [dx, dz] of [
-      [-0.2, -0.2],
-      [0.2, -0.2],
-      [-0.2, 0.2],
-      [0.2, 0.2],
+      [-0.19, -0.19],
+      [0.19, -0.19],
+      [-0.19, 0.19],
+      [0.19, 0.19],
     ] as const)
-      p.cyl(0.015, 0.015, 0.46, x + dx, 0.23, z - 0.7 + dz, "#2a2a2a", 6);
-  }
-  // the bell on the table
-  p.cyl(0.02, 0.02, 0.08, 1.05, 0.83, z, "#4a4e56", 8);
-  p.add(new THREE.SphereGeometry(0.1, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), "#a0845a", new THREE.Matrix4().makeRotationX(Math.PI).setPosition(1.05, 0.98, z));
+      add(new THREE.CylinderGeometry(0.014, 0.014, 0.46, 6), "#2a2a2a", dx, 0.23, -off - 0.52 + dz);
+    if (bell) {
+      // the timekeeper's bell on a wooden block
+      add(new THREE.BoxGeometry(0.2, 0.06, 0.14), "#6b4a2e", 0.62, 0.81, -off);
+      add(new THREE.CylinderGeometry(0.012, 0.012, 0.06, 6), "#4a4e56", 0.62, 0.87, -off);
+      p.add(new THREE.SphereGeometry(0.09, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), "#b08d55", m(0.62, 0.99, -off).multiply(new THREE.Matrix4().makeRotationX(Math.PI)));
+    }
+  };
+  table(0, true);
+  table(Math.PI / 2, false);
+  table(-Math.PI / 2, false);
   // overhead truss: a square frame of box trusses over the ring
   const T = K.half + 0.4,
     y = 5.4;
@@ -431,11 +474,14 @@ export function featureExtrasGeometry(): THREE.BufferGeometry {
       const m = new THREE.Matrix4().makeRotationY(a).multiply(new THREE.Matrix4().makeTranslation(0, y + dy, T + dz));
       p.add(new THREE.CylinderGeometry(0.022, 0.022, 2 * T + 0.3, 6).rotateZ(Math.PI / 2), "#2c2f35", m);
     }
-    // the hanging lights (dark housings; the hall does the lighting)
+    // the hanging lights (dark housings with a warm lens; the hall does the lighting)
     for (const x of [-1.6, 0, 1.6]) {
       const m = new THREE.Matrix4().makeRotationY(a).multiply(new THREE.Matrix4().makeTranslation(x, y - 0.2, T + 0.15));
       p.add(new THREE.CylinderGeometry(0.1, 0.13, 0.25, 10), "#1d1f24", m);
+      p.add(new THREE.CircleGeometry(0.1, 10).rotateX(Math.PI / 2), "#f4e6c8", new THREE.Matrix4().makeRotationY(a).multiply(new THREE.Matrix4().makeTranslation(x, y - 0.326, T + 0.15)));
     }
+    // drop cables from the hall trusses
+    p.add(new THREE.CylinderGeometry(0.008, 0.008, 3.2, 4), "#1b1c1f", new THREE.Matrix4().makeRotationY(a).multiply(new THREE.Matrix4().makeTranslation(T, y + 1.9, T)));
   }
   return p.geometry();
 }

@@ -29,6 +29,8 @@ export interface RingSpec {
   size?: RingSize;
   /** status lamp colour override (e.g. practice in white, a blinking result); default STATUS_COLORS[status] */
   lamp?: string;
+  /** extra turn of the feature extras (judges' tables, truss) about the ring centre, e.g. π to face a stage front */
+  extrasYaw?: number;
 }
 
 export interface RingDims {

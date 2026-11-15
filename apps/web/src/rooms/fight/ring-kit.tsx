@@ -96,6 +96,27 @@ function canvasTexture(K: RingDims): THREE.Texture {
       d[i + 2] = Math.max(0, Math.min(255, d[i + 2]! + w));
     }
   g.putImageData(img, 0, 0);
+  // wear (P3-FGT-08): soft scuffed patches where boxers work — round the centre and out of each corner — and a faint
+  // darker ring of footwork; hashed positions, no randomness
+  const scuff = (x: number, y: number, r: number, a: number) => {
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, `rgba(70,74,82,${a})`);
+    gr.addColorStop(1, "rgba(70,74,82,0)");
+    g.fillStyle = gr;
+    g.fillRect(x - r, y - r, 2 * r, 2 * r);
+  };
+  for (let k = 0; k < 26; k++) {
+    const ang = hash(k, 7) * Math.PI * 2;
+    const rad = n * (0.05 + 0.2 * hash(k, 11));
+    scuff(n / 2 + Math.cos(ang) * rad, n / 2 + Math.sin(ang) * rad, n * (0.03 + 0.05 * hash(k, 13)), 0.07 + 0.06 * hash(k, 17));
+  }
+  for (const [cx, cy] of [
+    [a, a],
+    [b, b],
+    [a, b],
+    [b, a],
+  ] as const)
+    for (let k = 0; k < 4; k++) scuff(cx + (n / 2 - cx) * (0.12 + 0.1 * k), cy + (n / 2 - cy) * (0.12 + 0.1 * k), n * 0.04, 0.06);
   // centre emblem: two thin rings and a glove-like mark, faint blue
   const c = n / 2;
   g.strokeStyle = "rgba(31,79,176,0.55)";
@@ -220,8 +241,9 @@ export function RingKit({ rings, featureRing = null, tier = "standard", shadows 
     meshes.near.castShadow = shadows;
     meshes.stool.castShadow = shadows;
     for (const k of ["near", "far", "canvas", "stool"] as const) meshes[k].receiveShadow = true;
-    const extras = featureRing && !lite ? new THREE.Mesh(featureExtrasGeometry(), mats.kit) : null;
-    if (extras) extras.name = "ring-feature-extras";
+    // the feature extras (judges' tables, bell, lighting truss): instanced over every ring of a pro field (P3-FGT-08:
+    // both feature rings get their ringside, still one draw call)
+    const extras = featureRing && !lite ? mk(featureExtrasGeometry(), mats.kit, cap, "ring-feature-extras") : null;
     const tris = { near: triangles(near), far: triangles(far), canvas: triangles(canvas), lamp: triangles(lamp), board: triangles(board), stool: triangles(stool), extras: extras ? triangles(extras.geometry) : 0 };
     return { meshes, mats, extras, tris, geos: [near, far, canvas, lamp, board, stool] };
   }, [cap, lite, showBoards, shadows, featureRing, size]);
@@ -229,6 +251,7 @@ export function RingKit({ rings, featureRing = null, tier = "standard", shadows 
     () => () => {
       res.geos.forEach((g) => g.dispose());
       res.extras?.geometry.dispose();
+      res.extras?.dispose();
       Object.values(res.mats).forEach((m) => {
         (m as THREE.MeshStandardMaterial).map?.dispose();
         m.dispose();
@@ -239,7 +262,6 @@ export function RingKit({ rings, featureRing = null, tier = "standard", shadows 
   );
 
   const state = useRef({ lods: [] as RingLod[], prev: null as RingLod[] | null, sig: NaN, stools: [] as boolean[] });
-  const feature = rings.find((r) => r.id === featureRing) ?? null;
 
   useFrame(({ camera }) => {
     const st = state.current;
@@ -270,7 +292,7 @@ export function RingKit({ rings, featureRing = null, tier = "standard", shadows 
     let sig = rings.length;
     for (let i = 0; i < rings.length; i++) {
       const r = rings[i]!;
-      const v = (lods[i] === "near" ? 1 : lods[i] === "far" ? 2 : 3) + (st.stools[i] ? 8191 : 0) + 4 * (r.status.charCodeAt(0) + (r.rest ? 512 : 0) + lampKey(r.lamp)) + Math.round(r.x * 100) * 7919 + Math.round(r.z * 100) * 104729 + Math.round(r.rotY * 1000) * 15485863;
+      const v = (lods[i] === "near" ? 1 : lods[i] === "far" ? 2 : 3) + (st.stools[i] ? 8191 : 0) + 4 * (r.status.charCodeAt(0) + (r.rest ? 512 : 0) + lampKey(r.lamp)) + Math.round(r.x * 100) * 7919 + Math.round(r.z * 100) * 104729 + Math.round(r.rotY * 1000) * 15485863 + Math.round((r.extrasYaw ?? 0) * 100) * 31;
       sig = (Math.imul(sig ^ v, 2654435761) + i) | 0;
     }
     if (sig === st.sig) return;
@@ -279,7 +301,8 @@ export function RingKit({ rings, featureRing = null, tier = "standard", shadows 
     let nn = 0,
       nf = 0,
       nv = 0,
-      ns = 0;
+      ns = 0,
+      ne = 0;
     const cell = M.board.geometry.getAttribute("aCell") as THREE.InstancedBufferAttribute;
     for (let i = 0; i < rings.length; i++) {
       const r = rings[i]!;
@@ -289,6 +312,12 @@ export function RingKit({ rings, featureRing = null, tier = "standard", shadows 
       _m.compose(_p.set(r.x, 0, r.z), _q, _s);
       if (lod === "near") M.near.setMatrixAt(nn++, _m);
       else M.far.setMatrixAt(nf++, _m);
+      if (res.extras) {
+        _q.setFromAxisAngle(UP, r.rotY + (r.extrasYaw ?? 0));
+        res.extras.setMatrixAt(ne++, _m.compose(_p.set(r.x, 0, r.z), _q, _s));
+        _q.setFromAxisAngle(UP, r.rotY);
+        _m.compose(_p.set(r.x, 0, r.z), _q, _s);
+      }
       M.canvas.setMatrixAt(nv, _m);
       M.lamp.setMatrixAt(nv, _m);
       M.lamp.setColorAt(nv, _c.set(r.lamp ?? STATUS_COLORS[r.status]));
@@ -320,15 +349,20 @@ export function RingKit({ rings, featureRing = null, tier = "standard", shadows 
       if (m.instanceColor) m.instanceColor.needsUpdate = true;
     }
     cell.needsUpdate = true;
+    if (res.extras) {
+      res.extras.count = ne;
+      res.extras.visible = ne > 0;
+      res.extras.instanceMatrix.needsUpdate = true;
+    }
     if (statsRef) {
       const t = res.tris;
-      const featureOn = !!res.extras && !!feature && lods[rings.indexOf(feature)] !== "culled";
+      const featureOn = !!res.extras && ne > 0;
       statsRef.current = {
         near: nn,
         far: nf,
         culled: rings.length - nv,
         drawCalls: ringDrawCalls(tier, { anyNear: nn > 0, anyFar: nf > 0, feature: featureOn, boards: showBoards, shadows }),
-        triangles: nn * t.near + nf * t.far + nv * (t.canvas + t.lamp + (showBoards ? t.board : 0)) + ns * t.stool + (featureOn ? t.extras : 0),
+        triangles: nn * t.near + nf * t.far + nv * (t.canvas + t.lamp + (showBoards ? t.board : 0)) + ns * t.stool + ne * t.extras,
       };
     }
   });
@@ -341,7 +375,7 @@ export function RingKit({ rings, featureRing = null, tier = "standard", shadows 
       <primitive object={res.meshes.lamp} />
       {showBoards && <primitive object={res.meshes.board} />}
       <primitive object={res.meshes.stool} />
-      {res.extras && feature && <primitive object={res.extras} position={[feature.x, 0, feature.z]} rotation={[0, feature.rotY, 0]} />}
+      {res.extras && <primitive object={res.extras} />}
     </group>
   );
 }

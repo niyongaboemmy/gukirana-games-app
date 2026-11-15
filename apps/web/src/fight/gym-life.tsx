@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
-import type * as THREE from "three";
+import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { create } from "zustand";
 import { selfPose } from "@/lib/world-store";
 import { uiAudio } from "@/lib/audio";
@@ -165,7 +166,8 @@ function staffLook(s: StaffSpot): AvatarLook {
     age: age as AvatarLook["age"],
     outfit,
     accent: "#C8322A",
-    topColor: sport ? "#3a3d44" : "#B3242B",
+    // every member of staff wears the venue red (P3-FGT-08: staff read as staff, never as other players)
+    topColor: "#B3242B",
   };
 }
 
@@ -236,7 +238,17 @@ function StaffNpc({ spot, lite }: { spot: StaffSpot; lite: boolean }) {
   const rope = useRef<THREE.Group>(null);
   const label = useRef<THREE.Group>(null);
   const off = useMemo(() => phase(spot.id), [spot.id]);
-  useEffect(() => () => void softBodies.delete(`staff-${spot.id}`), [spot.id]);
+  useEffect(
+    () => () => {
+      softBodies.delete(`staff-${spot.id}`);
+      lanyards.delete(spot.id);
+      mitts.delete(`${spot.id}0`);
+      mitts.delete(`${spot.id}1`);
+    },
+    [spot.id],
+  );
+  const neck = useRef<THREE.Object3D | null>(null);
+  const hands = useRef<THREE.Object3D[]>([]);
   useFrame(() => {
     const t = clock() + off;
     const grp = g.current;
@@ -295,6 +307,24 @@ function StaffNpc({ spot, lite }: { spot: StaffSpot; lite: boolean }) {
     grp.position.set(x, y, z);
     grp.rotation.y = yaw;
     softBodies.set(`staff-${spot.id}`, { x, z, r: 0.3 });
+    // the staff lanyard hangs from the neck bone (one instanced mesh for all staff: StaffLanyards)
+    if (!neck.current) neck.current = grp.getObjectByName("Bip01_Neck") ?? null;
+    if (neck.current) {
+      neck.current.getWorldPosition(_neck);
+      const m = lanyards.get(spot.id) ?? new THREE.Matrix4();
+      lanyards.set(spot.id, m.compose(_neck, _lq.setFromAxisAngle(_up, yaw), _one));
+    }
+    // the pads coach wears focus mitts on both hands (facing the trainee)
+    if (spot.role === "coach") {
+      if (hands.current.length < 2) hands.current = ["Bip01_L_Hand", "Bip01_R_Hand"].map((n) => grp.getObjectByName(n)).filter((b): b is THREE.Object3D => !!b);
+      hands.current.forEach((h, k) => {
+        h.getWorldPosition(_neck);
+        _neck.x += Math.sin(yaw) * 0.05;
+        _neck.z += Math.cos(yaw) * 0.05;
+        const m = mitts.get(`${spot.id}${k}`) ?? new THREE.Matrix4();
+        mitts.set(`${spot.id}${k}`, m.compose(_neck, _lq.setFromAxisAngle(_up, yaw), _one));
+      });
+    }
     if (label.current) label.current.visible = Math.hypot(x - selfPose.x, z - selfPose.z) < 5;
     if (motion && loop && weight.current > 0.5) {
       const cur = loopAt(loop, t);
@@ -353,6 +383,96 @@ function StaffNpc({ spot, lite }: { spot: StaffSpot; lite: boolean }) {
       </group>
       {spot.role === "cleaner" && <MopCart />}
     </group>
+  );
+}
+
+/* ---------------- staff lanyards ---------------- */
+
+const lanyards = new Map<string, THREE.Matrix4>();
+const mitts = new Map<string, THREE.Matrix4>();
+/** a focus mitt: a round padded face (red, black rim) on a short black cuff, facing +z */
+function mittGeometry(): THREE.BufferGeometry {
+  const pad = new THREE.SphereGeometry(0.11, 14, 10);
+  pad.scale(1, 1.15, 0.45);
+  pad.translate(0, 0.02, 0.03);
+  const cuff = new THREE.CylinderGeometry(0.05, 0.055, 0.1, 10).rotateX(Math.PI / 2).translate(0, -0.03, -0.04);
+  const tint = (g: THREE.BufferGeometry, col: string) => {
+    const c = new THREE.Color(col);
+    const n = g.getAttribute("position").count;
+    const a = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) a.set([c.r, c.g, c.b], i * 3);
+    g.setAttribute("color", new THREE.Float32BufferAttribute(a, 3));
+    return g;
+  };
+  const g = mergeGeometries([tint(pad, "#a8262a"), tint(cuff, "#1b1c1f")])!;
+  pad.dispose();
+  cuff.dispose();
+  return g;
+}
+const _neck = new THREE.Vector3();
+const _lq = new THREE.Quaternion();
+const _up = new THREE.Vector3(0, 1, 0);
+const _one = new THREE.Vector3(1, 1, 1);
+/** strap V from the neck down to an ID card on the chest (origin at the neck, facing +z), vertex coloured */
+function lanyardGeometry(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  const add = (g: THREE.BufferGeometry, col: string) => {
+    const c = new THREE.Color(col);
+    const n = g.getAttribute("position").count;
+    const a = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) a.set([c.r, c.g, c.b], i * 3);
+    g.setAttribute("color", new THREE.Float32BufferAttribute(a, 3));
+    parts.push(g);
+  };
+  for (const sx of [-1, 1]) {
+    const a = new THREE.Vector3(sx * 0.06, -0.03, 0.06);
+    const b = new THREE.Vector3(sx * 0.016, -0.21, 0.125);
+    const g = new THREE.BoxGeometry(0.012, a.distanceTo(b), 0.003);
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+    g.applyMatrix4(new THREE.Matrix4().compose(a.clone().add(b).multiplyScalar(0.5), q, new THREE.Vector3(1, 1, 1)));
+    add(g, "#C8322A");
+  }
+  add(new THREE.BoxGeometry(0.068, 0.095, 0.004).translate(0, -0.262, 0.128), "#f2efe8");
+  add(new THREE.BoxGeometry(0.068, 0.022, 0.005).translate(0, -0.226, 0.129), "#B3242B");
+  const g = mergeGeometries(parts)!;
+  parts.forEach((x) => x.dispose());
+  return g;
+}
+/** every drawn staff member's lanyard (one draw call) */
+function StaffLanyards() {
+  const mesh = useMemo(() => {
+    const m = new THREE.InstancedMesh(lanyardGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7 }), 8);
+    m.count = 0;
+    m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    return m;
+  }, []);
+  useEffect(() => () => (mesh.geometry.dispose(), (mesh.material as THREE.Material).dispose(), mesh.dispose()), [mesh]);
+  const mitt = useMemo(() => {
+    const m = new THREE.InstancedMesh(mittGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65 }), 4);
+    m.count = 0;
+    m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    return m;
+  }, []);
+  useEffect(() => () => (mitt.geometry.dispose(), (mitt.material as THREE.Material).dispose(), mitt.dispose()), [mitt]);
+  useFrame(() => {
+    for (const [im, src, cap] of [
+      [mesh, lanyards, 8],
+      [mitt, mitts, 4],
+    ] as const) {
+      let n = 0;
+      for (const m of src.values()) if (n < cap) im.setMatrixAt(n++, m);
+      im.count = n;
+      im.visible = n > 0;
+      im.instanceMatrix.needsUpdate = true;
+      // culled with the view like any mesh (a tiny strap must not cost a draw call while it is behind the camera)
+      if (n) im.computeBoundingSphere();
+    }
+  });
+  return (
+    <>
+      <primitive object={mesh} />
+      <primitive object={mitt} />
+    </>
   );
 }
 
@@ -446,6 +566,7 @@ export function GymLife({
   });
   return (
     <group visible={!hidden} userData={{ noMerge: true }}>
+      <StaffLanyards />
       {staff
         .filter((s) => drawn.includes(s.id))
         .map((s) => (
