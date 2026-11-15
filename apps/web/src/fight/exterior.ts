@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { DOOR } from "@/world/layout";
+import { DOOR, DOOR_RING, FIGHT_ANGLE, SPAWN } from "@/world/layout";
 import type { GeoBatch } from "@/world/geo";
 import { FIGHT_BUILDING, FIGHT_DOOR_INSET } from "./plan";
 
@@ -45,16 +45,22 @@ export function fightHall(b: GeoBatch) {
     b.box("led-fight", 0.04, 0.05, roofD - 2, { p: [x + s * 0.03, H - 0.45, f.front - roofD / 2] });
     b.box("led-corner-blue", 0.04, 0.05, roofD - 2, { p: [x + s * 0.03, H - 2.35, f.front - roofD / 2] });
   }
-  for (const s of [-1, 1]) {
-    const x0 = s * (f.lobbyHw + 0.6);
-    const x1 = s * (f.hw - 0.6);
-    b.box("woodDark", Math.abs(x1 - x0), 1.6, 0.06, { p: [(x0 + x1) / 2, H - 1.4, f.front + 0.03], tile: 1 });
-  }
+  // (the front either side of the lobby wing: none since P2-WLD-14, the hall's body is as wide as the pavilion)
+  if (f.hw - f.lobbyHw > 1.5)
+    for (const s of [-1, 1]) {
+      const x0 = s * (f.lobbyHw + 0.6);
+      const x1 = s * (f.hw - 0.6);
+      b.box("woodDark", Math.abs(x1 - x0), 1.6, 0.06, { p: [(x0 + x1) / 2, H - 1.4, f.front + 0.03], tile: 1 });
+    }
   b.box("led-fight", f.hw * 2 - 1.2, 0.05, 0.04, { p: [0, H - 0.45, f.front + 0.06] });
   b.box("led-corner-blue", f.hw * 2 - 1.2, 0.05, 0.04, { p: [0, H - 2.35, f.front + 0.06] });
-  // rooftop plant
-  b.box("steel", 3.2, 1.3, 2.2, { p: [-18, H + 1.15, (f.front + f.back) / 2] });
-  b.box("steel", 2.4, 1.0, 1.6, { p: [22, H + 1.0, (f.front + f.back) / 2 - 6] });
+  // rooftop plant, roof lights along the long hall
+  b.box("steel", 3.2, 1.3, 2.2, { p: [-7, H + 1.15, (f.front + f.back) / 2 + 12] });
+  b.box("steel", 2.4, 1.0, 1.6, { p: [8, H + 1.0, (f.front + f.back) / 2 - 20] });
+  for (let z = f.front - 10; z > f.back + 8; z -= 12) b.box("glass", 5.5, 0.35, 3.2, { p: [0, H + 0.68, z], tile: 2 });
+  // the long side walls (P2-WLD-14: the south one faces the arrival gate): tall red light fins every 12 m
+  for (const s of [-1, 1])
+    for (let z = f.front - 6; z > f.back + 6; z -= 12) b.box("led-fight", 0.05, H - 4.4, 0.12, { p: [s * (f.hw + 0.05), (H - 4.4) / 2 + 1.1, z] });
 
   /* ---- lobby wing (P3-FGT-03: a modern entrance, same footprint) ---- */
   const LH = f.lobbyH;
@@ -110,27 +116,26 @@ export function fightHall(b: GeoBatch) {
   b.box("steel", DOOR.w + 0.36, 0.18, 0.4, { p: [0, DOOR.h + 0.09, FIGHT_DOOR_INSET + 0.1] });
   b.box("led-fight", DOOR.w + 0.44, 0.03, 0.03, { p: [0, DOOR.h + 0.22, FIGHT_DOOR_INSET + 0.32] });
 
-  // a flush, step-free forecourt under the canopy (accessible: no change of level at the door) with two stone step
-  // noses and side ramps at its edge (≤ 3 cm), then the planters
-  b.box("basalt", C.w + 0.6, 0.03, C.d + 0.4, { p: [0, 0.015, face + C.d / 2 + 0.2], tile: 1.2 });
-  for (const [k, dz] of [0.25, 0.65].entries()) b.box("granite", C.w + 0.6 + k * 0.8, 0.02 + k * 0.01, 0.4, { p: [0, 0.01, face + C.d + 0.4 + dz], tile: 2.4 });
-  b.box("led-warm", C.w + 0.6, 0.012, 0.03, { p: [0, 0.035, face + C.d + 0.42] });
-
-  // landscaping: two long planters with clipped hedges, three small trees, soil, uplights
-  for (const s of [-1, 1]) {
-    const px = s * 11.6;
-    const pz = face + 2.0;
-    b.box("charcoal", 6.0, 0.6, 1.4, { p: [px, 0.3, pz], tile: 1.5 });
-    b.box("soil", 5.8, 0.04, 1.2, { p: [px, 0.6, pz] });
-    b.box("hedge", 5.6, 0.42, 0.62, { p: [px, 0.82, pz + 0.22] });
-    for (const dx of s < 0 ? [2.9] : [-2.0, 0, 2.0]) {
-      b.cyl("woodDark", 0.06, 0.08, 2.0, 7, { p: [px + dx, 1.6, pz - 0.28] });
-      const crown = new THREE.IcosahedronGeometry(0.8, 1);
-      crown.scale(1, 0.85, 1);
-      b.add("hedge", crown, { p: [px + dx, 2.95, pz - 0.28] });
-      b.cyl("led-warm", 0.07, 0.07, 0.02, 10, { p: [px + dx + 0.3, 0.62, pz - 0.1] });
-    }
+  // (P2-WLD-14: the pavilion stands on the plaza's door ring, its forecourt is the plaza's own step-free paving)
+  // behind the glazing: a training ring's corner read from the plaza (posts, red / white / blue ropes, lit)
+  for (const sd of [-1, 1]) {
+    const zr = face - 0.9;
+    const xa = sd * (G.x0 + 0.5);
+    const xb = sd * (G.x1 - 0.4);
+    b.box("charcoal", Math.abs(xb - xa) + 0.6, 0.7, 2.0, { p: [(xa + xb) / 2, 0.35, zr - 0.6], tile: 1 });
+    b.cyl("steel", 0.07, 0.07, 1.6, 8, { p: [xb, 0.7 + 0.8, zr] });
+    ROPES.forEach((key, i) => b.box(key, Math.abs(xb - xa), 0.05, 0.05, { p: [(xa + xb) / 2, 1.05 + i * 0.38, zr] }));
   }
+
+  /* ---- the rooftop sign on the pavilion (P2-WLD-14): turned towards the arrival, lettering in FightFacadeBoard ---- */
+  b.frame([ROOF_SIGN.x, 0, ROOF_SIGN.z], ROOF_SIGN.rotY, () => {
+    for (const s of [-1, 1]) b.box("steel", 0.16, ROOF_SIGN.y - ROOF_SIGN.h / 2 - LH, 0.16, { p: [s * (ROOF_SIGN.w / 2 - 0.8), (ROOF_SIGN.y - ROOF_SIGN.h / 2 + LH) / 2, 0] });
+    b.box("screenFrame", ROOF_SIGN.w, ROOF_SIGN.h, 0.36, { p: [0, ROOF_SIGN.y, 0] });
+    for (const z of [-0.2, 0.2]) {
+      b.box("led-fight", ROOF_SIGN.w - 0.3, 0.07, 0.04, { p: [0, ROOF_SIGN.y - ROOF_SIGN.h / 2 + 0.18, z] });
+      b.box("led-fight", ROOF_SIGN.w - 0.3, 0.07, 0.04, { p: [0, ROOF_SIGN.y + ROOF_SIGN.h / 2 - 0.18, z] });
+    }
+  });
 
   /* ---- the lit "FIGHT GAMES" sign on the hall front above the lobby roof (letters: FightFacadeBoard) ---- */
   const sy = SIGN.y;
@@ -147,6 +152,25 @@ export function fightHall(b: GeoBatch) {
   b.box("steel", 0.12, LIVE_BOARD.y - LIVE_BOARD.h / 2, 0.12, { p: [LIVE_BOARD.x, (LIVE_BOARD.y - LIVE_BOARD.h / 2) / 2, face + 0.3] });
 }
 
+/** rope colours of the ring corner behind the glazing (bottom → top) */
+const ROPES = ["led-corner-blue", "led-warm", "led-fight"] as const;
+/**
+ * The rooftop sign over the pavilion's north end (door frame): a double-sided light box turned towards the arrival
+ * spawn (the camera behind it), so "FIGHT GAMES" reads from the plaza entry as well as from the fountain (P2-WLD-14).
+ */
+export const ROOF_SIGN = (() => {
+  const x = -10.4;
+  const z = (FIGHT_DOOR_INSET + FIGHT_BUILDING.front) / 2;
+  // the spawn's follow camera in the door frame: the facade at 88° faces west, the spawn lies south-west of it
+  const a = (FIGHT_ANGLE * Math.PI) / 180;
+  const door = { x: DOOR_RING * Math.sin(a), z: -DOOR_RING * Math.cos(a) };
+  const cam = { x: SPAWN.x - door.x, z: SPAWN.z + 9 - door.z };
+  const c = Math.cos(-a);
+  const s = Math.sin(-a);
+  const lx = cam.x * c - cam.z * s - x;
+  const lz = cam.x * s + cam.z * c - z;
+  return { x, z, rotY: Math.atan2(lx, lz) * 0.8, y: FIGHT_BUILDING.lobbyH + 3.2, w: 7.6, h: 2.1 };
+})();
 /** the facade sign over the lobby roof and the live board (door frame; letters drawn by FightFacadeBoard) */
 export const SIGN = { y: FIGHT_BUILDING.lobbyH + 2.3, w: 17, h: 2.7 };
 export const LIVE_BOARD = { x: -12.4, y: 3.3, w: 4.8, h: 2.4, z: FIGHT_DOOR_INSET + 0.4 + 0.39 };

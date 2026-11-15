@@ -1,14 +1,14 @@
+import { ADMIN_BLOCK_ON } from "@/admin-block/flags";
 import { FIGHT_ON } from "@/fight/flags";
 import { inBuilding } from "./footprints";
 import {
+  ADMIN_ANGLE,
   COMPOUND_R,
   ENTRY_Z,
+  FIGHT_ANGLE,
   EXPANSION_PLOTS,
   EXPANSION_RING,
-  FIGHT_WALK,
-  FIGHT_WALK_POINTS,
   OUTER_PROMENADE,
-  PERIMETER_R,
   PLAZA_RADIUS,
   PORTALS,
   portalTransform,
@@ -258,14 +258,21 @@ export const DISTRICTS: District[] = [
   { id: "west", from: -115, to: -60 },
   { id: "northWest", from: -60, to: -30 },
   { id: "view", from: -25, to: 25 },
-  { id: "northEast", from: 30, to: 60 },
-  { id: "east", from: 60, to: 115 },
+  // (P2-WLD-14: the north-east district takes the Administrative Block at 62°; the east district is the Fight Games
+  // building, its pavilion on the plaza and the Boxing hall's body behind it)
+  { id: "northEast", from: 30, to: 70 },
+  { id: "east", from: 70, to: 115 },
 ];
 export const districtOf = (deg: number) => DISTRICTS.find((d) => deg >= d.from && deg <= d.to)?.id ?? null;
 /** The volcano view corridor behind the arena stays low: no hall plots here. */
 export const VIEW_CORRIDOR_DEG = 25;
-/** The Fight Games hall's site in the east district (merged plots 07 + 08). */
-export const FIGHT_SITE_DEG = 80;
+/** The Administrative Block's site in the north-east district (P2-WLD-14: off the +88° plaza plot). */
+export const ADMIN_SITE_DEG = ADMIN_ANGLE;
+/**
+ * The Fight Games building (P2-WLD-14): its door on the plaza's door ring at FIGHT_ANGLE, the Boxing hall's long body
+ * running straight back from the pavilion through the east district (fight/plan.ts FIGHT_BUILDING).
+ */
+export const FIGHT_SITE_DEG = FIGHT_ANGLE;
 /** Growth band B (north): reserved hall plots, defined but not built. */
 export const GROWTH_BAND = { r0: 175, r1: 235, deg: 100 } as const;
 export const GROWTH_RING = 185;
@@ -277,33 +284,41 @@ export const GROWTH_PLOTS: { id: string; angleDeg: number; ring: number }[] = [-
 
 /* ---------------------------------------------------------------- walks ---------------------------------------------------------------- */
 
-/** Walks are walkable ground (click-to-walk, camera follow) with the Fight hall on or the campus walks flag. */
-export const CAMPUS_WALKS_ON = FIGHT_ON || process.env.NEXT_PUBLIC_FF_CAMPUS_WALKS === "1";
+/** Walks are walkable ground (click-to-walk, camera follow) while a hall stands beyond the plaza (the Administrative
+ *  Block, P2-WLD-14), with the Fight hall on, or with the campus walks flag. */
+export const CAMPUS_WALKS_ON = ADMIN_BLOCK_ON || FIGHT_ON || process.env.NEXT_PUBLIC_FF_CAMPUS_WALKS === "1";
 /** promenade centre line radius */
 export const PROMENADE_R = (OUTER_PROMENADE.r0 + OUTER_PROMENADE.r1) / 2;
-/** The outer promenade is kept only north of the gate line. */
+/** The outer promenade is kept only north of the gate line (west end, bearing −PROMENADE_DEG). */
 export const PROMENADE_DEG = 115;
+/**
+ * …and in the east it ends at the Boxing hall's long body (P2-WLD-14), which runs out from its plaza pavilion at 88°
+ * across the promenade's old course: the promenade spans bearings −PROMENADE_DEG … +PROMENADE_EAST_DEG.
+ */
+export const PROMENADE_EAST_DEG = 76;
+/** Is a bearing (deg) on the promenade's arc? */
+export const onPromenadeArc = (deg: number) => deg >= -PROMENADE_DEG && deg <= PROMENADE_EAST_DEG;
 const EXIT_R = PLAZA_RADIUS - 1.5;
 
 /**
  * District walks from the plaza edge (plan §3.3), threaded between the inner halls: the bearings of the plan
  * (±66°, ±105°) moved to the real gaps between the hall footprints (checked in campus.test.ts: ≥ 0.4 m from every
- * wall). Each: plaza exit → bends past the hall corners → the outer promenade. The north-east exit is the Fight Games
- * walk (P2-WLD-13 access review: a 4 m signed and lit main walk, straight past the Administrative Block onto the
- * Fight hall's forecourt); the north-east walk forks off it behind the halls, to the promenade by the north-east plot.
- * (`exit`: the walk starts at the plaza edge; a fork starts on its walk's corner instead.)
+ * wall). Each: plaza exit → bends past the hall corners → the outer promenade. P2-WLD-14: the Fight Games door is on
+ * the plaza now, so its walk, gateway arch and bollards (P2-WLD-13) are gone; the north-east walk leaves the plaza
+ * at 58° between the Ludo Lounge and the Fight Games pavilion, passes between the Ludo hall's corner and the Boxing
+ * hall's north wall, then turns north past the Ludo hall's back onto the promenade at 57°, between the north-east plot
+ * and the Administrative Block. The east walk
+ * went with the promenade's east end: the Boxing hall's body fills the east district.
+ * (: the walk starts at the plaza edge; a fork starts on another walk's corner instead.)
  */
-export type WalkId = "west" | "northWest" | "fight" | "northEast" | "east";
+export type WalkId = "west" | "northWest" | "northEast";
 export const DISTRICT_WALKS: { id: WalkId; pts: P[]; hw: number; exit: boolean }[] = (
   [
     { id: "west", pts: [ringPoint(-110, EXIT_R), ringPoint(-115, 62), ringPoint(-115, PROMENADE_R)], hw: 1.5, exit: true },
     { id: "northWest", pts: [ringPoint(-64, EXIT_R), ringPoint(-64, 44), ringPoint(-72, 72), ringPoint(-52, PROMENADE_R)], hw: 1.5, exit: true },
-    // (the Fight walk's corners, layout.ts FIGHT_WALK: plaza exit, between the halls, past the Block, the forecourt)
-    { id: "fight", pts: FIGHT_WALK_POINTS.slice(0, 4), hw: FIGHT_WALK[0]!.hw, exit: true },
-    { id: "northEast", pts: [FIGHT_WALK_POINTS[1]!, ringPoint(63, 80), ringPoint(50, PROMENADE_R)], hw: 1.5, exit: false },
-    { id: "east", pts: [ringPoint(108, EXIT_R), ringPoint(115, 62), ringPoint(115, PROMENADE_R)], hw: 1.5, exit: true },
+    { id: "northEast", pts: [ringPoint(58, EXIT_R), ringPoint(67.5, 52), ringPoint(70, 75), ringPoint(57, PROMENADE_R)], hw: 1.5, exit: true },
   ] as const
-).map((w) => ({ id: w.id, hw: w.hw, exit: w.exit, pts: w.pts.map((q) => ({ x: q.x, z: q.z })) }));
+).map((w) => ({ id: w.id, hw: w.hw, exit: w.exit as boolean, pts: w.pts.map((q) => ({ x: q.x, z: q.z })) }));
 
 export interface WalkLeg {
   a: number;
@@ -342,7 +357,8 @@ export const CAMPUS_WALKS: WalkGraph = (() => {
   const exits: number[] = [];
   const bearing = (p: P) => (Math.atan2(p.x, -p.z) * 180) / Math.PI;
   const promBears = new Set<number>();
-  for (let b = -PROMENADE_DEG; b <= PROMENADE_DEG + 1e-6; b += 2.5) promBears.add(Math.round(b * 100) / 100);
+  for (let b = -PROMENADE_DEG; b <= PROMENADE_EAST_DEG + 1e-6; b += 2.5) promBears.add(Math.round(b * 100) / 100);
+  promBears.add(PROMENADE_EAST_DEG);
   for (const w of DISTRICT_WALKS) {
     const ids = w.pts.map(node);
     if (w.exit) exits.push(ids[0]!);
@@ -350,7 +366,7 @@ export const CAMPUS_WALKS: WalkGraph = (() => {
     promBears.add(Math.round(bearing(w.pts[w.pts.length - 1]!) * 100) / 100);
   }
   const doors: Record<string, number> = {};
-  const onArc = WALK_DOORS.filter((d) => Math.abs(d.angleDeg) <= PROMENADE_DEG);
+  const onArc = WALK_DOORS.filter((d) => onPromenadeArc(d.angleDeg));
   for (const d of onArc) promBears.add(d.angleDeg);
   const bears = [...promBears].sort((a, b) => a - b);
   const prom = bears.map((b) => {
@@ -616,7 +632,7 @@ export function walkDoorPoint(id: string): P {
 export const WALK_TOTEMS: WalkTotem[] = (() => {
   const out: WalkTotem[] = [];
   const rowsFrom = (p: P) =>
-    WALK_DOORS.filter((d) => Math.abs(d.angleDeg) <= PROMENADE_DEG)
+    WALK_DOORS.filter((d) => onPromenadeArc(d.angleDeg))
       .map((d) => {
         const m = campusWalkLength(p, walkDoorPoint(d.id));
         return { id: d.id, m: Math.round(m / 5) * 5, s: Math.round(m / WALK_PACE / 5) * 5 };
@@ -659,54 +675,6 @@ export const WALK_TOTEMS: WalkTotem[] = (() => {
     const L = Math.hypot(b.x - a.x, b.z - a.z);
     const dir = { x: (b.x - a.x) / L, z: (b.z - a.z) / L };
     place({ x: a.x + dir.x * 5, z: a.z + dir.z * 5 }, dir, w.hw, districtOf((Math.atan2(b.x, -b.z) * 180) / Math.PI) ?? "plaza");
-  }
-  return out;
-})();
-
-/* ---------------------------------------------------------------- the Fight Games walk (P2-WLD-13) ---------------------------------------------------------------- */
-
-const FIGHT_LEGS = DISTRICT_WALKS.find((w) => w.id === "fight")!;
-/** Where along the Fight Games walk (m from its plaza exit) a point is, and the walk's total length to the door. */
-const fightAlong = (s: number): P & { dir: P } => {
-  const pts = FIGHT_LEGS.pts;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const a = pts[i]!;
-    const b = pts[i + 1]!;
-    const L = Math.hypot(b.x - a.x, b.z - a.z);
-    if (s <= L || i === pts.length - 2) {
-      const t = Math.min(1, s / L);
-      return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t, dir: { x: (b.x - a.x) / L, z: (b.z - a.z) / L } };
-    }
-    s -= L;
-  }
-  return { ...pts[0]!, dir: { x: 1, z: 0 } };
-};
-/**
- * The gateway arch over the Fight Games walk just beyond the plaza's perimeter wall: two lava-stone posts either side
- * of the walk and a lit lintel carrying "FIGHT GAMES" and the walking distance, facing the plaza (readable from the
- * fountain and the entry promenade). `rotY`: the arch's face (local +z) looks back along the walk into the plaza.
- */
-export const FIGHT_GATEWAY = (() => {
-  const s = PERIMETER_R + 2.5 - EXIT_R;
-  const q = fightAlong(s);
-  const door = walkDoorPoint("fight");
-  const m = campusWalkLength({ x: q.x, z: q.z }, door);
-  return { x: q.x, z: q.z, rotY: Math.atan2(-q.dir.x, -q.dir.z), span: FIGHT_LEGS.hw + 0.55, h: 5.2, m: Math.round(m / 5) * 5, s: Math.round(m / WALK_PACE / 5) * 5 };
-})();
-/** Low lit bollards along both kerbs of the Fight Games walk (every 9 m, staggered), clear of buildings and walks. */
-export const FIGHT_WALK_LIGHTS: P[] = (() => {
-  const out: P[] = [];
-  const pts = FIGHT_LEGS.pts;
-  let total = 0;
-  for (let i = 0; i < pts.length - 1; i++) total += Math.hypot(pts[i + 1]!.x - pts[i]!.x, pts[i + 1]!.z - pts[i]!.z);
-  let k = 0;
-  for (let s = PERIMETER_R + 6 - EXIT_R; s < total - 2; s += 4.5, k++) {
-    const q = fightAlong(s);
-    const side = k % 2 ? 1 : -1;
-    const x = q.x - q.dir.z * side * (FIGHT_LEGS.hw + 0.45);
-    const z = q.z + q.dir.x * side * (FIGHT_LEGS.hw + 0.45);
-    if (inBuilding(x, z, 0.3) || walkDepth(x, z).depth > -0.15) continue;
-    out.push({ x, z });
   }
   return out;
 })();

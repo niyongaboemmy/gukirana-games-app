@@ -52,7 +52,7 @@ onReleaseInput(() => keys.clear()); // lost key-ups (area change, focus, backgro
 
 /** Click-to-walk over the campus walks: the network's waypoints, the plaza crossings routed round the furniture. */
 /**
- * The open outer-ring hall (beyond the plaza, e.g. the Fight Games hall) whose building a ground point falls on: within
+ * The open outer-ring hall (beyond the plaza: the Administrative Block since P2-WLD-14) whose building a ground point falls on: within
  * its bearing span and from just in front of its door to the back of the building (the halls are ≤ 50 m deep).
  */
 function outerHallAt(x: number, z: number) {
@@ -217,7 +217,7 @@ export function LocalPlayer({
           route.current = walkRoute(pos.current, walkDepth(p.x, p.z).at);
           return route.current.shift()!;
         }
-        // a tap on an outer hall itself (the Fight Games hall: its roof, walls or forecourt, from the ground or from the
+        // a tap on an outer hall itself (the Administrative Block: its roof, walls or forecourt, from the ground or from the
         // campus aerial view): along the walks to its door and on through it
         if (r > PLAZA_RADIUS + 4) {
           const hall = outerHallAt(p.x, p.z);
@@ -380,7 +380,7 @@ export function LocalPlayer({
     for (const p of PORTALS) {
       if (!p.href || (doorOpen[p.id] ?? 0) < 0.55) continue;
       const R = ringOf(p);
-      // an outer-ring door (the Fight hall) only counts at its own doorstep, not all along its bearing
+      // an outer-ring door (the Administrative Block) only counts at its own doorstep, not all along its bearing
       if (R !== DOOR_RING && r < R - 6) continue;
       // a door held open for someone stepping out is not a way in when it is shut for you (closed / not allowed)
       if (!entering && stepOut.current <= 0 && doorRefusal(p.id)) continue;

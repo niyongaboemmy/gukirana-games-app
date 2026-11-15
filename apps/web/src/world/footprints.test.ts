@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { HALLS } from "@/rooms/layouts";
 import { ARENA, igisoroHall, inBuilding, PLOT_HALL_SIZE, PLOTS, wingedHall, wingedPlan, type Plot } from "./footprints";
-import { BENCHES, ENTRY_Z, FOUNTAIN_RADIUS, INNER_PORTALS, PLAZA_RADIUS, PORTALS, portalTransform, RING_ROAD, ringPoint, SPAWN } from "./layout";
+import { BENCHES, ENTRY_Z, FOUNTAIN_RADIUS, INNER_PORTALS, PLAZA_RADIUS, portalTransform, RING_ROAD, ringPoint, SPAWN } from "./layout";
 import { LAWN_BEDS, PLAZA_ARCS, RING_PLANTERS } from "./beds";
 import { GATE_Z } from "./gate/Gate";
 import { LAMPS, planRoute, PLAZA_OBSTACLES, resolve } from "./obstacles";
@@ -110,8 +110,9 @@ describe("campus layout (P1-WLD-03)", () => {
     for (const b of LAWN_BEDS) expect(inBuilding(b.x, b.z, 1)).toBe(false);
   });
 
-  it("every playable door is a sensible walk from the spawn (≤ 35 s at the normal 2.2 m/s pace)", () => {
-    for (const p of PORTALS.filter((q) => q.href)) {
+  it("every playable door on the plaza ring is a sensible walk from the spawn (≤ 35 s at the normal 2.2 m/s pace)", () => {
+    // (the outer-ring halls, the Administrative Block since P2-WLD-14, are reached over the walks: campus.test.ts)
+    for (const p of INNER_PORTALS.filter((q) => q.href)) {
       const t = portalTransform(p);
       const route = planRoute(SPAWN, { x: t.entryX, z: t.entryZ });
       let len = 0;

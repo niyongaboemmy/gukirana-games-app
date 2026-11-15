@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { HALLS } from "@/rooms/layouts";
 import { hallToPlaza, plazaToHall } from "./stage";
-import { doorInset, DOOR_RING, PORTALS, portalTransform } from "./layout";
+import { doorInset, DOOR_RING, PORTALS, portalTransform, ringOf } from "./layout";
 
 /** The persistent-stage crossing maps the plaza door frame onto the hall door frame; it must follow the ring layout. */
 describe("plaza ↔ hall door mapping follows DOOR_RING / PORTALS", () => {
-  for (const game of ["pool", "ludo", "igisoro", "admin", "arena"] as const) {
+  for (const game of ["pool", "ludo", "igisoro", "fight", "admin", "arena"] as const) {
     it(`${game}: the door line maps onto the hall's entrance wall and back`, () => {
       const p = PORTALS.find((q) => q.id === game)!;
       const t = portalTransform(p);
-      expect(Math.hypot(t.x, t.z)).toBeCloseTo(DOOR_RING, 5);
+      expect(Math.hypot(t.x, t.z)).toBeCloseTo(ringOf(p), 5);
+      // (P2-WLD-14: Fight Games on the plaza's door ring, the Administrative Block out on the expansion ring)
+      if (game === "fight") expect(ringOf(p)).toBe(DOOR_RING);
       // the door centre on the door line → the hall door centre on its south wall
       const a = (p.angleDeg * Math.PI) / 180;
       const onLine = { x: t.x + Math.sin(a) * -doorInset(p.kind), z: t.z - Math.cos(a) * -doorInset(p.kind) };

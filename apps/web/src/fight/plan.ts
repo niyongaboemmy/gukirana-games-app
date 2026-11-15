@@ -215,23 +215,28 @@ export const BOXING_AISLES: number[] = [
 /* ---------------------------------------------------------------- the building (local door frame) ---------------------------------------------------------------- */
 
 /**
- * The building in its plaza door frame (door centre at the origin, +z towards the plaza): the lobby wing behind the
- * door line, the Boxing hall behind the lobby, back corners chamfered to stay inside the ring road (r ≤ 156).
- * `lz(z)` maps a room's z to the door frame's local z.
+ * The building in its plaza door frame (door centre at the origin, +z towards the plaza). Since P2-WLD-14 (Fight
+ * Games on the plaza, docs/CAMPUS-MASTER-PLAN.md §8) the door is on the plaza's own door ring at 88°: the lobby is
+ * the entrance pavilion on the ring, and the Boxing hall's body runs straight back from it, away from the plaza
+ * (a 30.8 m wide, 94 m long slab, its back corners chamfered). The exterior hall is the interior turned a quarter
+ * (hall x → depth behind the pavilion, hall z → across): the 94 m hall would not fit across the inner ring between
+ * the Ludo Lounge and the service pavilion. Inside nothing changes (the scenes and the rings are hall-local; nobody
+ * sees the inside and the outside at once). `lz(z)` maps a room's z to the door frame's local z.
  */
 export const FIGHT_DOOR_INSET = -0.8;
 export const FIGHT_WALL = 0.4;
 /** lobby z → door-frame z (the lobby's south wall is the door line) */
 export const lobbyLz = (z: number) => z - LOBBY_SIZE.d / 2 + FIGHT_DOOR_INSET;
-/** the hall's south wall is the lobby's back wall (one wall thickness further in) */
+/** the hall's front (plaza side) wall is the lobby's back wall (one wall thickness further in) */
 export const HALL_FRONT_LZ = lobbyLz(LOBBY_BACK_Z) - FIGHT_WALL;
-export const hallLz = (z: number) => z - BOXING_SIZE.d / 2 + HALL_FRONT_LZ;
+/** a Boxing hall point (x along its 93 m, z across its 30 m) → door-frame local point of the exterior volume */
+export const hallLocal = (x: number, z: number) => ({ lx: -z, lz: HALL_FRONT_LZ - (x + BOXING_SIZE.w / 2) });
 /** lobby ↔ hall through the Boxing door: same x, z shifted by the room offsets */
 export const LOBBY_TO_HALL_DZ = BOXING_SIZE.d / 2 - LOBBY_BACK_Z;
 export const FIGHT_BUILDING = (() => {
-  const hw = BOXING_SIZE.w / 2 + FIGHT_WALL;
-  const front = HALL_FRONT_LZ + FIGHT_WALL; // outside face of the hall's south wall
-  const back = hallLz(-BOXING_SIZE.d / 2) - FIGHT_WALL;
+  const hw = BOXING_SIZE.d / 2 + FIGHT_WALL; // the slab's half-width: the hall's 30 m across (= the lobby's 30 m)
+  const front = HALL_FRONT_LZ + FIGHT_WALL; // outside face of the hall's front wall (over the lobby roof)
+  const back = HALL_FRONT_LZ - BOXING_SIZE.w - FIGHT_WALL; // outside face of the back wall, 94 m further out
   const lobbyHw = LOBBY_SIZE.w / 2 + FIGHT_WALL;
   return { hw, front, back, lobbyHw, lobbyFront: 0.4, chamfer: 3.6, H: BOXING_SIZE.h + 1.2, lobbyH: 6.4 };
 })();

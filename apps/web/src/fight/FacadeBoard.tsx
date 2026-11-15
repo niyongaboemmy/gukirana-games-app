@@ -2,7 +2,7 @@
 import { Text } from "@react-three/drei";
 import { PORTALS, portalTransform } from "@/world/layout";
 import { useFightBridge } from "./bridge";
-import { LIVE_BOARD, SIGN } from "./exterior";
+import { LIVE_BOARD, ROOF_SIGN, SIGN } from "./exterior";
 import { FIGHT_BUILDING } from "./plan";
 import { ringCounts } from "./rings";
 import { F } from "./strings";
@@ -11,7 +11,8 @@ const FONT = "/fonts/Baloo2.ttf";
 
 /**
  * The Fight hall facade's lit parts (plan §4.1, P3-FGT-03), in the building's door frame (portalTransform: moving the
- * building moves them with it): the "FIGHT GAMES" letters on the sign over the lobby roof, and the live board on the
+ * building moves them with it): the "FIGHT GAMES" letters on the sign over the lobby roof and on the rooftop light box
+ * (P2-WLD-14), and the live board on the
  * left wing — the sport, the live fights and the free rings ("Boxing · Open / 12 fights on now / 30 rings free").
  */
 export function FightFacadeBoard() {
@@ -26,6 +27,15 @@ export function FightFacadeBoard() {
         {F.hall.toUpperCase()}
         <meshBasicMaterial color={[1.9, 1.85, 1.78]} toneMapped={false} />
       </Text>
+      {/* the rooftop light box over the pavilion, turned towards the arrival (P2-WLD-14): both faces */}
+      <group position={[ROOF_SIGN.x, ROOF_SIGN.y, ROOF_SIGN.z]} rotation-y={ROOF_SIGN.rotY}>
+        {[0, Math.PI].map((face) => (
+          <Text key={face} rotation-y={face} font={FONT} fontSize={1.05} position={[Math.sin(face) * 0.19, 0.04, Math.cos(face) * 0.19]} anchorX="center" anchorY="middle" letterSpacing={0.06}>
+            {F.hall.toUpperCase()}
+            <meshBasicMaterial color={[2.2, 0.55, 0.45]} toneMapped={false} />
+          </Text>
+        ))}
+      </group>
       <group position={[B.x, B.y, B.z]}>
         <mesh>
           <planeGeometry args={[B.w, B.h]} />

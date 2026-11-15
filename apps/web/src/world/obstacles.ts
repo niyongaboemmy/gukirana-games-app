@@ -156,7 +156,7 @@ export function freePoint(p: { x: number; z: number }, list: Obstacle[]): { x: n
 function cameraBlocked(x: number, y: number, z: number, list: Obstacle[]): boolean {
   // the buildings stand on the ring beyond the plaza edge (except the open sky over the avenue / gate)
   const r = Math.hypot(x, z);
-  // the Fight walk (P3-FGT-01) runs over open lawn: the camera may follow you along it (never into a building)
+  // the campus walks (P2-WLD-12) run over open lawn: the camera may follow you along them (never into a building)
   if (r > DOOR_RING - 0.3 && y < 11 && onCampusWalk(x, z, 6) && !inBuilding(x, z, 0.4)) return false;
   if (r > DOOR_RING - 0.3 && y < 11 && !(Math.abs(x) < 10 && z > PLAZA_RADIUS - 3)) {
     // …except through an open hall door: the lobby behind it is open space (stepping out of a hall, the camera

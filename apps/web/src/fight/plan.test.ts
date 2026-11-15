@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { BOXING_RING_COUNT, FEATURE_RINGS, RING_IDS } from "@gukirana/contracts";
 import { HALLS } from "@/rooms/layouts";
 import { inBuilding, PLOTS } from "@/world/footprints";
-import { EXPANSION_PLOTS, FIGHT_WALK, PLAZA_RADIUS, PORTALS, portalTransform, RING_ROAD } from "@/world/layout";
-import { campusWalkLength, campusWalkRoute, walkDepth } from "@/world/campus";
-import { BOXING_AISLES, BOXING_SIZE, FEATURE_STAGE, FIGHT_BUILDING, hallLz, LOBBY_TO_HALL_DZ, LOBBY_BACK_Z, ringAt, ringPromptDist, RINGS, ringSteps, SUBHALL_DOOR_X } from "./plan";
+import { DOOR_RING, EXPANSION_PLOTS, PLAZA_RADIUS, PORTALS, portalTransform, RING_ROAD, SPAWN } from "@/world/layout";
+import { GATE_LINE_Z } from "@/world/campus";
+import { BOXING_AISLES, BOXING_SIZE, FEATURE_STAGE, FIGHT_BUILDING, hallLocal, LOBBY_TO_HALL_DZ, LOBBY_BACK_Z, ringAt, ringPromptDist, RINGS, ringSteps, SUBHALL_DOOR_X } from "./plan";
 import { boxingRoute, boxingWalkable } from "./hooks";
 
 /** world point of a door-frame local point of the Fight hall */
@@ -16,15 +16,15 @@ function world(lx: number, lz: number) {
   return { x: t.x + lx * c + lz * s, z: t.z - lx * s + lz * c };
 }
 
-describe("Fight Games site (P3-FGT-01 §4.1)", () => {
-  it("merges plots 07 + 08 into the Fight hall at 80° on the expansion ring (east district, P2-WLD-12)", () => {
+describe("Fight Games site (P3-FGT-01 §4.1, on the plaza since P2-WLD-14)", () => {
+  it("stands on the +88° plaza plot: its door on the plaza's door ring, the expansion plots 07–10 stay merged away", () => {
     for (const id of ["plot-07", "plot-08", "plot-09", "plot-10"]) expect(EXPANSION_PLOTS.map((e) => e.id)).not.toContain(id);
     const plot = PLOTS.find((p) => p.id === "fight")!;
-    expect(plot.angleDeg).toBe(80);
-    expect(plot.ring).toBe(108);
+    expect(plot.angleDeg).toBe(88);
+    expect(plot.ring).toBe(DOOR_RING);
   });
 
-  it("keeps the whole (chamfered) building inside r ≤ 156, clear of the ring road", () => {
+  it("keeps the whole (chamfered) building clear of the loop road and north of the gate line", () => {
     const f = FIGHT_BUILDING;
     const outline: [number, number][] = [
       [-f.hw, f.front],
@@ -36,53 +36,40 @@ describe("Fight Games site (P3-FGT-01 §4.1)", () => {
     ];
     for (const [lx, lz] of outline) {
       const p = world(lx, lz);
-      expect(Math.hypot(p.x, p.z)).toBeLessThanOrEqual(156);
-      expect(Math.hypot(p.x, p.z)).toBeLessThan(RING_ROAD.r0);
+      expect(Math.hypot(p.x, p.z)).toBeLessThan(RING_ROAD.r0 - 8);
+      expect(p.z).toBeLessThan(GATE_LINE_Z - 30);
     }
   });
 
-  it("the hall interior (rings) sits inside the chamfered shell", () => {
+  it("the hall interior (rings) sits inside the chamfered shell, turned a quarter (its 93 m running out from the plaza)", () => {
     const f = FIGHT_BUILDING;
-    for (const r of RINGS) {
+    expect(f.hw).toBeGreaterThanOrEqual(BOXING_SIZE.d / 2 + 0.4);
+    expect(f.front - f.back).toBeGreaterThanOrEqual(BOXING_SIZE.w + 0.8);
+    for (const r of RINGS)
       for (const [sx, sz] of <[number, number][]>[
         [-1, -1],
         [1, -1],
+        [-1, 1],
+        [1, 1],
       ]) {
-        const lx = Math.abs(r.x + sx * r.half);
-        const lz = hallLz(r.z + sz * r.half);
-        expect(lx).toBeLessThan(f.hw - 0.4);
-        // inside the chamfer line x + |z| ≤ hw + |back| − chamfer (less the wall)
-        expect(lx + Math.abs(lz)).toBeLessThan(f.hw + Math.abs(f.back) - f.chamfer - 0.4);
+        const { lx, lz } = hallLocal(r.x + sx * r.half, r.z + sz * r.half);
+        expect(Math.abs(lx)).toBeLessThan(f.hw - 0.4);
+        expect(lz).toBeLessThan(f.front - 0.4);
+        // inside the chamfer line |x| + |z − back| ≥ chamfer (less the wall)
+        expect(f.hw - Math.abs(lx) + (lz - f.back)).toBeGreaterThan(f.chamfer + 0.4);
       }
-    }
   });
 
-  it("the Fight walk runs over open ground (no building within 0.4 m of it), from the plaza to the door", () => {
-    for (const l of FIGHT_WALK)
-      for (let t = 0; t <= 1; t += 0.02) {
-        const x = l.a.x + (l.b.x - l.a.x) * t;
-        const z = l.a.z + (l.b.z - l.a.z) * t;
-        const nx = -(l.b.z - l.a.z);
-        const nz = l.b.x - l.a.x;
-        const n = Math.hypot(nx, nz);
-        for (const k of [-1, 0, 1]) {
-          const px = x + (nx / n) * k * l.hw;
-          const pz = z + (nz / n) * k * l.hw;
-          // the last metres reach into the Fight hall's own forecourt / door
-          if (Math.hypot(px, pz) > 104) continue;
-          expect(inBuilding(px, pz, 0.4), `walk at ${px.toFixed(1)},${pz.toFixed(1)}`).toBe(false);
-        }
-      }
-    // every leg is walkable ground of the campus walks, the door at the end of it
-    for (const l of FIGHT_WALK) for (const t of [0, 0.5, 1]) expect(walkDepth(l.a.x + (l.b.x - l.a.x) * t, l.a.z + (l.b.z - l.a.z) * t).depth).toBeGreaterThan(l.hw - 0.05);
+  it("the door is on the plaza: the doorstep is plaza ground, ≤ 25 s from the spawn at the normal pace (2.2 m/s)", () => {
     const door = portalTransform(fightPortal);
-    expect(walkDepth(door.entryX, door.entryZ).depth).toBeGreaterThan(1);
-    // the routed walk from the plaza edge to the door: well within a minute at the normal pace (2.2 m/s)
-    const start = FIGHT_WALK[0]!.a;
-    expect(Math.hypot(start.x, start.z)).toBeLessThan(PLAZA_RADIUS);
-    const route = campusWalkRoute(start, { x: door.entryX, z: door.entryZ });
-    expect(route[route.length - 1]).toEqual({ x: door.entryX, z: door.entryZ });
-    expect(campusWalkLength(start, { x: door.entryX, z: door.entryZ }) / 2.2).toBeLessThan(60);
+    expect(Math.hypot(door.entryX, door.entryZ)).toBeLessThan(PLAZA_RADIUS);
+    expect(Math.hypot(door.entryX - SPAWN.x, door.entryZ - SPAWN.z) / 2.2).toBeLessThanOrEqual(25);
+    // the building front is clear of the plaza's walkable disc except its doorway
+    for (let lx = -FIGHT_BUILDING.lobbyHw; lx <= FIGHT_BUILDING.lobbyHw; lx += 0.5) {
+      const q = world(lx, 0.4);
+      expect(Math.hypot(q.x, q.z)).toBeGreaterThan(PLAZA_RADIUS - 0.6);
+      expect(inBuilding(world(lx, -1).x, world(lx, -1).z)).toBe(true);
+    }
   });
 });
 

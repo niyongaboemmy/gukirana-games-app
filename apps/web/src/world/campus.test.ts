@@ -13,9 +13,8 @@ import {
   compoundR,
   COMPOUND,
   DISTRICT_WALKS,
-  FIGHT_GATEWAY,
+  ADMIN_SITE_DEG,
   FIGHT_SITE_DEG,
-  FIGHT_WALK_LIGHTS,
   WALK_TOTEMS,
   FORECOURT,
   FRONTAGE_Z,
@@ -78,11 +77,14 @@ describe("campus master plan (P2-WLD-12)", () => {
     expect(SPAWN.z).toBeLessThan(PLAZA_RADIUS);
   });
 
-  it("the Fight Games hall stands in the east district, its walk part of the campus walks", () => {
+  it("Fight Games has the +88° plaza plot, the Administrative Block the north-east district on the walks (P2-WLD-14)", () => {
     const fight = PLOTS.find((p) => p.id === "fight")!;
     expect(fight.angleDeg).toBe(FIGHT_SITE_DEG);
-    expect(fight.ring).toBe(EXPANSION_RING);
-    expect(CAMPUS_WALKS.doors.fight).toBeDefined();
+    expect(fight.ring).toBe(DOOR_RING);
+    const admin = PLOTS.find((p) => p.id === "admin")!;
+    expect(admin.angleDeg).toBe(ADMIN_SITE_DEG);
+    expect(admin.ring).toBe(EXPANSION_RING);
+    expect(CAMPUS_WALKS.doors.admin).toBeDefined();
   });
 
   it("builds nothing but the frontage south of the gate line", () => {
@@ -209,47 +211,44 @@ describe("campus master plan (P2-WLD-12)", () => {
   });
 });
 
-describe("easy access to every hall (P2-WLD-13 access review)", () => {
+describe("easy access to every hall (P2-WLD-13 access review, P2-WLD-14 Fight Games on the plaza)", () => {
   const doorOf = (id: string): P => {
     const t = portalTransform(PORTALS.find((p) => p.id === id)!);
     return { x: t.entryX, z: t.entryZ };
   };
-  const fightExit = CAMPUS_WALKS.nodes[CAMPUS_WALKS.exits[DISTRICT_WALKS.filter((w) => w.exit).findIndex((w) => w.id === "fight")]!]!;
 
-  it("the Fight Games door is ≤ 45 s at the normal pace (2.2 m/s) from its plaza exit, on a direct walk", () => {
+  it("the Fight Games door is on the plaza, ≤ 25 s at the normal pace (2.2 m/s) from the spawn", () => {
     const door = doorOf("fight");
-    const len = campusWalkLength(fightExit, door);
-    expect(len / 2.2).toBeLessThanOrEqual(45);
-    // no detour: at most 5 % longer than the straight line from the plaza exit
-    expect(len).toBeLessThan(1.05 * Math.hypot(door.x - fightExit.x, door.z - fightExit.z));
-    // from the arrival spawn, across the plaza and along the walk: ≤ 135 m (≈ 35 s on the Go To auto-jog)
-    expect(campusWalkLength(SPAWN, door)).toBeLessThanOrEqual(135);
-    // the Fight walk is the campus's main walk: the widest district walk
-    const fight = DISTRICT_WALKS.find((w) => w.id === "fight")!;
-    for (const w of DISTRICT_WALKS) expect(fight.hw).toBeGreaterThanOrEqual(w.hw);
+    expect(Math.hypot(door.x, door.z)).toBeLessThan(PLAZA_RADIUS);
+    // straight across the plaza (no walk network needed): the routed plaza walk is checked in footprints.test.ts
+    expect(Math.hypot(door.x - SPAWN.x, door.z - SPAWN.z) / 2.2).toBeLessThanOrEqual(25);
+    // among the nearest playable doors to the spawn: only the small pavilions by the gate are closer
+    const near = PORTALS.filter((p) => p.href && p.kind !== "soon" && p.id !== "fight").map((p) => Math.hypot(doorOf(p.id).x - SPAWN.x, doorOf(p.id).z - SPAWN.z));
+    for (const d of near) expect(Math.hypot(door.x - SPAWN.x, door.z - SPAWN.z)).toBeLessThanOrEqual(d + 0.5);
+  });
+
+  it("the Fight Games facade faces the arrival: in view of the spawn's camera, nothing tall in between", () => {
+    const t = portalTransform(PORTALS.find((p) => p.id === "fight")!);
+    const cam = { x: SPAWN.x, z: SPAWN.z + 9 };
+    // the facade's north half is within the 16:9 follow camera's ±45° (facing north at the spawn)
+    const north = { x: t.x + Math.cos(t.rotY) * -12, z: t.z - Math.sin(t.rotY) * -12 };
+    expect(Math.abs(bearing({ x: north.x - cam.x, z: north.z - cam.z }))).toBeLessThan(45);
+    // the sight line from the camera to the door crosses no building (the plaza is open between)
+    for (let k = 0.05; k < 0.97; k += 0.02) expect(inBuilding(cam.x + (t.x - cam.x) * k, cam.z + (t.z - cam.z) * k)).toBe(false);
   });
 
   it("every inner hall door is ≤ 75 m from the spawn (≤ 35 s at the normal pace)", () => {
     for (const p of PORTALS.filter((q) => !q.ring)) expect(Math.hypot(doorOf(p.id).x - SPAWN.x, doorOf(p.id).z - SPAWN.z), p.id).toBeLessThanOrEqual(75);
   });
 
-  it("the gateway arch and the walk lights stand beside the Fight walk, clear of every building", () => {
-    const g = FIGHT_GATEWAY;
-    expect(walkDepth(g.x, g.z).depth).toBeGreaterThan(1.5);
-    expect(Math.hypot(g.x, g.z)).toBeGreaterThan(PERIMETER_R);
-    for (const s of [-1, 1]) {
-      const x = g.x + Math.cos(g.rotY) * s * g.span;
-      const z = g.z - Math.sin(g.rotY) * s * g.span;
-      expect(inBuilding(x, z, 0.5), `arch post ${s}`).toBe(false);
-      expect(walkDepth(x, z).depth).toBeLessThan(0);
-    }
-    expect(FIGHT_WALK_LIGHTS.length).toBeGreaterThan(10);
-    for (const q of FIGHT_WALK_LIGHTS) expect(inBuilding(q.x, q.z, 0.3)).toBe(false);
+  it("the Administrative Block (staff offices, outer ring) is ≤ 75 s from the spawn over the walks", () => {
+    expect(campusWalkLength(SPAWN, doorOf("admin")) / 2.2).toBeLessThanOrEqual(75);
   });
 
-  it("the totems at the Fight walk's plaza exit and fork list the Fight Games hall first", () => {
-    const near = WALK_TOTEMS.filter((t) => Math.hypot(t.x - fightExit.x, t.z - fightExit.z) < 30);
-    expect(near.length).toBeGreaterThanOrEqual(2);
-    for (const t of near) expect(t.rows[0]!.id).toBe("fight");
+  it("the totem at the north-east walk's plaza exit lists the Administrative Block", () => {
+    const ne = CAMPUS_WALKS.nodes[CAMPUS_WALKS.exits[DISTRICT_WALKS.filter((w) => w.exit).findIndex((w) => w.id === "northEast")]!]!;
+    const near = WALK_TOTEMS.filter((t) => Math.hypot(t.x - ne.x, t.z - ne.z) < 12);
+    expect(near.length).toBeGreaterThanOrEqual(1);
+    for (const t of near) expect(t.rows.map((r) => r.id)).toContain("admin");
   });
 });

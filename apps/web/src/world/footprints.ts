@@ -90,8 +90,9 @@ export const FOOTPRINTS = {
       return { x0: -hw, x1: hw, z0: za, z1: zb };
     }),
   ],
-  // Fight Games hall (P3-FGT-01): the lobby wing behind the door + the 93 × 30 m Boxing hall behind it (a T-plan),
-  // its back corners chamfered (approximated by narrowing bands) to keep inside the ring road
+  // Fight Games (P3-FGT-01, on the plaza since P2-WLD-14): the lobby pavilion behind the door + the Boxing hall's
+  // 94 m body running straight back from it (fight/plan.ts FIGHT_BUILDING), its back corners chamfered
+  // (approximated by narrowing bands)
   fight: (() => {
     const f = FIGHT_BUILDING;
     const out: Rect[] = [

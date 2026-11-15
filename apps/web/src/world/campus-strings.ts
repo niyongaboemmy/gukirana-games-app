@@ -26,9 +26,6 @@ export const SITE = {
     view: "Volcano view",
   },
   plaza: "Plaza",
-  /** the gateway arch over the Fight Games walk (P2-WLD-13), `campus.site.fightGateway*` */
-  fightGateway: "FIGHT GAMES",
-  fightGatewaySub: (m: number, s: number) => `${m} m · ${s} s walk`,
   plot: (n: number) => `Hall plot ${n}`,
   /** a wayfinding row: metres and walking time */
   walk: (m: number, s: number) => `${m} m · ${s < 60 ? `${s} s` : `${Math.round(s / 60)} min`}`,

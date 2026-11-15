@@ -7,7 +7,8 @@ import { CAMPUS_WALKS_ON, campusWalkRoute, DISTRICTS, PROMENADE_R, type District
  * Change what players are guided to here (order, featured items, the first-visit guide) — the HUD (hud/GoToModal),
  * the route guide (world/GoToGuide) and the tests read nothing else. Pure data + route geometry (no React, no three.js).
  *
- *  - halls: every hall door on the plaza ring and the outer-ring halls (the Fight Games hall); `portal` links the
+ *  - halls: every hall door on the plaza ring (Fight Games at 88°) and the outer-ring halls (the Administrative Block
+ *    since P2-WLD-14); `portal` links the
  *    door so the status (open / closed by staff / opening soon) comes from the buildings API (world/door-access.ts);
  *  - places: the plaza fountain, the main gate, the help desk and café, the districts (promenade junctions).
  *
@@ -64,11 +65,11 @@ const places: Destination[] = [
   { id: "plaza", group: "places", label: "plaza", stop: { x: 0, z: FOUNTAIN_COURT + 1.2 }, focus: { x: 0, z: 0 } },
   { id: "gate", group: "places", label: "gate", stop: { x: 0, z: ENTRY_Z - 4.2 }, focus: { x: 0, z: ENTRY_Z + 16.5 } },
   { id: "help", group: "places", label: "help", stop: pt(SERVICE_ANGLE, PLAZA_RADIUS - 1.6), focus: pt(SERVICE_ANGLE, DOOR_RING + 3) },
-  // districts: the junction of their walk with the outer promenade (the volcano view: the promenade behind the arena)
+  // districts: the junction of their walk with the outer promenade (the volcano view: the promenade behind the arena;
+  // the east district is the Fight Games building since P2-WLD-14, reached from the plaza: no promenade junction)
   ...(
     [
-      ["northEast", 50],
-      ["east", 115],
+      ["northEast", 57],
       ["view", 0],
       ["northWest", -52],
       ["west", -115],

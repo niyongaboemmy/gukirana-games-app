@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { nearCampusWalk, PROMENADE_DEG } from "./campus";
+import { nearCampusWalk, PROMENADE_DEG, PROMENADE_EAST_DEG } from "./campus";
 import { GeoBatch } from "./geo";
 import { roofKit, roofMembrane } from "./roofs";
 import { LAMPS } from "./obstacles";
@@ -26,7 +26,7 @@ import {
   OUTER_PROMENADE,
   WAYFINDING,
   wayfindingRows,
-  FIGHT_ANGLE,
+  ringOf,
   type PortalDef,
 } from "./layout";
 
@@ -207,7 +207,7 @@ function ludoLounge(b: GeoBatch) {
 }
 
 /**
- * Administrative Block (P2-ADM-02, +88° hall plot): a restrained civic office building. Honed limestone entrance
+ * Administrative Block (P2-ADM-02; on the +88° plaza plot until P2-WLD-14, now the north-east district): a restrained civic office building. Honed limestone entrance
  * wing with a full-height glass curtain wall set back behind a deep stone frame, a thin cantilevered canopy over the
  * door, a lettered stone fascia ("ADMINISTRATIVE BLOCK", Plaza.tsx) and three flagpoles; the office floor behind
  * is a limestone volume with bronze fins and ribbon glazing. Door line at z = −1.6 (layout.ts doorInset).
@@ -756,9 +756,10 @@ function plaza(b: GeoBatch, tier: string) {
     b.box("lava", 3.6, 0.8, 0.6, { p: [p.x, 0.4, p.z], r: [0, p.rotY, 0], tile: 1.2 });
   }
   // expansion district: the outer promenade ring (honed granite between basalt kerbs), served by the main avenue
-  // (P2-WLD-12: kept only north of the gate line, bearings ±PROMENADE_DEG; ring angle θ = 90° − bearing)
-  const t0 = ((90 - PROMENADE_DEG) * Math.PI) / 180;
-  const tl = (2 * PROMENADE_DEG * Math.PI) / 180;
+  // (P2-WLD-12: kept only north of the gate line; P2-WLD-14: it ends at the Boxing hall's body in the east, bearings
+  // −PROMENADE_DEG … +PROMENADE_EAST_DEG; ring angle θ = 90° − bearing)
+  const t0 = ((90 - PROMENADE_EAST_DEG) * Math.PI) / 180;
+  const tl = ((PROMENADE_DEG + PROMENADE_EAST_DEG) * Math.PI) / 180;
   b.add("granite", flat(new THREE.RingGeometry(OUTER_PROMENADE.r0, OUTER_PROMENADE.r1, 160, 1, t0, tl)), { p: [0, 0.008, 0], tile: 4.8 });
   for (const r of [OUTER_PROMENADE.r0, OUTER_PROMENADE.r1]) b.add("basalt", flat(new THREE.RingGeometry(r - 0.1, r + 0.1, 160, 1, t0, tl)), { p: [0, 0.012, 0], tile: 1.2 });
   // a forecourt in front of every expansion plot
@@ -766,9 +767,10 @@ function plaza(b: GeoBatch, tier: string) {
     const m = ringPoint(e.angleDeg, (OUTER_PROMENADE.r1 + EXPANSION_RING) / 2 + 0.3);
     b.box("granite", 16, 0.02, EXPANSION_RING - OUTER_PROMENADE.r1 + 1.2, { p: [m.x, 0.007, m.z], r: [0, m.rotY, 0], tile: 4.8 });
   }
-  {
-    const m = ringPoint(FIGHT_ANGLE, (OUTER_PROMENADE.r1 + EXPANSION_RING) / 2 + 0.3);
-    b.box("granite", 34, 0.02, EXPANSION_RING - OUTER_PROMENADE.r1 + 1.2, { p: [m.x, 0.007, m.z], r: [0, m.rotY, 0], tile: 4.8 });
+  // …and in front of the outer-ring halls (the Administrative Block, P2-WLD-14)
+  for (const p of PORTALS.filter((q) => ringOf(q) === EXPANSION_RING)) {
+    const m = ringPoint(p.angleDeg, (OUTER_PROMENADE.r1 + EXPANSION_RING) / 2 + 0.3);
+    b.box("granite", 18, 0.02, EXPANSION_RING - OUTER_PROMENADE.r1 + 1.2, { p: [m.x, 0.007, m.z], r: [0, m.rotY, 0], tile: 4.8 });
   }
   // the 16.5 m avenue from the plaza entry gate to the arrival gate (P2-WLD-12: it ends there; the ring road gave way
   // to the campus loop road and the frontage, world/CampusRoads.tsx and Frontage.tsx)

@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { selfPose } from "@/lib/world-store";
 import { uiAudio } from "@/lib/audio";
 import { isOnScreen, useArea } from "./stage";
-import { DOOR_RING, PORTALS, ringPoint } from "./layout";
+import { DOOR_RING, PORTALS, ringOf, ringPoint } from "./layout";
 import { ADMIN_FLAGPOLES, ADMIN_FLAG_Z } from "./District";
 import type { Tier } from "./materials";
 import { useGamePrefs } from "@/games/feedback";
@@ -353,7 +353,7 @@ function AdminFlags({ tier }: { tier: Tier }) {
   const p = PORTALS.find((q) => q.id === "admin");
   const map = useMemo(() => (typeof document === "undefined" ? undefined : rwandaFlag()), []);
   if (!p) return null;
-  const d = ringPoint(p.angleDeg, DOOR_RING);
+  const d = ringPoint(p.angleDeg, ringOf(p));
   return (
     <group position={[d.x, 0, d.z]} rotation={[0, d.rotY, 0]}>
       {ADMIN_FLAGPOLES.map((x, i) => (
