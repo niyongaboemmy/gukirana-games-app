@@ -41,6 +41,7 @@ export function LobbyScene({ layout, lite }: { layout: HallLayout; lite: boolean
       <LobbyShell layout={layout} />
       <CeilingLights />
       <Portals />
+      <BoxingWay />
       <StatusBoard />
       <group userData={{ noMerge: true }}>
         <PassageDoor />
@@ -49,6 +50,51 @@ export function LobbyScene({ layout, lite }: { layout: HallLayout; lite: boolean
         <LiveCount />
         <SubhallSensor />
       </group>
+    </group>
+  );
+}
+
+/**
+ * The way to the Boxing hall (P2-WLD-13): a line of lit chevrons inlaid in the floor from the plaza door, past the
+ * benches, to the Boxing doorway (one shared geometry + material: merged into the lobby's static batch).
+ */
+function BoxingWay() {
+  const parts = useMemo(() => {
+    const s = new THREE.Shape();
+    s.moveTo(-0.3, -0.14);
+    s.lineTo(0, 0.14);
+    s.lineTo(0.3, -0.14);
+    s.lineTo(0.3, -0.02);
+    s.lineTo(0, 0.26);
+    s.lineTo(-0.3, -0.02);
+    s.closePath();
+    return {
+      geo: new THREE.ShapeGeometry(s).rotateX(-Math.PI / 2).rotateY(Math.PI),
+      mat: new THREE.MeshBasicMaterial({ color: "#e0453a", toneMapped: false }),
+    };
+  }, []);
+  useEffect(() => () => (parts.geo.dispose(), parts.mat.dispose()), [parts]);
+  const marks = useMemo(() => {
+    const bx = SUBHALL_DOOR_X.boxing;
+    const pts = [
+      { x: 0, z: LOBBY_SIZE.d / 2 - 1.6 },
+      { x: bx, z: 0.9 },
+      { x: bx, z: LOBBY_BACK_Z + 0.5 },
+    ];
+    const out: { x: number; z: number; rot: number }[] = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i]!;
+      const b = pts[i + 1]!;
+      const L = Math.hypot(b.x - a.x, b.z - a.z);
+      for (let s = i ? 0.6 : 0; s < L - 0.3; s += 0.85) out.push({ x: a.x + ((b.x - a.x) * s) / L, z: a.z + ((b.z - a.z) * s) / L, rot: Math.atan2(b.x - a.x, b.z - a.z) });
+    }
+    return out;
+  }, []);
+  return (
+    <group name="boxing-way">
+      {marks.map((m, i) => (
+        <mesh key={i} geometry={parts.geo} material={parts.mat} position={[m.x, 0.006, m.z]} rotation={[0, m.rot, 0]} />
+      ))}
     </group>
   );
 }
