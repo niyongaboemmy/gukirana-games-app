@@ -1,0 +1,12 @@
+{
+ "desktop": {
+  "calls": 34,
+  "tris": 73320,
+  "fps": 60
+ },
+ "phone": {
+  "calls": 34,
+  "tris": 73320,
+  "fps": 60
+ }
+}

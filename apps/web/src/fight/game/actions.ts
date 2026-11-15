@@ -7,6 +7,7 @@ import { useFightBridge } from "../bridge";
 import { ASSIST_MAX_LEVEL, PracticeRunner, PracticeSession } from "./practice";
 import { practiceHz, useFightPrefs } from "./prefs";
 import { useFightUi, type PressFx } from "./ui-store";
+import { useFightRating } from "./rating";
 
 /**
  * The boxing game side of the ring prompts (FIGHT-GAMES-PLAN §7.2, §12 Do 5). W's prompts call these (through the
@@ -102,7 +103,7 @@ export function stopPractice(clear = true): void {
 }
 export const practiceSession = (): PracticeSession | null => session;
 // dev QA handle: script practice states (knockdowns, endings) for screenshots
-if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") Object.assign(window as unknown as Record<string, unknown>, { __gkPractice: { session: () => session, input: () => fightInput } });
+if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") Object.assign(window as unknown as Record<string, unknown>, { __gkPractice: { session: () => session, input: () => fightInput, stores: { bridge: useFightBridge, ui: useFightUi, rating: useFightRating } } });
 
 /* ------------------------------------------------------------ the corner refresh (P3-FGT-09) ------------------------------------------------------------ */
 

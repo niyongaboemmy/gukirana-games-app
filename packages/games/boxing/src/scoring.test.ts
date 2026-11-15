@@ -439,7 +439,7 @@ function fight(seed: number, rules: FightRules, swap: boolean, staked: boolean) 
 }
 
 describe("scoring — properties (10k seeded fights)", () => {
-  it("valid cards, deductions once, totals = sums, decision matches the cards, DQ only after the ladder", () => {
+  it("valid cards, deductions once, totals = sums, decision matches the cards, DQ only after the ladder", async () => {
     const rules: FightRules = {
       rounds: 2,
       roundSeconds: 30,
@@ -451,6 +451,8 @@ describe("scoring — properties (10k seeded fights)", () => {
     const sr = scoringRulesOf(rules);
     const seen = new Set<string>();
     for (let seed = 1; seed <= 10_000; seed++) {
+      // long loop: yield now and then so the test worker stays responsive under load (vitest RPC timeout)
+      if (seed % 250 === 0) await new Promise((r) => setTimeout(r, 0));
       const { s } = fight(seed, { ...rules, judges: seed % 2 ? 5 : 3 }, false, seed % 3 === 0);
       const o = s.outcome!;
       const j = seed % 2 ? 5 : 3;

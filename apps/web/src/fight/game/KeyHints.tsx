@@ -34,26 +34,19 @@ export function KeyHints() {
   return (
     <div className="pointer-events-auto absolute bottom-2 left-1/2 -translate-x-1/2 phone:hidden" data-key-hints>
       {open ? (
-        <div className="glass flex items-start gap-3 rounded-card px-3 py-1.5 text-[11px] text-white">
-          {GROUPS.map((g) => (
-            <div key={g.title} className="flex flex-col gap-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-wide opacity-70">{ft(g.title)}</span>
-              <div className="flex flex-wrap gap-1">
-                {g.keys.map((a) => (
-                  <span key={a} className={`flex items-center gap-1 rounded px-1 ${lit(a) ? "bg-white/25" : ""}`} title={ft(actionKey(a))}>
-                    <span className="kbd px-1 text-[10px]">{keyLabel(boundKey(keys, a))}</span>
-                    <span className="opacity-90">{ft(actionKey(a))}</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
-          <div className="flex flex-col items-end gap-1 self-stretch">
-            <span className="max-w-44 text-right text-[10px] opacity-80">{ft("keys.pivot")}</span>
-            <button type="button" className="text-[10px] underline opacity-80" onClick={() => setOpen(false)}>
-              {ft("keys.hide")}
-            </button>
-          </div>
+        <div className="glass flex max-w-[min(1000px,96vw)] flex-wrap items-center justify-center gap-x-2.5 gap-y-0.5 rounded-full px-3 py-1 text-[10px] text-white">
+          {GROUPS.map((g) =>
+            g.keys.map((a) => (
+              <span key={a} className={`flex items-center gap-0.5 rounded px-0.5 ${lit(a) ? "bg-white/25" : ""}`} title={ft(actionKey(a))}>
+                <span className="kbd px-1 text-[10px]">{keyLabel(boundKey(keys, a))}</span>
+                <span className="opacity-85">{ft(actionKey(a))}</span>
+              </span>
+            )),
+          )}
+          <span className="opacity-70">{ft("keys.pivot")}</span>
+          <button type="button" className="underline opacity-70" onClick={() => setOpen(false)}>
+            {ft("keys.hide")}
+          </button>
         </div>
       ) : (
         <button type="button" className="glass flex items-center gap-1 rounded-full px-2 py-1 text-[11px] text-white" onClick={() => setOpen(true)}>
