@@ -3,15 +3,15 @@ import { useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Shield } from "lucide-react";
 import type { BoxingAction } from "@gukirana/contracts";
 import { fightInput } from "./actions";
-import { classifyStroke } from "./input-map";
+import { classifyStroke, stickOf, strokeIsBody } from "./input-map";
 import { BUTTON_PX, useFightPrefs } from "./prefs";
 import { actionKey, ft } from "./strings";
 import { useFightUi } from "./ui-store";
 
 /**
  * Phone controls (P3-FGT-05, scheme in input-map.ts): two big thumb zones over the lower screen.
- *  - Left zone (anywhere in it, not only on the circle): hold = guard (or tap to toggle), a swipe ← / → slips, ↑ / ↓
- *    steps in / out. The guard follows the thumb (a "floating" pad): no need to look for it.
+ *  - Left zone (anywhere in it, not only on the circle): a floating stick (P3-FGT-10). Touch = guard up (or tap to
+ *    toggle), drag = walk / circle (the boxer keeps facing the opponent), a quick flick ← / → slips, ↑ / ↓ steps.
  *  - Right zone: four large punch buttons (fire on touch-down, no wait), and strokes anywhere else in the zone: tap =
  *    jab, swipe ↑ = uppercut, across (inward) = hook, out = cross, ↓ = hook to the body.
  * Multi-touch (guard held with the left thumb while the right one punches), every press vibrates a short tick and
@@ -26,7 +26,12 @@ function GuardZone({ size, mirrored }: { size: number; mirrored: boolean }) {
   const [on, setOn] = useState(false);
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
   const [flash, setFlash] = useState<BoxingAction | null>(null);
-  const start = useRef<{ x: number; y: number; id: number; t: number; swiped: boolean } | null>(null);
+  const start = useRef<{ x: number; y: number; id: number; t: number; swiped: boolean; mv: [number, number] } | null>(null);
+  const walk = (s: NonNullable<typeof start.current>, mv: [number, number]) => {
+    if (mv[0] === s.mv[0] && mv[1] === s.mv[1]) return;
+    s.mv = mv;
+    fightInput.move(mv, "touch");
+  };
   const zone = useRef<HTMLDivElement>(null);
   const set = (g: boolean) => {
     setOn(g);
@@ -51,7 +56,7 @@ function GuardZone({ size, mirrored }: { size: number; mirrored: boolean }) {
         if (start.current) return;
         e.currentTarget.setPointerCapture(e.pointerId);
         const r = e.currentTarget.getBoundingClientRect();
-        start.current = { x: e.clientX, y: e.clientY, id: e.pointerId, t: e.timeStamp, swiped: false };
+        start.current = { x: e.clientX, y: e.clientY, id: e.pointerId, t: e.timeStamp, swiped: false, mv: [0, 0] };
         setAt({ x: e.clientX - r.left, y: e.clientY - r.top });
         if (!toggle) {
           tick();
@@ -60,23 +65,28 @@ function GuardZone({ size, mirrored }: { size: number; mirrored: boolean }) {
       }}
       onPointerMove={(e) => {
         const s = start.current;
-        if (!s || s.swiped || s.id !== e.pointerId) return;
-        // a quick flick fires before the thumb lifts (the guard stays held)
+        if (!s || s.id !== e.pointerId) return;
         const dx = e.clientX - s.x;
         const dy = e.clientY - s.y;
-        if (Math.hypot(dx, dy) > 48) swipe(dx, dy, e.timeStamp - s.t, s);
+        const ms = e.timeStamp - s.t;
+        // a quick flick (fast, early) slips / steps once; a slower drag walks
+        if (!s.swiped && ms < 160 && Math.hypot(dx, dy) > 48) return swipe(dx, dy, ms, s);
+        walk(s, stickOf(dx, dy));
       }}
       onPointerUp={(e) => {
         const s = start.current;
         if (!s || s.id !== e.pointerId) return;
         start.current = null;
         setAt(null);
-        if (!s.swiped) swipe(e.clientX - s.x, e.clientY - s.y, e.timeStamp - s.t, s);
+        const walked = s.mv[0] !== 0 || s.mv[1] !== 0;
+        walk(s, [0, 0]);
+        if (!s.swiped && !walked) swipe(e.clientX - s.x, e.clientY - s.y, e.timeStamp - s.t, s);
         if (toggle) {
           if (!s.swiped) set(!on);
         } else set(false);
       }}
       onPointerCancel={() => {
+        if (start.current) walk(start.current, [0, 0]);
         start.current = null;
         setAt(null);
         if (!toggle) set(false);
@@ -104,7 +114,7 @@ function GuardZone({ size, mirrored }: { size: number; mirrored: boolean }) {
       </div>
       {!at && (
         <span className="absolute bottom-1 text-[10px] font-semibold text-white/70" style={mirrored ? { right: 12 } : { left: 12 }}>
-          {ft(toggle ? "action.guardToggleHint" : "action.guardHint")}
+          {toggle ? ft("action.guardToggleHint") : ft("action.stickHint")}
         </span>
       )}
     </div>
@@ -122,11 +132,11 @@ function PunchZone({ size, mirrored }: { size: number; mirrored: boolean }) {
   const strokes = useRef(new Map<number, { x: number; y: number; t: number }>());
   const press = useFightUi((s) => s.press);
   const [lit, setLit] = useState<{ a: BoxingAction; n: number } | null>(null);
-  const fire = (a: BoxingAction) => {
+  const fire = (a: BoxingAction, body = false) => {
     tick();
     setLit({ a, n: Date.now() });
     setTimeout(() => setLit((l) => (l && Date.now() - l.n >= 170 ? null : l)), 190);
-    fightInput.press(a, "touch");
+    fightInput.press(a, "touch", body);
   };
   const gap = Math.round(size * 0.16);
   return (
@@ -142,7 +152,10 @@ function PunchZone({ size, mirrored }: { size: number; mirrored: boolean }) {
         const s = strokes.current.get(e.pointerId);
         strokes.current.delete(e.pointerId);
         if (!s) return;
-        fire(classifyStroke("punch", e.clientX - s.x, e.clientY - s.y, e.timeStamp - s.t, mirrored) ?? "jab");
+        const dx = e.clientX - s.x;
+        const dy = e.clientY - s.y;
+        const a = classifyStroke("punch", dx, dy, e.timeStamp - s.t, mirrored);
+        fire(a ?? "jab", !!a && strokeIsBody(dx, dy));
       }}
       onPointerCancel={(e) => strokes.current.delete(e.pointerId)}
     >

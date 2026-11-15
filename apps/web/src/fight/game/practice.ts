@@ -11,8 +11,9 @@ import {
   beginFight,
   boxingBotInput,
   createFight,
+  fightStatsOf,
   hashFight,
-  PUNCH_SPECS,
+  reachOf,
   isBusy,
   isTooTired,
   snapshotOf,
@@ -37,6 +38,9 @@ export async function practiceHash(state: FightState): Promise<string | null> {
   }
 }
 async function recordPractice(id: string, state: FightState): Promise<void> {
+  // the skill report vs the AI (practice is never rated: no rating line)
+  const [mine, theirs] = fightStatsOf(state);
+  useFightUi.getState().setSkill({ mine, theirs });
   const hash = await practiceHash(state);
   useFightUi.getState().setRecord({ id, hash, kind: "practice" });
 }
@@ -50,6 +54,8 @@ async function recordPractice(id: string, state: FightState): Promise<void> {
  *  - auto-close: a punch pressed out of range first steps in, then throws.
  */
 export const ASSIST_HOLD = 15;
+/** Easy mode is offered only against the first practice levels: it must never flatten the skill ladder (P3-FGT-10) */
+export const ASSIST_MAX_LEVEL = 2;
 export interface AssistPending {
   a: BoxingAction;
   age: number;
@@ -64,7 +70,7 @@ export function assistStep(s: FightState, i: 0 | 1, guardHeld: boolean, pending:
   if (pending) {
     if (pending.age >= ASSIST_HOLD) next = null;
     else if (idle) {
-      const reach = isPunch(pending.a) ? PUNCH_SPECS[pending.a].reach : Infinity;
+      const reach = isPunch(pending.a) ? reachOf(pending.a, false) / 10 : Infinity;
       if (isPunch(pending.a) && s.dist > reach) {
         send = "stepIn";
         next = { a: pending.a, age: pending.age + 1 };
@@ -103,6 +109,10 @@ export class PracticeSession {
   private guard = false;
   private guardSent = false;
   private press: BoxingAction | null = null;
+  private body = false;
+  /** the held footwork direction; sent whenever it changes */
+  private mv: [number, number] = [0, 0];
+  private mvSent: [number, number] = [0, 0];
   /** Easy mode (practice only, P3-FGT-09): see assistStep */
   assist = false;
   private pending: AssistPending | null = null;
@@ -152,7 +162,7 @@ export class PracticeSession {
   }
 
   /** a press from any control (keys, touch, pad). Starts my pose at once (prediction); the engine decides. */
-  pressAction(a: BoxingAction, now = performance.now()): void {
+  pressAction(a: BoxingAction, now = performance.now(), body = false): void {
     if (this.over) return;
     const me = this.state.fighters[0];
     if (isTooTired(me, a)) {
@@ -160,6 +170,7 @@ export class PracticeSession {
       return;
     }
     this.press = a;
+    this.body = body;
     if (this.state.phase === "round" && !isBusy(me)) {
       const mine = useFightBridge.getState().mine;
       if (mine) useFightBridge.setState({ mine: { ...mine, predicted: { act: a, at: now } } });
@@ -175,6 +186,10 @@ export class PracticeSession {
     const [me, ai] = this.state.fighters;
     this.state = { ...this.state, fighters: [{ ...me, stamina: Math.min(1000, me.stamina + Math.max(0, Math.trunc(stamina))) }, ai] };
     this.publish([]);
+  }
+
+  setMove(mv: [number, number]): void {
+    this.mv = mv;
   }
 
   setGuard(g: boolean): void {
@@ -201,10 +216,13 @@ export class PracticeSession {
       guard = st.guard;
       this.pending = st.pending;
     }
-    if (press || guard !== this.guardSent) {
-      mine = press ? { seq: this.seq++, a: press, g: guard } : { seq: this.seq++, g: guard };
+    const mvChanged = this.mv[0] !== this.mvSent[0] || this.mv[1] !== this.mvSent[1];
+    if (press || guard !== this.guardSent || mvChanged) {
+      mine = { seq: this.seq++, g: guard, ...(mvChanged ? { mv: this.mv } : {}), ...(press ? { a: press } : {}), ...(press && this.body ? { b: true } : {}) };
       this.press = null;
+      this.body = false;
       this.guardSent = guard;
+      this.mvSent = this.mv;
     }
     const bot = boxingBotInput(this.state, 1, this.level, this.rng);
     this.state = stepFight(this.state, [mine, bot]);

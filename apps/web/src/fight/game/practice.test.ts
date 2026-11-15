@@ -62,11 +62,11 @@ describe("Easy mode (practice only)", () => {
     expect(assistStep(incoming, 0, true, null).guard).toBe(true);
   });
   it("steps in for a punch pressed out of range, then throws it; a busy press waits, then expires", () => {
-    const far = { ...base(), dist: PUNCH_SPECS.jab.reach + 40 };
+    const far = { ...base(), dist: (PUNCH_SPECS.jab.reach + 40) / 10 };
     const a = assistStep(far, 0, false, { a: "jab", age: 0 });
     expect(a.send).toBe("stepIn");
     expect(a.pending?.a).toBe("jab");
-    const near = { ...base(), dist: PUNCH_SPECS.jab.reach - 10 };
+    const near = { ...base(), dist: (PUNCH_SPECS.jab.reach - 100) / 10 };
     expect(assistStep(near, 0, false, a.pending).send).toBe("jab");
     const busy = { ...near, fighters: [{ ...near.fighters[0], act: "jab" as const }, near.fighters[1]] as typeof near.fighters };
     expect(assistStep(busy, 0, false, { a: "cross", age: 0 })).toMatchObject({ send: null, pending: { a: "cross", age: 1 } });

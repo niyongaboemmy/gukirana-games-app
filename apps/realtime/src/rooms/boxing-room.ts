@@ -8,6 +8,7 @@ import {
   newFightLog,
   beginFight,
   createFight,
+  fightStatsOf,
   forfeitFight,
   hasBegun,
   hashFight,
@@ -62,7 +63,8 @@ const sha256 = (v: string): string => createHash("sha256").update(v).digest("hex
  * re-derived and checked by replaying the log (docs/BOXING-SCORING.md §6).
  */
 export const boxingResultHash = (fight: FightState, log: FightLog): string =>
-  sha256(`boxing:v2:${sha256(hashFight(fight))}:${sha256(logText(log))}`);
+  // "v2" = the P3-FGT-06 hash of a v1-engine fight; "v3" = the same commitment for an engine-v2 fight (P3-FGT-10)
+  sha256(`boxing:${log.engine === 2 ? "v3" : "v2"}:${sha256(hashFight(fight))}:${sha256(logText(log))}`);
 
 /** knobs tests shorten */
 export const boxingConfig = {
@@ -131,6 +133,9 @@ type Seat = 0 | 1;
 interface Pending {
   a?: BoxingAction;
   g?: boolean;
+  /** engine v2: the held footwork direction (latest this tick) and the body flag of the press */
+  mv?: [number, number];
+  b?: boolean;
 }
 
 /**
@@ -378,11 +383,13 @@ export class BoxingRoom extends Room {
     this.seqs.set(client.sessionId, p.data.seq);
     const slot = this.pending[this.seatOf(uid)];
     slot.g = p.data.g;
+    if (p.data.mv) slot.mv = p.data.mv;
     if (!p.data.a) return;
     if (this.fight.phase !== "round") return this.reject(client, "NOT_FIGHTING");
     // at most one press per tick per fighter: a second press in the same tick is dropped
     if (slot.a) return;
     slot.a = p.data.a;
+    if (p.data.b) slot.b = true;
   }
 
   // ---------------------------------------------------------------- the tick loop
@@ -418,9 +425,15 @@ export class BoxingRoom extends Room {
     // the room's own seq per fighter (a reconnect restarts the client's seq; the engine only needs it increasing)
     const input = (i: Seat): FightInput | null => {
       const p = this.pending[i];
-      if (p.a === undefined && p.g === undefined) return null;
+      if (p.a === undefined && p.g === undefined && p.mv === undefined) return null;
       this.engineSeq[i]++;
-      return { seq: this.engineSeq[i], g: p.g ?? s0.fighters[i].guard, ...(p.a ? { a: p.a } : {}) };
+      return {
+        seq: this.engineSeq[i],
+        g: p.g ?? s0.fighters[i].guard,
+        ...(p.mv ? { mv: p.mv } : {}),
+        ...(p.a ? { a: p.a } : {}),
+        ...(p.a && p.b ? { b: true } : {}),
+      };
     };
     const inputs = [input(0), input(1)] as const;
     this.pending = [{}, {}];
@@ -578,8 +591,11 @@ export class BoxingRoom extends Room {
     const equal = Object.fromEntries(this.ids.map((id) => [id, 1]));
     const ranks = reason === "void" ? equal : res.ranks;
     const stateHash = boxingResultHash(this.fight, this.log);
+    // the skill report (P3-FGT-10): computed here from the engine's own tallies, signed with the result
+    const lines = fightStatsOf(this.fight);
+    const stats = Object.fromEntries(this.ids.map((id, i) => [id, { ...lines[i]! }]));
     const signed = signResult(
-      { matchId: this.opts.matchId, game: BOXING_GAME_ID, ranks, reason, stateHash, finishedAt: new Date().toISOString() },
+      { matchId: this.opts.matchId, game: BOXING_GAME_ID, ranks, reason, stateHash, finishedAt: new Date().toISOString(), ...(reason !== "void" ? { stats } : {}) },
       privateKey,
     );
     let settlement: unknown = null;
@@ -609,6 +625,7 @@ export class BoxingRoom extends Room {
       ...(loser !== undefined && outReason === "forfeit" ? { loser: this.ids[loser] } : {}),
       outcome: this.fight.outcome,
       stateHash,
+      stats,
       settlement,
       ...(pending ? { pending: true } : {}),
     });

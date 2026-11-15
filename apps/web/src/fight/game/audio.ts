@@ -87,7 +87,8 @@ export function punchSound(kind: "jab" | "cross" | "hook" | "uppercut", landed: 
  * The outcome cue of MY punch (P3-FGT-09), under the impact sound: one consistent short tone per outcome so the ear
  * learns it — landed a bright rising pair, blocked a dull low knock, slipped / missed a soft falling note.
  */
-export function outcomeCue(kind: "landed" | "blocked" | "slipped" | "missed"): void {
+export function outcomeCue(kind0: "landed" | "counter" | "blocked" | "parried" | "slipped" | "ducked" | "missed"): void {
+  const kind = kind0 === "counter" ? "landed" : kind0 === "parried" ? "blocked" : kind0;
   const ctx = uiAudio();
   if (!ctx || !ok()) return;
   const t = ctx.currentTime + 0.02;

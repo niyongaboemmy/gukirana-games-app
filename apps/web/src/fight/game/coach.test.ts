@@ -4,7 +4,7 @@ import { COACH_GAP_MS, COACH_REPEAT_MS, COACH_SHOW_MS, coachMayShow, coachTip, t
 import { FG } from "./strings";
 
 const fv = (p: Partial<FighterView> = {}): FighterView => ({ id: "a", corner: "red", act: "idle", actT: 0, stage: "none", guard: false, stamina: 900, composure: 900, points: 0, knockdowns: 0, warnings: 0, connected: true, ...p });
-const input = (p: Partial<CoachInput> = {}, dist = 150, me: Partial<FighterView> = {}): CoachInput => ({
+const input = (p: Partial<CoachInput> = {}, dist = 100, me: Partial<FighterView> = {}): CoachInput => ({
   snap: { phase: "round", dist, fighters: [fv(me), fv({ corner: "blue" })] },
   me: 0,
   feed: [],
@@ -23,7 +23,7 @@ describe("fight coach (P3-FGT-07)", () => {
   });
   it("nudges an idle player: step in when far, jab when in range", () => {
     expect(coachTip(input({ lastPress: 0 }, 300))).toBe("coach.stepIn");
-    expect(coachTip(input({ lastPress: 0 }, 150))).toBe("coach.jab");
+    expect(coachTip(input({ lastPress: 0 }, 100))).toBe("coach.jab"); // engine v2: 1.0 m apart is jab range (1.18 m)
   });
   it("explains repeated misses, blocks, slips, hits taken and fatigue", () => {
     const whiff = ev({ k: "whiff", t: 1, by: 0, punch: "jab" });

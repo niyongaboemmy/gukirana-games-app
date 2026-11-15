@@ -16,6 +16,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
     "@fastify/cookie": "^11.1.5",
+    "@gukirana/boxing": "workspace:*",
     "@gukirana/config": "workspace:*",
     "@gukirana/contracts": "workspace:*",
     "@gukirana/db": "workspace:*",

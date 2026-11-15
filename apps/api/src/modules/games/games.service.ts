@@ -47,6 +47,7 @@ import { matchEscrow, platformRevenue, userStars } from "../ledger/accounts.js";
 import { LevelsService } from "../levels/levels.service.js";
 import { eloUpdate, xpForMatch } from "../levels/xp.js";
 import { GameSettingsService, writeAudit } from "./game-settings.service.js";
+import { FightRatingService } from "./fight-rating.service.js";
 
 const log = createLogger("games");
 
@@ -84,6 +85,7 @@ export class GamesService implements OnModuleInit, OnModuleDestroy {
   private readonly publicKey = keyFromSeed(env().RESULT_SIGNING_SEED).publicKey;
   private timer: ReturnType<typeof setInterval> | null = null;
   private readonly settings: GameSettingsService;
+  private readonly fightRating: FightRatingService;
 
   constructor(
     @Inject(DB) private readonly db: Db,
@@ -92,8 +94,10 @@ export class GamesService implements OnModuleInit, OnModuleDestroy {
     private readonly economy: EconomyService,
     private readonly wallet: WalletService,
     @Optional() settings?: GameSettingsService,
+    @Optional() fightRating?: FightRatingService,
   ) {
     this.settings = settings ?? new GameSettingsService(db);
+    this.fightRating = fightRating ?? new FightRatingService(db);
   }
 
   onModuleInit(): void {
@@ -398,7 +402,12 @@ export class GamesService implements OnModuleInit, OnModuleDestroy {
       );
       xpOut[p.userId] = await this.levels.award(p.userId, xp, won ? "match_win" : "match", matchId);
     }
-    return { status: "settled", pot, ratings: after, xp: xpOut };
+    // the fight skill rating (P3-FGT-10): Glicko-2, live fights only, from the signed result (never a client)
+    const fightRating = await this.fightRating.apply(matchId, m.game, players, result.ranks, result.stats).catch((e: unknown) => {
+      log.error({ err: String(e), matchId }, "fight rating update failed (the settlement stands)");
+      return null;
+    });
+    return { status: "settled", pot, ratings: after, xp: xpOut, ...(fightRating ? { fightRating } : {}) };
   }
 
   /**

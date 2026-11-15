@@ -28,6 +28,13 @@ export interface SideTally {
   kd: number;
   /** points deducted from this fighter in the round (one per warning) */
   ded: number;
+  /* -------- engine v2 (P3-FGT-10; absent = 0, so v1 tallies and their cards are unchanged) -------- */
+  /** ring generalship: one per 2 s of the opponent on the ropes / in a corner (or 4 s holding the centre) */
+  control?: number;
+  /** clean counters landed */
+  counters?: number;
+  /** clean body shots landed */
+  body?: number;
 }
 export type RoundTally = [SideTally, SideTally];
 
@@ -57,10 +64,13 @@ export function tallyEvents(t: RoundTally, events: readonly FightEvent[]): Round
         if (e.combo > 0) {
           s.landed += 1;
           if (e.punch !== "jab") s.power += 1;
+          if (e.counter) s.counters = (s.counters ?? 0) + 1;
+          if (e.body) s.body = (s.body ?? 0) + 1;
         }
         break;
       }
       case "block":
+      case "parry":
       case "evade":
         w()[e.by].thrown += 1;
         w()[1 - e.by]!.defended += 1;
@@ -82,6 +92,13 @@ export function tallyEvents(t: RoundTally, events: readonly FightEvent[]): Round
   return out ?? t;
 }
 
+/** one more ring-control point for fighter `i` (engine v2: ring generalship is not an event) */
+export function addControl(t: RoundTally, i: 0 | 1): RoundTally {
+  const out: RoundTally = [{ ...t[0] }, { ...t[1] }];
+  out[i].control = (out[i].control ?? 0) + 1;
+  return out;
+}
+
 /**
  * A judge's integer weights (World Boxing / IBA criteria, IBA TCR 18.11): quality blows on target dominate every
  * judge (`clean` per point of blow value); judges then lean slightly differently on power, defence, footwork (ring
@@ -99,13 +116,15 @@ export interface JudgeProfile {
   footwork: number;
   /** per punch thrown */
   activity: number;
+  /** per ring-control point (engine v2: ring generalship — cutting off the ring, pinning on the ropes, the centre) */
+  generalship: number;
 }
 export const JUDGE_PROFILES: readonly JudgeProfile[] = [
-  { id: "J1", clean: 4, power: 2, defence: 2, footwork: 1, activity: 1 }, // balanced
-  { id: "J2", clean: 4, power: 4, defence: 1, footwork: 0, activity: 1 }, // likes power
-  { id: "J3", clean: 4, power: 1, defence: 3, footwork: 2, activity: 0 }, // technician: defence, footwork
-  { id: "J4", clean: 4, power: 2, defence: 1, footwork: 1, activity: 2 }, // initiative, aggression
-  { id: "J5", clean: 5, power: 1, defence: 1, footwork: 1, activity: 1 }, // counts clean blows
+  { id: "J1", clean: 4, power: 2, defence: 2, footwork: 1, activity: 1, generalship: 2 }, // balanced
+  { id: "J2", clean: 4, power: 4, defence: 1, footwork: 0, activity: 1, generalship: 1 }, // likes power
+  { id: "J3", clean: 4, power: 1, defence: 3, footwork: 2, activity: 0, generalship: 3 }, // technician: defence, footwork
+  { id: "J4", clean: 4, power: 2, defence: 1, footwork: 1, activity: 2, generalship: 2 }, // initiative, aggression
+  { id: "J5", clean: 5, power: 1, defence: 1, footwork: 1, activity: 1, generalship: 0 }, // counts clean blows
 ];
 export const judgesFor = (n: number): readonly JudgeProfile[] => JUDGE_PROFILES.slice(0, n);
 
@@ -121,7 +140,8 @@ export const baseScore = (s: SideTally, p: JudgeProfile): number =>
   p.power * s.power +
   p.defence * s.defended +
   p.footwork * s.forcedMiss +
-  p.activity * s.thrown;
+  p.activity * s.thrown +
+  p.generalship * (s.control ?? 0);
 
 /**
  * One judge, one round, 10-point must (before deductions):

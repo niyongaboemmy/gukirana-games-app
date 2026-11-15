@@ -140,7 +140,11 @@ export function kitFor(sid: string, rings: Iterable<RingState>): BoxingKit | nul
 
 /* ------------------------------------------------------------ fight input ------------------------------------------------------------ */
 
-/** one-shot actions (a press); the guard is a held state sent with every input */
+/**
+ * One-shot actions (a press); the guard and the footwork direction are held states sent with every input.
+ * Engine v1 knew the first eight. Engine v2 (P3-FGT-10, docs/FIGHT-GAME-V2.md) adds the rear hook (`hook` is the lead
+ * hook), the parry, the duck / roll, the clinch, the feint and the pivots (a quick angle step round the opponent).
+ */
 export const BOXING_ACTIONS = [
   "jab",
   "cross",
@@ -150,9 +154,17 @@ export const BOXING_ACTIONS = [
   "slipR",
   "stepIn",
   "stepOut",
+  "rhook",
+  "parry",
+  "duck",
+  "clinch",
+  "feint",
+  "pivotL",
+  "pivotR",
 ] as const;
 export type BoxingAction = (typeof BOXING_ACTIONS)[number];
-export const PUNCHES = ["jab", "cross", "hook", "uppercut"] as const;
+/** jab / cross (straights), hook (lead hook), uppercut (rear uppercut), rhook (rear hook, engine v2) */
+export const PUNCHES = ["jab", "cross", "hook", "uppercut", "rhook"] as const;
 export type Punch = (typeof PUNCHES)[number];
 export const isPunch = (a: unknown): a is Punch => (PUNCHES as readonly unknown[]).includes(a);
 
@@ -166,7 +178,13 @@ export const MAX_INPUTS_PER_SECOND = 20;
 /** a press is buffered at most this many ticks while the fighter is busy (then dropped) */
 export const INPUT_BUFFER_TICKS = 6;
 
-/** client → fight room `in`: `seq` strictly increases per connection; `a` = a press (optional); `g` = guard held */
+/** one footwork axis: -1, 0, +1 */
+const MoveAxis = z.number().int().min(-1).max(1);
+/**
+ * client → fight room `in`: `seq` strictly increases per connection; `a` = a press (optional); `g` = guard held.
+ * Engine v2: `mv` = the held footwork direction [lateral (+1 = my right), forward (+1 = towards the opponent)], kept
+ * until the next input that carries one (like the guard); `b` = this press goes to the body (punches only).
+ */
 export const FightInputSchema = z.object({
   seq: z
     .number()
@@ -175,6 +193,8 @@ export const FightInputSchema = z.object({
     .max(2 ** 31 - 1),
   a: z.enum(BOXING_ACTIONS).optional(),
   g: z.boolean(),
+  mv: z.tuple([MoveAxis, MoveAxis]).optional(),
+  b: z.boolean().optional(),
 });
 export type FightInput = z.infer<typeof FightInputSchema>;
 
@@ -219,6 +239,13 @@ export interface FighterView {
   cautions?: number;
   /** points deducted on every judge's card so far (one per warning) */
   deductions?: number;
+  /* -------- engine v2 (P3-FGT-10): the fighter's place on the canvas (mm, ring-local, ring centre = 0) -------- */
+  x?: number;
+  z?: number;
+  /** the current punch goes to the body */
+  body?: boolean;
+  /** accumulated wear (0..1000): lowers the composure the fighter can recover to (no injury visuals) */
+  wear?: number;
 }
 
 /** fight room → fighters (`snap`, FIGHTER_SNAPSHOT_HZ) and hall room → watchers (`boxing-frame`, SPECTATOR_FRAME_HZ) */
@@ -246,6 +273,10 @@ export interface BoxingSnapshot {
   cards?: RoundCard[];
   /** the referee's "Break!" is in force (ticks left; punches pressed now are cancelled) */
   breakLeft?: number;
+  /** the engine that produced this snapshot (absent = v1: no positions; 2 = free 2D footwork, `x` / `z` set) */
+  engine?: 2;
+  /** v2: a clinch is on (ticks left before the referee breaks it) and who tied up */
+  clinch?: { by: 0 | 1; left: number };
 }
 
 /* ------------------------------------------------------------ events ------------------------------------------------------------ */
@@ -286,9 +317,25 @@ export type FightEvent =
   | { k: "bell"; t: number; round: number }
   /** `card`: this round's judges' cards (open scoring only; with sealed cards it is absent) */
   | { k: "roundEnd"; t: number; round: number; points: [number, number]; card?: RoundCard }
-  | { k: "hit"; t: number; by: 0 | 1; punch: Punch; points: number; counter: boolean; combo: number }
-  | { k: "block"; t: number; by: 0 | 1; punch: Punch }
-  | { k: "evade"; t: number; by: 0 | 1; punch: Punch }
+  /** v2: `body` = a body shot; `angle` = thrown from an angle the defender had not turned to (after a pivot) */
+  | {
+      k: "hit";
+      t: number;
+      by: 0 | 1;
+      punch: Punch;
+      points: number;
+      counter: boolean;
+      combo: number;
+      body?: boolean;
+      angle?: boolean;
+    }
+  | { k: "block"; t: number; by: 0 | 1; punch: Punch; body?: boolean }
+  /** v2: `how` the defender beat it: a slip, a duck / roll, or a step out of range at the last moment */
+  | { k: "evade"; t: number; by: 0 | 1; punch: Punch; how?: "slip" | "duck" | "step" }
+  /** v2: the defender parried the straight (the puncher is thrown off balance) */
+  | { k: "parry"; t: number; by: 0 | 1; punch: Punch }
+  /** v2: a clinch: `by` tied the other up (no punches until the referee breaks it) */
+  | { k: "clinch"; t: number; by: 0 | 1 }
   | { k: "whiff"; t: number; by: 0 | 1; punch: Punch }
   | { k: "knockdown"; t: number; to: 0 | 1; points: number }
   | { k: "count"; t: number; n: number }
@@ -630,6 +677,13 @@ export const ACT_CLIP: Record<FighterAct, BoxingClip> = {
   cross: "cross",
   hook: "hookL",
   uppercut: "uppercutR",
+  rhook: "hookR",
+  parry: "blockHigh",
+  duck: "duck",
+  clinch: "guard",
+  feint: "cross",
+  pivotL: "pivot",
+  pivotR: "pivot",
   slipL: "slipL",
   slipR: "slipR",
   stepIn: "stepIn",
@@ -648,6 +702,7 @@ export const HIT_REACTION: Record<Punch, BoxingClip> = {
   cross: "hitHeadHeavy",
   hook: "hitHeadHeavy",
   uppercut: "hitBodyHeavy",
+  rhook: "hitHeadHeavy",
 };
 
 /**
@@ -662,3 +717,109 @@ export function clipFor(f: FighterView, phase: FightPhase): BoxingClip {
   if (f.act === "idle") return f.stamina < 300 || !f.guard ? "guardLow" : "guard";
   return ACT_CLIP[f.act];
 }
+
+/* ------------------------------------------------------------ skill report + rating (P3-FGT-10) ------------------------------------------------------------ */
+
+/**
+ * One fighter's skill line for a whole fight (docs/FIGHT-GAME-V2.md §6). Integers only, computed by the engine from its
+ * own events (`fightStatsOf`), signed by the fight room inside the result (never sent by a client). Percentages are
+ * whole percent; `perMin` is punches thrown per minute of fighting × 10.
+ */
+export const FightStatLineSchema = z.object({
+  thrown: z.number().int().min(0),
+  landed: z.number().int().min(0),
+  /** clean power punches (everything but the jab) */
+  power: z.number().int().min(0),
+  /** clean body shots */
+  body: z.number().int().min(0),
+  /** clean counters (thrown right after a defence, or into the opponent's punch) */
+  counters: z.number().int().min(0),
+  /** opponent punches blocked, parried, slipped, ducked or stepped out of */
+  defended: z.number().int().min(0),
+  /** opponent punches thrown / landed clean on this fighter */
+  oppThrown: z.number().int().min(0),
+  oppLanded: z.number().int().min(0),
+  /** knockdowns scored */
+  kd: z.number().int().min(0),
+  /** seconds of ring control (the opponent on the ropes / cornered, or this fighter holding the centre) */
+  controlS: z.number().int().min(0),
+  /** seconds spent gassed (stamina under the tired line) */
+  gassedS: z.number().int().min(0),
+  /** punches landed clean while gassed (output under fatigue) */
+  landedTired: z.number().int().min(0),
+  /** punches thrown per minute x 10 */
+  perMin: z.number().int().min(0),
+  /** derived: accuracy %, defence % (opponent punches that did not land clean), clean-punch differential */
+  accuracy: z.number().int().min(0).max(100),
+  defencePct: z.number().int().min(0).max(100),
+  diff: z.number().int(),
+  /** fouls: warnings + cautions */
+  fouls: z.number().int().min(0),
+});
+export type FightStatLine = z.infer<typeof FightStatLineSchema>;
+
+/** Glicko-2 display tiers (rating on the familiar 1500 scale; docs/FIGHT-GAME-V2.md §7), lowest first */
+export const FIGHT_TIERS = [
+  { id: "novice", min: 0 },
+  { id: "amateur", min: 1350 },
+  { id: "contender", min: 1500 },
+  { id: "pro", min: 1650 },
+  { id: "elite", min: 1800 },
+  { id: "champion", min: 1950 },
+] as const;
+export type FightTier = (typeof FIGHT_TIERS)[number]["id"];
+export const FIGHT_TIER_IDS = FIGHT_TIERS.map((t) => t.id) as [FightTier, ...FightTier[]];
+export function fightTierOf(rating: number): FightTier {
+  let t: FightTier = "novice";
+  for (const x of FIGHT_TIERS) if (rating >= x.min) t = x.id;
+  return t;
+}
+/** a rating is provisional (shown with "?") until this many rated fights AND the deviation is below the line */
+export const FIGHT_PROVISIONAL_GAMES = 5;
+export const FIGHT_PROVISIONAL_RD = 160;
+export const isProvisional = (games: number, rd: number): boolean =>
+  games < FIGHT_PROVISIONAL_GAMES || rd >= FIGHT_PROVISIONAL_RD;
+
+/** a player's boxing rating as the API shows it (GET /fight/rating/me, leaderboard rows) */
+export const FightRatingSchema = z.object({
+  userId: z.string(),
+  name: z.string().optional(),
+  rating: z.number().int(),
+  /** rating deviation (uncertainty), integer */
+  rd: z.number().int(),
+  games: z.number().int().min(0),
+  wins: z.number().int().min(0),
+  losses: z.number().int().min(0),
+  draws: z.number().int().min(0),
+  tier: z.enum(FIGHT_TIER_IDS),
+  provisional: z.boolean(),
+  /** conservative skill (rating − 2·rd): what the leaderboard sorts by */
+  skill: z.number().int(),
+  /** leaderboard position (1-based), when ranked */
+  rank: z.number().int().min(1).optional(),
+  /** average skill line over the player's rated fights (the "own average" of the skill report) */
+  avg: FightStatLineSchema.partial().optional(),
+});
+export type FightRating = z.infer<typeof FightRatingSchema>;
+
+/** what one live fight did to a fighter's rating (settlement → the result card) */
+export const FightRatingChangeSchema = z.object({
+  before: z.number().int(),
+  after: z.number().int(),
+  rdBefore: z.number().int(),
+  rdAfter: z.number().int(),
+  tierBefore: z.enum(FIGHT_TIER_IDS),
+  tierAfter: z.enum(FIGHT_TIER_IDS),
+  provisional: z.boolean(),
+  games: z.number().int(),
+});
+export type FightRatingChange = z.infer<typeof FightRatingChangeSchema>;
+
+export const FightLeaderboardSchema = z.object({
+  rows: z.array(FightRatingSchema),
+  /** the caller's own row (even when outside the top) */
+  me: FightRatingSchema.nullable(),
+});
+export type FightLeaderboard = z.infer<typeof FightLeaderboardSchema>;
+/** matchmaking: a quick fight first looks for opponents within this rating window, widening every `stepSeconds` */
+export const FIGHT_MATCH_WINDOW = { start: 150, step: 100, max: 600, stepSeconds: 5 } as const;
