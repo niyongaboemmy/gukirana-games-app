@@ -1,5 +1,6 @@
 import {
   DEFAULT_FIGHT_RULES,
+  isPunch,
   type BoxingAction,
   type FightEvent,
   type FightInput,
@@ -10,6 +11,8 @@ import {
   beginFight,
   boxingBotInput,
   createFight,
+  hashFight,
+  PUNCH_SPECS,
   isBusy,
   isTooTired,
   snapshotOf,
@@ -19,6 +22,61 @@ import {
 } from "@gukirana/boxing";
 import { useFightBridge } from "../bridge";
 import { useFightUi } from "./ui-store";
+
+/**
+ * The practice fight record (P3-FGT-09): the SHA-256 of the final engine state (the same canonical state the live
+ * room commits to in its signed stateHash), so the result card can show a checkable line for practice too.
+ */
+export async function practiceHash(state: FightState): Promise<string | null> {
+  try {
+    const bytes = new TextEncoder().encode(`boxing:practice:v1:${hashFight(state)}`);
+    const d = await crypto.subtle.digest("SHA-256", bytes);
+    return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return null;
+  }
+}
+async function recordPractice(id: string, state: FightState): Promise<void> {
+  const hash = await practiceHash(state);
+  useFightUi.getState().setRecord({ id, hash, kind: "practice" });
+}
+
+/**
+ * Easy mode (P3-FGT-09), PRACTICE ONLY: client-side input help so the first fights work on the first try. It never
+ * touches a live fight (the live client has no such path) and never changes the engine's rules — it only decides
+ * which ordinary inputs to send, the same ones a player could press:
+ *  - auto-guard: while I stand idle and the opponent's punch is on its way, the guard goes up (unless I am punching);
+ *  - forgiving timing: a punch pressed while I am still busy waits (up to ASSIST_HOLD ticks) instead of being lost;
+ *  - auto-close: a punch pressed out of range first steps in, then throws.
+ */
+export const ASSIST_HOLD = 15;
+export interface AssistPending {
+  a: BoxingAction;
+  age: number;
+}
+export function assistStep(s: FightState, i: 0 | 1, guardHeld: boolean, pending: AssistPending | null): { guard: boolean; send: BoxingAction | null; pending: AssistPending | null } {
+  const me = s.fighters[i];
+  const opp = s.fighters[1 - i]!;
+  const idle = me.act === "idle";
+  const incoming = isPunch(opp.act) && !opp.resolved;
+  let send: BoxingAction | null = null;
+  let next: AssistPending | null = pending;
+  if (pending) {
+    if (pending.age >= ASSIST_HOLD) next = null;
+    else if (idle) {
+      const reach = isPunch(pending.a) ? PUNCH_SPECS[pending.a].reach : Infinity;
+      if (isPunch(pending.a) && s.dist > reach) {
+        send = "stepIn";
+        next = { a: pending.a, age: pending.age + 1 };
+      } else {
+        send = pending.a;
+        next = null;
+      }
+    } else next = { a: pending.a, age: pending.age + 1 };
+  }
+  const guard = guardHeld || (idle && incoming && !send && !next);
+  return { guard, send, pending: next };
+}
 
 /** the integer rng the practice bot needs (practice seeds it from @gukirana/fairness, tests with a fixed one) */
 export interface PracticeRng {
@@ -45,8 +103,14 @@ export class PracticeSession {
   private guard = false;
   private guardSent = false;
   private press: BoxingAction | null = null;
+  /** Easy mode (practice only, P3-FGT-09): see assistStep */
+  assist = false;
+  private pending: AssistPending | null = null;
   private introLeft = GLOVE_UP_TICKS;
   private onRoundEnd?: (round: number, score: [number, number]) => void;
+  /** the practice fight's id (fight record) */
+  readonly id: string;
+  private recorded = false;
 
   constructor(opts: {
     ring: RingId;
@@ -54,12 +118,14 @@ export class PracticeSession {
     rng: PracticeRng;
     name: string;
     rules?: FightRules;
+    id?: string;
     onRoundEnd?: (round: number, score: [number, number]) => void;
   }) {
     this.ring = opts.ring;
     this.level = opts.level;
     this.rng = opts.rng;
     this.onRoundEnd = opts.onRoundEnd;
+    this.id = opts.id ?? `practice-${opts.ring}`;
     const rules = opts.rules ?? DEFAULT_FIGHT_RULES;
     const fresh = createFight(["me", "ai"], rules);
     this.state = { ...fresh, fighters: [{ ...fresh.fighters[0], guard: false }, fresh.fighters[1]] };
@@ -100,6 +166,17 @@ export class PracticeSession {
     }
   }
 
+  /**
+   * The corner refresh (P3-FGT-09): adds stamina to MY fighter in this local practice engine. Called only after the
+   * API confirmed the Stars spend (actions.ts buyCornerRefresh); practice only — a live fight has no such call.
+   */
+  cornerRefresh(stamina: number): void {
+    if (this.over) return;
+    const [me, ai] = this.state.fighters;
+    this.state = { ...this.state, fighters: [{ ...me, stamina: Math.min(1000, me.stamina + Math.max(0, Math.trunc(stamina))) }, ai] };
+    this.publish([]);
+  }
+
   setGuard(g: boolean): void {
     this.guard = g;
   }
@@ -115,10 +192,19 @@ export class PracticeSession {
       return;
     }
     let mine: FightInput | null = null;
-    if (this.press || this.guard !== this.guardSent) {
-      mine = this.press ? { seq: this.seq++, a: this.press, g: this.guard } : { seq: this.seq++, g: this.guard };
+    let press = this.press;
+    let guard = this.guard;
+    if (this.assist && this.state.phase === "round") {
+      if (press) this.pending = { a: press, age: 0 };
+      const st = assistStep(this.state, 0, this.guard, this.pending);
+      press = st.send;
+      guard = st.guard;
+      this.pending = st.pending;
+    }
+    if (press || guard !== this.guardSent) {
+      mine = press ? { seq: this.seq++, a: press, g: guard } : { seq: this.seq++, g: guard };
       this.press = null;
-      this.guardSent = this.guard;
+      this.guardSent = guard;
     }
     const bot = boxingBotInput(this.state, 1, this.level, this.rng);
     this.state = stepFight(this.state, [mine, bot]);
@@ -136,6 +222,10 @@ export class PracticeSession {
     const myEvents = events.length ? [...b.myEvents, ...events].slice(-MAX_PENDING_EVENTS) : b.myEvents;
     useFightBridge.setState({ mine: { ...b.mine, snap, predicted, begun }, myEvents });
     if (events.length) useFightUi.getState().push(events);
+    if (this.state.phase === "over" && !this.recorded) {
+      this.recorded = true;
+      void recordPractice(this.id, this.state);
+    }
     for (const e of events) if (e.k === "roundEnd") this.onRoundEnd?.(e.round, e.points);
   }
 }

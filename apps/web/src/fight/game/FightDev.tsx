@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { Swords } from "lucide-react";
-import type { RingId } from "@gukirana/contracts";
+import { DEFAULT_FIGHT_RULES, type FightRules, type RingId } from "@gukirana/contracts";
 import { PaperCard } from "@/ui/PaperCard";
 import { useFightBridge } from "../bridge";
 import { startPractice, stopPractice } from "./actions";
@@ -28,7 +28,11 @@ export function FightDev() {
     if (l >= 1 && l <= 5) setLevel(l);
     const r = q.get("ring");
     if (r && /^R\d+$/.test(r)) setRing(r as RingId);
-    if (q.get("auto") === "1") startPractice((r as RingId) ?? "R7", l >= 1 && l <= 5 ? l : 3, q.get("name") ?? "Aline");
+    // dev: short fights for QA (`&rounds=1&secs=30`)
+    const rounds = Number(q.get("rounds"));
+    const secs = Number(q.get("secs"));
+    const rules: FightRules | undefined = rounds || secs ? { ...DEFAULT_FIGHT_RULES, rounds: rounds || DEFAULT_FIGHT_RULES.rounds, roundSeconds: secs || DEFAULT_FIGHT_RULES.roundSeconds, restSeconds: 10 } : undefined;
+    if (q.get("auto") === "1") startPractice((r as RingId) ?? "R7", l >= 1 && l <= 5 ? l : 3, q.get("name") ?? "Aline", rules);
     return () => stopPractice(true);
   }, []);
   return (

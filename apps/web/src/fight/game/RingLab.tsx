@@ -8,6 +8,7 @@ import { FightersLayer } from "../fighters";
 import { FightCamera } from "../camera";
 import { RING_BY_ID } from "../plan";
 import { useFightBridge } from "../bridge";
+import { RingMood } from "../ring-lights";
 
 /**
  * Dev-only 3D ring for the fight lab (P3-FGT-07, `/fight-lab?scene=1`): the practice ring with its fighters, referee and
@@ -20,7 +21,7 @@ export function RingLab({ ring }: { ring: RingId }) {
   const rings = useMemo(() => [{ id: ring, x: place.x, z: place.z, rotY: place.rotY, status, number: Number(ring.slice(1)) }], [ring, place, status]);
   return (
     <Canvas style={{ position: "fixed", inset: 0 }} dpr={[1, 1.5]} camera={{ fov: 55, near: 0.05, far: 120, position: [place.x + 5, 3, place.z + 5] }} gl={{ antialias: true }}>
-      <color attach="background" args={["#1d1b19"]} />
+      <color attach="background" args={["#0c0a09"]} />
       <hemisphereLight args={["#fff4e6", "#2a2622", 0.9]} />
       <directionalLight position={[place.x + 3, 9, place.z + 2]} intensity={2.2} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[place.x, 0, place.z]}>
@@ -30,6 +31,7 @@ export function RingLab({ ring }: { ring: RingId }) {
       <HallRingKit rings={rings} size="training" lite={false} />
       <FightersLayer lite={false} />
       <FightCamera />
+      <RingMood k={() => 1} ring={() => place} withKey />
       <Probe at={place} />
     </Canvas>
   );

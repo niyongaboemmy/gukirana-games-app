@@ -338,7 +338,9 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
       body.mood = moodOf(view, phase, t - tr.hitAt, won);
       // ring life while the round is live: fresher = bouncier; tired late in the round = heavier feet, lower gloves
       const live = (phase === "round" || phase === "countdown") && !walking && view.act !== "down" && !clinch;
-      body.life = live ? { seed: hashOf(slot.ring) + i * 7919, energy: Math.min(1, view.stamina / 800), tired: view.stamina < 450 ? (450 - view.stamina) / 450 : 0, move: tr.spd } : null;
+      body.life = live ? { seed: hashOf(slot.ring) + i * 7919, energy: Math.min(1, view.stamina / 800), tired: view.stamina < 450 ? (450 - view.stamina) / 450 : 0, move: tr.spd, daze: view.composure < 400 ? (400 - view.composure) / 400 : 0 } : null;
+      // sweat builds with the work done (presentation of the engine's stamina; P3-FGT-09)
+      body.sweat = 0.3 + 0.6 * Math.min(1, Math.max(0, (1000 - view.stamina) / 700));
     });
     // the referee: on the far side of the pair from the camera, stepping in to count, break and raise the winner
     if (withRef && refG.current) {

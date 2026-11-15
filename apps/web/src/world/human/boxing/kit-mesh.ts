@@ -58,7 +58,7 @@ function leather(color: string | null, opts: { vertexColors?: boolean; roughness
 }
 
 function satin(vertexColors = true) {
-  return new THREE.MeshPhysicalMaterial({ color: "#ffffff", vertexColors, roughness: 0.62, metalness: 0, sheen: 0.55, sheenRoughness: 0.45, sheenColor: new THREE.Color("#ffffff"), side: THREE.DoubleSide });
+  return new THREE.MeshPhysicalMaterial({ color: "#ffffff", vertexColors, roughness: 0.42, metalness: 0, sheen: 0.8, sheenRoughness: 0.35, sheenColor: new THREE.Color("#ffffff"), side: THREE.DoubleSide });
 }
 
 /* ---------------- geometry helpers ---------------- */
@@ -411,7 +411,8 @@ function trunks(body: THREE.SkinnedMesh, root: THREE.Object3D, pts: BodyPoints, 
     cStripe = new THREE.Color(kit.colors.stripe);
   const top = hipY + 0.15,
     crotch = hipY - 0.085,
-    hem = hipY - 0.32 * legLen - 0.08;
+    // long amateur trunks (P3-FGT-09): the hem just above the knee, cut loose so the satin hangs
+    hem = hipY - 0.86 * legLen;
   // ---- hip tube
   const rows = 9;
   const base = b.n;
@@ -444,14 +445,14 @@ function trunks(body: THREE.SkinnedMesh, root: THREE.Object3D, pts: BodyPoints, 
   ] as const) {
     const legBones = new Set([th, pelvis, ca].filter((i) => i >= 0));
     const filter = (x: number) => (x - midX) * toLeft * sgn > 0.004;
-    const lrows = 7;
+    const lrows = 10;
     const lb = b.n;
     for (let j = 0; j <= lrows; j++) {
       const t = j / lrows;
       const y = crotch + 0.05 + (hem - crotch - 0.05) * t;
       const [cx, cz] = bandCentre(pts, y, legBones, filter);
       const prof = ringProfile(pts, y, legBones, cx, cz, BINS, filter);
-      const ease = 0.014 + 0.03 * t * t;
+      const ease = 0.016 + 0.034 * t;
       for (let i = 0; i <= BINS; i++) {
         const a = (i / BINS) * Math.PI * 2;
         const r = prof[i % BINS]! + ease;
@@ -572,6 +573,8 @@ function bootShafts(body: THREE.SkinnedMesh, root: THREE.Object3D, pts: BodyPoin
 
 export interface Dressing {
   objects: THREE.Object3D[];
+  /** skin sheen 0…1 (P3-FGT-09: builds with the work done) */
+  setSweat?(v: number): void;
   dispose(): void;
 }
 
@@ -585,7 +588,7 @@ export function dressBody(root: THREE.Object3D, arms: ArmBones[], materials: THR
   const undo: (() => void)[] = [];
   // the everyday clothes are modelled into the body: refit it to an athlete's legs, bare arms and a fitted vest first
   // (P3-FGT-07), so the trunks and boot shafts below are fitted to the legs, not to baggy trousers
-  undo.push(fitBodyForKit(root));
+  undo.push(fitBodyForKit(root, "boxer", modelId === "feminine" || modelId === "neutral" ? modelId : "masculine"));
   const { body, bind } = bindData(root);
   const bone = (n: string) => (root.getObjectByName(n) as THREE.Bone | undefined) ?? null;
   const bonePos = (n: string) => {
@@ -598,14 +601,19 @@ export function dressBody(root: THREE.Object3D, arms: ArmBones[], materials: THR
   for (const m of materials) {
     const u = m.userData.gkUniforms as LookUniforms | undefined;
     if (!u) continue;
-    const prev = { legs: u.uLegsSkin.value, shoes: u.uShoes.value.clone(), bottom: u.uBottom.value.clone() };
+    const prev = { legs: u.uLegsSkin.value, shoes: u.uShoes.value.clone(), bottom: u.uBottom.value.clone(), detail: u.uTopDetail?.value ?? 0.85, sweat: u.uSweat?.value ?? 0 };
     u.uLegsSkin.value = 1;
+    // the vest is smooth jersey (the everyday garment's folds / prints barely show) and the skin carries a light sheen
+    if (u.uTopDetail) u.uTopDetail.value = 0.3;
+    if (u.uSweat) u.uSweat.value = 0.35;
     u.uShoes.value.set(kit.colors.boots);
     u.uBottom.value.set(kit.colors.trunks);
     undo.push(() => {
       u.uLegsSkin.value = prev.legs;
       u.uShoes.value.copy(prev.shoes);
       u.uBottom.value.copy(prev.bottom);
+      if (u.uTopDetail) u.uTopDetail.value = prev.detail;
+      if (u.uSweat) u.uSweat.value = prev.sweat;
     });
   }
 
@@ -759,6 +767,12 @@ export function dressBody(root: THREE.Object3D, arms: ArmBones[], materials: THR
 
   return {
     objects,
+    setSweat(v: number) {
+      for (const m of materials) {
+        const u = m.userData.gkUniforms as LookUniforms | undefined;
+        if (u?.uSweat) u.uSweat.value = v;
+      }
+    },
     dispose() {
       for (const o of objects) o.removeFromParent();
       for (const o of objects)

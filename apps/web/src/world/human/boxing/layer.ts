@@ -28,6 +28,8 @@ export interface BoxingLayerOptions {
   referee?: boolean;
   /** drive the face (default true) */
   face?: boolean;
+  /** skin sheen 0…1 read every step (P3-FGT-09) */
+  sweat?: { current: number };
 }
 
 const _fw: FaceWeights = { focus: 0, effort: 0, wince: 0, smile: 0, jaw: 0, eyes: 0 };
@@ -55,6 +57,7 @@ export function boxingLayer(opts: BoxingLayerOptions): AvatarRigLayerFactory {
         }
         const t = clock();
         last = t;
+        if (opts.sweat && dress?.setSweat) dress.setSweat(opts.sweat.current);
         const p = opts.motion.sample(t);
         lastPose = p;
         r.apply(p, w, !!opts.motion.current().mirrored, dist < 20);

@@ -11,6 +11,7 @@ import { useFightBridge } from "./bridge";
 import { ringState } from "./rings";
 import { F } from "./strings";
 import { useFightUi } from "./ui-store";
+import { WatchResult } from "./game/WatchResult";
 
 /**
  * The ring prompt (plan §7.2): what you can do at the ring you stand by, per status —
@@ -35,7 +36,13 @@ export function RingPrompt() {
   useEffect(() => setOpen(null), [near]);
   // a fight is on for me: the fight HUD (fight/game) takes the screen
   if (mine) return null;
-  if (!ring) return watched ? <WatchBar ring={watched} cam={watchCam} /> : null;
+  if (!ring)
+    return watched ? (
+      <>
+        <WatchBar ring={watched} cam={watchCam} />
+        <WatchResult />
+      </>
+    ) : null;
   const id = ring.id;
   const isMine = (ring.red && ring.red.sid === you) || (ring.blue && ring.blue.sid === you);
   const btn = "pbtn phone:text-sm";

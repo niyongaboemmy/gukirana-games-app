@@ -137,3 +137,95 @@ stood at the back with his hands clasped.
   says what to do next and offers "Next level" after a practice win.
 - **Perf** (dev ring lab, `/fight-lab?scene=1`): focus-mode ring with two fighters + referee = 34 draw calls, ~71 k
   triangles, 60 fps desktop; 55 fps headless phone landscape at DPR 2. The kit refit is a one-off per body model.
+
+## 6. Reference-grade pass (P3-FGT-09)
+
+Complaint: "still not realistic" — skinny low-poly boxers, an upright stance, a wide far camera, flat light — and "make
+it easier to play, with a clear witness of pass or fail". Later scope: "show how power is fading, and let coins power
+it back up, as in real life".
+
+### Research (ideas only — no names, characters, art, UI, music or looks copied)
+
+Titles studied through reviews, store pages and gameplay write-ups: the popular mobile boxing titles (the "Real
+Boxing" series and similar swipe-and-tap boxers; a title called "Punchers" was not found in any store or review, so the
+nearest mobile references stood in), the console sims (the long-running sim series whose last entry is still the
+critics' benchmark, and the recent licensed sim), VR boxing (the most-praised VR boxing sim and its sequel), and the
+early-access mouse-driven boxing sim on PC.
+
+- **Camera**: the console sims' default is a close side-on broadcast view, both boxers filling most of the frame
+  height, tracking the pair's middle, a slight low angle; a behind-the-boxer view is the common alternative. Wide, high
+  shots are kept for knockdowns and replays. Takeaway: frame the pair, not the ring.
+- **Bodies and kit**: what reads as "real" is silhouette first — broad shoulders and lats, defined arms, a narrow waist,
+  thick thighs and calves — then kit worn as garments (amateur vest, knee-length satin trunks with a side stripe and a
+  white waistband, high laced boots, laced gloves with a cuff, padded headgear).
+- **Stance**: knees bent, weight forward on the balls of the feet, torso bladed and leaning in, chin tucked, gloves at
+  the cheekbones, elbows in. Critics single out upright, floaty stances and missing weight transfer as what breaks
+  realism.
+- **Lighting**: dark arena, a hard overhead key on the ring and rim light so sweat-sheened bodies pop against the dark.
+- **Controls that work first time** (mobile): tap = jab, swipe direction = power punch, a separate hold = block, drag
+  / swipe = slip; reviews complain most about presses that "seem slow to register" or get lost, and praise auto-block
+  / assist options for newcomers.
+- **Feedback**: every hit shows instantly (hit-stop, sound, a flash); the best ones also tell you *why* a punch failed
+  (blocked, slipped, out of range). VR sims are praised for telling you how hard and how clean you hit.
+- **Pass / fail**: round cards (who took the round), a final screen with the method and every judge's card, punch
+  stats (thrown / landed %, power), and in career / training modes a goal with stars and what to improve.
+- **Fatigue**: stamina that visibly drains (bars, slower punches, lower guard, heavy breathing) is what makes the sims
+  feel like real boxing; recovery happens between rounds in the corner.
+
+### Decisions
+
+- **Athletic boxer build** (`kit-fit.ts`): a sculpt over the player's own body (still "you": body type, skin, face):
+  deltoid / biceps / forearm and quad / calf profiles that grow slim limbs most of the way to an athletic radius
+  (`sculptRadius`), a V-taper torso (`torsoShape`: broad across the lats and chest, narrow waist, flat stomach; feminine
+  builds keep the chest depth and a softer taper; per build scale), broader shoulders (clavicle region out towards the
+  deltoid cap), the hood / high collar flattened onto the upper back. The bare-arm vest cut is now per triangle with
+  split vertices (`bareArms`): no more UV streaks of shirt print on the upper arm.
+- **Kit**: knee-length satin trunks (cut loose, more sheen) with a white waistband and side stripe; the vest jersey is
+  smoother (the everyday garment's texture mostly hidden, `uTopDetail`); a light skin sheen that builds with the work
+  done (`uSweat`, driven by the engine's stamina).
+- **Deep stance** (`pose.ts GUARD`, `clips.ts`): hips ~4 cm lower, more lean, chin tucked, gloves at the cheekbones,
+  elbows in, up on the balls of the feet. The clips stay authored round the old guard and are moved onto the new one
+  (in full while boxing, per key where the body leaves the guard: knockdown, stool, get-up), so every hand-over stays
+  continuous (motion tests unchanged).
+- **Camera** (`camera.tsx`): side-on broadcast by default, distance from the pair chosen so a boxer fills ~65 % of the
+  frame height (`broadcastFrame`), tracking the pair's middle, eye a touch below the chins; behind-your-boxer closer;
+  "Auto" = broadcast with an over-the-shoulder spell every 20 s of round time. A HUD button switches Side / Behind /
+  Auto. The operator stays inside the ropes and cuts to the open side when the pair works the ropes on its side.
+- **Ring mood** (`ring-lights.tsx`): while a ring is in focus the room fill drops to ~32 %, the overhead key goes up and
+  two rim spots stand behind the pair as seen from the camera; lights always mounted (intensity 0 when idle), no extra
+  shadow maps. No post-process bloom (perf budget); the sheen and rim light carry the highlights.
+- **Witness of every punch** (`game/outcome.ts`, FightHud): LANDED / BLOCKED / SLIPPED / MISSED, one colour each (green /
+  amber / cream / red), my punches big with the reason (+points, combo, counter, on their guard, they slipped it, too
+  far), theirs smaller ("Their hook"); an outcome tone per result of my punch (`audio.ts outcomeCue`) under the impact
+  sound; a green edge flash when I land, red when I am hit. A live round score under the clock (`R2 6–4`, green / red).
+- **Round card**: "Your round / Their round / Even round", the judges' cards and why (judges for the winner, then the
+  clearest differences: knockdowns, clean punches, power punches, warnings).
+- **Result card** (`game/ResultPanel.tsx`): a big YOU WIN / YOU LOSE / DRAW / NO CONTEST banner with the method and the
+  judges' vote; for practice a PASS / FAIL against the level goal (`levelGoal`: L1 land 10 clean punches, L2 land 20,
+  L3 win a round on the cards, L4 win, L5 win clearly by KO / RSC / unanimous) with 0–3 stars and at most two tips;
+  punch stats side by side; every judge's card per round with totals; "Replay the deciding moment"; Try again / Next
+  level (after a PASS) / Find an opponent / Step out; and the **fight record** — the fight id and the signed stateHash
+  of a live fight (P3-FGT-06, docs/BOXING-SCORING.md §6), or the practice id and the SHA-256 of the final engine
+  state, with a copy button. Spectators get the same card from the neutral side when the watched fight ends.
+- **Easier to play**: the phone scheme already matched the references (tap jab, swipe power, hold guard, drag to slip /
+  step). New **Easy mode** (on by default, practice only, `practice.ts assistStep`): auto-guard while their punch is
+  coming, a press made while busy waits up to 0.5 s instead of being lost, a punch pressed out of range steps in first.
+  It only chooses ordinary inputs for the local practice engine; the live client has no assist path, and the engine
+  is unchanged. A **60-second training drill** before the first fight (throw a punch, block one, slip one, land a
+  combo) ticks each step off from the engine's events, then shows the scoring / fouls summary.
+- **Power fading, as in real life**: the engine already models it (stamina drained by punches, misses, blocks and
+  movement; regained when idle, more with the guard down; slower windups below the tired line; weaker hits when tired;
+  no hooks / uppercuts when exhausted; recovery in the corner between rounds). The presentation now matches it: the
+  power bar shifts green → amber → red and pulses when low, a "Low power" / "Shaken" warning, and on the body a
+  slouch, heavy breathing (shoulders heaving), a lower guard, a wobble at the knees when balance (composure) is low,
+  and the sweat sheen.
+- **Corner refresh** (behind `FF_FIGHT_BOOST` / `NEXT_PUBLIC_FF_FIGHT_BOOST`, both default off): practice vs the AI only,
+  once per round — "water, towel and your coach", +300 stamina for a proposed 20 Stars (the practice currency, no cash
+  value; price / amount / limit in `packages/money/src/boosts.ts`). `POST /wallet/corner-refresh` (zod contract in
+  `packages/contracts`) refuses anything but practice, posts through `LedgerService.post()` with an idempotency key
+  derived on the server from (user, practice fight, round) — a retry or a second press in the same round never charges
+  twice — and the client adds the stamina only after the API confirmed. Never in player-vs-player fights (friendly or
+  staked): there the corner between rounds is the only recovery, the same for both.
+- **Perf** (`/fight-lab?scene=1`, headless Chrome): 34 draw calls, ~73 k triangles, 60 fps desktop 1280×720 and
+  60 fps phone landscape 844×390 at DPR 2 (the two rim spots add no draw calls; the arm split adds a few hundred
+  vertices per body, once).

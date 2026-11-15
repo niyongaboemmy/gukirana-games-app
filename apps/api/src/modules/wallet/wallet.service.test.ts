@@ -3,6 +3,7 @@ import { createDatabase } from "@gukirana/db";
 import { LedgerService } from "../ledger/ledger.service.js";
 import { userStars } from "../ledger/accounts.js";
 import { EconomyService } from "../economy/economy.service.js";
+import { CORNER_REFRESH_PRICE_STARS } from "@gukirana/money";
 import { WalletService } from "./wallet.service.js";
 
 let close: () => Promise<void>;
@@ -65,5 +66,25 @@ describe("WalletService", () => {
     await expect(wallet.assertCanStake(u, 50)).resolves.toBeUndefined();
     await wallet.takeBreak(u, 24);
     await expect(wallet.assertCanStake(u, 10)).rejects.toThrow();
+  });
+
+  it("corner refresh (P3-FGT-09): practice only, flag-gated, charged once per fight and round (retries replay)", async () => {
+    const p = "77777777-7777-7777-7777-777777777777";
+    await wallet.claimDaily(p);
+    const before = await ledger.balance(userStars(p));
+    const req = { mode: "practice" as const, practiceId: "practice-R7-abc123def456", round: 1 };
+    await expect(wallet.cornerRefresh(p, req, false)).rejects.toThrow(); // flag off
+    await expect(wallet.cornerRefresh(p, { ...req, mode: "live" }, true)).rejects.toThrow(); // never against players
+    const a = await wallet.cornerRefresh(p, req, true);
+    expect(a.charged).toBe(true);
+    expect(a.stars).toBe(before - CORNER_REFRESH_PRICE_STARS);
+    const retry = await wallet.cornerRefresh(p, req, true); // the same round again / a network retry
+    expect(retry.charged).toBe(false);
+    expect(await ledger.balance(userStars(p))).toBe(before - CORNER_REFRESH_PRICE_STARS);
+    const r2 = await wallet.cornerRefresh(p, { ...req, round: 2 }, true);
+    expect(r2.charged).toBe(true);
+    expect(await ledger.balance(userStars(p))).toBe(before - 2 * CORNER_REFRESH_PRICE_STARS);
+    // no Stars: refused by the ledger, nothing charged
+    await expect(wallet.cornerRefresh("88888888-8888-8888-8888-888888888888", req, true)).rejects.toThrow();
   });
 });

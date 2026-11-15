@@ -30,6 +30,8 @@ export interface RingBody {
   life?: RingLife | null;
   /** through the ropes (climb in / out): the duck pose */
   duck?: boolean;
+  /** skin sheen 0…1 (P3-FGT-09: builds as stamina is spent) */
+  sweat?: number;
 }
 export const newBody = (): RingBody => ({ cmd: null, react: null, mood: null, walk: false });
 
@@ -79,13 +81,16 @@ export function FightAvatar({ look, corner, body, lite = false }: { look: Avatar
   const motion = useMemo(() => new BoxingMotion(), []);
   const kit = useMemo(() => boxingKitOverride(look, corner, { headgear: true }), [look, corner]);
   const weight = useMemo(() => ({ current: 1 }), []);
-  const layer = useMemo(() => boxingLayer({ motion, kit, weight, clock: ringNow }), [motion, kit, weight]);
+  const sweat = useMemo(() => ({ current: 0.35 }), []);
+  const layer = useMemo(() => boxingLayer({ motion, kit, weight, clock: ringNow, sweat }), [motion, kit, weight, sweat]);
   const swap = useMemo(() => new KitSwap(), []);
   const fade = useRef(0);
   const anim = useRef(0);
   useEffect(() => swap.enter(now()), [swap]);
   useFrame(() => {
     fade.current = swap.sample(now()).fade;
+    const s = body.current?.sweat;
+    if (s !== undefined) sweat.current += (s - sweat.current) * 0.02;
   });
   useBodyDriver(motion, body, weight, anim);
   return <Avatar look={kit.look} animRef={anim} showTag={false} shadows={!lite} quality={lite ? "lite" : "standard"} lod rigLayer={layer} fadeRef={fade} />;

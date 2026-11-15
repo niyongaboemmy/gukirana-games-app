@@ -1,5 +1,6 @@
 "use client";
-import type { BoxingAction, RingId } from "@gukirana/contracts";
+import type { BoxingAction, CornerRefreshResponse, FightRules, RingId } from "@gukirana/contracts";
+import { api } from "@/lib/session";
 import { createFairRng, newSeed } from "@gukirana/fairness";
 import type { BotLevel } from "@gukirana/boxing";
 import { useFightBridge } from "../bridge";
@@ -58,7 +59,7 @@ let unsubSpeed: (() => void) | null = null;
 const clampLevel = (n: number): BotLevel => Math.min(5, Math.max(1, Math.round(n))) as BotLevel;
 
 /** start (or restart) a practice fight in `ring` against the AI at `level` */
-export function startPractice(ring: RingId, level: number, name = ""): PracticeSession {
+export function startPractice(ring: RingId, level: number, name = "", rules?: FightRules): PracticeSession {
   stopPractice(false);
   const seed = newSeed();
   // practice AI variety only; the fight itself has no randomness (plan §3.1)
@@ -69,11 +70,18 @@ export function startPractice(ring: RingId, level: number, name = ""): PracticeS
     level: clampLevel(level),
     rng,
     name,
+    id: `practice-${ring}-${seed.slice(0, 12)}`,
+    rules,
     onRoundEnd: (round, score) => live.practiceScore?.(ring, round, score),
   });
   runner = new PracticeRunner(session, practiceHz(useFightPrefs.getState().speed));
+  // Easy mode: practice only (the live client has no assist path at all)
+  session.assist = useFightPrefs.getState().assist;
   runner.run();
-  unsubSpeed = useFightPrefs.subscribe((p) => runner?.setHz(practiceHz(p.speed)));
+  unsubSpeed = useFightPrefs.subscribe((p) => {
+    runner?.setHz(practiceHz(p.speed));
+    if (session) session.assist = p.assist;
+  });
   live.practiceStart?.(ring);
   return session;
 }
@@ -94,6 +102,30 @@ export function stopPractice(clear = true): void {
 export const practiceSession = (): PracticeSession | null => session;
 // dev QA handle: script practice states (knockdowns, endings) for screenshots
 if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") Object.assign(window as unknown as Record<string, unknown>, { __gkPractice: { session: () => session, input: () => fightInput } });
+
+/* ------------------------------------------------------------ the corner refresh (P3-FGT-09) ------------------------------------------------------------ */
+
+/** practice only and behind NEXT_PUBLIC_FF_FIGHT_BOOST (default off) */
+export const BOOST_ON = process.env.NEXT_PUBLIC_FF_FIGHT_BOOST === "1";
+
+/**
+ * Buy a corner refresh for the current practice round: the API spends the Stars (ledger, idempotent per fight and
+ * round); only once it confirms is the stamina added to the local practice engine. Never offered in a live fight.
+ */
+export async function buyCornerRefresh(): Promise<{ ok: true; stamina: number } | { ok: false }> {
+  const mine = useFightBridge.getState().mine;
+  const s = session;
+  if (!BOOST_ON || !s || mine?.mode !== "practice" || !mine.snap) return { ok: false };
+  const round = Math.max(1, mine.snap.round);
+  try {
+    const r = await api<CornerRefreshResponse>("/wallet/corner-refresh", { method: "POST", body: JSON.stringify({ mode: "practice", practiceId: s.id, round }) });
+    if (session !== s) return { ok: false };
+    s.cornerRefresh(r.stamina);
+    return { ok: true, stamina: r.stamina };
+  } catch {
+    return { ok: false };
+  }
+}
 
 /* ------------------------------------------------------------ controls → the fight ------------------------------------------------------------ */
 

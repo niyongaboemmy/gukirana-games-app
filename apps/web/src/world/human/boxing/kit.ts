@@ -64,7 +64,7 @@ export function boxingKitOverride(look: AvatarLook, corner: Corner, opts: Boxing
     colors: {
       vest: c.main,
       trunks: c.main,
-      waistband: c.dark,
+      waistband: c.trim,
       stripe: c.trim,
       gloves: c.main,
       gloveTrim: c.trim,

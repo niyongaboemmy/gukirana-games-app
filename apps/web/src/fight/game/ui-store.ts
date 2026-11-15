@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { BoxingAction, BoxingOutcome, FightEvent } from "@gukirana/contracts";
 import type { FgKey } from "./strings";
+import { newStats, tallyStats, type FightStats } from "./outcome";
 
 /**
  * HUD-only state of the boxing client (not part of the bridge): the event feed the HUD shows (round cards, combo /
@@ -21,6 +22,14 @@ export interface FightUi {
   feed: { e: FightEvent; at: number; id: number }[];
   /** the outcome once an `over` event arrived (result card) */
   result: BoxingOutcome | null;
+  /** the whole fight's tally (P3-FGT-09: punch stats, the live round score, round reasons) */
+  stats: FightStats;
+  /**
+   * the fight record (P3-FGT-09): the match id + the signed stateHash of a live fight (docs/BOXING-SCORING.md §6), or
+   * the practice id + the hash of the final engine state, so a player or a witness can check the result
+   */
+  record: { id: string; hash: string | null; kind: "match" | "practice" } | null;
+  setRecord: (r: FightUi["record"]) => void;
   hintKey: FgKey | null;
   hintAt: number;
   press: PressFx | null;
@@ -41,6 +50,9 @@ const clock = () => (typeof performance !== "undefined" ? performance.now() : 0)
 export const useFightUi = create<FightUi>()((set) => ({
   feed: [],
   result: null,
+  stats: newStats(),
+  record: null,
+  setRecord: (record) => set({ record }),
   hintKey: null,
   hintAt: 0,
   press: null,
@@ -52,6 +64,7 @@ export const useFightUi = create<FightUi>()((set) => ({
       return {
         feed: [...s.feed, ...events.map((e) => ({ e, at, id: nextId++ }))].slice(-24),
         result: over && over.k === "over" ? over.result : s.result,
+        stats: tallyStats(s.stats, events, at),
       };
     }),
   hint: (hintKey) => set({ hintKey, hintAt: clock() }),
@@ -59,5 +72,5 @@ export const useFightUi = create<FightUi>()((set) => ({
   captionSet: (text, who) => set({ caption: { text, who, at: clock() } }),
   pressed: (a, via) => set((s) => ({ press: { a, at: clock(), n: ++pressN, state: "pending", via }, done: { ...s.done, [a]: (s.done[a] ?? 0) + 1 } })),
   confirm: (state) => set((s) => (s.press && s.press.state !== state ? { press: { ...s.press, state } } : s)),
-  clear: () => set({ feed: [], result: null, hintKey: null, hintAt: 0, press: null, caption: null }),
+  clear: () => set({ feed: [], result: null, hintKey: null, hintAt: 0, press: null, caption: null, stats: newStats(), record: null }),
 }));

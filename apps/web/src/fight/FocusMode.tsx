@@ -9,6 +9,7 @@ import { eased, focusNow, focusTarget, FOCUS_IDLE, keepRadius, publishFocus, SPE
 import { RING_BY_ID } from "./plan";
 import { useFightUi } from "./ui-store";
 import { useGymScene } from "./gym-life";
+import { RingMood } from "./ring-lights";
 
 /**
  * Focus-mode driver (P3-FGT-05, fight/focus.ts): mounted once inside the Boxing hall scene.
@@ -119,7 +120,7 @@ export function FocusMode() {
       spot.current.position.set(ring.x, ring.canvasY + 7.5, ring.z + 0.8);
       target.position.set(ring.x, ring.canvasY, ring.z);
       target.updateMatrixWorld();
-      spot.current.intensity = (spectator ? 1.2 : 2.6) * ee;
+      spot.current.intensity = (spectator ? 1.2 : 3.6) * ee;
       spot.current.angle = ring.feature ? 0.5 : 0.42;
     }
   });
@@ -127,6 +128,8 @@ export function FocusMode() {
   return (
     <group ref={anchor} userData={{ noMerge: true, focusKeep: true }}>
       <primitive object={target} />
+      {/* fight-night mood (P3-FGT-09): room fill dimmed, rim lights behind the pair */}
+      <RingMood k={() => (focusNow.mode === "fighter" ? focusNow.e : focusNow.e * 0.4)} ring={() => (focusNow.ring ? (RING_BY_ID[focusNow.ring as RingId] ?? null) : null)} />
       <spotLight ref={spot} target={target} intensity={0} angle={0.42} penumbra={0.7} decay={0} color="#fff3e2" position={[0, 9, 0]} />
     </group>
   );

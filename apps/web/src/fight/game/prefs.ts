@@ -30,6 +30,8 @@ export interface FightPrefsData {
   coach: boolean;
   /** the crowd ambience */
   crowd: boolean;
+  /** Easy mode in practice (P3-FGT-09): auto-guard, forgiving timing, step in to punch. Never in live fights. */
+  assist: boolean;
 }
 interface FightPrefs extends FightPrefsData {
   set: (p: Partial<FightPrefsData>) => void;
@@ -47,6 +49,7 @@ export const DEFAULT_FIGHT_PREFS: FightPrefsData = {
   voice: true,
   crowd: true,
   coach: true,
+  assist: true,
 };
 
 export const useFightPrefs = create<FightPrefs>()(
@@ -66,6 +69,7 @@ export const useFightPrefs = create<FightPrefs>()(
       voice: s.voice,
       crowd: s.crowd,
       coach: s.coach,
+      assist: s.assist,
     }),
   }),
 );
