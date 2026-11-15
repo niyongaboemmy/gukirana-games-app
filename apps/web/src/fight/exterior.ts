@@ -15,10 +15,10 @@ import { FIGHT_BUILDING, FIGHT_DOOR_INSET } from "./plan";
 export function fightHall(b: GeoBatch) {
   const f = FIGHT_BUILDING;
   const t = 0.4;
-  const seg = (key: string, ax: number, az: number, cx: number, cz: number, h: number, y0 = 0, tile = 2) => {
+  const seg = (key: string, ax: number, az: number, cx: number, cz: number, h: number, y0 = 0, tile = 2, th = t) => {
     const len = Math.hypot(cx - ax, cz - az);
     if (len < 0.05) return;
-    b.box(key, len, h, t, { p: [(ax + cx) / 2, y0 + h / 2, (az + cz) / 2], r: [0, -Math.atan2(cz - az, cx - ax), 0], tile });
+    b.box(key, len, h, th, { p: [(ax + cx) / 2, y0 + h / 2, (az + cz) / 2], r: [0, -Math.atan2(cz - az, cx - ax), 0], tile });
   };
 
   /* ---- Boxing hall volume (P3-FGT-11: centred on its own line f.cx, off the door axis) ---- */
@@ -26,7 +26,7 @@ export function fightHall(b: GeoBatch) {
   lobbyWing(b);
 }
 
-type Seg = (key: string, ax: number, az: number, cx: number, cz: number, h: number, y0?: number, tile?: number) => void;
+type Seg = (key: string, ax: number, az: number, cx: number, cz: number, h: number, y0?: number, tile?: number, th?: number) => void;
 function hallVolume(b: GeoBatch, seg: Seg) {
   const f = FIGHT_BUILDING;
   const t = 0.4;
@@ -43,7 +43,8 @@ function hallVolume(b: GeoBatch, seg: Seg) {
   // the front wall (the part above the lobby roof and either side of the lobby wing)
   b.box("charcoal", f.hw * 2, H, t, { p: [0, H / 2, f.front - t / 2], tile: 2 });
   // basalt base course, roof slab, parapet
-  for (let i = 0; i < pts.length - 1; i++) seg("lava", pts[i]![0], pts[i]![1], pts[i + 1]![0], pts[i + 1]![1], 0.9, 0, 1.2);
+  // (a real plinth: 6 cm proud of the wall on both faces — it used to share the wall's faces and z-fought in patches)
+  for (let i = 0; i < pts.length - 1; i++) seg("lava", pts[i]![0], pts[i]![1], pts[i + 1]![0], pts[i + 1]![1], 0.9, 0, 1.2, t + 0.12);
   const roofD = f.front - (f.back + f.chamfer);
   b.box("concreteDark", f.hw * 2 + 0.4, 0.5, roofD, { p: [0, H + 0.25, f.front - roofD / 2], tile: 2 });
   b.box("concreteDark", (f.hw - f.chamfer) * 2, 0.5, f.chamfer, { p: [0, H + 0.25, f.back + f.chamfer / 2], tile: 2 });

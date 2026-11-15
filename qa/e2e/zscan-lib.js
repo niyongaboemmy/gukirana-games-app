@@ -51,3 +51,54 @@ window.__zscan = function (opts = {}) {
   }
   return { tris: tris.length, hits: [...hits.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, opts.top ?? 40).map(([k, h]) => `${h.n}\t(${h.x.toFixed(1)}, ${h.z.toFixed(1)})\t${k}`) };
 };
+
+// walls: overlapping vertical faces of different meshes/materials on (almost) the same plane, facing the same way
+window.__zscanWalls = function (opts = {}) {
+  const root = window.__gkProbe.root;
+  const tol = opts.tol ?? 0.004;
+  const shown = (o) => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; };
+  root.updateMatrixWorld(true);
+  const faces = [];
+  const v = [0, 0, 0].map(() => ({ x: 0, y: 0, z: 0 }));
+  root.traverse((o) => {
+    if (!o.isMesh || o.isSkinnedMesh || o.isInstancedMesh || !shown(o) || (o.layers.mask & 1) === 0) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    if (mats.some((m) => m.polygonOffset || (m.transparent && m.opacity < 0.5))) return;
+    const g = o.geometry, pos = g.attributes.position; if (!pos) return;
+    const idx = g.index, n = idx ? idx.count : pos.count, M = o.matrixWorld.elements;
+    const name = (o.name || o.parent?.name || o.type) + ":" + (mats[0].color ? mats[0].color.getHexString() : mats[0].type);
+    for (let t = 0; t + 2 < n; t += 3) {
+      for (let j = 0; j < 3; j++) {
+        const i = idx ? idx.getX(t + j) : t + j;
+        const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+        v[j].x = M[0] * x + M[4] * y + M[8] * z + M[12]; v[j].y = M[1] * x + M[5] * y + M[9] * z + M[13]; v[j].z = M[2] * x + M[6] * y + M[10] * z + M[14];
+      }
+      const ax = v[1].x - v[0].x, ay = v[1].y - v[0].y, az = v[1].z - v[0].z, bx = v[2].x - v[0].x, by = v[2].y - v[0].y, bz = v[2].z - v[0].z;
+      let nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx;
+      const L = Math.hypot(nx, ny, nz); if (L < 2e-3) continue;
+      nx /= L; ny /= L; nz /= L;
+      if (Math.abs(ny) > 0.02) continue;
+      const ang = Math.round(Math.atan2(nz, nx) * 180 / Math.PI);
+      const d = nx * v[0].x + nz * v[0].z;
+      const tx = -nz, tz = nx; // along the wall
+      const s = [0, 1, 2].map((j) => tx * v[j].x + tz * v[j].z);
+      faces.push({ name, ang, d, s0: Math.min(...s), s1: Math.max(...s), y0: Math.min(v[0].y, v[1].y, v[2].y), y1: Math.max(v[0].y, v[1].y, v[2].y), x: v[0].x, z: v[0].z });
+    }
+  });
+  const groups = new Map();
+  for (const f of faces) { const k = f.ang + ":" + Math.round(f.d / 0.5); (groups.get(k) ?? groups.set(k, []).get(k)).push(f); }
+  const hits = new Map();
+  for (const [, list] of groups) {
+    if (list.length > 3000) continue;
+    for (let a = 0; a < list.length; a++) for (let b = a + 1; b < list.length; b++) {
+      const A = list[a], B = list[b];
+      if (A.name === B.name || Math.abs(A.d - B.d) > tol) continue;
+      const os = Math.min(A.s1, B.s1) - Math.max(A.s0, B.s0), oy = Math.min(A.y1, B.y1) - Math.max(A.y0, B.y0);
+      if (os < 0.05 || oy < 0.05) continue;
+      const key = [A.name, B.name].sort().join(" | ");
+      const h = hits.get(key) ?? hits.set(key, { n: 0, x: A.x, z: A.z, y: Math.max(A.y0, B.y0) }).get(key);
+      h.n++;
+    }
+  }
+  return { faces: faces.length, hits: [...hits.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, opts.top ?? 40).map(([k, h]) => `${h.n}\t(${h.x.toFixed(1)}, ${h.z.toFixed(1)}) y${h.y.toFixed(1)}\t${k}`) };
+};

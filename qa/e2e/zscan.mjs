@@ -18,4 +18,6 @@ else {
 await p.evaluate(lib);
 const r = await p.evaluate(() => window.__zscan({ top: 60 }));
 console.log(where, "flat tris:", r.tris); console.log(r.hits.join("\n"));
+const w = await p.evaluate(() => window.__zscanWalls({ top: 40 }));
+console.log(where, "wall faces:", w.faces); console.log(w.hits.join("\n"));
 await b.close();
