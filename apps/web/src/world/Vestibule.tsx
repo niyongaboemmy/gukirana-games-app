@@ -134,11 +134,14 @@ function lobbyFloor(style: Style, w: number, len: number, mat: { w: number; from
   return t;
 }
 
-/** A box whose faces all sample one column of the wall wash (u fixed): an even top-down wash across a narrow panel. */
-function washedBox(w: number, h: number, d: number, u: number): THREE.BufferGeometry {
+/** A box whose faces all sample one column of the wall wash (u fixed; v too if given): an even wash across a narrow panel. */
+function washedBox(w: number, h: number, d: number, u: number, v?: number): THREE.BufferGeometry {
   const g = new THREE.BoxGeometry(w, h, d);
   const uv = g.getAttribute("uv") as THREE.BufferAttribute;
-  for (let i = 0; i < uv.count; i++) uv.setX(i, u);
+  for (let i = 0; i < uv.count; i++) {
+    uv.setX(i, u);
+    if (v !== undefined) uv.setY(i, v);
+  }
   return g;
 }
 
@@ -231,12 +234,14 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
     const wash = wallWash().clone();
     wash.repeat.set(s.lights, 1);
     wash.needsUpdate = true;
+    // the walls take the downlights' warm light: a scallop under each one (emissive, no real light needed)
+    const lit = { roughness: 0.88, emissive: new THREE.Color("#e9c49c"), emissiveMap: wash, emissiveIntensity: lite ? 0.26 : 0.32 };
     return {
       floor: new THREE.MeshStandardMaterial({ color: col("#ffffff"), map: foyer ? null : lobbyFloor(s, w, depth + 0.12, { w: Math.min(w - 0.5, 3.4), from: 0.25, to: 1.85 }), roughness: 0.6, metalness: 0 }),
-      // the walls take the downlights' light: a warm scallop under each one (emissive, no real light needed)
-      wall: new THREE.MeshStandardMaterial({ color: col(s.wall), roughness: 0.85, emissive: new THREE.Color(s.wall).lerp(new THREE.Color("#ffd9a8"), 0.25), emissiveMap: wash, emissiveIntensity: lite ? 0.3 : 0.38 }),
-      // (the soffit faces down, away from the daylight: a little of the downlights' bounce keeps it from reading black)
-      ceiling: new THREE.MeshStandardMaterial({ color: col(s.ceiling), roughness: 0.9, emissive: new THREE.Color(s.ceiling), emissiveIntensity: 0.3 }),
+      // (wall and ceiling differ only in colour: the door's static batch folds them into one draw call)
+      wall: new THREE.MeshStandardMaterial({ color: col(s.wall), ...lit }),
+      // (the soffit faces down, away from the daylight: the downlights' bounce, evenly, keeps it from reading black)
+      ceiling: new THREE.MeshStandardMaterial({ color: col(s.ceiling), ...lit }),
       frame: doorFrameMaterial(def.kind),
       light: new THREE.MeshBasicMaterial({ color: new THREE.Color("#ffe3b8").multiplyScalar(0.85), toneMapped: false }),
       pool: new THREE.MeshBasicMaterial({
@@ -272,8 +277,13 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
   // the back wall's panels sample the wash at a scallop's centre (u = 0.5 / lights): lit evenly from the top
   const back = useMemo(() => {
     const u = 0.5 / Math.max(1, s.lights);
-    return { side: washedBox(side + 0.02, h + 0.02, 0.1, u), over: washedBox(DW + 0.02, h + 0.02 - DH, 0.092, u) };
-  }, [side, h, DW, s.lights]);
+    return {
+      side: washedBox(side + 0.02, h + 0.02, 0.1, u),
+      over: washedBox(DW + 0.02, h + 0.02 - DH, 0.092, u),
+      // the soffit samples the wash's dim foot: an even glow
+      ceiling: washedBox(w + 0.2, 0.1, depth + 0.12, u, 0.03),
+    };
+  }, [side, h, DW, s.lights, w, depth]);
   useEffect(() => () => Object.values(back).forEach((g) => g.dispose()), [back]);
   // the inner doors: one smoked pane across both closed leaves (one draw call), the leaves' stiles, rails and bars
   const pane = useMemo(() => paneGeometry("door", 0, DW - 0.18, DH - 0.2), [DW]);
@@ -297,9 +307,7 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
           </mesh>
         </group>
       ))}
-      <mesh material={mats.ceiling} position={[0, h + 0.05, zc - 0.06]} castShadow={cast} receiveShadow={cast}>
-        <boxGeometry args={[w + 0.2, 0.1, depth + 0.12]} />
-      </mesh>
+      <mesh geometry={back.ceiling} material={mats.ceiling} position={[0, h + 0.05, zc - 0.06]} castShadow={cast} receiveShadow={cast} />
       {/* back wall either side of and over the inner doors (2 cm into the side walls and the ceiling: no shared faces) */}
       {[-1, 1].map((sd) => (
         <mesh key={`p${sd}`} geometry={back.side} material={mats.wall} position={[sd * (DW / 2 + (side + 0.02) / 2), (h + 0.02) / 2, zb - 0.05]} castShadow={cast} receiveShadow={cast} />
