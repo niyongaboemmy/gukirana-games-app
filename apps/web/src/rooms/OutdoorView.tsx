@@ -33,6 +33,23 @@ export function hallFrame(layout: HallLayout) {
 
 /** captured window views per hall + tier, kept for the session (≈ 25 MB GPU per hall on Standard, 6 MB on Lite) */
 const CAPTURED = new Map<string, THREE.WebGLCubeRenderTarget>();
+/** halls mounted right now (their view must stay) */
+const MOUNTED = new Set<string>();
+/**
+ * At most KEEP window views are kept for halls that are not mounted (P2-WLD-18: the glass captures warm halls you only
+ * walk past; their 25 MB window views must not pile up for the session): the oldest is released.
+ */
+const KEEP = 2;
+function keep(key: string, rt: THREE.WebGLCubeRenderTarget) {
+  CAPTURED.delete(key);
+  CAPTURED.set(key, rt);
+  for (const k of [...CAPTURED.keys()]) {
+    if (CAPTURED.size <= KEEP) break;
+    if (MOUNTED.has(k) || k === key) continue;
+    CAPTURED.get(k)?.dispose();
+    CAPTURED.delete(k);
+  }
+}
 
 export function OutdoorView({
   layout,
@@ -75,6 +92,10 @@ export function OutdoorView({
   const [captured, setCaptured] = useState(!!cached);
   const step = useRef<{ n: number; compiled: "no" | "running" | "done"; face: number }>({ n: 0, compiled: "no", face: 0 });
 
+  useEffect(() => {
+    MOUNTED.add(key);
+    return () => void MOUNTED.delete(key);
+  }, [key]);
   useEffect(() => {
     if (CAPTURED.get(key) === rt) {
       scene.background = rt.texture;
@@ -132,7 +153,7 @@ export function OutdoorView({
     withCaptureState(face, () => gl.render(outdoor, cam.children[face] as THREE.Camera));
     st.face++;
     if (face < 5) return;
-    CAPTURED.set(key, rt);
+    keep(key, rt);
     scene.background = rt.texture;
     scene.backgroundIntensity = 1;
     setCaptured(true);

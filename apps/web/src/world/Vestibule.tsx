@@ -4,14 +4,14 @@ import * as THREE from "three";
 import { DOOR, VESTIBULE_DEPTH, type PortalDef } from "./layout";
 import type { Tier } from "./materials";
 import { blobTexture, doorBadgeTexture, woodTexture } from "./textures";
-import { interiorGlassMaterial, interiorPaneGeometry } from "./interior-glass";
-import { hasInterior } from "./interior-plan";
+import { glazingMaterial, paneGeometry } from "./glazing";
+import { isGlazed } from "./glass-capture";
 
 /**
  * A real entrance vestibule behind each plaza hall door (P1-WLD-03, review P0-2): instead of a glowing poster the
  * doorway opens onto a 4.2 m lobby in the hall's own materials — floor, side walls, a ceiling with warm downlights
- * and soft light pools — ending in the open inner doorway with a view into the hall itself (P2-WLD-15: interior-mapped,
- * with real depth and the hall's own furniture: pool tables, Ludo tables, Igisoro boards, the Arena's video wall…).
+ * and soft light pools — ending in the open inner doorway with a view into the hall itself (P2-WLD-18: the hall's REAL
+ * interior, captured from just inside its door, the doorway being its south wall; world/glazing.ts).
  * Local frame = the building's door frame (door centre at x = 0, plaza towards +z), `inset` = door line z.
  */
 const DEPTH = VESTIBULE_DEPTH;
@@ -111,10 +111,10 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
   );
   const w = DOOR.w + 0.3;
   const h = DOOR.h + 0.25;
-  // the hall beyond the inner doorway (shared material: merged with every other pane, never disposed here)
-  const hall = useMemo(() => (hasInterior(def.kind) ? interiorPaneGeometry(def.kind, "vestibule", w, h) : null), [def.kind, w, h]);
-  useEffect(() => () => hall?.dispose(), [hall]);
+  // the hall beyond the inner doorway (its glazing material is shared with the facade, never disposed here)
   const z0 = inset - 0.04;
+  const hall = useMemo(() => (isGlazed(def.kind) ? paneGeometry("doorway", z0 - DEPTH, w, h) : null), [def.kind, w, h, z0]);
+  useEffect(() => () => hall?.dispose(), [hall]);
   const zc = z0 - DEPTH / 2;
   const cast = !lite;
   return (
@@ -159,8 +159,8 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
           </group>
         );
       })}
-      {/* inner doorway: the hall itself beyond the lobby, with depth (interior mapping) */}
-      {hall && <mesh geometry={hall} material={interiorGlassMaterial(tier)} position={[0, h / 2, z0 - DEPTH]} />}
+      {/* inner doorway: the hall itself beyond the lobby, at its true depth (captured interior) */}
+      {hall && isGlazed(def.kind) && <mesh geometry={hall} material={glazingMaterial(def.kind, tier)} position={[0, h / 2, z0 - DEPTH]} />}
     </group>
   );
 }

@@ -8,8 +8,9 @@ import { RING_PLANTERS } from "./beds";
 import { activityProps } from "./activity-props";
 import { NOTICE_BOARD, WATER_POINT } from "./activities";
 import { fightHall } from "@/fight/exterior";
-import { interiorPane } from "./interior-glass";
-import type { InteriorKind } from "./interior-plan";
+import { glazingPane } from "./glazing";
+import type { GlazedHall } from "./glass-capture";
+import { HALLS } from "@/rooms/layouts";
 import { agasekeGeometry } from "./agaseke";
 import { ARENA, ARENA_CANOPY, ARENA_COLUMNS, ARENA_FLAG, ARENA_FLAGPOLES, FOOTPRINTS, igisoroHall, LUDO_DIE, PLOTS, sitePlan, toLocal, WING_HW, wingedHall } from "./footprints";
 import {
@@ -51,18 +52,22 @@ function wallWithDoor(b: GeoBatch, key: string, w: number, h: number, z: number,
 }
 
 /**
- * A glazed shopfront with the door opening in the middle (the layout of wallWithDoor), P2-WLD-15: interior-mapped
- * panes on the outside face (the room behind them is drawn by the shader, world/interior-glass.ts), a slim dark
- * backing behind them (the building stays closed when seen edge-on).
+ * A glazed shopfront with the door opening in the middle (the layout of wallWithDoor). P2-WLD-18: what you see through
+ * it is the hall's REAL interior (world/glazing.ts: captured from just inside its door, ray-marched at true depth),
+ * the glass line being the room's south wall; glass above the room's ceiling is back-painted spandrel glass behind a
+ * slim transom at the ceiling line. A dark backing behind the panes keeps the building closed when seen edge-on.
  */
-function glassWithDoor(b: GeoBatch, kind: InteriorKind, w: number, h: number, z: number, t: number) {
+function glassWithDoor(b: GeoBatch, game: GlazedHall, w: number, h: number, z: number, t: number, transomKey = "screenFrame") {
   const ow = DOOR.w + 0.4;
   const oh = DOOR.h + 0.2;
   const side = (w - ow) / 2;
   const zf = z + t / 2 + 0.005;
   wallWithDoor(b, "screenFrame", w, h, z - t / 4, t / 2, 6);
-  for (const s of [-1, 1]) interiorPane(b, kind, "shopfront", side, h, [s * (ow / 2 + side / 2), h / 2, zf]);
-  if (h > oh) interiorPane(b, kind, "shopfront", ow, h - oh, [0, oh + (h - oh) / 2, zf]);
+  for (const s of [-1, 1]) glazingPane(b, game, "glass", zf, side, h, [s * (ow / 2 + side / 2), h / 2, zf]);
+  if (h > oh) glazingPane(b, game, "glass", zf, ow, h - oh, [0, oh + (h - oh) / 2, zf]);
+  // the room's ceiling line (vision glass below, spandrel above): a transom across the glazing
+  const ceil = HALLS[game].size.h;
+  if (ceil < h - 0.2) b.box(transomKey, w, 0.12, 0.1, { p: [0, ceil, zf + 0.05] });
 }
 
 /** Aluminium door surround with a slim LED trim in the game colour, plus a basalt threshold. */
@@ -234,16 +239,16 @@ function adminBlock(b: GeoBatch) {
   // stone frame: deep side piers, base course, the fascia band that carries the lettering, roof slab
   for (const s of [-1, 1]) {
     b.box("limestone", 0.9, H, D, { p: [s * (W / 2 - 0.45), H / 2, -D / 2], tile: 1.6 });
-    b.box("basalt", 0.96, 0.5, D + 0.06, { p: [s * (W / 2 - 0.45), 0.25, -D / 2 + 0.03], tile: 1.2 });
+    b.box("basalt", 0.96, 0.5, D + 0.12, { p: [s * (W / 2 - 0.45), 0.25, -D / 2], tile: 1.2 }); // proud of the pier at both ends
   }
   b.box("limestone", W, 1.5, 1.2, { p: [0, H - 0.75, -0.5], tile: 1.6 });
   b.box("limestone", W + 0.4, 0.4, D + 0.6, { p: [0, H + 0.2, -D / 2 + 0.3], tile: 2 });
   b.box("bronze", W + 0.42, 0.06, 0.06, { p: [0, H - 1.52, 0.11] });
   // curtain wall on the door line: glass with bronze mullions and transom, the door opening in the middle
-  glassWithDoor(b, "admin", W - 1.8, H - 1.5, z, 0.12);
-  for (let x = -W / 2 + 0.9; x <= W / 2 - 0.89; x += 1.35) if (Math.abs(x) > DOOR.w / 2 + 0.3) b.box("bronze", 0.08, H - 1.5, 0.16, { p: [x, (H - 1.5) / 2, z + 0.06] });
-  b.box("bronze", W - 1.8, 0.08, 0.16, { p: [0, DOOR.h + 0.3, z + 0.06] });
-  // (the lobby behind the curtain wall is drawn by the interior-mapped glass: reception desk, office doors)
+  glassWithDoor(b, "admin", W - 1.8, H - 1.5, z, 0.12, "bronze");
+  for (let x = -W / 2 + 0.9; x <= W / 2 - 0.89; x += 1.35) if (Math.abs(x) > DOOR.w / 2 + 0.3) b.box("bronze", 0.08, H - 1.5, 0.15, { p: [x, (H - 1.5) / 2, z + 0.065] });
+  b.box("bronze", W - 1.8, 0.08, 0.15, { p: [0, DOOR.h + 0.3, z + 0.065] });
+  // (behind the curtain wall: the Block's real reception lobby, captured; above its 3.8 m ceiling: spandrel glass)
   // thin cantilevered canopy over the entrance, with a bronze edge and soft soffit lights
   b.box("white", 7.2, 0.22, 3.4, { p: [0, 4.6, z + 1.55] });
   b.box("bronze", 7.24, 0.24, 0.04, { p: [0, 4.6, z + 3.26] });
@@ -282,7 +287,10 @@ export const ADMIN_FLAG_Z = -0.4;
  * a hipped thatch roof (inspired by the royal palace at Nyanza). `door`: the front wall gets the lava door section;
  * `hidden`: front-wall span (x range) covered by another block, left without windows.
  */
-function thatchedBlock(b: GeoBatch, x0: number, x1: number, z0: number, z1: number, H: number, tier: string, opts: { door?: boolean; hidden?: [number, number] } = {}) {
+function thatchedBlock(b: GeoBatch, x0: number, x1: number, z0: number, z1: number, H: number, tier: string, opts: { door?: boolean; hidden?: [number, number]; back?: boolean } = {}) {
+  // `back: false`: the back wall abuts another block (the porch against the court): no base course, frieze or windows
+  // on it (they stood inside the court's front wall and shared its face)
+  const back = opts.back ?? true;
   const W = x1 - x0;
   const D = z0 - z1;
   const cx = (x0 + x1) / 2;
@@ -306,6 +314,7 @@ function thatchedBlock(b: GeoBatch, x0: number, x1: number, z0: number, z1: numb
     [x1 + 0.04, cz, D, 0.08, Math.PI / 2],
     [cx, z1 - 0.04, W, 0.08, 0],
   ] as const) {
+    if (!back && pz === z1 - 0.04) continue;
     b.box("lava", w + 0.1, 0.88, d, { p: [px, 0.44, pz], r: [0, rot, 0], tile: 1.2 }); // 0.88: its top used to coincide with the timber at 0.9
     b.box("imigongo", w + 0.1, 1.0, d, { p: [px, H - 0.75, pz], r: [0, rot, 0], uv: [w / 4.4, 1] });
   }
@@ -338,12 +347,14 @@ function thatchedBlock(b: GeoBatch, x0: number, x1: number, z0: number, z1: numb
     // exposed rafter ends under the front eaves
     for (let x = x0 - ov + 0.6; x <= x1 + ov - 0.5; x += 0.9)
       if (!opts.hidden || x < opts.hidden[0] - ov || x > opts.hidden[1] + ov) b.box("woodDark", 0.08, 0.1, ov, { p: [x, H - 0.18, z0 + ov / 2], tile: 1 });
-  // windows: timber-framed 0.9 × 1.6 m, sill at 0.9 m, every ~3 m on all walls; interior-mapped glass shows the court
-  // inside (low boards on stools, woven pendants, the dark timber walls) with real depth
+  // windows: timber-framed 0.9 × 1.6 m, sill at 0.9 m, every ~3 m on all walls (P2-WLD-18). Only the porch's front
+  // windows stand where the court really is behind them (its south wall, either side of the door): they show it, as
+  // captured. Every other window has closed woven blinds behind the glass (the rooms behind them are not modelled).
   const win = (x: number, z: number, rotY: number) => {
+    const real = opts.door && rotY === 0;
     b.frame([x, 0, z], rotY, () => {
-      interiorPane(b, "igisoro", "window", 0.9, 1.6, [0, 1.7, 0.04]);
-      for (const s of [-1, 1]) b.box("woodDark", 0.1, 1.8, 0.16, { p: [s * 0.5, 1.7, 0.08], tile: 1 });
+      glazingPane(b, "igisoro", real ? "glass" : "blind", z + 0.04, 0.9, 1.6, [0, 1.7, 0.04]);
+      for (const s of [-1, 1]) b.box("woodDark", 0.1, 1.8, 0.16, { p: [s * 0.5, 1.7, 0.09], tile: 1 }); // 1 cm off the wall face (its back shared it with the base course)
       b.box("woodDark", 1.1, 0.1, 0.16, { p: [0, 2.55, 0.08], tile: 1 });
       b.box("woodDark", 1.2, 0.08, 0.26, { p: [0, 0.86, 0.12], tile: 1 }); // sill
       b.box("woodDark", 0.9, 0.05, 0.05, { p: [0, 2.05, 0.11], tile: 1 }); // transom bar
@@ -355,14 +366,14 @@ function thatchedBlock(b: GeoBatch, x0: number, x1: number, z0: number, z1: numb
     win(x0, z, -Math.PI / 2);
     win(x1, z, Math.PI / 2);
   }
-  for (let x = x0 + 1.8; x <= x1 - 1.0; x += 3) win(x, z1, Math.PI);
+  if (back) for (let x = x0 + 1.8; x <= x1 - 1.0; x += 3) win(x, z1, Math.PI);
 }
 
 function igisoroCourt(b: GeoBatch, tier: string) {
   // the thatched porch wing with the carved door, and the full-size court behind it (the interior size plus walls)
   const h = igisoroHall();
   const wx = WING_HW - 0.6;
-  thatchedBlock(b, -wx, wx, h.doorZ + h.t / 2, -h.wing, 4.6, tier, { door: true });
+  thatchedBlock(b, -wx, wx, h.doorZ + h.t / 2, -h.wing, 4.6, tier, { door: true, back: false });
   thatchedBlock(b, h.x0, h.x1, h.z0, h.z1, 5.6, tier, { hidden: [-wx - 0.2, wx + 0.2] });
   // timber porch
   b.box("wood", 6.4, 0.3, 3.4, { p: [0, 4.6, -0.9], tile: 1 });
@@ -458,19 +469,19 @@ function tournamentArena(b: GeoBatch, tier: string) {
   b.add("glass", new THREE.CylinderGeometry(1, 1, 1.0, 40, 1, true), { p: [0, roofY + H + 0.35, cz], s: lantern, uv: [6, 1] });
   // (a cream stone lid: from above it reads as the closed crown of the roof, not as a dark hole)
   b.add("limestone", new THREE.CylinderGeometry(1, 1, 0.32, 40), { p: [0, roofY + H + 0.95, cz], s: [lantern[0] * 1.1, 1, lantern[2] * 1.1] });
-  b.add("led-halo", new THREE.CylinderGeometry(1, 1, 0.05, 40, 1, true), { p: [0, roofY + H + 0.82, cz], s: [lantern[0] * 1.1 + 0.01, 1, lantern[2] * 1.1 + 0.01] });
+  b.add("led-halo", new THREE.CylinderGeometry(1, 1, 0.05, 40, 1, true), { p: [0, roofY + H + 0.82, cz], s: [lantern[0] * 1.1 + 0.03, 1, lantern[2] * 1.1 + 0.03] });
 
   // ---- the big screen's chocolate frame on the drum, with the header that carries the crown lettering (Plaza.tsx)
   b.box("choco", 17.4, 7.1, 0.5, { p: [0, 13.3, cz + rz + 0.9] });
 
-  // ---- entrance: glazed foyer (interior-mapped: the foyer with its bronze turnstiles, banners and video wall reads
-  // through the front and the returns; the returns run into the drum, no slot), chocolate mullions and transom
+  // ---- entrance: glazed foyer (P2-WLD-18: the arena's real foyer, captured, through the front and the returns; the
+  // returns run into the drum, no slot), chocolate mullions and transom
   glassWithDoor(b, "arena", 12.4, 6.2, -1.3, 0.14);
   const retZ1 = -7.6;
   const retL = -1.3 - retZ1;
   for (const s of [-1, 1]) {
     b.box("screenFrame", 0.07, 6.2, retL, { p: [s * 6.17, 3.1, (-1.3 + retZ1) / 2] });
-    interiorPane(b, "arena", "shopfront", retL, 6.2, [s * 6.28, 3.1, (-1.3 + retZ1) / 2], (s * Math.PI) / 2);
+    glazingPane(b, "arena", "glass", -1.3 + 0.075, retL, 6.2, [s * 6.28, 3.1, (-1.3 + retZ1) / 2], (s * Math.PI) / 2);
   }
   for (let x = -6; x <= 6.01; x += 1.5) if (Math.abs(x) > 1.8) b.box("choco", 0.08, 6.2, 0.1, { p: [x, 3.1, -1.2] });
   b.box("choco", 12.4, 0.1, 0.1, { p: [0, 4.25, -1.2] });
@@ -623,7 +634,7 @@ function hallSite(b: GeoBatch, away: number, tier: string, crane: boolean, ringP
     [-wx, -0.4],
   ];
   for (let i = 0; i < pts.length - 1; i++) fence(pts[i]![0], pts[i]![1], pts[i + 1]![0], pts[i + 1]![1]);
-  for (const [x, z] of pts) b.box("steel", 0.12, H + 0.2, 0.12, { p: [x, (H + 0.2) / 2, z] });
+  for (const [x, z] of pts) b.box("steel", 0.16, H + 0.2, 0.16, { p: [x, (H + 0.2) / 2, z] }); // 2 cm proud of the 12 cm fence
   if (ringPlot) {
     // inner-ring plots: the standard construction front (site gate, frame, crane) from the small plots
     for (const sd of [-1, 1]) fence(sd * 6.6, -0.4, sd * wx, -0.4);
@@ -753,9 +764,9 @@ function plaza(b: GeoBatch, tier: string) {
       b.box("aluBrushed", 2.4, 3.4, 0.3, { p: [0, 1.95, 0] });
       b.box("lava", 1.2, 0.3, 0.7, { p: [0, 0.15, 0], tile: 1.2 });
       b.box(t.id === "wallet" ? "led-gold" : "led-sky", 2.3, 0.025, 0.02, { p: [0, 3.62, 0.15] });
-      for (let i = 0; i < 6; i++) b.box("screenFrame", 1.5, 0.03, 0.012, { p: [0, 0.62 + i * 0.07, -0.152] });
-      b.add("screenFrame", new THREE.CircleGeometry(0.16, 24).rotateY(Math.PI), { p: [0, 3.0, -0.152] });
-      b.add("aluBrushed", new THREE.RingGeometry(0.07, 0.11, 24).rotateY(Math.PI), { p: [0, 3.0, -0.154] });
+      for (let i = 0; i < 6; i++) b.box("screenFrame", 1.5, 0.03, 0.012, { p: [0, 0.62 + i * 0.07, -0.162] });
+      b.add("screenFrame", new THREE.CircleGeometry(0.16, 24).rotateY(Math.PI), { p: [0, 3.0, -0.158] });
+      b.add("aluBrushed", new THREE.RingGeometry(0.07, 0.11, 24).rotateY(Math.PI), { p: [0, 3.0, -0.164] });
     });
     ao(b, t.x, t.z, 2.4, 1.3, t.rotY);
   }

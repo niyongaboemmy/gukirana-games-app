@@ -20,6 +20,7 @@ import { doorOpen } from "./transition";
 import { AreaContext, areaOf, areaTopUp, getArea, hallOf, isOnScreen, knownAreas, useStage, type Area } from "./stage";
 import { useDoorway } from "./doorway";
 import { StaticMerge } from "./static-merge";
+import { GlassCapture } from "./GlassCapture";
 import { HallActors, HallInterior } from "@/rooms/RoomCanvas";
 import { HALLS, type HallGame } from "@/rooms/layouts";
 import { selfPose, useWorld } from "@/lib/world-store";
@@ -588,6 +589,8 @@ function Stage() {
       ))}
       <Compositor />
       <WarmKeeper />
+      {/* what the halls' glass shows: their real interiors and forecourts, captured once (P2-WLD-18) */}
+      <GlassCapture />
     </>
   );
 }

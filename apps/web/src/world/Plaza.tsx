@@ -29,7 +29,7 @@ import { campusWalkLength } from "./campus";
 
 const FONT = "/fonts/Baloo2.ttf";
 
-const NO_SHADOW = new Set(["interior", "basalt", "granite", "basinFloor", "brass", "lampHead", "screenFrame"]);
+const NO_SHADOW = new Set(["basalt", "granite", "basinFloor", "brass", "lampHead", "screenFrame"]);
 
 /** Merged static district: ~one draw call per material. */
 function District({ tier }: { tier: Tier }) {
@@ -48,7 +48,7 @@ function District({ tier }: { tier: Tier }) {
         const transparent = m.transparent;
         // flush / flat or tiny parts cast no shadow (P2-WLD-09: each merged material is one more shadow-pass draw;
         // kerb strips, granite discs, the basin floor, brass inlays, lamp diffusers and screen panels add nothing seen)
-        const ground = key === "paving" || key === "asphalt" || NO_SHADOW.has(key);
+        const ground = key === "paving" || key === "asphalt" || key.startsWith("glazing-") || NO_SHADOW.has(key);
         return <mesh key={key} geometry={g} material={m} castShadow={!unlit && !transparent && !ground && tier !== "lite"} receiveShadow={!unlit && tier !== "lite"} userData={{ noMerge: key === "led-halo" }} />;
       })}
     </group>
@@ -462,22 +462,22 @@ function Totems() {
         const c = content[t.id];
         return (
           <group key={t.id} position={[t.x, 0, t.z]} rotation={[0, t.rotY, 0]}>
-            <mesh position={[0, 1.95, 0.152]}>
+            <mesh position={[0, 1.95, 0.158]}>
               <planeGeometry args={[2.2, 3.2]} />
               <meshBasicMaterial color="#14183f" toneMapped={false} />
             </mesh>
-            <Text font={FONT} fontSize={0.3} color={c.color} position={[0, 3.1, 0.16]} anchorX="center">
+            <Text font={FONT} fontSize={0.3} color={c.color} position={[0, 3.1, 0.17]} anchorX="center">
               {c.title}
             </Text>
             {t.id === "welcome" && (
-              <mesh position={[0, 1.78, 0.158]}>
+              <mesh position={[0, 1.78, 0.164]}>
                 <planeGeometry args={[2.05, 2.05]} />
                 <meshBasicMaterial map={map} toneMapped={false} />
               </mesh>
             )}
             <NearOnly max={24}>
               {c.lines.map((l, i) => (
-                <Text key={i} font={FONT} fontSize={0.16} color="#ffffff" position={[0, 2.55 - i * 0.32, 0.16]} anchorX="center" maxWidth={2}>
+                <Text key={i} font={FONT} fontSize={0.16} color="#ffffff" position={[0, 2.55 - i * 0.32, 0.17]} anchorX="center" maxWidth={2}>
                   {l}
                 </Text>
               ))}

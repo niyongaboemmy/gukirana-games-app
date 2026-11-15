@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { DOOR, DOOR_RING, FIGHT_ANGLE, SPAWN } from "@/world/layout";
 import type { GeoBatch } from "@/world/geo";
-import { interiorPane } from "@/world/interior-glass";
+import { glazingPane } from "@/world/glazing";
 import { FIGHT_BUILDING, FIGHT_DOOR_INSET } from "./plan";
 
 /**
@@ -44,7 +44,15 @@ function hallVolume(b: GeoBatch, seg: Seg) {
   b.box("charcoal", f.hw * 2, H, t, { p: [0, H / 2, f.front - t / 2], tile: 2 });
   // basalt base course, roof slab, parapet
   // (a real plinth: 6 cm proud of the wall on both faces — it used to share the wall's faces and z-fought in patches)
-  for (let i = 0; i < pts.length - 1; i++) seg("lava", pts[i]![0], pts[i]![1], pts[i + 1]![0], pts[i + 1]![1], 0.9, 0, 1.2, t + 0.12);
+  // (every run reaches 6 cm past both its ends: its end faces never share the plane of the wall segments' ends)
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i]!;
+    const c = pts[i + 1]!;
+    const len = Math.hypot(c[0] - a[0], c[1] - a[1]);
+    const ux = ((c[0] - a[0]) / len) * 0.06;
+    const uz = ((c[1] - a[1]) / len) * 0.06;
+    seg("lava", a[0] - ux, a[1] - uz, c[0] + ux, c[1] + uz, 0.9, 0, 1.2, t + 0.12);
+  }
   const roofD = f.front - (f.back + f.chamfer);
   b.box("concreteDark", f.hw * 2 + 0.4, 0.5, roofD, { p: [0, H + 0.25, f.front - roofD / 2], tile: 2 });
   b.box("concreteDark", (f.hw - f.chamfer) * 2, 0.5, f.chamfer, { p: [0, H + 0.25, f.back + f.chamfer / 2], tile: 2 });
@@ -94,9 +102,9 @@ function lobbyWing(b: GeoBatch) {
   const gw = G.x1 - G.x0;
   for (const s of [-1, 1]) {
     const cx = s * (G.x0 + gw / 2);
-    // (P2-WLD-15: interior-mapped glass: the lit training-ring corner and the heavy bags read through it with depth)
+    // (P2-WLD-18: the lobby's real interior behind it, captured from just inside the door; the glass line maps to its front wall)
     b.box("screenFrame", gw, G.y1 - G.y0, 0.03, { p: [cx, (G.y0 + G.y1) / 2, face + 0.015] });
-    interiorPane(b, "fight", "shopfront", gw, G.y1 - G.y0, [cx, (G.y0 + G.y1) / 2, face + 0.04]);
+    glazingPane(b, "fight", "glass", face + 0.04, gw, G.y1 - G.y0, [cx, (G.y0 + G.y1) / 2, face + 0.04]);
     for (let k = 0; k <= 6; k++) b.box("steel", 0.07, G.y1 - G.y0 + 0.1, 0.12, { p: [s * (G.x0 + (gw * k) / 6), (G.y0 + G.y1) / 2, face + 0.08] });
     b.box("steel", gw + 0.07, 0.07, 0.12, { p: [cx, G.y0, face + 0.08] });
     b.box("steel", gw + 0.07, 0.06, 0.12, { p: [cx, 3.2, face + 0.08] });
@@ -133,7 +141,7 @@ function lobbyWing(b: GeoBatch) {
   b.box("led-fight", DOOR.w + 0.44, 0.03, 0.03, { p: [0, DOOR.h + 0.22, FIGHT_DOOR_INSET + 0.32] });
 
   // (P2-WLD-14: the pavilion stands on the plaza's door ring, its forecourt is the plaza's own step-free paving)
-  // behind the glazing (P2-WLD-15): the training ring's corner is drawn by the interior-mapped glass above (the boxes
+  // behind the glazing (P2-WLD-18): the lobby itself, captured (the boxes
   // that stood here were behind the solid front wall and never showed)
 
   /* ---- the rooftop sign on the pavilion (P2-WLD-14): turned towards the arrival, lettering in FightFacadeBoard ---- */

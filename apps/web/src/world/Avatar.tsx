@@ -967,7 +967,8 @@ export function Avatar({
   const seed = useMemo(() => seedOf(seedId ?? name ?? encodeLook(look)), [seedId, name, look]);
   const tagY = modelId === "feminine" ? 2.02 : 2.1;
   return (
-    <group>
+    // gkPerson: left out of the static glass captures (world/GlassCapture: no frozen people in reflections)
+    <group userData={{ gkPerson: true }}>
       {/* contact blob (0.38 m radius core): the only grounding on Lite, a soft AO under the real shadow on Standard */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]} renderOrder={1}>
         <planeGeometry args={[1.0, 1.0]} />

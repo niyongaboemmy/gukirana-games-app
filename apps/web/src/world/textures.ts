@@ -457,14 +457,7 @@ export function curtainWallTextures(seed = 3): { map: THREE.CanvasTexture; emiss
         const v = 0.92 + r() * 0.08; // tiny pane-to-pane tint differences
         g.fillStyle = `rgb(${Math.round(31 * v)},${Math.round(43 * v)},${Math.round(51 * v)})`;
         g.fillRect(x, y, B - 6, hh);
-        if (r() < 0.12) {
-          const warm = ge.createLinearGradient(x, y, x, y + hh);
-          warm.addColorStop(0, "rgba(233,211,174,0.9)");
-          warm.addColorStop(0.5, "rgba(233,211,174,0.5)");
-          warm.addColorStop(1, "rgba(233,211,174,0.28)");
-          ge.fillStyle = warm;
-          ge.fillRect(x, y, B - 6, hh);
-        }
+        r(); // (P2-WLD-18: no painted "lit room" panes any more: no room is modelled behind this glazing)
       }
   g.fillStyle = "#9aa1a8";
   for (let k = 0; k <= 4; k++) {
