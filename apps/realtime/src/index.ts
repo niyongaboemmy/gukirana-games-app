@@ -7,6 +7,7 @@ import { WorldRoom } from "./rooms/world-room.js";
 import { MatchRoom, startMatchHeartbeat } from "./rooms/match-room.js";
 import { BoxingRoom } from "./rooms/boxing-room.js";
 import { startSuspensionWatch } from "./social/accounts.js";
+import { placeRoute } from "./social/place-route.js";
 
 const env = loadEnv();
 const logger = createLogger("realtime", env.LOG_LEVEL);
@@ -17,6 +18,8 @@ const http = createServer((req, res) => {
     res.end(JSON.stringify({ status: "ok", service: "realtime", version: "0.0.0", time: new Date().toISOString() }));
     return;
   }
+  // P2-NET-06: "do I still hold a place?" (my own hold only, by access token) — asked by the web on page load
+  if (req.url === "/place" || req.url?.startsWith("/place?")) return void placeRoute(req, res);
   res.writeHead(404).end();
 });
 

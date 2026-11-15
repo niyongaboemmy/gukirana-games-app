@@ -8,6 +8,7 @@ import { PROMENADE_DEG, PROMENADE_EAST_DEG } from "@/world/campus";
 import { RING_PLANTERS } from "@/world/beds";
 import { ARENA } from "@/world/District";
 import { agasekeTexture, pavingTexture } from "@/world/textures";
+import { agasekeGeometry } from "@/world/agaseke";
 import { hallFrame } from "./OutdoorView";
 import { impostorBlocks } from "./plaza-impostor";
 import type { HallLayout } from "./layouts";
@@ -76,11 +77,7 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
     add("white", new THREE.RingGeometry(FOUNTAIN_RADIUS - 0.35, FOUNTAIN_RADIUS + 0.05, seg).rotateX(-Math.PI / 2), 0, 0.56, 0);
     add("water", new THREE.CircleGeometry(FOUNTAIN_RADIUS - 0.34, seg).rotateX(-Math.PI / 2), 0, 0.49, 0);
     add("stone", new THREE.CylinderGeometry(1.0, 1.15, 0.9, 24), 0, 0.6, 0);
-    const prof: [number, number][] = [
-      [0.001, 0], [0.5, 0], [0.64, 0.12], [0.78, 0.5], [0.8, 0.9], [0.7, 1.22], [0.6, 1.3], [0.68, 1.34],
-      [0.64, 1.5], [0.5, 1.9], [0.32, 2.35], [0.16, 2.75], [0.07, 3.0], [0.001, 3.12],
-    ];
-    add("agaseke", new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y)), lite ? 16 : 28), 0, 1.05, 0, 0, [1.25, 1.25, 1.25]);
+    add("agaseke", agasekeGeometry(3.8, lite ? 16 : 28), 0, 1.05, 0);
 
     // raised ring planters (concrete drum + planting)
     for (const p of RING_PLANTERS) {
@@ -182,7 +179,6 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
     paving.needsUpdate = true;
     const agaseke = agasekeTexture().clone();
     agaseke.wrapS = agaseke.wrapT = THREE.RepeatWrapping;
-    agaseke.repeat.set(6, 1);
     agaseke.needsUpdate = true;
     const out = {
       paving: day("#b9b2a6", 0.62, { map: paving, emissiveMap: paving }),

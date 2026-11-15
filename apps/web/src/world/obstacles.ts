@@ -1,6 +1,6 @@
 import { ringOf, BENCH_CLUSTER_RADIUS, BENCHES, DOOR, DOOR_RING, doorInset, doorLocal, ENTRY_Z, EXIT_KIOSK, FOUNTAIN_RADIUS, MID_ANGLES, PLAZA_RADIUS, PORTALS, RING_ANGLES, ringPoint, TOTEMS, VESTIBULE_DEPTH, WAYFINDING } from "./layout";
 import { doorOpen } from "./transition";
-import { onCampusWalk } from "./campus";
+import { FREE_WALK_ON, onCampusWalk } from "./campus";
 import { ARENA_COLUMNS, ARENA_FLAG, ARENA_FLAGPOLES, inBuilding } from "./footprints";
 import { arcPoint, GATE_ARCS, PLAZA_ARCS, PLAZA_BEDS, RING_PLANTERS, type ArcBed } from "./beds";
 import { GATE_Z, GUARD_POST, KIOSK } from "./gate/Gate";
@@ -174,8 +174,9 @@ export function freePoint(p: { x: number; z: number }, list: Obstacle[]): { x: n
 function cameraBlocked(x: number, y: number, z: number, list: Obstacle[]): boolean {
   // the buildings stand on the ring beyond the plaza edge (except the open sky over the avenue / gate)
   const r = Math.hypot(x, z);
-  // the campus walks (P2-WLD-12) run over open lawn: the camera may follow you along them (never into a building)
-  if (r > DOOR_RING - 0.3 && y < 11 && onCampusWalk(x, z, 6) && !inBuilding(x, z, 0.4)) return false;
+  // the campus walks (P2-WLD-12) run over open lawn: the camera may follow you along them (never into a building);
+  // with free walking (P2-WLD-16) all the open ground between the buildings is open space for the camera too
+  if (r > DOOR_RING - 0.3 && y < 11 && (FREE_WALK_ON || onCampusWalk(x, z, 6)) && !inBuilding(x, z, 0.4) && !(Math.abs(x) < 10 && z > PLAZA_RADIUS - 3)) return false;
   if (r > DOOR_RING - 0.3 && y < 11 && !(Math.abs(x) < 10 && z > PLAZA_RADIUS - 3)) {
     // …except through an open hall door: the lobby behind it is open space (stepping out of a hall, the camera
     // starts in the doorway behind you, exactly where the hall's camera was)

@@ -52,6 +52,17 @@ export class QuickMatchQueue {
     for (const [k, q] of this.queues) this.queues.set(k, q.filter((x) => x.userId !== userId));
   }
 
+  /** P2-NET-06: the account's ticket (game, stake, waiting since), to pause it while its place is held */
+  ticketOf(userId: string): { game: GameId; stake: number; since: number } | null {
+    for (const [k, q] of this.queues) {
+      const w = q.find((x) => x.userId === userId);
+      if (!w) continue;
+      const i = k.lastIndexOf(":");
+      return { game: k.slice(0, i) as GameId, stake: Number(k.slice(i + 1)), since: w.since };
+    }
+    return null;
+  }
+
   /** People waiting for this game and stake (lobby counters, tests). */
   size(game: GameId, stake: number): number {
     return this.queues.get(`${game}:${stake}`)?.length ?? 0;

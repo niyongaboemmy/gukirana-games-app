@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { nearCampusWalk, PROMENADE_DEG, PROMENADE_EAST_DEG } from "./campus";
+import { plazaEdgeArcs } from "./walk-mesh";
+import { PERIMETER_STONES } from "./free-walk";
 import { GeoBatch } from "./geo";
 import { roofKit, roofMembrane } from "./roofs";
 import { LAMPS } from "./obstacles";
@@ -9,7 +10,8 @@ import { NOTICE_BOARD, WATER_POINT } from "./activities";
 import { fightHall } from "@/fight/exterior";
 import { interiorPane } from "./interior-glass";
 import type { InteriorKind } from "./interior-plan";
-import { ARENA, ARENA_CANOPY, ARENA_COLUMNS, ARENA_FLAG, ARENA_FLAGPOLES, FOOTPRINTS, igisoroHall, inBuilding, LUDO_DIE, PLOTS, sitePlan, toLocal, WING_HW, wingedHall } from "./footprints";
+import { agasekeGeometry } from "./agaseke";
+import { ARENA, ARENA_CANOPY, ARENA_COLUMNS, ARENA_FLAG, ARENA_FLAGPOLES, FOOTPRINTS, igisoroHall, LUDO_DIE, PLOTS, sitePlan, toLocal, WING_HW, wingedHall } from "./footprints";
 import {
   BENCHES,
   DOOR,
@@ -17,18 +19,12 @@ import {
   FOUNTAIN_COURT,
   FOUNTAIN_RADIUS,
   PAVING_R,
-  PERIMETER_R,
-  PORTALS,
   ringPoint,
   SPAWN,
   TOTEMS,
   ENTRY_Z,
-  EXPANSION_PLOTS,
-  EXPANSION_RING,
-  OUTER_PROMENADE,
   WAYFINDING,
   wayfindingRows,
-  ringOf,
   type PortalDef,
 } from "./layout";
 
@@ -669,7 +665,7 @@ function servicePavilion(b: GeoBatch) {
   for (const x of [-0.8, 0.2, 1.2]) {
     b.cyl("steel", 0.025, 0.025, 0.72, 6, { p: [x, 0.36, -3.7] });
     b.cyl("woodDark", 0.18, 0.18, 0.05, 12, { p: [x, 0.74, -3.7] });
-    b.cyl("steel", 0.2, 0.2, 0.02, 12, { p: [x, 0.01, -3.7] });
+    b.cyl("steel", 0.2, 0.2, 0.02, 12, { p: [x, 0.05, -3.7] }); // on the café floor (top 40 mm)
   }
   for (const x of [-2.7, 2.6]) {
     b.cyl("white", 0.35, 0.35, 0.03, 16, { p: [x, 0.74, -2.4] });
@@ -706,11 +702,10 @@ function plaza(b: GeoBatch, tier: string) {
   // the fountain court: a honed granite disc framed by a basalt band (the second band halfway out was dropped: a calm
   // floor, fewer lines)
   b.add("granite", flat(new THREE.CircleGeometry(FOUNTAIN_COURT, tier === "lite" ? 64 : 128)), { p: [0, 0.005, 0], tile: 4.8 }); // 5 mm: 3 mm shimmered at distance
-  for (const [r0, r1, k] of [
-    [FOUNTAIN_COURT - 0.05, FOUNTAIN_COURT + 0.3, "basalt"],
-    [PAVING_R, PAVING_R + 0.8, "lava"],
-  ] as const)
-    b.add(k, flat(new THREE.RingGeometry(r0, r1, ringSeg, 1)), { p: [0, 0.016, 0], tile: 1.2 }); // (16 mm: clear of the granite 5 mm, the door thresholds 12 mm and the gate sill 10 mm — no z-fighting)
+  b.add("basalt", flat(new THREE.RingGeometry(FOUNTAIN_COURT - 0.05, FOUNTAIN_COURT + 0.3, ringSeg, 1)), { p: [0, 0.016, 0], tile: 1.2 }); // (16 mm: clear of the granite 5 mm, the door thresholds 12 mm and the gate sill 10 mm — no z-fighting)
+  // the paving's lava edge band (16 mm), open where a campus walk leaves the plaza (P2-WLD-16: the walk's paving meets
+  // the plaza's there, no band across the junction); ring angle θ = 90° − bearing
+  for (const [d0, d1] of plazaEdgeArcs()) b.add("lava", flat(new THREE.RingGeometry(PAVING_R, PAVING_R + 0.8, Math.max(2, Math.ceil(((d1 - d0) / 360) * ringSeg)), 1, ((90 - d1) * Math.PI) / 180, ((d1 - d0) * Math.PI) / 180)), { p: [0, 0.016, 0], tile: 1.2 });
   // (no promenade lines: the floor keeps only its circles — the fountain court band, the paving edge and each door's
   // threshold; the Go To route guide draws a path when one is wanted)
   // spawn medallion: flush granite disc with a 15 mm brass inlay ring
@@ -725,26 +720,8 @@ function plaza(b: GeoBatch, tier: string) {
   b.cyl("white", FOUNTAIN_RADIUS - 0.3, FOUNTAIN_RADIUS - 0.3, 0.44, 64, { p: [0, 0.34, 0] }, true);
   b.add("white", flat(new THREE.RingGeometry(FOUNTAIN_RADIUS - 0.35, FOUNTAIN_RADIUS + 0.05, 64, 1)), { p: [0, 0.56, 0] });
   b.cyl("lava", 1.0, 1.15, 0.9, 32, { p: [0, 0.6, 0], uv: [5, 0.8] });
-  const prof: [number, number][] = [
-    [0.001, 0],
-    [0.5, 0],
-    [0.64, 0.12],
-    [0.78, 0.5],
-    [0.8, 0.9],
-    [0.7, 1.22],
-    [0.6, 1.3],
-    [0.68, 1.34],
-    [0.64, 1.5],
-    [0.5, 1.9],
-    [0.32, 2.35],
-    [0.16, 2.75],
-    [0.07, 3.0],
-    [0.001, 3.12],
-  ];
-  b.add("agaseke", new THREE.LatheGeometry(
-    prof.map(([r, y]) => new THREE.Vector2(r, y)),
-    tier === "lite" ? 20 : 40,
-  ), { p: [0, 1.05, 0], s: [1.35, 1.35, 1.35], uv: [6, 1] });
+  // the Agaseke (igiseke) sculpture: the real basket's shape and weave (world/agaseke.ts), 3.8 m tall on its plinth
+  b.add("agaseke", agasekeGeometry(3.8, tier === "lite" ? 24 : 48), { p: [0, 1.05, 0] });
   // ten bronze nozzles inside the coping
   for (let i = 0; i < 10; i++) {
     const a = (i / 10) * Math.PI * 2;
@@ -801,44 +778,11 @@ function plaza(b: GeoBatch, tier: string) {
   activityProps(b);
   ao(b, NOTICE_BOARD.x, NOTICE_BOARD.z, NOTICE_BOARD.w + 1, 1.0, NOTICE_BOARD.rotY);
   ao(b, WATER_POINT.x, WATER_POINT.z, 1.0, 1.0);
-  // perimeter: low black lava-rock walls between the buildings (typical Musanze dry-stone walls) + road ring
-  // (3.6 m wall stones every STEP degrees; kept clear of the doors, the buildings and the entry gate's own walls)
-  const STEP = (3.6 / PERIMETER_R) * (180 / Math.PI);
-  const DOOR_GAP = (7.1 / PERIMETER_R) * (180 / Math.PI);
-  const builder = (deg: number) => {
-    for (const s of [-1.8, 0, 1.8]) {
-      const w = ringPoint(deg + STEP / 2, PERIMETER_R);
-      const o = ringPoint(deg + STEP / 2 + 90, s);
-      if (inBuilding(w.x + o.x, w.z + o.z, 1)) return true;
-    }
-    return false;
-  };
-  const off = (deg: number, a: number) => Math.abs(((deg + STEP / 2 - a + 540) % 360) - 180);
-  for (let deg = -180; deg < 180; deg += STEP) {
-    const near = PLOTS.some((q) => q.ring === DOOR_RING && off(deg, q.angleDeg) < DOOR_GAP);
-    const p = ringPoint(deg + STEP / 2, PERIMETER_R);
-    const gate = p.z > ENTRY_Z - 6 && Math.abs(p.x) < 17.5; // the entry gate has its own perimeter walls
-    // the Fight walk leaves the plaza through a gap in the wall (P3-FGT-01)
-    if (near || gate || builder(deg) || nearCampusWalk(p.x, p.z, 2.2)) continue;
-    b.box("lava", 3.6, 0.8, 0.6, { p: [p.x, 0.4, p.z], r: [0, p.rotY, 0], tile: 1.2 });
-  }
-  // expansion district: the outer promenade ring (honed granite between basalt kerbs), served by the main avenue
-  // (P2-WLD-12: kept only north of the gate line; P2-WLD-14: it ends at the Boxing hall's body in the east, bearings
-  // −PROMENADE_DEG … +PROMENADE_EAST_DEG; ring angle θ = 90° − bearing)
-  const t0 = ((90 - PROMENADE_EAST_DEG) * Math.PI) / 180;
-  const tl = ((PROMENADE_DEG + PROMENADE_EAST_DEG) * Math.PI) / 180;
-  b.add("granite", flat(new THREE.RingGeometry(OUTER_PROMENADE.r0, OUTER_PROMENADE.r1, 160, 1, t0, tl)), { p: [0, 0.008, 0], tile: 4.8 });
-  for (const r of [OUTER_PROMENADE.r0, OUTER_PROMENADE.r1]) b.add("basalt", flat(new THREE.RingGeometry(r - 0.1, r + 0.1, 160, 1, t0, tl)), { p: [0, 0.012, 0], tile: 1.2 });
-  // a forecourt in front of every expansion plot
-  for (const e of EXPANSION_PLOTS) {
-    const m = ringPoint(e.angleDeg, (OUTER_PROMENADE.r1 + EXPANSION_RING) / 2 + 0.3);
-    b.box("granite", 16, 0.02, EXPANSION_RING - OUTER_PROMENADE.r1 + 1.2, { p: [m.x, 0.007, m.z], r: [0, m.rotY, 0], tile: 4.8 });
-  }
-  // …and in front of the outer-ring halls (the Administrative Block, P2-WLD-14)
-  for (const p of PORTALS.filter((q) => ringOf(q) === EXPANSION_RING)) {
-    const m = ringPoint(p.angleDeg, (OUTER_PROMENADE.r1 + EXPANSION_RING) / 2 + 0.3);
-    b.box("granite", 18, 0.02, EXPANSION_RING - OUTER_PROMENADE.r1 + 1.2, { p: [m.x, 0.007, m.z], r: [0, m.rotY, 0], tile: 4.8 });
-  }
+  // perimeter: low black lava-rock walls between the buildings (typical Musanze dry-stone walls), clear of the doors,
+  // the buildings, the entry gate's own walls and the walks' mouths (world/free-walk.ts: the same stones are solid)
+  for (const p of PERIMETER_STONES) b.box("lava", 3.6, 0.8, 0.6, { p: [p.x, 0.4, p.z], r: [0, p.rotY, 0], tile: 1.2 });
+  // expansion district: the outer promenade and the forecourts of the expansion plots and the outer-ring halls are
+  // part of the campus walk network's one paved surface since P2-WLD-16 (world/walk-mesh.ts, drawn by CampusRoads)
   // the 16.5 m avenue from the plaza entry gate to the arrival gate (P2-WLD-12: it ends there; the ring road gave way
   // to the campus loop road and the frontage, world/CampusRoads.tsx and Frontage.tsx)
   const a0 = PAVING_R - 1;

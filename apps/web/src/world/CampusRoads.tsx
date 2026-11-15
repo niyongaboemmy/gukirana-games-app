@@ -6,13 +6,13 @@ import { GeoBatch } from "./geo";
 import { worldMaterials, type Tier } from "./materials";
 import { campusMaterials, foldPaint } from "./campus-materials";
 import { NearOnly } from "./static-merge";
+import { buildWalkSurface, WALK_PROPS } from "./walk-mesh";
 import { SITE } from "./campus-strings";
 import { FOOTPRINTS, sitePlan } from "./footprints";
 import { FIGHT_BUILDING } from "@/fight/plan";
 import { EXPANSION_PLOTS, EXPANSION_RING, PORTALS, ringOf, ringPoint } from "./layout";
 import {
   CAMPUS_LOOP,
-  DISTRICT_WALKS,
   FORECOURT,
   LOOP,
   LOOP_ARC_DEG,
@@ -31,7 +31,7 @@ import {
  */
 
 const FONT = "/fonts/Baloo2.ttf";
-const FLAT = new Set(["asphaltC", "paintW", "granite", "basalt"]);
+const FLAT = new Set(["asphaltC", "paintW", "granite", "basalt", "paving", "lampHead"]);
 
 /** Offset polyline (lateral offset `o`, + = left of the direction of travel) with mitred joints. */
 function offset(pts: P[], o: number): P[] {
@@ -175,8 +175,8 @@ export function buildCampusRoads(): Map<string, THREE.BufferGeometry> {
   // gully grates along the kerbs, manholes on the crown
   for (let s = 12; s < total; s += 30) {
     const p = slice(pts, cum, s, s + 0.8);
-    ribbon(b, "steel", p, H - 0.6, H - 0.2, 0.021, 1);
-    if (Math.floor(s / 30) % 3 === 0) ribbon(b, "steel", slice(pts, cum, s + 9, s + 9.7), -1.6, -0.9, 0.021, 1);
+    ribbon(b, "steel", p, H - 0.6, H - 0.2, 0.027, 1);
+    if (Math.floor(s / 30) % 3 === 0) ribbon(b, "steel", slice(pts, cum, s + 9, s + 9.7), -1.6, -0.9, 0.027, 1);
   }
 
   /* ---------- service spurs to the halls' yards ---------- */
@@ -185,7 +185,7 @@ export function buildCampusRoads(): Map<string, THREE.BufferGeometry> {
     const m = ringPoint(q.deg, (sp.r0 + sp.r1) / 2);
     b.box("asphaltC", sp.hw * 2, 0.02, sp.r1 - sp.r0, { p: [m.x, 0.01, m.z], r: [0, m.rotY, 0], tile: 4 });
     const y = ringPoint(q.deg, (sp.r0 + sp.yardR1) / 2);
-    b.box("concrete", sp.yardHw * 2, 0.05, sp.yardR1 - sp.r0, { p: [y.x, 0.015, y.z], r: [0, y.rotY, 0], tile: 2 });
+    b.box("concrete", sp.yardHw * 2, 0.05, sp.yardR1 - sp.r0, { p: [y.x, 0.022, y.z], r: [0, y.rotY, 0], tile: 2 });
     // bollards marking the yard, a "no entry" bar at the loop
     for (const s of [-1, 1]) {
       const k = ringPoint(q.deg, sp.yardR1 + 0.3);
@@ -194,24 +194,37 @@ export function buildCampusRoads(): Map<string, THREE.BufferGeometry> {
     }
   }
 
-  /* ---------- district walks: honed granite between basalt kerbs ---------- */
-  for (const w of DISTRICT_WALKS) {
-    for (let i = 0; i < w.pts.length - 1; i++) {
-      const a = w.pts[i]!;
-      const c = w.pts[i + 1]!;
-      const len = Math.hypot(c.x - a.x, c.z - a.z) + w.hw;
-      const rot = Math.atan2(c.x - a.x, c.z - a.z);
-      const m: [number, number, number] = [(a.x + c.x) / 2, 0.011, (a.z + c.z) / 2];
-      b.box("granite", w.hw * 2, 0.02, len, { p: m, r: [0, rot, 0], tile: 4.8 });
-      for (const s of [-1, 1]) {
-        const ox = Math.cos(rot) * s * (w.hw + 0.1);
-        const oz = -Math.sin(rot) * s * (w.hw + 0.1);
-        b.box("basalt", 0.2, 0.05, len - w.hw, { p: [m[0] + ox, 0.02, m[2] + oz], r: [0, rot, 0], tile: 1.2 });
+  /* ---------- the walk network: one paved surface (P2-WLD-16, world/walk-mesh.ts) ---------- */
+  // the plaza's paving (the same honed granite slabs) with a slim flush granite edging, the edging's face into the lawn
+  // and a soft soil line (the contact-shadow look); every junction is one merged surface
+  const ws = buildWalkSurface();
+  const geo = (pos: Float32Array, uv?: Float32Array) => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.setAttribute("uv", new THREE.BufferAttribute(uv ?? new Float32Array((pos.length / 3) * 2), 2));
+    g.computeVertexNormals();
+    return g;
+  };
+  b.add("paving", geo(ws.pave), { tile: 4.8 });
+  b.add("granite", geo(ws.edge), { tile: 1.2 });
+  b.add("granite", geo(ws.side), { tile: 1.2 });
+  b.add("ao", geo(ws.verge, ws.vergeUv));
+  // lamp posts (the plaza's design), benches (the plaza's) with a litter bin beside them
+  for (const p of WALK_PROPS)
+    b.frame([p.x, 0, p.z], p.rotY, () => {
+      if (p.kind === "lamp") {
+        b.cyl("steel", 0.06, 0.09, 4.6, 8, { p: [0, 2.3, 0] });
+        b.cyl("steel", 0.16, 0.18, 0.08, 12, { p: [0, 0.04, 0] });
+        b.box("steel", 0.28, 0.12, 0.9, { p: [0, 4.6, 0.3] });
+        b.box("lampHead", 0.2, 0.03, 0.8, { p: [0, 4.53, 0.3] });
+      } else if (p.kind === "bench") {
+        for (const s of [-1, 1]) b.box("lava", 0.35, 0.42, 0.5, { p: [s * 0.8, 0.21, 0], tile: 1.2 });
+        b.box("wood", 2.1, 0.08, 0.55, { p: [0, 0.46, 0], tile: 1 });
+      } else {
+        b.cyl("steel", 0.2, 0.18, 0.86, 14, { p: [0, 0.43, 0] });
+        b.cyl("aluBrushed", 0.22, 0.22, 0.05, 14, { p: [0, 0.885, 0] });
       }
-    }
-    // a round paved node at every bend (the legs meet cleanly)
-    for (const p of w.pts.slice(1, -1)) b.add("granite", new THREE.CircleGeometry(w.hw + 0.1, 20).rotateX(-Math.PI / 2), { p: [p.x, 0.013, p.z], tile: 4.8 });
-  }
+    });
 
   /* ---------- wayfinding totems (lettering: Text, CampusRoads below) ---------- */
   for (const t of WALK_TOTEMS)

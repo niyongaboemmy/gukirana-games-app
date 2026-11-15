@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { agasekeTextures } from "./agaseke";
 import {
   blobTexture,
   brickTexture,
@@ -76,7 +77,9 @@ function pavingMaterial(): THREE.MeshStandardMaterial {
       "uniform sampler2D uWear;\nvarying vec2 vGkW;\n" +
       sh.fragmentShader.replace(
         "#include <map_fragment>",
-        `#include <map_fragment>\n  diffuseColor.rgb *= 0.55 + 0.45 * texture2D(uWear, vGkW / ${(WEAR_HALF * 2).toFixed(1)} + 0.5).r * 1.0204;`,
+        // (the wear map covers the plaza only: beyond it — the campus walks, the avenue, the gate — a neutral tone, so
+        // its clamped edge texels never streak out across the campus, P2-WLD-16)
+        `#include <map_fragment>\n  float gkWear = 0.55 + 0.45 * texture2D(uWear, vGkW / ${(WEAR_HALF * 2).toFixed(1)} + 0.5).r * 1.0204;\n  diffuseColor.rgb *= mix(0.97, gkWear, 1.0 - smoothstep(${(WEAR_HALF - 3).toFixed(1)}, ${(WEAR_HALF - 0.5).toFixed(1)}, max(abs(vGkW.x), abs(vGkW.y))));`,
       );
   };
   m.customProgramCacheKey = () => "gk-paving-wear";
@@ -149,7 +152,7 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     screenFrame: std({ color: "#15171d", metalness: 0.6, roughness: 0.35 }),
     asphalt: std({ map: concreteTexture(), color: "#3a3c40", roughness: 0.95 }),
     thatch: std({ map: thatchTexture(), bumpMap: thatchTexture(), bumpScale: 1.5, color: "#c2a47a", roughness: 1, side: THREE.DoubleSide }),
-    agaseke: std({ map: agasekeTexture(), roughness: 0.8 }),
+    agaseke: std({ map: agasekeTexture(), bumpMap: agasekeTextures().bump, bumpScale: 0.8, roughness: 0.88 }),
     hoarding: std({ map: hoardingTexture(), roughness: 0.7 }),
     "paint-orange": std({ color: "#F28C28", roughness: 0.7, side: THREE.DoubleSide }),
     "paint-teal": std({ color: "#159A9C", roughness: 0.7, side: THREE.DoubleSide }),

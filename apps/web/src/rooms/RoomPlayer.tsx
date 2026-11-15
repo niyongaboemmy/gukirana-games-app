@@ -10,6 +10,7 @@ import { sendMove, sitAt, standUp } from "@/lib/realtime";
 import { useRoom } from "./room-store";
 import { clearHallPose, saveHallPose, takeHallPose, takeReturnFor } from "@/lib/return-point";
 import { arrival } from "./arrival";
+import { placeReturn } from "./place-restore";
 import { autoFollow, nav, onReleaseInput, pointerNav, steer, TargetMarker } from "@/world/navigation";
 import { useDoorway } from "@/world/doorway";
 import { useWalletSheet } from "@/wallet/WalletSheet";
@@ -22,6 +23,7 @@ import { bodyDetour, softBodies } from "./soft-bodies";
 import { seatActivities, type SeatActivity } from "@/world/human/activity";
 import { seatActivity } from "./seat-activity";
 import { CAM_RATE, damp, PROMPT, stickyNearest, stickyZone } from "./stability";
+import { eye, EYE_NEAR, eyeDrag, eyePose, reducedMotion, smooth01, stepBlend, useCamMode, zoomEye } from "@/world/eye-view";
 
 const SIT_ANIM = 13;
 const wrapA = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -72,7 +74,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   // back from a game → same spot / same chair; otherwise appear in the open doorway and walk in automatically
   // read once on mount (a useRef(initial) argument is evaluated on EVERY render: a re-render just after "Practice vs
   // AI" wrote the return point consumed it, so the game said "Back to the plaza" and you were not re-seated)
-  const [backOnce] = useState(() => (typeof window !== "undefined" ? takeReturnFor(`/room/${layout.game}`) : null));
+  // P2-NET-06: a reload while the server holds my chair / ring is a "restore" onto that place (rooms/place-restore)
+  const [backOnce] = useState(() => (typeof window !== "undefined" ? (takeReturnFor(`/room/${layout.game}`) ?? placeReturn(layout)) : null));
   const back = useRef(backOnce);
   // walked in through the plaza door: the exact spot / heading / pace you crossed the door line with (world/stage.ts
   // maps the plaza door frame onto this door); otherwise (reload, deep link) just inside the open doors
@@ -227,6 +230,14 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       el,
       () => camera,
       (dx, dy) => {
+        // eye view while walking (P2-WLD-16, world/eye-view.ts): the drag turns you and looks up / down
+        if (useCamMode.getState().mode === "eye" && !useRoom.getState().seated) {
+          const r = eyeDrag(facing.current, eye.pitch, dx, dy);
+          facing.current = r.facing;
+          eye.pitch = r.pitch;
+          cameraState.yaw = r.facing + Math.PI;
+          return;
+        }
         cameraState.yaw -= dx * 0.006;
         cameraState.pitch = THREE.MathUtils.clamp(cameraState.pitch + dy * 0.004, 0.12, 1.2);
       },
@@ -251,7 +262,16 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       },
       () => hallHooks[layout.game]?.pick,
     );
-    const wheel = (e: WheelEvent) => (cameraState.distance = THREE.MathUtils.clamp(cameraState.distance + e.deltaY * 0.006, 2.2, 12));
+    const wheel = (e: WheelEvent) => {
+      // all the way in: one more step into the eye view; out of it: back to the follow camera (P2-WLD-16)
+      const z = e.deltaY && !useRoom.getState().seated ? zoomEye(useCamMode.getState().mode, cameraState.distance, Math.sign(e.deltaY)) : null;
+      if (z) {
+        cameraState.distance = THREE.MathUtils.clamp(z.distance, 2.2, 12);
+        useCamMode.getState().set(z.mode);
+        return;
+      }
+      cameraState.distance = THREE.MathUtils.clamp(cameraState.distance + e.deltaY * 0.006, 2.2, 12);
+    };
     el.addEventListener("wheel", wheel, { passive: true });
     return () => {
       window.removeEventListener("keydown", down);
@@ -591,6 +611,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       const faceTo = !s.moving && !nav.target ? hooks?.face?.() : null;
       if (faceTo != null) facing.current += wrapA(faceTo - facing.current) * Math.min(1, dt * 6);
       autoFollow(cameraState, s, dt);
+      // eye view: the camera looks the way you face
+      if (useCamMode.getState().mode === "eye") cameraState.yaw = facing.current + Math.PI;
       // walking out (Leave, the E prompt, or through the door): the camera comes round behind you within ~0.7 s, so you
       // leave facing the way you go with the next place opening up in front (it used to stay in front of you, filming
       // you walk towards it, and the cut then carried that reversed view outside) (P3-FGT-12)
@@ -870,6 +892,27 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     cx = THREE.MathUtils.clamp(cx, -w / 2 + 0.3, w / 2 - 0.3);
     cz = THREE.MathUtils.clamp(cz, -d / 2 + 0.3, d / 2 - 0.35); // camera always inside the hall
     cy = Math.min(cy, layout.size.h - 0.3);
+    // eye view while walking (P2-WLD-16): glide from the follow pose to your eyes; seated views, the walk-in shot and
+    // the hall's own eye views keep their cameras
+    const eyeWalk = useCamMode.getState().mode === "eye" && !seat && intro.current <= 0 && !sv;
+    eye.blend = stepBlend(eye.blend, eyeWalk, dt, reducedMotion());
+    const eyeK = !seat && intro.current <= 0 && !sv ? smooth01(eye.blend) : 0;
+    if (eyeK > 0.001) {
+      const e = eyePose(pos.current.x, 0, pos.current.z, facing.current, eye.pitch);
+      cx += (e.p.x - cx) * eyeK;
+      cy += (e.p.y - cy) * eyeK;
+      cz += (e.p.z - cz) * eyeK;
+      target.set(target.x + (e.look.x - target.x) * eyeK, target.y + (e.look.y - target.y) * eyeK, target.z + (e.look.z - target.z) * eyeK);
+      if (group.current) group.current.visible = group.current.visible && eyeK < 0.55;
+    }
+    {
+      const pc = camera as THREE.PerspectiveCamera;
+      const near = eyeK > 0.5 ? EYE_NEAR : 0.15;
+      if (Math.abs(pc.near - near) > 0.001) {
+        pc.near = near;
+        pc.updateProjectionMatrix();
+      }
+    }
     if (hooks?.ground) {
       // halls on several levels: the whole rig rides on the surface you stand on, never below the rake behind you
       const gy = pos.current.y;
@@ -891,6 +934,11 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     // the look point glides too during a sit / stand (no cut from head height to the table)
     if (!snapped.current || doorsShut || performance.now() >= camBlendUntil.current) lookPt.copy(target);
     else lookPt.lerp(target, damp(CAM_RATE.glide, dt));
+    if (eyeK > 0.999) {
+      // at your eyes: no follow lag (the camera is your head)
+      camera.position.set(cx, cy, cz);
+      lookPt.copy(target);
+    }
     camera.lookAt(lookPt);
     if (qa.cam) {
       // dev QA: a fixed camera pose for screenshots
