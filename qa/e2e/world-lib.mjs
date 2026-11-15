@@ -3,7 +3,9 @@ import { sleep, waitFor } from "./lib.mjs";
 
 export const PLAZA_RADIUS = 37;
 export const DOOR_RING = PLAZA_RADIUS + 1.5;
-export const DOORS = { igisoro: -88, pool: -44, arena: 0, ludo: 44, admin: 88 };
+// plaza-ring doors (P2-WLD-14: Fight Games has the +88° plot; the Administrative Block is on the expansion ring at 62°,
+// reached over the campus walks: use Go To, see ui-buildings.mjs)
+export const DOORS = { igisoro: -88, pool: -44, arena: 0, ludo: 44, fight: 88 };
 export const ring = (deg, r) => ({ x: r * Math.sin((deg * Math.PI) / 180), z: -r * Math.cos((deg * Math.PI) / 180) });
 
 export const view = (page) => page.evaluate(() => window.__gkProbe?.view ?? null);

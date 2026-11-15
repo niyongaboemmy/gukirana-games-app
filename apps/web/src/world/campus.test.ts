@@ -237,6 +237,19 @@ describe("easy access to every hall (P2-WLD-13 access review, P2-WLD-14 Fight Ga
     for (let k = 0.05; k < 0.97; k += 0.02) expect(inBuilding(cam.x + (t.x - cam.x) * k, cam.z + (t.z - cam.z) * k)).toBe(false);
   });
 
+  it("routes from the Fight Games doorway and vestibule (just beyond the plaza edge, off the walks) cross the plaza", () => {
+    const fight = PORTALS.find((p) => p.id === "fight")!;
+    for (const r of [DOOR_RING + 0.2, DOOR_RING + 3, DOOR_RING + 6]) {
+      const q = ringPoint(fight.angleDeg, r);
+      const back = campusWalkRoute({ x: q.x, z: q.z }, SPAWN);
+      expect(back[back.length - 1]!.plaza).toBe(true);
+      const admin = campusWalkRoute({ x: q.x, z: q.z }, doorOf("admin"));
+      expect(Math.hypot(admin[admin.length - 1]!.x - doorOf("admin").x, admin[admin.length - 1]!.z - doorOf("admin").z)).toBeLessThan(0.01);
+    }
+    // a point far out on the lawn, off every walk: straight there, no crash
+    expect(campusWalkRoute(SPAWN, ringPoint(100, 60)).length).toBeGreaterThan(0);
+  });
+
   it("every inner hall door is ≤ 75 m from the spawn (≤ 35 s at the normal pace)", () => {
     for (const p of PORTALS.filter((q) => !q.ring)) expect(Math.hypot(doorOf(p.id).x - SPAWN.x, doorOf(p.id).z - SPAWN.z), p.id).toBeLessThanOrEqual(75);
   });

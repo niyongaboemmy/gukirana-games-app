@@ -25,6 +25,18 @@ async function plaza(key) {
 }
 /** run to a building door and through it; returns the resulting view and timings */
 async function walkIn(page, id) {
+  // the Administrative Block stands on the expansion ring since P2-WLD-14: Go To → the Block → Walk there
+  if (!(id in DOORS)) {
+    await page.keyboard.press("m");
+    await sleep(800);
+    await page.click(`[data-goto-dest=${id}]`);
+    await sleep(600);
+    await resetFrames(page);
+    const t0 = Date.now();
+    await page.click("[data-goto-card-walk]");
+    const ok = await waitFor(page, (h) => window.__gkProbe?.view === `hall:${h}`, { timeout: 120000, arg: id });
+    return { view: ok ? `hall:${id}` : null, ms: Date.now() - t0, frames: await frames(page), timeout: !ok };
+  }
   const deg = DOORS[id];
   await page.keyboard.down("Shift");
   const near = ring(deg, DOOR_RING - 4);

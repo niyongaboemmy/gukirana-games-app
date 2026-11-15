@@ -222,3 +222,81 @@ So the remaining time is the plaza crossing, and moving the hall wouldn't clearl
 - Every inner hall is ≤ 75 m from the spawn.
 - The arch and the bollards are clear of every building.
 - The exit and fork totems list Fight Games first.
+
+## 8. P2-WLD-14 Fight Games on the plaza (2026-11-15)
+
+User request: "Fight Games: the building is located far. Please find a better restructure to bring it near." Fight
+Games is the main reason people come, so its door has to be the closest, most obvious destination from the arrival.
+
+### 8.1 Options evaluated
+
+| Option | Result |
+|---|---|
+| A. Swap sites: Fight Games takes the Administrative Block's +88° plaza plot, the Block moves out to the expansion ring | **Chosen.** The Fight door lands on the plaza's door ring, 51 m from the spawn (the same as Igisoro opposite). Only two portals change places; the eight bearings on the door ring stay the same, so the plaza furniture (`MID_ANGLES`, benches in `@gukirana/contracts`, planters, lamps, beds) and the sign-in flow don't change. |
+| A1. …with the T-plan as before (the 94 m hall across the pavilion, along the ring) | Doesn't fit. At 88° the hall body overlaps the Ludo Lounge's hall (0.35 m measured gap, crossing outlines). Sliding it 10 m south pushes it to z ≈ 55, against the gate line and the parking. |
+| A2. …with the hall body turned a quarter: a 30.8 m wide, 94 m long slab running straight back from the pavilion | **Chosen.** 5.7 m clear of Ludo's corner, 2.5 m clear of the service pavilion, south wall at z ≈ 14 (43 m north of the gate line), back wall at r ≈ 144 (well inside the loop road). |
+| B. Keep the Block and open a slot nearest the gate axis (±122°, ±144°) | Rejected. Any hall body behind those plots reaches z 65–116, past the gate line (principle 1), and both slots are 10 m-wide pavilion plots. |
+
+The exterior Boxing hall is the interior turned a quarter (`fight/plan.ts hallLocal`: hall x → depth behind the
+pavilion, hall z → across). Inside nothing changes: the lobby (`hall:fight`) and Boxing hall (`hall:boxing`) scenes,
+the 50 ring positions (hall-local, mirrored by realtime `boxing-rings.ts`), the lobby → Boxing crossing and the game
+code. The halls have no windows, and nobody sees the inside and the outside at once.
+
+### 8.2 What changed
+
+- `layout.ts PORTALS`: `fight` at `FIGHT_ANGLE` 88° on the door ring (no `ring`); `admin` at `ADMIN_ANGLE` 62° on
+  `EXPANSION_RING` (north-east district, its 16 m forecourt on the promenade, a service spur from the loop road).
+  The P2-WLD-13 Fight walk (`FIGHT_WALK`, `fightWalk*`), the gateway arch and the walk bollards are removed.
+- `fight/plan.ts FIGHT_BUILDING` / `fight/exterior.ts`: the pavilion on the ring (glazing with a training ring's
+  corner behind it, red / white / blue lit ropes, the canopy, the live board), the 12.2 m hall front over it with the
+  lit "FIGHT GAMES" sign, a **rooftop light box** turned towards the arrival spawn (`ROOF_SIGN`, double-sided), red
+  light fins along both 94 m side walls (the south one faces the gate). The forecourt planters went: the pavilion's
+  forecourt is the plaza's own step-free paving.
+- Walks (`campus.ts`): the north-east walk leaves the plaza at 58° between the Ludo Lounge and the Fight pavilion,
+  passes between Ludo's hall corner and the Boxing hall's north wall, turns north past Ludo's back and reaches the
+  promenade at 57°. The east walk is gone, and the outer promenade now spans −115° … +76° (`PROMENADE_EAST_DEG`),
+  ending at the Boxing hall's body. The walks stay walkable while the Administrative Block is on
+  (`CAMPUS_WALKS_ON`), because the Block is now reached over them. Districts: north-east 30–70°, east 70–115°.
+- Go To: Fight Games stays featured and is the first-visit destination; its stop is now the plaza doorstep. The
+  Administrative Block is listed with its outer door. The "East district" place is dropped, since that district is
+  now the Fight building, reached from the plaza. The north-east district junction is at 57°.
+- Aerial labels: Fight Games floats over the hall's body (`DEPTH` 40 m), and the Block's label sits over its own roof.
+- No API, contracts or DB change: building records carry only id, name and open state. Door mapping
+  (`stage.ts plazaToHall`) works from `PORTALS` / `ringOf` and is covered for both buildings in `door-mapping.test.ts`.
+- QA helpers: `qa/e2e/world-lib.mjs DOORS` has `fight: 88`; `ui-buildings.mjs` walks to the Block by Go To.
+
+### 8.3 Walk times from the arrival spawn (normal pace 2.2 m/s)
+
+Inner doors use the plaza route round the furniture (`obstacles.ts planRoute`). Outer doors use the campus walks
+(`campusWalkLength`).
+
+| Door | Before (P2-WLD-13) | After (P2-WLD-14) |
+|---|---|---|
+| Cards / Esports pavilions (±144°) | 22 m · 10 s | 22 m · 10 s (unchanged) |
+| Draughts (−122°) | 36 m · 16 s | 36 m · 16 s (unchanged) |
+| Igisoro Court (−88°) | 51 m · 23 s | 51 m · 23 s (unchanged) |
+| **Fight Games** | **131 m · 59 s** (80°, r 108, over the Fight walk) | **51 m · 23 s** (88°, on the plaza) |
+| Administrative Block | 51 m · 23 s (88°, plaza) | 148 m · 67 s (62°, r 108, over the north-east walk; 86 m from its plaza exit) |
+| Pool Hall / Ludo Lounge (±44°) | 68 m · 31 s | 68 m · 31 s (unchanged) |
+| Tournament Arena (0°) | 71 m · 32 s | 71 m · 32 s (unchanged) |
+
+Go To "Walk there" from the spawn into the Fight lobby (`hall:fight`), including the door crossing, measured in
+Chrome: **20.4 s** on desktop (1280 × 720) and **20.5 s** on a phone (844 × 390). It was 40.4 s and 40.9 s before.
+The lobby → Boxing doorway still crosses into `hall:boxing` (5.2 s from the lobby's back wall). Go To → the
+Administrative Block → Walk there takes 47.6 s.
+
+Draw calls (Chrome, desktop, same poses, before → after): spawn view 240 → 237; plaza ground view from the gate
+247 → 237; aerial (distance 330) 238 → 238; facade pose 187 → 177. The P2-WLD-13 arch, its lettering and the
+bollards are gone. Phone, after: spawn 253, plaza 257, aerial 237.
+
+### 8.4 Invariants (campus.test.ts, footprints.test.ts, fight/plan.test.ts, door-mapping.test.ts)
+
+- The Fight door's doorstep is plaza ground, ≤ 25 s from the spawn at 2.2 m/s. It is no farther than any other
+  playable door, and its facade's north half is in the spawn camera's view with no building in the sight line.
+- The Fight building stays clear of every other building (≥ 1.5 m, also with every inner hall grown to 36 × 28 m),
+  north of the gate line (≥ 30 m) and inside the loop road. The rings fit the turned shell, chamfer included.
+- The Administrative Block is ≤ 132 m of walk from its plaza exit and ≤ 75 s from the spawn. The north-east exit
+  totem lists it.
+- Every inner door is ≤ 75 m from the spawn, and the plaza-ring doors stay ≤ 35 s over the plaza route.
+- Unchanged: nothing south of the gate line, the volcano corridor empty, walks ≥ 0.4 m from every building, plots
+  inside the compound.

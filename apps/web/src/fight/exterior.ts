@@ -172,5 +172,6 @@ export const ROOF_SIGN = (() => {
   return { x, z, rotY: Math.atan2(lx, lz) * 0.8, y: FIGHT_BUILDING.lobbyH + 3.2, w: 7.6, h: 2.1 };
 })();
 /** the facade sign over the lobby roof and the live board (door frame; letters drawn by FightFacadeBoard) */
-export const SIGN = { y: FIGHT_BUILDING.lobbyH + 2.3, w: 17, h: 2.7 };
+// (P2-WLD-14: high enough on the hall front to clear the pavilion roof from the plaza, 20–30 m away)
+export const SIGN = { y: FIGHT_BUILDING.lobbyH + 3.4, w: 17, h: 2.7 };
 export const LIVE_BOARD = { x: -12.4, y: 3.3, w: 4.8, h: 2.4, z: FIGHT_DOOR_INSET + 0.4 + 0.39 };

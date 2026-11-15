@@ -441,7 +441,15 @@ export function clampToCampusWalk(p: P, body = 0.32): boolean {
 /** A waypoint; `plaza`: reach it across the plaza (the caller routes around the plaza furniture). */
 export type WalkStep = P & { plaza?: boolean };
 // (the plaza's edge band counts as plaza unless it is the mouth of a walk: a hall's doorstep, P2-WLD-13)
-const inPlaza = (p: P) => Math.hypot(p.x, p.z) < PLAZA_RADIUS - 1.5 || (Math.hypot(p.x, p.z) < PLAZA_RADIUS && walkDepth(p.x, p.z).depth <= 0);
+// (P2-WLD-14: so does a plaza hall's doorway / vestibule just beyond the edge, off every walk: the Fight Games door
+// is a plaza door now, and a route from or to it crosses the plaza)
+const inPlaza = (p: P) => {
+  const r = Math.hypot(p.x, p.z);
+  if (r < PLAZA_RADIUS - 1.5) return true;
+  if (r >= PLAZA_RADIUS + 8) return false;
+  const w = walkDepth(p.x, p.z);
+  return r < PLAZA_RADIUS ? w.depth <= 0 : w.leg < 0 || w.depth < -1;
+};
 
 /**
  * Waypoints from one point to another over the walk network (either may be in the plaza): shortest path over the
@@ -455,6 +463,8 @@ export function campusWalkRoute(from: P, to: P): WalkStep[] {
   const lf = fromIn ? -1 : walkDepth(from.x, from.z).leg;
   const lt = toIn ? -1 : walkDepth(to.x, to.z).leg;
   if (lf >= 0 && lf === lt) return [{ x: to.x, z: to.z }];
+  // (an end nowhere near a walk or the plaza, e.g. off on the lawn: straight there, never a crash)
+  if ((!fromIn && lf < 0) || (!toIn && lt < 0)) return [{ x: to.x, z: to.z }];
   const N = nodes.length;
   const S = N;
   const T = N + 1;
