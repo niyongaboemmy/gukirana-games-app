@@ -9,7 +9,8 @@ import { RING_BY_ID, type RingPlace } from "./plan";
 import { useFightUi } from "./ui-store";
 import { useFightUi as useGameUi } from "./game/ui-store";
 import { useFightPrefs } from "./game/prefs";
-import { shakeFor } from "./present";
+import { ringLayout, ringSeed, shakeFor } from "./present";
+import { cameraKick } from "./ring-clock";
 import { replaySnap } from "./game/replay";
 
 /**
@@ -30,16 +31,19 @@ const _flook = new THREE.Vector3();
 const smooth = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 
 /** the shot for my fight (eye + look, world space) */
-export function fightShot(r: RingPlace, snap: BoxingSnapshot | null, me: 0 | 1, side: number, mode: "fight" | "behind", eye: THREE.Vector3, look: THREE.Vector3): void {
-  const th = snap ? ((snap.orbit / 10) * Math.PI) / 180 : 0;
-  const ax = Math.cos(th);
-  const az = Math.sin(th);
+export function fightShot(ring: RingPlace, snap: BoxingSnapshot | null, me: 0 | 1, side: number, mode: "fight" | "behind", eye: THREE.Vector3, look: THREE.Vector3): void {
+  // the pair as the fighters layer places it (P3-FGT-07 ringLayout: circling, drifting round the ring); the shots
+  // frame the pair's middle, which moves, so the camera operator follows it (the corner shot stays on the ring)
+  const lay = snap ? ringLayout(snap, ring.half, ringSeed(ring.id)) : { cx: 0, cz: 0, th: 0, half: 0.75 };
+  const ax = Math.cos(lay.th);
+  const az = Math.sin(lay.th);
   const px = -az * side;
   const pz = ax * side;
-  const cy = r.canvasY;
-  const half = snap ? Math.min(snap.dist / 200, r.half - 0.8) : 0.75;
+  const cy = ring.canvasY;
+  const half = lay.half;
   const ms = me === 0 ? -1 : 1; // my fighter's side along the pair axis
   const phase = snap?.phase ?? "intro";
+  const r = phase === "rest" ? ring : { ...ring, x: ring.x + lay.cx, z: ring.z + lay.cz };
   if (phase === "rest") {
     // my corner: from the ring centre, a little high, looking at the stool
     const c = r.half - 1.0;
@@ -79,7 +83,7 @@ export function fightShot(r: RingPlace, snap: BoxingSnapshot | null, me: 0 | 1, 
   // the broadcast 3/4: outside the ropes, square to the pair, shifted towards my corner (my back three-quarter on, the
   // opponent's face to the camera); a wider frame when they are far apart, tighter in close
   const wide = phase === "intro" || phase === "countdown" ? 0.9 : 0;
-  const d = r.half + 1.05 + (snap ? (snap.dist - 150) / 260 : 0.3) + wide;
+  const d = r.half + 1.05 + (snap ? (half * 2 - 0.95) * 0.9 : 0.3) + wide;
   eye.set(r.x + px * d + ms * ax * 1.1, cy + 2.05 + wide * 0.4, r.z + pz * d + ms * az * 1.1);
   look.set(r.x - ms * ax * 0.15, cy + 1.2, r.z - ms * az * 0.15);
 }
@@ -94,6 +98,7 @@ export function FightCamera() {
   const side = useRef(1);
   const ringRef = useRef<RingPlace | null>(null);
   const trauma = useRef(0);
+  const kick = useRef(0);
   const seen = useRef(0);
   const clock = useRef(0);
   useFrame((_, raw) => {
@@ -125,7 +130,7 @@ export function FightCamera() {
     _fpos.copy(camera.position);
     _flook.copy(camera.position).addScaledVector(_fwd, 5);
     const snap = mine ? (replaySnap() ?? mine.snap) : (b.watched?.snap ?? null);
-    const th = snap ? ((snap.orbit / 10) * Math.PI) / 180 : 0;
+    const th = snap ? ringLayout(snap, r.half, ringSeed(r.id)).th : 0;
     const ax = Math.cos(th);
     const az = Math.sin(th);
     if (!seeded.current) {
@@ -168,6 +173,10 @@ export function FightCamera() {
     camera.position.lerpVectors(_fpos, eye.current, s);
     if (a > 0) camera.position.add(_eye.set(Math.sin(t * 47.3) * a, Math.sin(t * 59.1 + 1.3) * a * 0.7, Math.sin(t * 41.7 + 2.1) * a));
     _look.lerpVectors(_flook, look.current, s);
+    // the camera punch on a connection (P3-FGT-07): a quick push towards the action, eased back; never with reduced motion
+    kick.current = Math.max(kick.current * Math.exp(-dt * 11), reduced ? 0 : cameraKick.v);
+    cameraKick.v = 0;
+    if (kick.current > 0.001) camera.position.add(_eye.subVectors(_look, camera.position).normalize().multiplyScalar(kick.current * s));
     camera.lookAt(_look);
   }, 0.5);
   return null;

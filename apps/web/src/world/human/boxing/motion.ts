@@ -1,5 +1,6 @@
 import { BOXING_CLIPS, clipTime, clipTravel, compensateTravel, sampleClip, type BoxingClipName, type ClipEvent } from "./clips";
 import { copyPose, GUARD, lerpPose, mirrorPose, newPose, P, type Pose } from "./pose";
+import { addRingLife, type RingLife } from "./life";
 
 /**
  * Boxing motion controller (P3-FGT-02): the one object the engine / hall drives per fighter. Commands are stamped with
@@ -30,6 +31,8 @@ export interface BoxingCommand {
   hold?: number;
   /** cross-fade time from the previous pose (s; default 0.1, reactions 0.05) */
   blend?: number;
+  /** punches: distance to the target (m forward of the root); the glove travels there (0 = the clip's own reach) */
+  reach?: number;
 }
 
 interface Active {
@@ -116,6 +119,15 @@ export class BoxingMotion {
     Object.assign(this.mood, m);
   }
 
+  /**
+   * Ring life (P3-FGT-07, life.ts): the bounce, weight shifts, pawing and feints added over the stance clips while a
+   * round is live (null = the clips alone). Set it every frame from the meters; it never changes which clip plays.
+   */
+  private life: RingLife | null = null;
+  setLife(l: RingLife | null) {
+    this.life = l;
+  }
+
   /** The pose at clock time `t` (owned by the controller: copy it to keep it). */
   sample(t: number): Pose {
     this.advance(t);
@@ -164,6 +176,12 @@ export class BoxingMotion {
       }
     }
     if (BOXING_CLIPS[cmd.clip].travel) compensateTravel(out, clipTravel(cmd.clip, ct, false, _tr));
+    if (cmd.reach) fitReach(cmd.clip, out, cmd.reach);
+    if (this.life) {
+      const [w, hands] = lifeWeight(cmd.clip, this.life);
+      // eased in from the clip's start: a one-shot ends exactly in the guard, the life grows from there (no pop)
+      if (w > 0) addRingLife(out, t, this.life, w * smooth((t - cmd.start) / 0.25), hands);
+    }
     if (cmd.mirrored) mirrorPose(out);
     return out;
   }
@@ -209,9 +227,48 @@ export class BoxingMotion {
   }
 }
 
+/** how much ring life a clip takes: [body, gloves] (stance 1, footwork half, the held guard bounces with the gloves home) */
+function lifeWeight(clip: BoxingClipName, l: RingLife): [number, number] {
+  const kind = BOXING_CLIPS[clip].kind;
+  if (l.official) return clip === "refIdle" ? [1, 0] : [0, 0];
+  if (kind === "stance") return [1, clip === "guard" ? 0.5 : 1];
+  if (kind === "footwork") return [0.5, 0.4];
+  if (clip === "blockHigh") return [0.6, 0];
+  return [0, 0];
+}
+
+/**
+ * Reach fit (P3-FGT-07): a punch's glove travels to where the target really is. The clips are authored for one range
+ * (`reach`, m forward of the root); `want` is the distance to the target this time. The striking glove's travel away
+ * from the guard is scaled to land there (0.7…1.25 ×), and a reach past the clip's own (a whiff, a long jab) also
+ * carries the body after it (more lean, hips forward, rear heel up): misses over-extend.
+ */
+export function reachScale(clip: BoxingClipName, want: number): number {
+  const info = BOXING_CLIPS[clip];
+  if (info.kind !== "punch" || !info.reach) return 1;
+  return Math.min(1.25, Math.max(0.7, want / info.reach));
+}
+function fitReach(clip: BoxingClipName, out: Pose, want: number) {
+  const info = BOXING_CLIPS[clip];
+  const k = reachScale(clip, want);
+  if (k === 1) return;
+  const [x, y, z] = info.hand === "rear" ? [P.rx, P.ry, P.rz] : [P.lx, P.ly, P.lz];
+  out[x] = GUARD[x]! + (out[x]! - GUARD[x]!) * Math.min(k, 1.05);
+  out[y] = GUARD[y]! + (out[y]! - GUARD[y]!) * Math.min(k, 1.05);
+  out[z] = GUARD[z]! + (out[z]! - GUARD[z]!) * k;
+  if (k > 1) {
+    const over = k - 1;
+    const ext = Math.max(0, (out[z]! - GUARD[z]!) / Math.max(0.05, (info.reach ?? 0.7) - GUARD[z]!));
+    out[P.lean] = out[P.lean]! + 0.45 * over * ext;
+    out[P.hz] = out[P.hz]! + 0.25 * over * ext;
+    out[P.fRheel] = out[P.fRheel]! + 0.8 * over * ext;
+  }
+}
+
 function full(cmd: BoxingCommand): Active["cmd"] {
   const kind = BOXING_CLIPS[cmd.clip].kind;
   return {
+    reach: cmd.reach ?? 0,
     clip: cmd.clip,
     start: cmd.start,
     mirrored: !!cmd.mirrored,

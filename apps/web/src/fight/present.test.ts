@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { TICK_HZ, type FighterView } from "@gukirana/contracts";
 import { PUNCH_SPECS } from "@gukirana/boxing";
 import { BOXING_CLIPS } from "@/world/human/boxing/clips";
-import { moodOf, presentFighter, reactionFor, refereeSpot, shakeFor, warp, windOf } from "./present";
+import { clampInRing, gapOf, hitFeel, moodOf, presentFighter, reactionFor, refereeSpot, ringLayout, shakeFor, TARGET_FWD, warp, windOf } from "./present";
+import { hitStopAt, resetRingClock, ringTimeAt } from "./ring-clock";
 
 const f = (p: Partial<FighterView> = {}): FighterView => ({
   id: "a",
@@ -82,6 +83,48 @@ describe("engine → motion (present.ts)", () => {
     expect(refereeSpot("over", { dist: 200, down: -1, winner: 0, breaking: false, half: 2.45 }).clip).toBe("refRaise");
     expect(refereeSpot("round", { dist: 70, down: -1, winner: null, breaking: true, half: 2.45 }).clip).toBe("refBreak");
     expect(refereeSpot("round", { dist: 200, down: -1, winner: null, breaking: false, half: 2.45 }).clip).toBe("refIdle");
+  });
+  it("ring layout: real exchange range, circling, never past the ropes (P3-FGT-07)", () => {
+    expect(gapOf(PUNCH_SPECS.jab.reach)).toBeCloseTo(0.98, 2);
+    expect(gapOf(PUNCH_SPECS.hook.reach)).toBeLessThan(gapOf(PUNCH_SPECS.jab.reach));
+    expect(gapOf(30)).toBe(gapOf(70));
+    expect(gapOf(1000)).toBe(gapOf(360));
+    // a jab landing at its reach: the glove fits the target within the reach-fit clamp
+    expect(gapOf(PUNCH_SPECS.jab.reach) - TARGET_FWD).toBeGreaterThan(0.7);
+    const a = ringLayout({ dist: 200, orbit: 0, tick: 0 }, 2.45, 7);
+    const b = ringLayout({ dist: 200, orbit: 0, tick: 300 }, 2.45, 7);
+    expect(a).toEqual(ringLayout({ dist: 200, orbit: 0, tick: 0 }, 2.45, 7));
+    expect(a.th).not.toBeCloseTo(b.th, 2);
+    for (let tick = 0; tick < 6000; tick += 97) {
+      const l = ringLayout({ dist: 360, orbit: 0, tick }, 2.45, 99);
+      for (const s of [-1, 1]) {
+        const x = l.cx + s * l.half * Math.cos(l.th);
+        const z = l.cz + s * l.half * Math.sin(l.th);
+        expect(Math.hypot(x, z)).toBeLessThan(2.45 - 0.3);
+      }
+    }
+    const c = clampInRing(3, -3, Math.PI / 2, 1.5);
+    expect(Math.abs(c.x)).toBeCloseTo(1.5);
+    expect(Math.abs(c.z)).toBeCloseTo(1.5);
+  });
+  it("hit feel: heavier punches stop longer, whiffs nothing", () => {
+    const jab = hitFeel({ k: "hit", t: 1, by: 0, punch: "jab", points: 1, counter: false, combo: 1 }, true);
+    const hook = hitFeel({ k: "hit", t: 1, by: 0, punch: "hook", points: 3, counter: false, combo: 1 }, true);
+    expect(hook.stop).toBeGreaterThan(jab.stop);
+    expect(hook.kick).toBeGreaterThan(jab.kick);
+    expect(hitFeel({ k: "knockdown", t: 1, to: 1, points: 5 }, false).stop).toBeLessThanOrEqual(0.15);
+  });
+  it("the ring clock holds during a hit-stop and catches up after", () => {
+    resetRingClock();
+    ringTimeAt(10);
+    hitStopAt(0.08, 10);
+    expect(ringTimeAt(10.05)).toBeCloseTo(10, 5);
+    const after = ringTimeAt(10.1);
+    expect(after).toBeLessThan(10.1);
+    let t = 10.1;
+    for (let i = 0; i < 60; i++) ringTimeAt((t += 1 / 60));
+    expect(ringTimeAt(t)).toBeCloseTo(t, 5);
+    resetRingClock();
   });
   it("warp stays in a sane range", () => {
     expect(warp("jab", 1, true)).toBeLessThanOrEqual(3.5);

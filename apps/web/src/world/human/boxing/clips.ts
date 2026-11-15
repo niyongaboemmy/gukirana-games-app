@@ -702,7 +702,7 @@ const DEFS: Record<BoxingClipName, Def> = {
     impact: null,
     keys: keys(STAND, [
       [0, { ...REF_SPEC() }],
-      [2, { ...REF_SPEC(), hips: [0.01, 0.898, 0], head: [0.06, 0.15, 0] }],
+      [2, { ...REF_SPEC(), hips: [0.015, 0.85, 0.01], head: [-0.04, 0.12, 0] }],
       [4, { ...REF_SPEC() }],
     ]),
   },
@@ -835,11 +835,29 @@ function WINNER_SPEC(): PoseSpec {
     shrugRear: 0.7,
   };
 }
+/**
+ * The referee's working stance (P3-FGT-07): feet apart, knees bent, leaning in a little, hands open and apart in front
+ * at belt height (ready to step in between), eyes up on the boxers — never upright with the hands clasped.
+ */
 function REF_SPEC(): PoseSpec {
-  return { hips: [0, 0.9, 0], lead: [0.08, 0.98, 0.16], rear: [-0.08, 0.98, 0.16], leadPole: [0.8, -0.3, -0.6], rearPole: [-0.8, -0.3, -0.6], leadPalm: [-0.6, 0, -0.6], rearPalm: [0.6, 0, -0.6], fist: 0.3, lean: 0.04, head: [0.05, 0, 0], focus: 0.3 };
+  return {
+    hips: [0, 0.855, 0],
+    lead: [0.2, 1.04, 0.27],
+    rear: [-0.2, 1.04, 0.27],
+    leadPole: [0.8, -0.5, -0.3],
+    rearPole: [-0.8, -0.5, -0.3],
+    leadPalm: [-0.5, -0.3, 0.6],
+    rearPalm: [0.5, -0.3, 0.6],
+    leadFoot: [0.17, 0, 0.03],
+    rearFoot: [-0.17, 0, -0.03],
+    fist: 0.15,
+    lean: 0.17,
+    head: [-0.06, 0, 0],
+    focus: 0.6,
+  };
 }
 function REF_RAISE_SPEC(): PoseSpec {
-  return { ...REF_SPEC(), lead: [0.38, 1.97, 0.04], leadPole: [1, 0, -0.3], leadPalm: [-1, 0, 0], fist: 0.6, bend: -0.05, head: [-0.05, 0.35, 0], smile: 0.4, focus: 0 };
+  return { ...REF_SPEC(), hips: [0, 0.9, 0], lean: 0.04, rear: [-0.1, 0.98, 0.12], leadFoot: [0.12, 0, 0.01], rearFoot: [-0.12, 0, -0.01], lead: [0.38, 1.97, 0.04], leadPole: [1, 0, -0.3], leadPalm: [-1, 0, 0], fist: 0.6, bend: -0.05, head: [-0.05, 0.35, 0], smile: 0.4, focus: 0 };
 }
 
 /** a pose as a full spec (for "end exactly in this pose" keys) */
