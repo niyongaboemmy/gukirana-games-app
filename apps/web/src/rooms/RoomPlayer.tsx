@@ -17,6 +17,7 @@ import type { HallLayout, Seat } from "./layouts";
 import { freeChair, tableAt } from "./table-status";
 import { SEAT_BACK, seatProfileFor, type SeatProfile } from "@/world/human/seat-profiles";
 import { hallHooks, hiddenPeople, SELF_ID, walkQueue, type HallHooks } from "./hall-hooks";
+import { softBodies } from "./soft-bodies";
 import { seatActivities, type SeatActivity } from "@/world/human/activity";
 import { seatActivity } from "./seat-activity";
 import { CAM_RATE, damp, PROMPT, stickyNearest, stickyZone } from "./stability";
@@ -603,6 +604,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
         pushOut(cx, cz, chairR + BODY - 0.08);
       }
       for (const op of Object.values(W.players)) pushOut(op.x / 100, op.z / 100, BODY * 2);
+      // the hall's local staff (rooms/soft-bodies): slide round them too
+      for (const b of softBodies.values()) pushOut(b.x, b.z, BODY + b.r);
       // walls; the south wall only opens where the auto door is (and only while it is open)
       const outside = pos.current.z > d / 2;
       const inDoorway = Math.abs(pos.current.x - layout.door.x) < layout.door.w / 2 - 0.3;

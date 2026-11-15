@@ -16,6 +16,7 @@ import { BOXING_CLIPS, type BoxingClipName } from "@/world/human/boxing/clips";
 import { alongPath, GYM_PROPS, STAFF, type GymProp, type StaffSpot } from "./gym-plan";
 import { gymTimer, hitBag } from "./training-zone";
 import { F } from "./strings";
+import { softBodies } from "@/rooms/soft-bodies";
 import { isBagStation } from "./bag-plan";
 import { startBagWork } from "./bag-work";
 
@@ -235,6 +236,7 @@ function StaffNpc({ spot, lite }: { spot: StaffSpot; lite: boolean }) {
   const rope = useRef<THREE.Group>(null);
   const label = useRef<THREE.Group>(null);
   const off = useMemo(() => phase(spot.id), [spot.id]);
+  useEffect(() => () => void softBodies.delete(`staff-${spot.id}`), [spot.id]);
   useFrame(() => {
     const t = clock() + off;
     const grp = g.current;
@@ -292,6 +294,7 @@ function StaffNpc({ spot, lite }: { spot: StaffSpot; lite: boolean }) {
     }
     grp.position.set(x, y, z);
     grp.rotation.y = yaw;
+    softBodies.set(`staff-${spot.id}`, { x, z, r: 0.3 });
     if (label.current) label.current.visible = Math.hypot(x - selfPose.x, z - selfPose.z) < 5;
     if (motion && loop && weight.current > 0.5) {
       const cur = loopAt(loop, t);

@@ -4,6 +4,7 @@ import { selfPose, useWorld } from "@/lib/world-store";
 import { hallHooks, type P } from "@/rooms/hall-hooks";
 import { useFightBridge } from "./bridge";
 import { bagActive } from "./bag-work";
+import { fixtureBlocks } from "./hall-colliders";
 import { onStepsFootprint, stepHeight } from "@/rooms/fight/ring-kit-core";
 import { kitSpec, ringBase } from "./climb";
 import { BOXING_AISLES, BOXING_SIZE, FEATURE_RING, FEATURE_STAGE, inFeatureStage, RING_BY_ID, ringAt, RINGS } from "./plan";
@@ -58,6 +59,7 @@ const nearOtherSteps = (x: number, z: number) => RINGS.some((q) => Math.abs(x - 
 export function boxingWalkable(x: number, z: number): boolean {
   if (onMySteps(x, z)) return true;
   if (nearOtherSteps(x, z)) return false;
+  if (fixtureBlocks(x, z)) return false;
   const r = ringAt(x, z, 0.08);
   if (r) return iHold(r.id);
   const railed = ringAt(x, z, RAIL_PAD);
