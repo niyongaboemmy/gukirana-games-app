@@ -7,6 +7,7 @@ import { SPAWN } from "./layout";
 import type { Tier } from "./materials";
 import { levelForXp, useProfile } from "@/lib/profile-store";
 import { SocialLayer } from "@/social/SocialLayer";
+import { GoToGuide } from "./GoToGuide";
 
 /**
  * The plaza's people and controls inside the persistent stage (world/SceneCanvas): the plaza itself (buildings,
@@ -42,6 +43,7 @@ export function PlazaActors({ tier }: { tier: Tier }) {
       <LocalPlayer color={color} name={name} level={levelForXp(xp)} tier={tier} />
       <RemotePlayers tier={tier} />
       <SocialLayer />
+      <GoToGuide />
       <VROrigin />
     </>
   );

@@ -8,6 +8,8 @@ import { useStage } from "@/world/stage";
 import { CAMPUS } from "@/world/campus-strings";
 import { enableVoice, disableVoice, pttDown, pttUp, toggleOpenMic, useVoice } from "@/voice/voice";
 import { H } from "./strings";
+import { backToMe, GOTO_ON } from "@/world/goto";
+import { GoToButton, GoToCard, GoToModal } from "./GoToModal";
 
 
 const btn = "icon-button pointer-events-auto size-12 rounded-card phone:size-9 phone:rounded-full";
@@ -116,8 +118,10 @@ export function WorldControls() {
       )}
 
       {/* zoom (pace lives in Settings); in the campus aerial view, one tap brings the camera back down to you */}
+      {/* Go To (P2-WLD-13): every hall and place, the way there on the ground, walk there / show on the map */}
+      {GOTO_ON && <GoToButton className={btn} />}
       {aerial && (
-        <button type="button" onClick={() => (cameraState.distance = 9)} title={CAMPUS.hint} className="pbtn-primary pointer-events-auto flex items-center gap-1.5 whitespace-nowrap rounded-card px-3 py-2 text-sm font-bold phone:px-2.5 phone:py-1.5 phone:text-xs">
+        <button type="button" onClick={() => (backToMe(), (cameraState.distance = 9))} title={CAMPUS.hint} className="pbtn-primary pointer-events-auto flex items-center gap-1.5 whitespace-nowrap rounded-card px-3 py-2 text-sm font-bold phone:px-2.5 phone:py-1.5 phone:text-xs">
           <LocateFixed size={16} /> {CAMPUS.backToMe}
         </button>
       )}
@@ -129,6 +133,12 @@ export function WorldControls() {
           <Minus size={20} />
         </button>
       </div>
+      {GOTO_ON && (
+        <>
+          <GoToModal />
+          <GoToCard />
+        </>
+      )}
 
     </div>
   );

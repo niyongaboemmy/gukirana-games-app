@@ -26,7 +26,8 @@ import { doorRefusal } from "./door-access";
 import { clearHandoff, peekHandoff } from "./stage";
 import { cameraArm, freePoint, planRoute, plazaObstacles, resolve } from "./obstacles";
 import { ringOf } from "./layout";
-import { campusWalkRoute, clampToCampusWalk, onCampusWalk, walkDepth } from "./campus";
+import { clampToCampusWalk, onCampusWalk, walkDepth } from "./campus";
+import { walkRoute } from "./goto-walk";
 import type { Tier } from "./materials";
 import { useWorld } from "@/lib/world-store";
 import { lookOf, useProfile } from "@/lib/profile-store";
@@ -65,17 +66,6 @@ function outerHallAt(x: number, z: number) {
     if (gap < half && r > R - 6 && r < R + 52) return d;
   }
   return null;
-}
-
-function walkRoute(from: { x: number; z: number }, to: { x: number; z: number }): { x: number; z: number }[] {
-  const out: { x: number; z: number }[] = [];
-  let at = from;
-  for (const w of campusWalkRoute(from, to)) {
-    if (w.plaza) out.push(...planRoute(at, { x: w.x, z: w.z }));
-    else out.push({ x: w.x, z: w.z });
-    at = w;
-  }
-  return out;
 }
 
 /** Tap-to-walk routes longer than this (m) are jogged (across the campus); the last AUTO_RUN_OFF m are walked. */
@@ -296,6 +286,18 @@ export function LocalPlayer({
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
     const w = useWorld.getState();
+    // Go To (P2-WLD-13, world/goto.ts): turn to face a destination; take over a whole route ("Walk there", [] = stop)
+    if (nav.face != null) {
+      facing.current = nav.face;
+      nav.face = null;
+    }
+    if (nav.queue) {
+      route.current = nav.queue;
+      nav.queue = null;
+      nav.goal = null;
+      nav.progress = { best: Infinity, since: performance.now(), detours: 0 };
+      nav.target = route.current.shift() ?? null;
+    }
     // run on purpose (Run button / Shift) — never just because the joystick hits its edge — or on a long tap-to-walk
     // route (across the campus to a district hall): jog while more than AUTO_RUN_ON m remain, walk the last metres
     if (nav.target) {

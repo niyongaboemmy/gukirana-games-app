@@ -424,7 +424,8 @@ export function clampToCampusWalk(p: P, body = 0.32): boolean {
 
 /** A waypoint; `plaza`: reach it across the plaza (the caller routes around the plaza furniture). */
 export type WalkStep = P & { plaza?: boolean };
-const inPlaza = (p: P) => Math.hypot(p.x, p.z) < PLAZA_RADIUS - 1.5;
+// (the plaza's edge band counts as plaza unless it is the mouth of a walk: a hall's doorstep, P2-WLD-13)
+const inPlaza = (p: P) => Math.hypot(p.x, p.z) < PLAZA_RADIUS - 1.5 || (Math.hypot(p.x, p.z) < PLAZA_RADIUS && walkDepth(p.x, p.z).depth <= 0);
 
 /**
  * Waypoints from one point to another over the walk network (either may be in the plaza): shortest path over the

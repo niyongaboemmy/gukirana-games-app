@@ -38,6 +38,11 @@ export const nav = {
   /** final destination while walking around an obstacle via a detour point */
   goal: null as { x: number; z: number } | null,
   progress: { best: Infinity, since: 0, detours: 0 },
+  /** a whole route handed to the plaza controller (Go To "Walk there", P2-WLD-13): replaces any walk in progress
+   *  on the next frame ([] = stop walking) */
+  queue: null as { x: number; z: number }[] | null,
+  /** turn the person to this heading (rad) on the next frame (Go To: face the destination) */
+  face: null as number | null,
 };
 
 // dev-only hook for automated walk-through tests (like window.__gkCam)

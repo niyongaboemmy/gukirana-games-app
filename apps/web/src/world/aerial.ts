@@ -73,8 +73,15 @@ export const viewPitch = (pitch: number, distance: number) => {
   return pitch + (Math.max(pitch, 0.62) - pitch) * k;
 };
 
-/** Orbit pivot: your head up close, the campus centre in the aerial view (blended in between). */
-export function aerialPivot(px: number, pz: number, aimY: number, distance: number): { x: number; y: number; z: number } {
+/**
+ * What the aerial view orbits: the campus centre, or a place picked in Go To's "Show on map" (P2-WLD-13), until
+ * "Back to me". Mutable (read every frame by the camera rig).
+ */
+export const aerialFocus: { x: number; z: number } = { ...CAMPUS_CENTER };
+export const resetAerialFocus = () => Object.assign(aerialFocus, CAMPUS_CENTER);
+
+/** Orbit pivot: your head up close, the campus centre (or the Go To focus) in the aerial view (blended in between). */
+export function aerialPivot(px: number, pz: number, aimY: number, distance: number, focus: { x: number; z: number } = aerialFocus): { x: number; y: number; z: number } {
   const k = aerialBlend(distance);
-  return { x: px + (CAMPUS_CENTER.x - px) * k, y: aimY * (1 - k), z: pz + (CAMPUS_CENTER.z - pz) * k };
+  return { x: px + (focus.x - px) * k, y: aimY * (1 - k), z: pz + (focus.z - pz) * k };
 }
