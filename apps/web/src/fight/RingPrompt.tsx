@@ -23,7 +23,7 @@ export function RingPrompt() {
   const near = useFightUi((s) => s.near);
   const watchCam = useFightUi((s) => s.watchCam);
   const watched = useFightBridge((s) => s.watched?.ring ?? null);
-  const mine = useFightBridge((s) => s.mine);
+  const mine = useFightBridge((s) => !!s.mine);
   const entry = useFightBridge((s) => (near ? s.rings[near] : undefined));
   const ring = near ? (entry ?? ringState(near, {})) : null;
   const you = useWorld((s) => s.you);
@@ -48,7 +48,7 @@ export function RingPrompt() {
               <p className="plabel mb-1.5">{F.chooseStake}</p>
               <div className="mb-3 flex flex-wrap gap-1.5">
                 {STAKES.map((s) => (
-                  <button key={s} type="button" aria-pressed={stake === s} onClick={() => setStake(s)} className={`${btn} ${stake === s ? "pbtn-primary" : "pbtn-secondary"} !px-3 !py-1.5`}>
+                  <button key={s} type="button" aria-pressed={stake === s} onClick={() => setStake(s)} className={`${btn} ${stake === s ? "pbtn-primary" : "pbtn-secondary"} min-h-11 !px-3.5 !py-1.5`}>
                     {s === 0 ? F.friendly : F.stars(s)}
                   </button>
                 ))}
@@ -63,7 +63,7 @@ export function RingPrompt() {
             <>
               <div className="mb-3 flex flex-wrap gap-1.5">
                 {[1, 2, 3, 4, 5].map((l) => (
-                  <button key={l} type="button" aria-pressed={level === l} onClick={() => setLevel(l)} className={`${btn} ${level === l ? "pbtn-primary" : "pbtn-secondary"} !px-3 !py-1.5`}>
+                  <button key={l} type="button" aria-pressed={level === l} onClick={() => setLevel(l)} className={`${btn} ${level === l ? "pbtn-primary" : "pbtn-secondary"} min-h-11 !px-3.5 !py-1.5`}>
                     {F.level(l)}
                   </button>
                 ))}
@@ -182,10 +182,10 @@ function WatchBar({ ring, cam }: { ring: NonNullable<ReturnType<typeof useFightB
   return (
     <div className="glass rounded-card pointer-events-auto absolute bottom-[max(16px,env(safe-area-inset-bottom))] left-1/2 flex -translate-x-1/2 items-center gap-2 px-3 py-2 text-sm">
       <Eye size={16} /> {F.watching(ring)}
-      <button type="button" className="pbtn pbtn-secondary !px-3 !py-1 text-xs" onClick={() => useFightUi.getState().set({ watchCam: cam === "rail" ? "overhead" : cam === "overhead" ? null : "rail" })}>
+      <button type="button" className="pbtn pbtn-secondary min-h-11 !px-3 !py-1 text-xs" onClick={() => useFightUi.getState().set({ watchCam: cam === "rail" ? "overhead" : cam === "overhead" ? null : "rail" })}>
         <Camera size={14} /> {cam === "rail" ? F.camOverhead : cam === "overhead" ? F.camBehind : F.camRail}
       </button>
-      <button type="button" className="pbtn pbtn-secondary !px-3 !py-1 text-xs" onClick={() => fightActions.watch(null)}>
+      <button type="button" className="pbtn pbtn-secondary min-h-11 !px-3 !py-1 text-xs" onClick={() => fightActions.watch(null)}>
         <EyeOff size={14} /> {F.stopWatching}
       </button>
     </div>

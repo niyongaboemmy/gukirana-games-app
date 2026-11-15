@@ -14,24 +14,50 @@ import { useFightUi } from "./ui-store";
  *    or "behind you" (over your shoulder towards the opponent);
  *  - you watch a ring with the Rail or Overhead camera.
  * Moves are damped (no cuts); letting go hands the camera back to the follow camera, which eases on from here.
+ *
+ * Stability (P3-FGT-04): this camera keeps its OWN eye / look state and writes the camera from it. (It used to lerp
+ * the camera position the follow camera had just lerped elsewhere in the same frame: the two pulls met at a frame-rate
+ * dependent spot in between that wobbled as the follow target moved.) Its targets follow the snapshots (10–15 Hz
+ * steps) through the same exponential glide. On release the follow camera's position eases on from here, but its
+ * lookAt turned the view round in one frame: the orientation is now slerped back over HANDOFF_S.
  */
 const _eye = new THREE.Vector3();
 const _look = new THREE.Vector3();
+const _q = new THREE.Quaternion();
+const HANDOFF_S = 0.9;
 export function FightCamera() {
   const area = useArea();
   const camera = useThree((s) => s.camera);
   const look = useRef(new THREE.Vector3());
+  const eye = useRef(new THREE.Vector3());
   const on = useRef(false);
   const side = useRef(1);
+  /** the orientation shown last frame, and how long a released camera is still being turned back */
+  const lastQ = useRef(new THREE.Quaternion());
+  const handoff = useRef(0);
   useFrame((_, raw) => {
-    if (!isOnScreen(area)) return;
+    if (!isOnScreen(area)) {
+      on.current = false;
+      handoff.current = 0;
+      return;
+    }
     const dt = Math.min(raw, 0.05);
     const b = useFightBridge.getState();
     const ui = useFightUi.getState();
     const mine = b.mine?.snap && b.mine.snap.phase !== "over" ? b.mine : null;
     const ringId = mine ? mine.ring : ui.watchCam && b.watched ? b.watched.ring : null;
     if (!ringId) {
-      on.current = false;
+      if (on.current) {
+        on.current = false;
+        handoff.current = HANDOFF_S;
+      }
+      if (handoff.current > 0) {
+        // the follow camera has set this frame's view: turn towards it from last frame's view instead of snapping
+        handoff.current = Math.max(0, handoff.current - dt);
+        _q.copy(camera.quaternion);
+        camera.quaternion.copy(lastQ.current).slerp(_q, handoff.current > 0 ? 1 - Math.exp(-dt * 6) : 1);
+      }
+      lastQ.current.copy(camera.quaternion);
       return;
     }
     const r = RING_BY_ID[ringId]!;
@@ -43,9 +69,12 @@ export function FightCamera() {
     const cy = r.canvasY;
     if (!on.current) {
       on.current = true;
+      handoff.current = 0;
       // pick the side of the ring the camera already is on (no swing through the ropes)
       side.current = (camera.position.x - r.x) * -az + (camera.position.z - r.z) * ax >= 0 ? 1 : -1;
-      look.current.set(r.x, cy + 1.3, r.z);
+      eye.current.copy(camera.position);
+      // start from where the camera already looks (4 m ahead), then glide onto the ring
+      look.current.set(0, 0, -4).applyQuaternion(camera.quaternion).add(camera.position);
     }
     const mode = mine ? ui.fightCam : ui.watchCam;
     if (mode === "fight" || (mode === "rail" && !mine)) {
@@ -65,9 +94,11 @@ export function FightCamera() {
       _look.set(r.x - s * half * ax, cy + 1.35, r.z - s * half * az);
     }
     const k = 1 - Math.exp(-dt * 4);
-    camera.position.lerp(_eye, k);
+    eye.current.lerp(_eye, k);
     look.current.lerp(_look, k);
+    camera.position.copy(eye.current);
     camera.lookAt(look.current);
+    lastQ.current.copy(camera.quaternion);
   }, 0.5);
   return null;
 }

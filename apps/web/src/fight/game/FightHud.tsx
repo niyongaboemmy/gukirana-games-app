@@ -274,7 +274,9 @@ export function FightHud() {
   const [settings, setSettings] = useState(false);
   const now = useNow(100);
   const feed = useFightUi((s) => s.feed);
-  const played = useRef(0);
+  // only events that arrive while this HUD is up make a sound: a HUD that (re)mounts mid-fight must not replay the
+  // whole recent feed as a burst of sounds
+  const played = useRef<number>(useFightUi.getState().feed.at(-1)?.id ?? 0);
   const me: 0 | 1 = mine?.corner === "blue" ? 1 : 0;
 
   // sounds / haptics on new events (never on predictions)

@@ -1,7 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
-import { DoorOpen, Users } from "lucide-react";
-import { useWorld } from "@/lib/world-store";
+import { DoorOpen, Navigation, Users } from "lucide-react";
+import { selfPose, useWorld } from "@/lib/world-store";
+import { walkQueue } from "@/rooms/hall-hooks";
+import { nav } from "@/world/navigation";
+import { STATUS_LAMP } from "./assets-shim";
+import { boxingRoute } from "./hooks";
+import { RINGS, ringSteps, type RingPlace } from "./plan";
+import { useRingCounts } from "./rings";
+import { useFightUi } from "./ui-store";
 import { useRoom } from "@/rooms/room-store";
 import { useSocial } from "@/social/social-store";
 import { KeyHint, PROMPT_BTN, promptWrap } from "@/hud/Prompt";
@@ -13,6 +20,59 @@ import { FightOverlay as GameFightOverlay } from "./game/FightOverlay";
 import { F } from "./strings";
 
 const glass = "glass rounded-card";
+
+/** the free standard ring whose red steps are the shortest walk from where you stand (null: none free) */
+function nearestFreeRing(): RingPlace | null {
+  const rings = useFightBridge.getState().rings;
+  let best: RingPlace | null = null;
+  let bd = Infinity;
+  for (const r of RINGS) {
+    if (r.feature || (rings[r.id]?.status ?? "free") !== "free") continue;
+    const f = ringSteps(r, "red");
+    const d = Math.hypot(f.x - selfPose.x, f.z - selfPose.z);
+    if (d < bd) [best, bd] = [r, d];
+  }
+  return best;
+}
+
+/**
+ * Wayfinding (P3-FGT-04): how many rings are free, and one tap walks you along the aisles to the steps of the nearest
+ * free ring, where its prompt (wait for an opponent / practice) appears. Shown in the Boxing hall's top bar.
+ */
+function FindRing({ phone }: { phone: boolean }) {
+  const { free } = useRingCounts();
+  const [going, setGoing] = useState<string | null>(null);
+  const near = useFightUi((s) => s.near);
+  useEffect(() => {
+    if (!going) return;
+    if (near === going) return void setGoing(null);
+    // stopped or steered away (manual input clears the walk): drop the "walking to" label after a while
+    const t = setTimeout(() => setGoing(null), 15000);
+    return () => clearTimeout(t);
+  }, [going, near]);
+  const go = () => {
+    const r = nearestFreeRing();
+    if (!r) return;
+    const legs = boxingRoute({ x: selfPose.x, z: selfPose.z }, ringSteps(r, "red"));
+    walkQueue.legs = legs.slice(1);
+    nav.goal = null;
+    nav.target = legs[0] ?? null;
+    setGoing(r.id);
+  };
+  return (
+    <button
+      type="button"
+      onClick={go}
+      disabled={free === 0}
+      className={`${glass} icon-button pointer-events-auto flex shrink-0 items-center gap-1.5 px-3 py-2 text-sm font-bold disabled:opacity-60 phone:rounded-full phone:px-2.5 phone:py-1.5 phone:text-xs`}
+      aria-label={F.findRing}
+    >
+      <span className="size-2.5 rounded-full" style={{ background: STATUS_LAMP.free }} />
+      {going ? F.walkingTo(going) : phone ? F.ringsFree(free) : `${F.ringsFree(free)} · ${F.findRing}`}
+      <Navigation size={phone ? 13 : 15} />
+    </button>
+  );
+}
 
 /**
  * Fight Games HUD over the lobby / the Boxing hall (P3-FGT-01): Leave + title + people, the arrival hint, the leave
@@ -62,6 +122,7 @@ export function FightOverlay({ layout }: { layout: HallLayout }) {
             <Users size={14} /> {F.people(others + 1)}
           </span>
         </div>
+        {boxing && !inRing && <FindRing phone={phone} />}
       </div>
       {mock && <div className={`${glass} absolute right-3 top-3 px-3 py-1.5 text-xs text-on-glass-muted phone:hidden`}>{F.mockNote}</div>}
       {hint && (
