@@ -90,6 +90,31 @@ export function takeWorldPose(): (Pose & { fromDoor?: boolean }) | null {
   return p;
 }
 
+/* ---------------- reload inside a hall (P3-FGT-12): come back exactly where you stood ---------------- */
+
+const HALL_KEY = "gk-hall-pose";
+/** a reload is quick: an older pose belongs to another visit */
+const HALL_TTL = 10 * 60_000;
+
+/** The hall controller remembers your pose about once a second while you are inside (not while leaving). */
+export function saveHallPose(path: string, p: Pose) {
+  write(HALL_KEY, { path, x: p.x, z: p.z, yaw: p.yaw, at: Date.now() });
+}
+/** Left the hall (through a door, Leave, a game): the next arrival is a walk-in, not a restore. */
+export function clearHallPose() {
+  try {
+    window.sessionStorage.removeItem(HALL_KEY);
+  } catch {
+    /* private mode */
+  }
+}
+/** A hall mounted without a hand-over (reload, deep link): the pose you had in THIS hall a moment ago, if any. */
+export function takeHallPose(path: string): Pose | null {
+  const r = read<Pose & { path: string; at: number }>(HALL_KEY);
+  if (!r || r.path !== path || Date.now() - r.at > HALL_TTL) return null;
+  return { x: r.x, z: r.z, yaw: r.yaw };
+}
+
 /** Fresh start: forget where the player was (sign-out, or coming in through the gate). */
 export function clearPositions() {
   doorPoseLocked = false;
@@ -97,6 +122,7 @@ export function clearPositions() {
     window.sessionStorage.removeItem(GAME_KEY);
     window.sessionStorage.removeItem(WORLD_KEY);
     window.sessionStorage.removeItem("gk-from-room");
+    window.sessionStorage.removeItem(HALL_KEY);
   } catch {
     /* private mode */
   }

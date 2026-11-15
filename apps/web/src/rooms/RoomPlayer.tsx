@@ -8,7 +8,8 @@ import { lookOf, useProfile } from "@/lib/profile-store";
 import { selfPose, useWorld } from "@/lib/world-store";
 import { sendMove, sitAt, standUp } from "@/lib/realtime";
 import { useRoom } from "./room-store";
-import { takeReturnFor } from "@/lib/return-point";
+import { clearHallPose, saveHallPose, takeHallPose, takeReturnFor } from "@/lib/return-point";
+import { arrival } from "./arrival";
 import { autoFollow, nav, onReleaseInput, pointerNav, steer, TargetMarker } from "@/world/navigation";
 import { useDoorway } from "@/world/doorway";
 import { useWalletSheet } from "@/wallet/WalletSheet";
@@ -29,7 +30,6 @@ const ease = (t: number) => t * t * (3 - 2 * t);
 type SitStage = { id: string; t: number; phase: "walk" | "turn" | "lower" | "seated"; fx: number; fz: number; fyaw: number };
 /** staged stand: stay put while rising, then step out to a free spot before steering takes over (from rest) */
 type StandStage = { t: number; fx: number; fz: number; tx: number; tz: number; chair: string };
-const INTRO_S = 1.9;
 const _lookTo = new THREE.Vector3();
 const keys = new Set<string>();
 const qa: {
@@ -78,6 +78,26 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   // maps the plaza door frame onto this door); otherwise (reload, deep link) just inside the open doors
   const [hand] = useState(() => (typeof window !== "undefined" ? peekHandoff(`hall:${layout.game}`) : null));
   useEffect(() => clearHandoff(`hall:${layout.game}`), [layout.game]);
+  // reload (no hand-over, no game to come back from): the spot you stood on in this hall a moment ago
+  const [reloaded] = useState(() => (typeof window !== "undefined" && !backOnce && !hand ? takeHallPose(`/room/${layout.game}`) : null));
+  /**
+   * How you arrive (P3-FGT-12, rooms/arrival): through the hall's own door (walk in), OUT of a sub-hall doorway into
+   * the lobby (walk on into the lobby, camera behind you in the passage), or restored (no walk at all). One pure
+   * decision read once: the spawn, the facing, the scripted steps' heading and the camera all follow from it, so
+   * leaving the Boxing hall no longer replays the lobby's walk-in (turned round towards the door you just came out of).
+   */
+  const [arr] = useState(() =>
+    arrival({
+      door: layout.door,
+      size: layout.size,
+      hand,
+      restore: backOnce ? { x: backOnce.x, z: backOnce.z, yaw: backOnce.yaw } : reloaded,
+    }),
+  );
+  useLayoutEffect(() => {
+    useRoom.getState().set({ arrival: arr.kind });
+    return () => useRoom.getState().set({ arrival: null });
+  }, [arr]);
   // dev QA (like window.__gkNav): place the person / pin the camera for screenshot tours
   useEffect(() => {
     if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_GK_QA !== "1") return;
@@ -100,18 +120,13 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   // this controller run in, the wall clamp would otherwise snap you 0.2 m inwards)
   useLayoutEffect(() => {
     if (!hand) return;
-    useRoom.getState().set({ doorOpen: true });
+    // (only the hall's own auto door: out of a sub-hall doorway the front door stays as it is)
+    if (arr.kind === "front") useRoom.getState().set({ doorOpen: true });
     // and the hall door sensor sees you where you are from its very first frame
     selfPose.x = hand.x;
     selfPose.z = hand.z;
-  }, [hand]);
-  const pos = useRef(
-    back.current
-      ? new THREE.Vector3(back.current.x, 0, back.current.z)
-      : hand
-        ? new THREE.Vector3(hand.x, 0, hand.z)
-        : new THREE.Vector3(layout.door.x, 0, layout.size.d / 2 - 1.0),
-  );
+  }, [hand, arr]);
+  const pos = useRef(new THREE.Vector3(arr.x, 0, arr.z));
   const introSpeed = hand?.speed ?? 1.35;
   /** the plaza camera's orbit around you at the crossing (walked in through the door), see the intro shot below */
   const [handCam] = useState(() => {
@@ -119,24 +134,26 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     const [x, y, z] = hand.cam;
     const dx = x - hand.x;
     const dz = z - hand.z;
-    const dist = Math.max(0.5, Math.hypot(dx, dz, y - 1.6));
+    // (out of the passage: the camera is never further back than the passage behind you)
+    const dist = Math.min(Math.max(0.5, Math.hypot(dx, dz, y - 1.6)), arr.camMax ?? Infinity);
     return { yaw: Math.atan2(dx, dz), pitch: Math.asin(THREE.MathUtils.clamp((y - 1.6) / dist, -1, 1)), dist };
   });
-  const insideOnce = useRef(!!back.current);
+  const insideOnce = useRef(!!back.current || arr.kind === "restore" || arr.kind === "subhall");
   /** scripted entry: a few natural steps into the hall (any input takes over immediately) */
-  const intro = useRef(back.current ? 0 : INTRO_S);
+  const intro = useRef(arr.intro);
   /** the camera snaps (no easing) until the doors have opened, so the first visible frame is already the final pose */
   const snapped = useRef(false);
   const camInit = useRef(false);
   if (!camInit.current) {
-    // before the very first rendered frame: behind the player, looking into the hall (no 180° whip-pan on arrival)
+    // before the very first rendered frame: behind the player, looking the way they go (no 180° whip-pan on arrival)
     camInit.current = true;
-    cameraState.yaw = 0;
+    cameraState.yaw = arr.camYaw;
     cameraState.pitch = 0.2;
     cameraState.distance = 5.8;
   }
-  const facing = useRef(back.current?.yaw ?? hand?.yaw ?? Math.PI); // facing into the room (−z)
+  const facing = useRef(arr.facing);
   const exited = useRef(false);
+  const poseSavedAt = useRef(0);
   const leaveStart = useRef(0);
   /** fail-safe time for this Leave: the aisle route length at a brisk walk + slack (big halls are > 8 s from the door) */
   const leaveLimit = useRef(8000);
@@ -400,6 +417,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       }
       nav.target = { x: layout.door.x, z: d / 2 + 4 }; // keep walking out while the camera watches
       nav.goal = null;
+      clearHallPose();
       onExit();
     }
     if (R.leaving && !exited.current) {
@@ -540,8 +558,9 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       const shut = ph === "closed"; // the walk-in starts exactly when the arrival dissolve starts
       if (!shut) intro.current -= dt;
       const sp = shut ? 0 : introSpeed * Math.min(1, intro.current / 0.4 + 0.2);
-      // carry on along the heading you came in with, easing round to face into the hall
-      facing.current += wrapA(Math.PI - facing.current) * Math.min(1, dt * 3);
+      // carry on along the heading you came in with, easing round to the way the arrival goes (into the hall from its
+      // own door; on into the lobby out of the Boxing passage)
+      facing.current += wrapA((arr.heading ?? facing.current) - facing.current) * Math.min(1, dt * 3);
       pos.current.x += Math.sin(facing.current) * sp * dt;
       pos.current.z += Math.cos(facing.current) * sp * dt;
       anim.current = intro.current > 0.05 && sp > 0 ? 1 : 0;
@@ -632,6 +651,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
         exited.current = true;
         // keep walking on out through the door while the camera holds and watches (the frame freezes after ~0.8 s)
         nav.target = { x: layout.door.x, z: d / 2 + 4 };
+        clearHallPose();
         onExit();
       }
     }
@@ -644,6 +664,11 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     }
     walkFrom.x = pos.current.x;
     walkFrom.z = pos.current.z;
+    // a reload puts you back here (rooms/arrival "restore"), not at the door walking in again
+    if (!exited.current && !R.leaving && !seat && !stand && performance.now() - poseSavedAt.current > 1000 && intro.current <= 0) {
+      poseSavedAt.current = performance.now();
+      saveHallPose(`/room/${layout.game}`, { x: pos.current.x, z: pos.current.z, yaw: facing.current });
+    }
     if (hooks?.ground) {
       const gy = seat ? hooks.ground(seat.x, seat.z) : hooks.ground(pos.current.x, pos.current.z);
       groundY.current = groundY.current == null ? gy : groundY.current + (gy - groundY.current) * Math.min(1, dt * 14);
@@ -664,10 +689,10 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
       // walked in through the plaza door: the camera arrives exactly where the plaza camera was (mapped through the
       // door frame: behind you, over the shoulder, just inside the door) and opens out onto the normal follow pose
       // as you walk on in, so you stay put on screen across the crossing
-      const k = THREE.MathUtils.smoothstep(1 - intro.current / INTRO_S, 0, 1);
-      const yaw = handCam.yaw + wrapA(0 - handCam.yaw) * k;
+      const k = THREE.MathUtils.smoothstep(1 - intro.current / arr.intro, 0, 1);
+      const yaw = handCam.yaw + wrapA(arr.camYaw - handCam.yaw) * k;
       const pitch = THREE.MathUtils.lerp(handCam.pitch, cameraState.pitch, k);
-      const dd = THREE.MathUtils.lerp(handCam.dist, cameraState.distance, k);
+      const dd = THREE.MathUtils.lerp(handCam.dist, Math.min(cameraState.distance, arr.camMax ?? Infinity), k);
       cx = pos.current.x + Math.sin(yaw) * Math.cos(pitch) * dd;
       cz = pos.current.z + Math.cos(yaw) * Math.cos(pitch) * dd;
       cy = 1.6 + Math.sin(pitch) * dd;
@@ -678,12 +703,13 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     } else if (intro.current > 0) {
       // walk-in shot: the normal follow camera (behind you, held inside the doorway) looking into the hall; the
       // view settles from the hall ahead onto your shoulders as you step in, ending exactly on the follow pose
-      const dd = cameraState.distance;
+      const dd = Math.min(cameraState.distance, arr.camMax ?? Infinity);
       cx = pos.current.x + Math.sin(cameraState.yaw) * Math.cos(cameraState.pitch) * dd;
       cz = pos.current.z + Math.cos(cameraState.yaw) * Math.cos(cameraState.pitch) * dd;
       cy = 1.6 + Math.sin(cameraState.pitch) * dd;
-      const k = THREE.MathUtils.smoothstep(1 - intro.current / INTRO_S, 0, 1);
-      target.set(pos.current.x, THREE.MathUtils.lerp(1.2, 1.55, k), pos.current.z - (1 - k) * 3.4);
+      const k = THREE.MathUtils.smoothstep(1 - intro.current / arr.intro, 0, 1);
+      const hd = arr.heading ?? Math.PI;
+      target.set(pos.current.x + Math.sin(hd) * (1 - k) * 3.4, THREE.MathUtils.lerp(1.2, 1.55, k), pos.current.z + Math.cos(hd) * (1 - k) * 3.4);
     } else if (seat && (sv = hooks?.seatedView?.(seat.id, (camera as THREE.PerspectiveCamera).aspect || 16 / 9) ?? null)) {
       // spectator eye view (arena): the camera at your own eyes, facing the podium; drag looks around within a
       // natural head turn, pinch / wheel zooms, "focus" narrows the lens onto the stage. Heights are relative to the

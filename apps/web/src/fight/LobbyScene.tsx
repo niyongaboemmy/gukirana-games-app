@@ -378,10 +378,16 @@ function PassageDoor() {
   const mat = useMemo(() => new THREE.MeshPhysicalMaterial({ color: "#b9c4c9", transparent: true, opacity: 0.22, roughness: 0.08, depthWrite: false }), []);
   useEffect(() => () => mat.dispose(), [mat]);
   const x = SUBHALL_DOOR_X.boxing;
+  const shown = useRef(false);
   useFrame((_, dt) => {
     if (!FIGHT_ON) return;
-    let near = isOnScreen(area) && Math.hypot(selfPose.x - x, selfPose.z - LOBBY_BACK_Z) < 3.4;
+    const on = isOnScreen(area);
+    let near = on && Math.hypot(selfPose.x - x, selfPose.z - LOBBY_BACK_Z) < 3.4;
     for (const p of Object.values(useWorld.getState().players)) if (Math.hypot(p.x / 100 - x, p.z / 100 - LOBBY_BACK_Z) < 3) near = true;
+    // coming back out of the Boxing hall you have just walked through it: it is open on the first frame (it used to
+    // start shut and slide open behind you, as if you were about to walk in)
+    if (on && !shown.current) open.current = near ? 1 : open.current;
+    shown.current = on;
     open.current = THREE.MathUtils.clamp(open.current + (near ? dt / 0.6 : -dt / 0.9), 0, 1);
     const k = open.current * open.current * (3 - 2 * open.current);
     const hw = LOBBY_PASSAGE.w / 4;

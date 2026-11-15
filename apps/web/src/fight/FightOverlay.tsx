@@ -89,6 +89,9 @@ function FindRing({ phone }: { phone: boolean }) {
  */
 export function FightOverlay({ layout }: { layout: HallLayout }) {
   const { nearExit, leaving } = useRoom();
+  // the welcome hint greets you walking IN (rooms/arrival "front" / "door"): not when you come back out of the Boxing
+  // hall into the lobby, nor after a reload or a game (P3-FGT-12)
+  const walkedIn = useRoom((s) => s.arrival === "front" || s.arrival === "door");
   const others = useWorld((s) => Object.keys(s.players).length);
   const chatOpen = useSocial((s) => s.chatOpen);
   const phone = usePhoneHud();
@@ -149,7 +152,7 @@ export function FightOverlay({ layout }: { layout: HallLayout }) {
       </div>
 )}
       {mock && !focused && <div className={`${glass} absolute right-3 top-3 px-3 py-1.5 text-xs text-on-glass-muted phone:hidden`}>{F.mockNote}</div>}
-      {hint && !focused && (
+      {hint && walkedIn && !focused && (
         <div className={`${glass} absolute left-1/2 top-16 -translate-x-1/2 px-4 py-2.5 text-center text-sm phone:top-[46px] phone:whitespace-nowrap phone:rounded-full phone:px-3 phone:py-1 phone:text-xs`}>
           <p className="font-bold phone:hidden">{boxing ? F.hallWelcome : F.lobbyWelcome}</p>
           <p className="text-on-glass-muted">{boxing ? F.hallSub : F.lobbySub}</p>
