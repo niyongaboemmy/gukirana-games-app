@@ -81,7 +81,7 @@ function BagPanel({ phone }: { phone: boolean }) {
   const btn = `chip pointer-events-auto grid place-items-center font-semibold select-none touch-none ${phone ? "size-14 rounded-full text-xs" : "h-11 min-w-20 rounded-xl px-3 text-sm"}`;
   return (
     <div className="pointer-events-none fixed inset-0 z-20 text-white">
-      <div className={`absolute flex items-end gap-2 ${phone ? "bottom-4 right-24 flex-wrap justify-end max-w-[46vw]" : "bottom-24 left-1/2 -translate-x-1/2"}`}>
+      <div className={`absolute gap-2 ${phone ? "bottom-[88px] right-3 grid grid-cols-3" : "bottom-24 left-1/2 flex -translate-x-1/2 items-end"}`}>
         {PUNCHES.map((p) => (
           <button key={p} type="button" className={btn} onPointerDown={(e) => (e.preventDefault(), bagPress(p))}>
             {F.bag[p]}
