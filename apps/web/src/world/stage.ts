@@ -10,7 +10,8 @@ import { useGate } from "./gate/gate-store";
 import { doorInset, doorLocal, ENTRY_Z, PORTALS, portalTransform } from "./layout";
 import { doorHold } from "./transition";
 import { HALLS } from "@/rooms/layouts";
-import { LOBBY_TO_HALL_DZ } from "@/fight/plan";
+import { boxingToLobby, LOBBY_PASSAGE, lobbyToBoxing, SUBHALL_DOOR_X } from "@/fight/plan";
+import type { ArrivalVia } from "@/rooms/arrival";
 
 /**
  * One persistent 3D stage for the whole session (P1-WLD-05).
@@ -51,6 +52,10 @@ export interface Handoff {
   look?: [number, number, number];
   /** stepping out of a hall door (re-entry guard, camera behind towards the door) */
   fromDoor?: boolean;
+  /** which door of the destination hall you come through (rooms/arrival): its own door, or a sub-hall doorway */
+  via?: ArrivalVia;
+  /** the passage you come out of (the arrival camera stays between its walls) */
+  lane?: { x: number; hw: number };
   at: number;
 }
 
@@ -133,7 +138,10 @@ export function getArea(a: Area): AreaObjects {
     const scene = new THREE.Scene();
     scene.name = `area:${a}`;
     scene.visible = false;
-    const camera = a === "outdoor" ? new THREE.PerspectiveCamera(60, 16 / 9, 0.15, 3200) : new THREE.PerspectiveCamera(55, 16 / 9, 0.05, 120);
+    // P3-FGT-12: the Fight halls (a 96 m hall full of 2–15 mm floor paint, canvas prints and apron lines) get twice the
+    // depth precision with a 10 cm near plane (the follow camera never comes closer than ~1.4 m to anything it shows)
+    const near = a === "hall:fight" || a === "hall:boxing" ? 0.1 : 0.05;
+    const camera = a === "outdoor" ? new THREE.PerspectiveCamera(60, 16 / 9, 0.15, 3200) : new THREE.PerspectiveCamera(55, 16 / 9, near, 120);
     camera.position.set(0, 4, a === "outdoor" ? 24 : 14);
     o = { scene, camera };
     areas.set(a, o);
@@ -307,8 +315,7 @@ export function enterHall(href: string, label: string) {
  * and shifts by the rooms' offset (fight/plan.ts LOBBY_TO_HALL_DZ). Same "camera past the door line" switch as the
  * plaza doors (`enterHall`): the lobby calls `enterSubhall` once its camera is through the doorway.
  */
-export const lobbyToBoxing = (x: number, z: number, yaw: number) => ({ x, z: z + LOBBY_TO_HALL_DZ, yaw });
-export const boxingToLobby = (x: number, z: number, yaw: number) => ({ x, z: z - LOBBY_TO_HALL_DZ, yaw });
+export { boxingToLobby, lobbyToBoxing };
 
 function hallCross(from: "fight" | "boxing", to: "fight" | "boxing", map: (x: number, z: number, yaw: number) => { x: number; z: number; yaw: number }, label: string) {
   if (crossing) return;
@@ -321,7 +328,11 @@ function hallCross(from: "fight" | "boxing", to: "fight" | "boxing", map: (x: nu
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
     const c = map(cam.position.x, cam.position.z, 0);
     const l = map(cam.position.x + fwd.x * 4, cam.position.z + fwd.z * 4, 0);
-    return { ...map(selfPose.x, selfPose.z, selfPose.yaw), speed: 1.35, walk: 1.9, cam: [c.x, cam.position.y, c.z], look: [l.x, cam.position.y + fwd.y * 4, l.z] };
+    // Boxing → lobby comes OUT through the lobby's back-wall doorway (rooms/arrival "subhall": you walk on into the
+    // lobby, camera behind you in the passage); lobby → Boxing goes in through the hall's own door ("front")
+    const via: ArrivalVia = to === "fight" ? "subhall" : "front";
+    const lane = to === "fight" ? { x: SUBHALL_DOOR_X.boxing, hw: LOBBY_PASSAGE.w / 2 - 0.45 } : undefined;
+    return { ...map(selfPose.x, selfPose.z, selfPose.yaw), speed: 1.35, walk: 1.9, via, lane, cam: [c.x, cam.position.y, c.z], look: [l.x, cam.position.y + fwd.y * 4, l.z] };
   };
   const t0 = performance.now();
   let topped: "no" | "running" | "done" = "no";

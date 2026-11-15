@@ -132,7 +132,9 @@ export function RingSigns() {
     geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
     geo.setAttribute("aRing", new THREE.BufferAttribute(ring, 1));
     geo.setIndex(idx);
-    const mat = new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5, toneMapped: false, side: THREE.DoubleSide });
+    // the rounded corners: alpha-to-coverage (MSAA-smoothed edges) instead of a hard 0.5 alpha test, whose stair-stepped
+    // corners crawled and sparkled on every sign as the camera moved (P3-FGT-12); without MSAA it behaves as before
+    const mat = new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.02, alphaToCoverage: true, toneMapped: false, side: THREE.DoubleSide });
     mat.customProgramCacheKey = () => "gk-ring-sign";
     const hide = { value: -1 };
     mat.onBeforeCompile = (sh) => {
