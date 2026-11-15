@@ -9,10 +9,14 @@ export function ringState(id: RingId, rings = useFightBridge.getState().rings): 
   return rings[id] ?? { id, status: "free", watchers: 0, since: 0 };
 }
 
-/** status of every ring in RINGS order, re-rendering only when a status changes */
-export function useRingStatuses(): RingStatus[] {
-  const key = useFightBridge((s) => RINGS.map((r) => s.rings[r.id]?.status ?? "free").join(","));
-  return useMemo(() => key.split(",") as RingStatus[], [key]);
+/** what the hall shows for a ring: its status, or "held" while it is kept for a fighter who lost their connection (P2-NET-06) */
+export type ShownStatus = RingStatus | "held";
+export const shownStatus = (r: RingState | undefined): ShownStatus => (r?.held ? "held" : (r?.status ?? "free"));
+
+/** shown status of every ring in RINGS order, re-rendering only when one changes */
+export function useRingStatuses(): ShownStatus[] {
+  const key = useFightBridge((s) => RINGS.map((r) => shownStatus(s.rings[r.id])).join(","));
+  return useMemo(() => key.split(",") as ShownStatus[], [key]);
 }
 
 export function useRingKitRings() {

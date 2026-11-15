@@ -7,6 +7,8 @@ import type { HallLayout } from "./layouts";
 import { nearestTable, STATUS_COLOR, tableNo, tableStatuses, type TableStatus } from "./table-status";
 import { walkToTable } from "./RoomPlayer";
 import { useRoom } from "./room-store";
+import { usePlace, useNow } from "@/lib/place-hold";
+import { clock, pfill, PS } from "@/lib/place-strings";
 
 /** UI strings (to move to @gukirana/i18n keys `hall.tables.*`). */
 const STR = {
@@ -15,10 +17,10 @@ const STR = {
   find: "Find a free table",
   findShort: "Free table",
   none: "All tables busy · tap one to watch",
-  status: { free: "Free", waiting: "Waiting for opponent", playing: "In a match" } satisfies Record<TableStatus, string>,
-  statusShort: { free: "Free", waiting: "Waiting", playing: "Playing" } satisfies Record<TableStatus, string>,
+  status: { free: "Free", waiting: "Waiting for opponent", playing: "In a match", held: PS["place.held"] } satisfies Record<TableStatus, string>,
+  statusShort: { free: "Free", waiting: "Waiting", playing: "Playing", held: PS["place.held"] } satisfies Record<TableStatus, string>,
   table: (n: number) => `Table ${n}`,
-  near: { free: "tap a chair or the table to sit", waiting: "sit down to play them", playing: "stand here to watch" } satisfies Record<TableStatus, string>,
+  near: { free: "tap a chair or the table to sit", waiting: "sit down to play them", playing: "stand here to watch", held: "" } satisfies Record<TableStatus, string>,
   show: "Show tables",
   hide: "Hide tables",
 };
@@ -39,6 +41,13 @@ export function TablePicker({ layout }: { layout: HallLayout }) {
   }, [phone]);
   const status = useMemo(() => tableStatuses(layout, seats), [layout, seats]);
   const freeN = layout.tables.filter((t) => status[t.id] === "free").length;
+  // P2-NET-06: a held table counts down to its release ("Held · returning (0:42)")
+  const holds = usePlace((s) => s.seatHolds);
+  const now = useNow(Object.keys(holds).length > 0);
+  const heldText = (table: string) => {
+    const ends = layout.seats.filter((s) => s.table === table && holds[s.id]).map((s) => holds[s.id]!);
+    return ends.length ? pfill("place.heldReturning", { t: clock(Math.max(...ends) - now) }) : PS["place.held"];
+  };
 
   // the table you are standing by (checked a few times a second; selfPose is not reactive)
   const [near, setNear] = useState<string | null>(null);
@@ -105,8 +114,8 @@ export function TablePicker({ layout }: { layout: HallLayout }) {
                       key={t.id}
                       type="button"
                       onClick={() => walkToTable(t.id)}
-                      title={`${STR.table(tableNo(t.id))} · ${STR.status[st]}`}
-                      aria-label={`${STR.table(tableNo(t.id))} · ${STR.status[st]}`}
+                      title={`${STR.table(tableNo(t.id))} · ${(st === "held" ? heldText(t.id) : STR.status[st])}`}
+                      aria-label={`${STR.table(tableNo(t.id))} · ${(st === "held" ? heldText(t.id) : STR.status[st])}`}
                       className={`press grid h-8 place-items-center rounded-lg text-xs font-bold text-on-glass ring-1 ring-white/10 phone:h-6 phone:w-8 phone:text-[10px] ${near === t.id ? "ring-2 ring-white/60" : ""}`}
                       style={{ gridColumn: c + 1, gridRow: r + 1, background: `${STATUS_COLOR[st]}${st === "free" ? "55" : "44"}`, boxShadow: `inset 0 -2px 0 ${STATUS_COLOR[st]}` }}
                     >
@@ -116,7 +125,7 @@ export function TablePicker({ layout }: { layout: HallLayout }) {
                 })}
               </div>
               <div className="mt-2 flex flex-wrap justify-between gap-x-2 gap-y-0.5 px-0.5 text-[11px] text-on-glass-muted phone:hidden">
-                {(["free", "waiting", "playing"] as const).map((k) => (
+                {(["free", "waiting", "playing", "held"] as const).map((k) => (
                   <span key={k} className="flex items-center gap-1">
                     <span className="size-2 rounded-full" style={{ background: STATUS_COLOR[k] }} /> {STR.statusShort[k]}
                   </span>
@@ -132,8 +141,8 @@ export function TablePicker({ layout }: { layout: HallLayout }) {
           <span className="size-2.5 rounded-full" style={{ background: STATUS_COLOR[nearSt] }} />
           <span className="font-bold">{STR.table(tableNo(near))}</span>
           <span className="text-on-glass-muted">
-            {STR.status[nearSt]}
-            <span className="phone:hidden"> · {STR.near[nearSt]}</span>
+            {nearSt === "held" ? heldText(near) : STR.status[nearSt]}
+            {nearSt !== "held" && <span className="phone:hidden"> · {STR.near[nearSt]}</span>}
           </span>
         </div>
       )}

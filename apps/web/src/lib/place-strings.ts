@@ -11,7 +11,7 @@ export const PS = {
   "place.held": "Held",
   "place.heldReturning": "Held · returning ({t})",
   "place.heldShort": "Held {t}",
-  "place.heldNote": "Kept for a player who lost their connection. It frees in {t}.",
+  "place.heldNote": "Kept for a player who lost their connection.",
   "place.waited": "waiting {t}",
 } as const;
 export type PsKey = keyof typeof PS;

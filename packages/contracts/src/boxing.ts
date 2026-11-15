@@ -109,7 +109,7 @@ export interface RingState {
    * P2-NET-06: the waiting / practising fighter lost their connection; the ring is kept for them for `ms` more (time
    * left when the message was sent). Nobody may take a held ring; it frees when the hold runs out.
    */
-  held?: { ms: number };
+  held?: { ms: number; /** set by the client on receipt: when the hold ends on this device's clock */ until?: number };
 }
 
 /* ------------------------------------------------------------ the kit ------------------------------------------------------------ */

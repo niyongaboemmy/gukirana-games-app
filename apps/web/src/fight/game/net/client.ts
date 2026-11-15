@@ -250,9 +250,12 @@ function bindFight(room: Room, m: FightReady): void {
 let started = 0;
 let offs: (() => void)[] = [];
 
+/** P2-NET-06: a held ring's time left → when it ends on this device's clock (the countdowns run locally) */
+const received = (r: RingState): RingState => (r.held ? { ...r, held: { ms: r.held.ms, until: Date.now() + r.held.ms } } : r);
+
 function ringsToMap(list: RingState[]) {
   const rings: Partial<Record<RingId, RingState>> = {};
-  for (const r of list) rings[r.id] = r;
+  for (const r of list) rings[r.id] = received(r);
   return rings;
 }
 
@@ -306,7 +309,7 @@ export function startBoxingNet(): () => void {
   if (started++ === 0) {
     offs = [
       onRoomMessage<RingState[]>(BoxingHallEvt.rings, (list) => useFightBridge.setState({ rings: ringsToMap(list) })),
-      onRoomMessage<RingState>(BoxingHallEvt.ring, (r) => useFightBridge.setState((s) => ({ rings: { ...s.rings, [r.id]: r } }))),
+      onRoomMessage<RingState>(BoxingHallEvt.ring, (r) => useFightBridge.setState((s) => ({ rings: { ...s.rings, [r.id]: received(r) } }))),
       onRoomMessage<{ action: string; reason: string; ring?: RingId; limit?: number }>(BoxingHallEvt.denied, (d) => {
         const text = denialText(d.reason, d.limit);
         useBoxingNet.setState({ denied: { action: d.action, reason: d.reason, text, ring: d.ring, at: Date.now() } });

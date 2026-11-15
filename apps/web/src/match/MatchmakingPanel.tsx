@@ -125,7 +125,8 @@ export function MatchmakingPanel() {
   }, []);
   // Quick Match: how long we've been waiting (feedback that the search is alive)
   const [waitStart, setWaitStart] = useState(0);
-  useEffect(() => setWaitStart(quick.status === "waiting" ? Date.now() : 0), [quick.status]);
+  // (P2-NET-06: back on a held chair, the server says how long we have waited already)
+  useEffect(() => setWaitStart(quick.status === "waiting" ? Date.now() - (quick.waitedMs ?? 0) : 0), [quick.status, quick.waitedMs]);
   const [nowMs, setNowMs] = useState(0);
   useEffect(() => {
     if (!waitStart) return;
