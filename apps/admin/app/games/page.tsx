@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Dices, History, KeyRound, RefreshCw, Save, Undo2 } from "lucide-react";
-import { DEFAULT_FIGHT_RULES, FIGHT_RULE_BOUNDS, GAME_SETTING_BOUNDS, GameSettingsSchema, isFightGame, type FightRules, type GameSettings, type GameSettingsRow } from "@gukirana/contracts";
+import { DEFAULT_FIGHT_RULES, DRAW_TIEBREAKS, FIGHT_RULE_BOUNDS, FIGHT_SCORING_BOUNDS, GAME_SETTING_BOUNDS, GameSettingsSchema, isFightGame, scoringRulesOf, type DrawTiebreak, type FightRules, type GameSettings, type GameSettingsRow } from "@gukirana/contracts";
 import { plainError } from "../errors";
 
 /**
@@ -38,12 +38,22 @@ const FIELDS: { key: "friendlyPerDay" | "turnSeconds" | "reconnectSeconds" | "jo
 ];
 
 /** fight games (boxing, P3-FGT-01): the round block (bounds FIGHT_RULE_BOUNDS); `turnSeconds` is unused there */
-const FIGHT_FIELDS: { key: keyof FightRules; label: string; unit: string }[] = [
+const FIGHT_FIELDS: { key: keyof typeof FIGHT_RULE_BOUNDS; label: string; unit: string }[] = [
   { key: "rounds", label: "Rounds", unit: "rounds" },
   { key: "roundSeconds", label: "Round length", unit: "s" },
   { key: "restSeconds", label: "Rest between rounds", unit: "s" },
   { key: "idleSeconds", label: "No input before an idle strike", unit: "s" },
 ];
+/** scoring + referee (P3-FGT-06, docs/BOXING-SCORING.md): the warning ladder (bounds FIGHT_SCORING_BOUNDS) */
+const SCORING_FIELDS: { key: "cautions" | "warningsToDq"; label: string }[] = [
+  { key: "cautions", label: "Cautions before warnings" },
+  { key: "warningsToDq", label: "Warning that disqualifies" },
+];
+const TIEBREAK_LABELS: Record<DrawTiebreak, string> = {
+  staked: "Countback names a winner in staked fights",
+  always: "Countback always names a winner",
+  never: "Always a draw",
+};
 
 function problems(s: GameSettings): string[] {
   const r = GameSettingsSchema.safeParse(s);
@@ -52,6 +62,9 @@ function problems(s: GameSettings): string[] {
     const f = String(i.path[0] ?? "");
     if (f === "fight") {
       const ff = FIGHT_FIELDS.find((x) => x.key === i.path[1]);
+      const sf = SCORING_FIELDS.find((x) => x.key === i.path[1]);
+      if (i.path[1] === "judges") return "Judges: 3 or 5.";
+      if (sf) return `${sf.label}: a whole number from ${FIGHT_SCORING_BOUNDS[sf.key].min} to ${FIGHT_SCORING_BOUNDS[sf.key].max}.`;
       return ff ? `${ff.label}: a whole number from ${FIGHT_RULE_BOUNDS[ff.key].min} to ${FIGHT_RULE_BOUNDS[ff.key].max}.` : `Fight rules: ${i.message}`;
     }
     const b = GAME_SETTING_BOUNDS[(f === "stakes" ? "stake" : f) as keyof typeof GAME_SETTING_BOUNDS];
@@ -75,6 +88,8 @@ function Editor({ row, call, onSaved }: { row: GameSettingsRow; call: <T>(path: 
   }, [row]);
   const parsed: GameSettings = { ...d, stakes: stakes.split(/[\s,]+/).filter(Boolean).map(Number) };
   const probs = problems(parsed);
+  const sc = scoringRulesOf(d.fight ?? DEFAULT_FIGHT_RULES);
+  const setFight = (patch: Partial<FightRules>) => setD({ ...d, fight: { ...(d.fight ?? DEFAULT_FIGHT_RULES), ...patch } });
   const dirty = JSON.stringify(parsed) !== JSON.stringify(row.settings);
   const save = async () => {
     if (probs.length) return setErr(probs[0]!);
@@ -131,6 +146,42 @@ function Editor({ row, call, onSaved }: { row: GameSettingsRow; call: <T>(path: 
               </label>
             );
           })}
+          <label style={{ display: "grid", gap: 4, fontSize: 13, color: C.muted }}>
+            <span>Judges</span>
+            <select value={sc.judges} onChange={(e) => setFight({ judges: Number(e.target.value) })} style={input}>
+              {[3, 5].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          {SCORING_FIELDS.map((f) => {
+            const b = FIGHT_SCORING_BOUNDS[f.key];
+            const v = sc[f.key];
+            return (
+              <label key={f.key} style={{ display: "grid", gap: 4, fontSize: 13, color: C.muted }}>
+                <span>
+                  {f.label} ({b.min}–{b.max})
+                </span>
+                <input type="number" min={b.min} max={b.max} step={1} value={Number.isNaN(v) ? "" : v} onChange={(e) => setFight({ [f.key]: e.target.value === "" ? Number.NaN : Number(e.target.value) })} style={input} />
+              </label>
+            );
+          })}
+          <label style={{ display: "grid", gap: 4, fontSize: 13, color: C.muted }}>
+            <span>Level on the cards</span>
+            <select value={sc.drawTiebreak} onChange={(e) => setFight({ drawTiebreak: e.target.value as DrawTiebreak })} style={input}>
+              {DRAW_TIEBREAKS.map((t) => (
+                <option key={t} value={t}>
+                  {TIEBREAK_LABELS[t]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, color: C.muted }}>
+            <input type="checkbox" checked={sc.openScoring} onChange={(e) => setFight({ openScoring: e.target.checked })} />
+            <span>Show the judges&apos; cards after every round (open scoring)</span>
+          </label>
         </div>
       )}
       <label style={{ display: "grid", gap: 4, fontSize: 13, color: C.muted }}>

@@ -14,9 +14,23 @@ import {
   type FighterAct,
   type FightRules,
   type Punch,
+  type RefereeFoul,
   type RingId,
+  type RoundCard,
+  scoringRulesOf,
 } from "@gukirana/contracts";
 import { stableStringify, type GameMeta, type MatchResult } from "@gukirana/game-kit";
+import { cardFor, decideCards, emptyTally, tallyEvents, type RoundTally } from "./scoring.js";
+import {
+  BREAK_DIST,
+  BREAK_TICKS,
+  CLINCH_DIST,
+  CLINCH_TICKS,
+  DUCKING_SLIPS,
+  FREE_BREAKS,
+  foulEvent,
+  ladderStep,
+} from "./fouls.js";
 
 /**
  * Boxing — deterministic fight engine (P3-FGT-01, docs/FIGHT-GAMES-PLAN.md §2).
@@ -46,6 +60,8 @@ export const BOXING_META: GameMeta = {
 export const ticks = (seconds: number): number => Math.round(seconds * TICK_HZ);
 export const COUNTDOWN_TICKS = ticks(3);
 export const KNOCKDOWN_COUNT_TICKS = ticks(8);
+/** a count-out runs to 10 (KO, P3-FGT-06) */
+export const KO_COUNT_TICKS = ticks(10);
 /** knockdowns that stop the fight (TKO-equivalent) */
 export const STOPPAGE_KNOCKDOWNS_ROUND = 3;
 export const STOPPAGE_KNOCKDOWNS_MATCH = 4;
@@ -127,7 +143,18 @@ export interface FighterState {
   roundKnockdowns: number;
   /** clean power punches landed (cross / hook / uppercut) */
   power: number;
+  /** official warnings (each one −1 on every card); cautions are counted apart (P3-FGT-06 ladder) */
   warnings: number;
+  cautions: number;
+  /** points deducted on every card so far */
+  deductions: number;
+  /** ticks in close range without punching (HOLDING); "Break!" calls on this fighter this round */
+  clinch: number;
+  breaks: number;
+  /** slips in a row without a punch (DUCKING) */
+  slips: number;
+  /** already fouled (HIT_ON_BREAK) during the current break */
+  breakFoul: boolean;
   connected: boolean;
   /** ticks since this fighter's last input during a round (IDLE foul) */
   idle: number;
@@ -166,6 +193,18 @@ export interface FightState {
   fighters: [FighterState, FighterState];
   /** points per finished round, by fighter */
   rounds: [number, number][];
+  /** P3-FGT-06 scoring: the current round's tally, the finished rounds' tallies and judges' cards */
+  tally: RoundTally;
+  tallies: RoundTally[];
+  cards: RoundCard[];
+  /** ticks left of the referee's "Break!" (punches pressed meanwhile are cancelled; stepping in to punch is HIT_ON_BREAK) */
+  breakLeft: number;
+  /** a downed fighter who can't beat the count (count runs to 10 → KO) */
+  ko: 0 | 1 | null;
+  /** a staked fight (drawTiebreak "staked": the cards must name a winner by countback) */
+  staked: boolean;
+  /** both fighters down and counted out in the same tick (decision on the cards after the count) */
+  koBoth?: boolean;
   /** points at the start of the current round (round totals = points − this) */
   roundStart: [number, number];
   /** round clock left when a knockdown count started (restored when the fighter rises) */
@@ -194,6 +233,12 @@ const fighter = (id: string, corner: Corner): FighterState => ({
   roundKnockdowns: 0,
   power: 0,
   warnings: 0,
+  cautions: 0,
+  deductions: 0,
+  clinch: 0,
+  breaks: 0,
+  slips: 0,
+  breakFoul: false,
   connected: true,
   idle: 0,
   idleStrikes: 0,
@@ -213,6 +258,7 @@ const fighter = (id: string, corner: Corner): FighterState => ({
 export function createFight(
   players: readonly [string, string],
   rules: FightRules = DEFAULT_FIGHT_RULES,
+  opts: { staked?: boolean } = {},
 ): FightState {
   return {
     rules,
@@ -224,6 +270,12 @@ export function createFight(
     orbit: 0,
     fighters: [fighter(players[0], "red"), fighter(players[1], "blue")],
     rounds: [],
+    tally: emptyTally(),
+    tallies: [],
+    cards: [],
+    breakLeft: 0,
+    ko: null,
+    staked: opts.staked ?? false,
     roundStart: [0, 0],
     held: 0,
     events: [],
@@ -321,29 +373,59 @@ const resetForBell = (f: FighterState): FighterState => ({
   passive: 0,
   roundKnockdowns: 0,
   combo: 0,
+  clinch: 0,
+  breaks: 0,
+  slips: 0,
+  breakFoul: false,
 });
 
+/** the judges' decision on the cards so far (P3-FGT-06; docs/BOXING-SCORING.md §5) */
 function decide(s: FightState): BoxingOutcome {
   const [a, b] = s.fighters;
-  const points: [number, number] = [a.points, b.points];
-  const knockdowns: [number, number] = [a.knockdowns, b.knockdowns];
-  const power: [number, number] = [a.power, b.power];
-  // points → knockdowns scored (= the other's knockdowns) → power punches → draw (plan §2.6)
-  const order: [number, number][] = [points, [b.knockdowns, a.knockdowns], power];
-  let winner: 0 | 1 | null = null;
-  for (const [x, y] of order) {
-    if (x !== y) {
-      winner = x > y ? 0 : 1;
-      break;
-    }
-  }
+  const sr = scoringRulesOf(s.rules);
+  const pair = (f: (x: FighterState) => number): [number, number] => [f(a), f(b)];
+  const landed = (i: 0 | 1) => [...s.tallies, s.tally].reduce((n, t) => n + t[i].landed, 0);
+  const named = sr.drawTiebreak === "always" || (sr.drawTiebreak === "staked" && s.staked);
+  const d = decideCards(
+    s.cards,
+    sr.judges,
+    {
+      knockdownsScored: [b.knockdowns, a.knockdowns],
+      warnings: pair((f) => f.warnings),
+      cautions: pair((f) => f.cautions),
+      power: pair((f) => f.power),
+      landed: [landed(0), landed(1)],
+    },
+    named,
+  );
   return {
-    decision: winner === null ? "draw" : "points",
-    winner,
-    points,
-    knockdowns,
-    power,
+    decision: d.winner === null ? "draw" : "points",
+    method: d.method,
+    winner: d.winner,
+    points: pair((f) => f.points),
+    knockdowns: pair((f) => f.knockdowns),
+    power: pair((f) => f.power),
     rounds: s.rounds,
+    cards: s.cards,
+    totals: d.totals,
+    votes: d.votes,
+    cautions: pair((f) => f.cautions),
+    warnings: pair((f) => f.warnings),
+    deductions: pair((f) => f.deductions),
+    ...(d.tiebreak ? { tiebreak: d.tiebreak } : {}),
+  };
+}
+
+/** close the current round: its tally becomes a card on every judge's scorecard */
+function closeRound(s: FightState, partial: boolean): FightState {
+  if (s.round < 1 || s.cards.length >= s.round) return s;
+  const card = cardFor(s.round, s.tally, scoringRulesOf(s.rules).judges, partial);
+  return {
+    ...s,
+    rounds: [...s.rounds, roundPoints(s)],
+    tallies: [...s.tallies, s.tally],
+    cards: [...s.cards, card],
+    tally: emptyTally(),
   };
 }
 
@@ -530,44 +612,150 @@ function stepRound(s: FightState, inputs: TickInputs, t: number, events: FightEv
       };
       events.push({ k: "knockdown", t, to: i, points: KNOCKDOWN_POINTS });
     }
+    // a fighter down with no stamina left can't beat the count: it runs on to 10 → KO (P3-FGT-06)
+    const out = downed.filter((i) => fs[i].stamina < EXHAUSTED_STAMINA);
     for (const i of [0, 1] as const)
       if (!downed.includes(i)) fs[i] = { ...fs[i], act: "idle", actT: 0, stage: "none", buf: null };
     const stopped = ([0, 1] as const).filter(
       (i) =>
         fs[i].roundKnockdowns >= STOPPAGE_KNOCKDOWNS_ROUND || fs[i].knockdowns >= STOPPAGE_KNOCKDOWNS_MATCH,
     );
-    const base: FightState = { ...s, tick: t, dist: DIST.start, orbit, fighters: fs, events };
+    const base: FightState = {
+      ...s,
+      tick: t,
+      dist: DIST.start,
+      orbit,
+      fighters: fs,
+      events,
+      breakLeft: 0,
+      tally: tallyEvents(s.tally, events),
+    };
     if (stopped.length === 1) {
       const winner = (1 - stopped[0]!) as 0 | 1;
       events.push({ k: "stoppage", t, winner });
-      const withRound: FightState = { ...base, rounds: [...s.rounds, roundPoints(base)] };
-      return finish(withRound, { ...decide(withRound), decision: "stoppage", winner }, events);
+      const closed = closeRound(base, true);
+      return finish(closed, { ...decide(closed), decision: "stoppage", method: "RSC", winner }, events);
     }
     if (stopped.length === 2) {
-      const withRound: FightState = { ...base, rounds: [...s.rounds, roundPoints(base)] };
-      return finish(withRound, decide(withRound), events);
+      const closed = closeRound(base, true);
+      return finish(closed, decide(closed), events);
     }
     events.push({ k: "count", t, n: 1 });
-    return { ...base, phase: "knockdown", left: KNOCKDOWN_COUNT_TICKS, held: s.left - 1 };
+    const ko = out.length === 1 ? out[0]! : null;
+    // both counted out at once: nobody wins by KO; the count ends with a decision on the cards (IBA 19.10.4)
+    const both = out.length === 2;
+    return {
+      ...base,
+      phase: "knockdown",
+      left: ko !== null || both ? KO_COUNT_TICKS : KNOCKDOWN_COUNT_TICKS,
+      held: s.left - 1,
+      ko: both ? null : ko,
+      ...(both ? { koBoth: true } : {}),
+    };
   }
 
-  // 5. fouls
+  // 5. fouls (P3-FGT-06, fouls.ts): referee fouls go up the ladder; IDLE is the exit-rules strike
+  const sr = scoringRulesOf(s.rules);
   const idleTicks = ticks(s.rules.idleSeconds);
-  for (const i of [0, 1] as const) {
-    let f = fs[i];
-    if (f.passive >= PASSIVITY_TICKS) {
-      const warnings = f.warnings + 1;
-      const penalty = warnings >= 2 ? Math.min(1, f.points) : 0;
-      f = { ...f, warnings, passive: 0, points: f.points - penalty };
-      events.push({ k: "warning", t, to: i, foul: "PASSIVITY", penalty });
+  const dq: [boolean, boolean] = [false, false];
+  const dqCode: [RefereeFoul | null, RefereeFoul | null] = [null, null];
+  const foul = (i: 0 | 1, code: RefereeFoul): void => {
+    const f = fs[i];
+    const step = ladderStep(f, sr);
+    fs[i] = {
+      ...f,
+      ...step.next,
+      points: f.points - Math.min(step.penalty, f.points),
+    };
+    events.push(foulEvent(t, i, code, step));
+    if (step.level === "dq" && !dq[i]) {
+      dq[i] = true;
+      dqCode[i] = code;
+      events.push({ k: "dq", t, to: i, foul: code });
     }
+  };
+  let breakLeft = Math.max(0, s.breakLeft - 1);
+  // while "Break!" is in force the referee holds them apart: a punch pressed now is cancelled. Stepping back in and
+  // punching before the break ends is HIT_ON_BREAK (once per break; a press from where the referee put you is free)
+  for (const i of [0, 1] as const) {
+    const f = fs[i];
+    if (s.breakLeft > 0 && isPunchAct(f.act) && f.actT === 0) {
+      const charged = dist < BREAK_DIST && !f.breakFoul;
+      fs[i] = {
+        ...f,
+        act: "idle",
+        actT: 0,
+        stage: "none",
+        resolved: false,
+        breakFoul: f.breakFoul || charged,
+      };
+      if (charged) foul(i, "HIT_ON_BREAK");
+    }
+  }
+  // DUCKING: slips in a row without a punch
+  for (const i of [0, 1] as const) {
+    const f = fs[i];
+    if (f.actT !== 0) continue;
+    if (isPunchAct(f.act) && f.slips) fs[i] = { ...f, slips: 0 };
+    else if (isSlip(f.act)) {
+      if (f.slips + 1 >= DUCKING_SLIPS) {
+        fs[i] = { ...f, slips: 0 };
+        foul(i, "DUCKING");
+      } else fs[i] = { ...f, slips: f.slips + 1 };
+    }
+  }
+  // HOLDING: close range without a punch → "Break!" (the first call of a round on a fighter is free)
+  for (const i of [0, 1] as const) {
+    const f = fs[i];
+    const clinch = dist <= CLINCH_DIST && !isPunchAct(f.act) ? f.clinch + 1 : 0;
+    if (clinch !== f.clinch) fs[i] = { ...f, clinch };
+  }
+  const holders = ([0, 1] as const).filter((i) => fs[i].clinch >= CLINCH_TICKS);
+  if (holders.length) {
+    events.push({ k: "break", t, by: [...holders] });
+    dist = BREAK_DIST;
+    breakLeft = BREAK_TICKS;
+    for (const i of [0, 1] as const) fs[i] = { ...fs[i], clinch: 0, breakFoul: false };
+    for (const i of holders) {
+      const breaks = fs[i].breaks + 1;
+      fs[i] = { ...fs[i], breaks };
+      if (breaks > FREE_BREAKS) foul(i, "HOLDING");
+    }
+  }
+  for (const i of [0, 1] as const) {
+    if (fs[i].passive >= PASSIVITY_TICKS) {
+      fs[i] = { ...fs[i], passive: 0 };
+      foul(i, "PASSIVITY");
+    }
+    const f = fs[i];
     if (f.idle >= idleTicks) {
-      f = { ...f, idle: 0, idleStrikes: f.idleStrikes + 1 };
+      fs[i] = { ...f, idle: 0, idleStrikes: f.idleStrikes + 1 };
       events.push({ k: "warning", t, to: i, foul: "IDLE", penalty: 0 });
     }
-    fs[i] = f;
   }
-  return { ...s, tick: t, dist, orbit, fighters: fs, events, left: s.left - 1 };
+  const after: FightState = {
+    ...s,
+    tick: t,
+    dist,
+    orbit,
+    fighters: fs,
+    events,
+    left: s.left - 1,
+    breakLeft,
+    tally: tallyEvents(s.tally, events),
+  };
+  // the warning ladder's last step: disqualification (both at once → no winner)
+  if (dq[0] || dq[1]) {
+    const closed = closeRound(after, true);
+    const winner = dq[0] && dq[1] ? null : dq[0] ? 1 : 0;
+    const dqFoul = winner === null ? null : dqCode[1 - winner];
+    return finish(
+      closed,
+      { ...decide(closed), decision: "dq", method: "DQ", winner, ...(dqFoul ? { dqFoul } : {}) },
+      events,
+    );
+  }
+  return after;
 }
 
 /* ------------------------------------------------------------ stepFight ------------------------------------------------------------ */
@@ -584,12 +772,18 @@ export function stepFight(s: FightState, inputs: TickInputs): FightState {
     if (next.phase !== "round" || next.left > 0) return next;
     // the bell ends the round
     const pts = roundPoints(next);
-    events.push({ k: "roundEnd", t, round: s.round, points: pts });
-    const ended: FightState = {
-      ...next,
-      rounds: [...s.rounds, pts],
-      fighters: next.fighters.map(resetForBell) as [FighterState, FighterState],
-    };
+    const ended: FightState = closeRound(
+      { ...next, breakLeft: 0, fighters: next.fighters.map(resetForBell) as [FighterState, FighterState] },
+      false,
+    );
+    const open = scoringRulesOf(s.rules).openScoring;
+    events.push({
+      k: "roundEnd",
+      t,
+      round: s.round,
+      points: pts,
+      ...(open ? { card: ended.cards.at(-1)! } : {}),
+    });
     if (s.round >= s.rules.rounds) return finish(ended, decide(ended), events);
     return { ...ended, phase: "rest", left: ticks(s.rules.restSeconds) };
   }
@@ -600,10 +794,18 @@ export function stepFight(s: FightState, inputs: TickInputs): FightState {
       FighterState,
     ];
     const left = s.left - 1;
-    const elapsed = KNOCKDOWN_COUNT_TICKS - left;
+    const elapsed = countTotal(s) - left;
     if (left > 0) {
       if (elapsed % TICK_HZ === 0) events.push({ k: "count", t, n: elapsed / TICK_HZ + 1 });
       return { ...s, tick: t, fighters, left, events };
+    }
+    // a count-out: "ten" — KO (P3-FGT-06); both counted out → decision on the cards
+    if (s.ko !== null || s.koBoth) {
+      const closed = closeRound({ ...s, tick: t, fighters, left: 0, events }, true);
+      if (s.ko === null) return finish({ ...closed, koBoth: false }, decide(closed), events);
+      events.push({ k: "ko", t, to: s.ko });
+      const winner = (1 - s.ko) as 0 | 1;
+      return finish(closed, { ...decide(closed), decision: "stoppage", method: "KO", winner }, events);
     }
     // the count reached 8: the downed fighter rises; the round clock runs on where it stopped
     const up = fighters.map((f, i) => {
@@ -641,8 +843,9 @@ export function stepFight(s: FightState, inputs: TickInputs): FightState {
     round,
     left: ticks(s.rules.roundSeconds),
     dist: DIST.start,
-    fighters: fighters.map(resetForBell) as [FighterState, FighterState],
+    fighters: fighters.map((f) => ({ ...resetForBell(f), breaks: 0 })) as [FighterState, FighterState],
     roundStart: [fighters[0].points, fighters[1].points],
+    breakLeft: 0,
     events,
   };
 }
@@ -709,14 +912,20 @@ export function resumeFight(s: FightState, countdown = true): FightState {
 /** a fighter left / timed out after the fight began (exit rules): the other one wins */
 export function forfeitFight(s: FightState, loser: 0 | 1): FightState {
   if (s.phase === "over") return s;
-  const base = decide(s);
-  const outcome: BoxingOutcome = { ...base, decision: "forfeit", winner: (1 - loser) as 0 | 1 };
-  return finish({ ...s, events: [] }, outcome, []);
+  const closed = closeRound(s, true);
+  const outcome: BoxingOutcome = {
+    ...decide(closed),
+    decision: "forfeit",
+    method: "FORFEIT",
+    winner: (1 - loser) as 0 | 1,
+  };
+  return finish({ ...closed, events: [] }, outcome, []);
 }
 export function voidFight(s: FightState): FightState {
   if (s.phase === "over") return s;
-  const outcome: BoxingOutcome = { ...decide(s), decision: "void", winner: null };
-  return finish({ ...s, events: [] }, outcome, []);
+  const closed = closeRound(s, true);
+  const outcome: BoxingOutcome = { ...decide(closed), decision: "void", method: "VOID", winner: null };
+  return finish({ ...closed, events: [] }, outcome, []);
 }
 
 /** has the fight "really begun" (exit rules: before it, leaving voids): the opening bell rang and someone acted */
@@ -732,6 +941,8 @@ export function maxFightTicks(rules: FightRules): number {
     (rules.rounds - 1) * ticks(rules.restSeconds) +
     // every knockdown stops the clock for one count; at most (STOPPAGE_MATCH - 1) × 2 counts before a stoppage
     2 * (STOPPAGE_KNOCKDOWNS_MATCH - 1) * KNOCKDOWN_COUNT_TICKS +
+    // a count-out (KO) ends the fight after a longer count
+    (KO_COUNT_TICKS - KNOCKDOWN_COUNT_TICKS) +
     2
   );
 }
@@ -748,14 +959,19 @@ export function matchResultOf(s: FightState): MatchResult {
   return { ranks, scores: { [a.id]: a.points, [b.id]: b.points }, reason };
 }
 
-/** referee count shown during a knockdown (1..8) */
+/** the length of the current count: 8, or 10 on a count-out */
+const countTotal = (s: FightState): number =>
+  s.ko !== null || s.koBoth ? KO_COUNT_TICKS : KNOCKDOWN_COUNT_TICKS;
+
+/** referee count shown during a knockdown (1..8; up to 10 on a count-out) */
 export const countOf = (s: FightState): number | undefined =>
   s.phase === "knockdown"
-    ? clamp(Math.trunc((KNOCKDOWN_COUNT_TICKS - s.left) / TICK_HZ) + 1, 1, 8)
+    ? clamp(Math.trunc((countTotal(s) - s.left) / TICK_HZ) + 1, 1, countTotal(s) / TICK_HZ)
     : undefined;
 
 export function snapshotOf(s: FightState, ring: RingId): BoxingSnapshot {
   const count = countOf(s);
+  const sr = scoringRulesOf(s.rules);
   return {
     ring,
     tick: s.tick,
@@ -778,8 +994,14 @@ export function snapshotOf(s: FightState, ring: RingId): BoxingSnapshot {
       knockdowns: f.knockdowns,
       warnings: f.warnings,
       connected: f.connected,
+      cautions: f.cautions,
+      deductions: f.deductions,
     })) as BoxingSnapshot["fighters"],
     ...(count !== undefined ? { count } : {}),
+    judges: sr.judges,
+    // open scoring: the finished rounds' cards at every bell; sealed: only once the fight is over
+    ...(sr.openScoring || s.phase === "over" ? { cards: s.cards } : {}),
+    ...(s.breakLeft > 0 ? { breakLeft: s.breakLeft } : {}),
   };
 }
 

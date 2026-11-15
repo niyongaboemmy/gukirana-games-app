@@ -4,7 +4,9 @@
  * Leave before / after the first move, no-show, disconnect = referee time-out (back → resume; budget used → forfeit;
  * before the first move → void; both gone → void), a silent connection, IDLE strikes (forfeit; nobody acting → void),
  * the match length limit, settlement retries → void, the heartbeat, a suspension, and input validation (bad input,
- * stale seq, presses outside a round, the rate limit, one press per tick).
+ * stale seq, presses outside a round, the rate limit, one press per tick). P3-FGT-06: the signed result follows the
+ * server's own judges' cards (client-sent scores ignored, tampering breaks the signature, the log replays to the
+ * signed hash), open / sealed scoring, a DQ on the warning ladder, and a result failing the pre-sign audit is voided.
  */
 import { createServer, type Server as HttpServer } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -16,6 +18,7 @@ import { SignJWT } from "jose";
 import { loadEnv } from "@gukirana/config";
 import { keyFromSeed, verifyResult, type SignedMatchResult } from "@gukirana/signing";
 import type { FightRules, MatchRules } from "@gukirana/contracts";
+import { auditFight, hashFight, replayFight, type FightLog, type FightState } from "@gukirana/boxing";
 
 const settled: SignedMatchResult[] = [];
 const voided: { id: string; cause?: string }[] = [];
@@ -45,7 +48,7 @@ vi.mock("../api-client.js", () => {
   };
 });
 
-const { BoxingRoom, boxingConfig } = await import("./boxing-room.js");
+const { BoxingRoom, boxingConfig, boxingRoomOf, boxingResultHash } = await import("./boxing-room.js");
 const { matchConfig, heartbeatOnce } = await import("./match-room.js");
 const { closeAccount } = await import("../social/accounts.js");
 
@@ -395,5 +398,110 @@ describe("inputs (plan §3.2)", () => {
     await until(() => !!result(b));
     await a.room.leave(true);
     await b.room.leave(true);
+  }, 15_000);
+});
+
+describe("scoring + validation (P3-FGT-06, docs/BOXING-SCORING.md §6)", () => {
+  type Outcome = { method: string; winner: 0 | 1 | null; cards: { judges: [number, number][] }[]; totals: [number, number][]; votes: (0 | 1 | null)[]; dqFoul?: string };
+  const pub = keyFromSeed(loadEnv().RESULT_SIGNING_SEED).publicKey;
+
+  it("the signed result comes from the server's own cards: client-sent scores are ignored; tampering breaks the signature", async () => {
+    const { roomId, matchId } = await create({}, { rounds: 2 });
+    const { a, b } = await bell(roomId);
+    // a hostile spare tab of A: a made-up result message has no handler → that session is closed, nothing settles
+    const spare = await join(roomId, A);
+    let closed = false;
+    spare.room.onLeave(() => (closed = true));
+    spare.room.send("result", { winner: A, ranks: { [A]: 1, [B]: 2 } });
+    await until(() => closed);
+    expect(settled.find((r) => r.matchId === matchId)).toBeUndefined();
+    expect(phase(a)).not.toBe("over");
+    // and extra score fields on the inputs are stripped by the schema (only seq / a / g reach the engine)
+    let k = 0;
+    const stop = a.every(60, () => a.room.send("in", { seq: 1000 + ++k, g: true, a: ["stepIn", "jab", "cross", "jab"][k % 4], points: 99, score: 50, winner: 0 }));
+    const stopB = b.every(100, () => b.send(undefined, false));
+    await until(() => !!result(a), 12_000);
+    stop();
+    stopB();
+    const room = boxingRoomOf(roomId)!;
+    const s = room.fightState();
+    const log = room.fightLog();
+    const signed = settled.find((r) => r.matchId === matchId)!;
+    expect(signed).toMatchObject({ game: "boxing", reason: "normal" });
+    expect(verifyResult(signed, pub)).toBe(true);
+    // the signed hash commits to the final state AND the input log; the replay gives the very same fight
+    expect(signed.stateHash).toBe(boxingResultHash(s, log));
+    expect(auditFight(s, log)).toEqual([]);
+    expect(hashFight(replayFight(JSON.parse(JSON.stringify(log)) as FightLog))).toBe(hashFight(s));
+    // ranks follow the judges' decision, not anything a client said
+    const o = (result(a) as { outcome: Outcome }).outcome;
+    expect(o.cards.length).toBeGreaterThanOrEqual(1);
+    expect(o.totals).toHaveLength(5);
+    if (o.winner === null) expect(signed.ranks).toEqual({ [A]: 1, [B]: 1 });
+    else expect(signed.ranks[[A, B][o.winner]!]).toBe(1);
+    // any tampering (ranks flipped, another state, another reason) fails verification: the API refuses it
+    // (GamesService.settle → BAD_RESULT_SIGNATURE, no money moves)
+    if (signed.ranks[A] !== signed.ranks[B]) expect(verifyResult({ ...signed, ranks: { [A]: signed.ranks[B]!, [B]: signed.ranks[A]! } }, pub)).toBe(false);
+    expect(verifyResult({ ...signed, ranks: { [A]: 1, [B]: 1 } }, pub)).toBe(signed.ranks[A] === 1 && signed.ranks[B] === 1);
+    expect(verifyResult({ ...signed, stateHash: "0".repeat(64) }, pub)).toBe(false);
+    expect(verifyResult({ ...signed, reason: "void" }, pub)).toBe(false);
+    await a.room.leave(true);
+    await b.room.leave(true);
+  }, 25_000);
+
+  it("open scoring: each round's cards are in the snapshot from its bell; sealed scoring hides them until the end", async () => {
+    for (const openScoring of [true, false]) {
+      const { roomId } = await create({}, { rounds: 2, openScoring });
+      const { a, b } = await bell(roomId);
+      const stopA = a.every(100, () => a.send("jab", true));
+      const stopB = b.every(100, () => b.send(undefined, true));
+      await until(() => phase(a) === "rest", 6_000);
+      await wait(80);
+      const snap = a.last("snap") as { cards?: unknown[]; judges?: number };
+      expect(snap.judges).toBe(5);
+      if (openScoring) expect(snap.cards).toHaveLength(1);
+      else expect(snap.cards).toBeUndefined();
+      const end = a.all("ev").flat().find((e) => (e as { k: string }).k === "roundEnd") as { card?: unknown };
+      expect(!!end.card).toBe(openScoring);
+      await until(() => !!result(a), 8_000);
+      stopA();
+      stopB();
+      expect(((a.last("snap") as { cards?: unknown[] }).cards ?? []).length).toBe(2); // revealed once over
+      await a.room.leave(true);
+      await b.room.leave(true);
+    }
+  }, 30_000);
+
+  it("DQ on the warning ladder: a signed normal result, the disqualified fighter loses (exit rules: DQ row)", async () => {
+    const { roomId } = await create({}, { roundSeconds: 30, cautions: 0, warningsToDq: 2 });
+    const { a, b } = await bell(roomId);
+    const stopA = a.every(100, () => a.send(undefined, true));
+    const stopB = b.every(400, () => b.send("slipL", true)); // ducking: slips in a row, never a punch
+    await until(() => !!result(a), 12_000);
+    stopA();
+    stopB();
+    const r = result(a) as { reason: string; outcome: Outcome };
+    expect(r).toMatchObject({ reason: "normal", outcome: { decision: "dq", method: "DQ", winner: 0, dqFoul: "DUCKING" } });
+    expect(settled.at(-1)).toMatchObject({ reason: "normal", ranks: { [A]: 1, [B]: 2 } });
+    const warns = a.all("ev").flat().filter((e) => (e as { k: string }).k === "warning") as { level?: string; to: number }[];
+    expect(warns.filter((w) => w.to === 1).map((w) => w.level)).toEqual(["warning", "dq"]);
+    await a.room.leave(true);
+    await b.room.leave(true);
+  }, 20_000);
+
+  it("a result that fails the pre-sign audit is never signed: void + refund (SERVER_ERROR)", async () => {
+    const { roomId, matchId } = await create({}, { roundSeconds: 30 });
+    const { a, b } = await bell(roomId);
+    a.send("jab", true);
+    await wait(150);
+    // corrupt the server's own state (a bug or memory fault): a forged card no tally or log supports
+    const room = boxingRoomOf(roomId)! as unknown as { fight: FightState };
+    room.fight = { ...room.fight, cards: [{ round: 1, judges: [[10, 7], [10, 7], [10, 7], [10, 7], [10, 7]], deductions: [0, 0], knockdowns: [0, 0] }] };
+    await b.room.leave(true); // B leaves after the first move: would be a forfeit win for A
+    await until(() => !!result(a));
+    expect(settled.find((r) => r.matchId === matchId)).toBeUndefined();
+    expect(voided.at(-1)).toEqual({ id: matchId, cause: "SERVER_ERROR" });
+    expect(result(a)).toMatchObject({ reason: "void", cause: "SERVER_ERROR" });
+    await a.room.leave(true);
   }, 15_000);
 });
