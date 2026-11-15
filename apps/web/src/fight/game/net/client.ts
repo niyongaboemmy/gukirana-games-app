@@ -335,6 +335,8 @@ export function startBoxingNet(): () => void {
       onRoomMessage<{ status: "idle" | "waiting"; stake?: number }>(BoxingHallEvt.quick, (q) => useBoxingNet.setState({ quick: q })),
     ];
     registerLiveFight(live);
+    // the hall joined before this client listened (a reload): ask for the ring registry and my ring again
+    roomSend(BoxingHallMsg.sync, {});
   }
   return () => {
     if (--started > 0) return;

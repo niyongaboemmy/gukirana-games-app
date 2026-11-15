@@ -20,6 +20,8 @@ export const placeHoldConfig = {
   maxHolds: PLACE_HOLD.maxHolds as number,
   windowMs: PLACE_HOLD.windowMinutes * 60_000,
   noticeMs: PLACE_HOLD.noticeMinutes * 60_000,
+  /** back within this time (a plain reload): the hold is not counted against the abuse limit */
+  quickMs: PLACE_HOLD.quickReturnSeconds * 1000,
 };
 
 /** the hold time for a place in this state */
@@ -75,11 +77,19 @@ export class PlaceHolds {
     return h;
   }
 
-  /** take the hold back (the player is here again); undefined when there is none in this room */
+  /**
+   * take the hold back (the player is here again); undefined when there is none in this room. A quick return (a plain
+   * reload, within quickMs) blocked nothing, so it does not count against the abuse limit.
+   */
   take(uid: string, roomId: string, now = Date.now()): Hold | undefined {
     const h = this.of(uid, now);
     if (!h || h.roomId !== roomId) return undefined;
     this.holds.delete(uid);
+    if (now - h.at <= placeHoldConfig.quickMs) {
+      const xs = this.history.get(uid) ?? [];
+      const i = xs.findLastIndex((t) => Math.abs(t - h.at) < 1000); // counted by allow() just before the hold began
+      if (i >= 0) xs.splice(i, 1);
+    }
     return h;
   }
 

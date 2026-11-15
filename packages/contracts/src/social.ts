@@ -99,6 +99,8 @@ export const PLACE_HOLD = {
   maxHolds: 3,
   /** … in this window (minutes); the next drop releases the place at once */
   windowMinutes: 15,
+  /** a hold taken back within this many seconds (a plain reload) blocked nobody: it does not count */
+  quickReturnSeconds: 10,
   /** a released place is remembered this long for the "your place was released" notice (minutes) */
   noticeMinutes: 10,
 } as const;

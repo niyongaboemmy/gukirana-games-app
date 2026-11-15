@@ -68,7 +68,7 @@ afterAll(async () => {
 }, 20_000);
 beforeEach(() => {
   placeHolds.reset();
-  Object.assign(placeHoldConfig, { enabled: true, seatMs: 60_000, ringWaitingMs: 60_000, ringPracticeMs: 30_000, maxHolds: PLACE_HOLD.maxHolds, windowMs: 15 * 60_000 });
+  Object.assign(placeHoldConfig, { enabled: true, seatMs: 60_000, ringWaitingMs: 60_000, ringPracticeMs: 30_000, maxHolds: PLACE_HOLD.maxHolds, windowMs: 15 * 60_000, quickMs: 10_000 });
   boxingHallConfig.checkReach = false;
 });
 
@@ -102,6 +102,21 @@ describe("table chair (Ludo hall)", () => {
     expect(b.last("seats")).toEqual({ t0s0: a2.room.sessionId });
     expect(b.last("seat-holds")).toEqual({});
     for (const p of [a2, b, c]) await p.room.leave();
+  });
+
+  it("a reload whose new connection arrives before the old one closes: the chair goes straight to the new one", async () => {
+    const a = await enter("ludo", newUid());
+    const b = await enter("ludo", newUid());
+    a.room.send("sit", { seat: "t8s1" });
+    await wait(150);
+    const a2 = await enter("ludo", a.uid, a.room.roomId);
+    await wait(150);
+    expect(a2.last("place")).toEqual({ status: "none" }); // the old connection still holds it
+    await drop(a);
+    await wait(200);
+    expect(a2.last("place")).toMatchObject({ status: "restored", place: "t8s1", state: "seated" });
+    expect(b.last("seats")).toEqual({ t8s1: a2.room.sessionId });
+    for (const p of [a2, b]) await p.room.leave();
   });
 
   it("the room stays alive while it holds a place, even with nobody inside", async () => {
@@ -208,6 +223,7 @@ describe("table chair (Ludo hall)", () => {
 
   it("abuse limit: after maxHolds drops in the window the place is released at once", async () => {
     placeHoldConfig.maxHolds = 2;
+    placeHoldConfig.quickMs = 0; // every drop counts here (a quick return would not)
     const uid = newUid();
     const b = await enter("ludo", newUid());
     let a = await enter("ludo", uid);
@@ -229,6 +245,23 @@ describe("table chair (Ludo hall)", () => {
     await wait(150);
     expect(a.last("place")).toEqual({ status: "released", hall: "ludo", kind: "seat", place: "t6s0", reason: "LIMIT", heldS: 0 });
     for (const p of [a, b]) await p.room.leave();
+  });
+
+  it("plain reloads (back within the quick-return time) never use up the limit", async () => {
+    placeHoldConfig.maxHolds = 1;
+    const uid = newUid();
+    let a = await enter("ludo", uid);
+    const roomId = a.room.roomId;
+    a.room.send("sit", { seat: "t9s0" });
+    await wait(100);
+    for (let i = 0; i < 3; i++) {
+      await drop(a);
+      await wait(100);
+      a = await enter("ludo", uid, roomId);
+      await wait(150);
+      expect(a.last("place")).toMatchObject({ status: "restored", place: "t9s0" });
+    }
+    await a.room.leave();
   });
 
   it("FF_PLACE_HOLD off: every leave releases at once", async () => {
@@ -274,6 +307,12 @@ describe("Boxing ring", () => {
     const back = lastRing(b, "R5")!;
     expect(back.held).toBeUndefined();
     expect(back.red?.sid).toBe(a2.room.sessionId);
+    // the Boxing client mounting after the join asks again: the registry (held state included) and my ring
+    const before = a2.of(BoxingHallEvt.rings).length;
+    a2.room.send(BoxingHallMsg.sync, {});
+    await wait(150);
+    expect(a2.of(BoxingHallEvt.rings).length).toBe(before + 1);
+    expect(a2.last(BoxingHallEvt.assigned)).toEqual({ ring: "R5", corner: "red" });
     for (const p of [a2, b, c]) await p.room.leave();
   });
 

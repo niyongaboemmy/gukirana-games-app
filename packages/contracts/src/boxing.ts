@@ -531,6 +531,8 @@ export const BoxingHallMsg = {
   practiceScore: "boxing-practice-score",
   /** answer to `boxing-ping`: { n } (the hall measures the round trip for the HIGH_LATENCY check, plan §3.4) */
   pong: "boxing-pong",
+  /** P2-NET-06: the live client is listening now: send me the ring registry and my ring again (a reload joins the hall before the Boxing client mounts) */
+  sync: "boxing-sync",
 } as const;
 /** Boxing sub-hall room → clients */
 export const BoxingHallEvt = {

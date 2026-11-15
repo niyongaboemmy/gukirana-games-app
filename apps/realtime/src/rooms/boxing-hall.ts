@@ -488,6 +488,18 @@ export class BoxingHall {
     await this.startFight(free, "quick");
   }
 
+  /** the client asks for the registry again (its Boxing client started after the hall join): rings + my ring */
+  onSync(sid: string): void {
+    if (!this.host.has(sid) || !this.rate.allow(`${sid}:sync`, 4, 10_000, Date.now())) return;
+    this.host.send(sid, BoxingHallEvt.rings, this.list());
+    const id = this.holding.get(sid);
+    const r = id && this.rings.get(id);
+    if (!r) return;
+    const corner: Corner = r.blue?.sid === sid ? "blue" : "red";
+    this.host.send(sid, BoxingHallEvt.assigned, { ring: r.id, corner });
+    if (r.roomId && r.matchId && (r.status === "starting" || r.status === "fighting")) this.host.send(sid, BoxingHallEvt.fightReady, this.readyMsg(r, corner));
+  }
+
   onQuickCancel(sid: string): void {
     this.unqueue(sid);
     this.host.send(sid, BoxingHallEvt.quick, { status: "idle" });

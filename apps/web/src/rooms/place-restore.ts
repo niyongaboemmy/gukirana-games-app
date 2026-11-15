@@ -5,7 +5,8 @@ import { SEAT_BACK } from "@/world/human/seat-profiles";
 import type { ReturnPoint } from "@/lib/return-point";
 import { useWorld } from "@/lib/world-store";
 import { useMatch } from "@/lib/match-store";
-import { clearPlace, loadPlace, placeToRestore, savePlace, type PlaceRef } from "@/lib/place-hold";
+import { clearPlace, loadPlace, placeToRestore, savePlace, usePlace, type PlaceRef } from "@/lib/place-hold";
+import { sitAt } from "@/lib/realtime";
 import { RING_BY_ID, ringSteps } from "@/fight/plan";
 import type { RingId } from "@gukirana/contracts";
 import { useRoom } from "./room-store";
@@ -54,7 +55,14 @@ export function useTablePlaceSync(layout: HallLayout): void {
       } else if (was && !seated && loadPlace()?.hall === hall) clearPlace();
       was = seated;
     };
-    const offs = [useRoom.subscribe(sync), useWorld.subscribe((s, p) => (s.seats !== p.seats || s.roomId !== p.roomId) && sync()), useMatch.subscribe((s, p) => s.quick !== p.quick && sync())];
+    // the server gave my chair back (a reload whose new connection came in before the old one closed): sit on it
+    const back = () => {
+      const j = usePlace.getState().joined;
+      if (j?.status !== "restored" || j.kind !== "seat" || j.hall !== hall || useRoom.getState().seated === j.place) return;
+      sitAt(j.place);
+      useRoom.getState().set({ seated: j.place, nearSeat: null });
+    };
+    const offs = [usePlace.subscribe((s, p) => s.joined !== p.joined && back()), useRoom.subscribe(sync), useWorld.subscribe((s, p) => (s.seats !== p.seats || s.roomId !== p.roomId) && sync()), useMatch.subscribe((s, p) => s.quick !== p.quick && sync())];
     return () => offs.forEach((o) => o());
   }, [layout.game]);
 }

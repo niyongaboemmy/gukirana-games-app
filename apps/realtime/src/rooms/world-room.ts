@@ -1,4 +1,5 @@
 import { Room, type Client } from "@colyseus/core";
+import { createLogger } from "@gukirana/observability";
 import {
   ArenaMsg,
   BlockListSchema,
@@ -53,6 +54,7 @@ import { holdMsFor, info, placeHoldConfig, placeHolds, type Hold } from "../soci
  * r ≈ 245 m on its north arc and the frontage road at z ≈ 96 m; hall interiors are well inside this.
  */
 const WORLD_EDGE_CM = 26_000;
+const log = createLogger("world-room");
 import { eligibilityOf, isRefusal, mutedUntil, signedOutSince, trackAccount } from "../social/accounts.js";
 
 export interface WorldPlayer {
@@ -329,6 +331,7 @@ export class WorldRoom extends Room {
       this.onMessage(BoxingHallMsg.watch, (client, raw: unknown) => boxing.onWatch(client.sessionId, raw));
       this.onMessage(BoxingHallMsg.practiceScore, (client, raw: { round?: unknown; score?: unknown }) => boxing.onPracticeScore(client.sessionId, raw));
       this.onMessage(BoxingHallMsg.pong, (client, raw: { n?: unknown }) => boxing.onPong(client.sessionId, raw));
+      this.onMessage(BoxingHallMsg.sync, (client) => boxing.onSync(client.sessionId));
       this.clock.setInterval(() => boxing.probe(this.players.keys()), boxingHallConfig.pingEveryMs);
     }
 
@@ -756,6 +759,7 @@ export class WorldRoom extends Room {
   private reclaim(client: Client, uid: string): Hold | null {
     const h = placeHolds.take(uid, this.roomId);
     if (!h || this.heldHere.get(uid) !== h) return null;
+    log.info({ event: "place.restored", userId: uid, hall: h.hall, place: h.place, awayMs: Date.now() - h.at }, "held place given back")
     this.heldHere.delete(uid);
     if (h.kind === "seat") this.seats.restore(uid, client.sessionId);
     this.holdsChanged();
@@ -777,6 +781,7 @@ export class WorldRoom extends Room {
   private keepRing(uid: string, k: RingKeep): Hold | null {
     if (!placeHolds.allow(uid)) {
       placeHolds.noteReleased(uid, { hall: "boxing", kind: "ring", place: k.place, reason: "LIMIT", heldS: 0 });
+      log.info({ event: "place.limit", userId: uid, hall: "boxing", place: k.place }, "hold refused: abuse limit");
       return null;
     }
     return this.holdPlace({ uid, kind: "ring", ...k });
@@ -789,6 +794,7 @@ export class WorldRoom extends Room {
     const ms = holdMsFor(h.kind, h.state);
     const hold: Hold = { ...h, hall: this.hallGame, roomId: this.roomId, at: now, until: now + ms };
     placeHolds.put(hold);
+    log.info({ event: "place.held", userId: h.uid, hall: this.hallGame, place: h.place, state: h.state, ms }, "place held for a dropped player")
     this.heldHere.set(h.uid, hold);
     this.clock.setTimeout(() => this.expireHold(hold), ms);
     this.holdsChanged();
@@ -801,6 +807,7 @@ export class WorldRoom extends Room {
     this.heldHere.delete(h.uid);
     placeHolds.drop(h.uid, h);
     placeHolds.noteReleased(h.uid, { hall: h.hall, kind: h.kind, place: h.place, reason: "EXPIRED", heldS: Math.round((h.until - h.at) / 1000) });
+    log.info({ event: "place.released", userId: h.uid, hall: h.hall, place: h.place, reason: "EXPIRED" }, "held place released")
     if (h.kind === "seat" && this.seats.releaseHeld(h.uid)) this.broadcastSeats();
     if (h.kind === "ring") this.boxing?.holdEnded(h.uid);
     this.holdsChanged();
@@ -845,7 +852,10 @@ export class WorldRoom extends Room {
           since: ticket?.since ?? Date.now(),
           ...(ticket ? { game: ticket.game, stake: ticket.stake } : {}),
         });
-      else placeHolds.noteReleased(me.sub, { hall: this.hallGame!, kind: "seat", place: seat, reason: "LIMIT", heldS: 0 });
+      else {
+        placeHolds.noteReleased(me.sub, { hall: this.hallGame!, kind: "seat", place: seat, reason: "LIMIT", heldS: 0 });
+        log.info({ event: "place.limit", userId: me.sub, hall: this.hallGame, place: seat }, "hold refused: abuse limit");
+      }
       if (held) this.seats.hold(sid, me.sub);
     }
     if (me) quickMatch.leave(me.sub);
@@ -876,7 +886,20 @@ export class WorldRoom extends Room {
     // a Boxing ring (waiting / practice) is kept the same way: the hall asks, the hold decides (abuse limit)
     const uid = me?.sub;
     this.boxing?.left(sid, uid && !consented && this.holdable() ? (k) => this.keepRing(uid, k) : undefined);
+    // a reload often brings the new connection in BEFORE the old one's close arrives: the place goes straight to it
+    const again = uid && this.heldHere.has(uid) ? this.clients.find((c) => c.sessionId !== sid && this.users.get(c.sessionId)?.sub === uid) : undefined;
+    if (again && uid) this.giveBack(again, uid);
     this.presenceSoon();
+  }
+
+  /** the account is (already) here on another connection: its held place goes to that one, same state */
+  private giveBack(client: Client, uid: string): void {
+    const back = this.reclaim(client, uid);
+    if (!back) return;
+    if (back.kind === "seat") this.broadcastSeats();
+    else this.boxing?.joined(client.sessionId, back);
+    this.tellPlace(client, uid, back);
+    if (back.kind === "seat" && back.state === "waiting" && isGame(back.game) && back.stake !== undefined) void this.joinQuick(client, back.game, back.stake, back.since);
   }
 
   override onDispose(): void {

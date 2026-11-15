@@ -135,7 +135,10 @@ keep the "Resume" rules above; this section covers the chair, the table and the 
    | Boxing ring, practice | **30 s** |
 
 5. **Abuse limit.** At most **3 holds per account in 15 minutes**. The 4th drop in that window releases the place at
-   once (as before P2-NET-06) and the returning player is told why.
+   once (as before P2-NET-06) and the returning player is told why. A hold taken back within **10 s** (a plain
+   reload) blocked nobody and does not count; the limit is for going away and leaving the place blocked.
+   **Reload race:** a reload's new connection often reaches the hall before the old one's close does; the place
+   then goes straight to the new connection (same account) the moment the old one leaves.
 6. **What others see.** The place is **Held** (not free, not waiting): the chair cannot be taken, the table shows
    "Held · returning (0:42)" in the table picker and its light band turns grey-amber, the ring sign, the ring prompt
    and the lobby status board show "Held · returning (0:42)". Nobody can join a held ring or sit in a held chair.
