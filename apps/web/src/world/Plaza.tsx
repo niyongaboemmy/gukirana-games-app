@@ -453,7 +453,7 @@ function Totems() {
   const map = useMemo(() => siteMapTexture(), []);
   useEffect(() => () => map.dispose(), [map]);
   const content = {
-    welcome: { title: "Welcome", color: "#3DA9FC", lines: [] as string[] },
+    welcome: { title: "Welcome", color: "#E8B67E", lines: [] as string[] },
     wallet: { title: "Wallet Kiosk", color: "#F5B301", lines: ["Practice with Stars today", "Coins arrive with the", "licensed real-money pilot"] },
   } as const;
   return (
@@ -464,7 +464,7 @@ function Totems() {
           <group key={t.id} position={[t.x, 0, t.z]} rotation={[0, t.rotY, 0]}>
             <mesh position={[0, 1.95, 0.158]}>
               <planeGeometry args={[2.2, 3.2]} />
-              <meshBasicMaterial color="#14183f" toneMapped={false} />
+              <meshBasicMaterial color="#1e130c" toneMapped={false} />
             </mesh>
             <Text font={FONT} fontSize={0.3} color={c.color} position={[0, 3.1, 0.17]} anchorX="center">
               {c.title}

@@ -280,7 +280,7 @@ export function pointerNav(
 }
 
 /** Pulsing ring where the player clicked/tapped to walk. */
-export function TargetMarker({ color = "#3DA9FC" }: { color?: string }) {
+export function TargetMarker({ color = "#E8B67E" }: { color?: string }) {
   const g = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
     if (!g.current) return;

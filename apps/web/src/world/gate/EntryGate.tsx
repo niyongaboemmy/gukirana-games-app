@@ -54,7 +54,7 @@ export function EntryGate({ tier }: { tier: Tier }) {
   const mats = useMemo(() => worldMaterials(tier), [tier]);
   useEffect(() => () => geos.forEach((g) => g.dispose()), [geos]);
   const glow = useRef<THREE.MeshBasicMaterial>(null);
-  const idle = useMemo(() => new THREE.Color("#22266E"), []);
+  const idle = useMemo(() => new THREE.Color("#3b2416"), []);
   const lit = useMemo(() => new THREE.Color(GAME_COLORS.sky).multiplyScalar(0.8), []);
   useFrame((_, dt) => {
     const near = Math.hypot(selfPose.x - EXIT_KIOSK.x, selfPose.z - EXIT_KIOSK.z) < EXIT_RADIUS;
@@ -74,7 +74,7 @@ export function EntryGate({ tier }: { tier: Tier }) {
         <group position={[0, 1.42, 0.025]} rotation={[-0.22, 0, 0]}>
           <mesh userData={{ noMerge: true }}>
             <planeGeometry args={[0.84, 0.58]} />
-            <meshBasicMaterial ref={glow} color="#22266E" toneMapped={false} />
+            <meshBasicMaterial ref={glow} color="#3b2416" toneMapped={false} />
           </mesh>
           <Text font={FONT} fontSize={0.04} color="#FFC83D" position={[0, 0.2, 0.002]} anchorX="center" letterSpacing={0.08}>
             GUKIRANA PLAYGROUND
