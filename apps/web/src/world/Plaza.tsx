@@ -28,7 +28,7 @@ import { campusWalkLength } from "./campus";
 
 const FONT = "/fonts/Baloo2.ttf";
 
-const NO_SHADOW = new Set(["basalt", "granite", "basinFloor", "brass", "lampHead", "screenFrame"]);
+const NO_SHADOW = new Set(["interior", "basalt", "granite", "basinFloor", "brass", "lampHead", "screenFrame"]);
 
 /** Merged static district: ~one draw call per material. */
 function District({ tier }: { tier: Tier }) {

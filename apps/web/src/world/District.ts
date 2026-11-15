@@ -7,6 +7,8 @@ import { RING_PLANTERS } from "./beds";
 import { activityProps } from "./activity-props";
 import { NOTICE_BOARD, WATER_POINT } from "./activities";
 import { fightHall } from "@/fight/exterior";
+import { interiorPane } from "./interior-glass";
+import type { InteriorKind } from "./interior-plan";
 import { ARENA, FOOTPRINTS, igisoroHall, inBuilding, LUDO_DIE, PLOTS, sitePlan, toLocal, WING_HW, wingedHall } from "./footprints";
 import {
   BENCHES,
@@ -50,6 +52,21 @@ function wallWithDoor(b: GeoBatch, key: string, w: number, h: number, z: number,
   b.box(key, side, h, t, { p: [-(ow / 2 + side / 2), h / 2, z], tile });
   b.box(key, side, h, t, { p: [ow / 2 + side / 2, h / 2, z], tile });
   if (h > oh) b.box(key, ow, h - oh, t, { p: [0, oh + (h - oh) / 2, z], tile });
+}
+
+/**
+ * A glazed shopfront with the door opening in the middle (the layout of wallWithDoor), P2-WLD-15: interior-mapped
+ * panes on the outside face (the room behind them is drawn by the shader, world/interior-glass.ts), a slim dark
+ * backing behind them (the building stays closed when seen edge-on).
+ */
+function glassWithDoor(b: GeoBatch, kind: InteriorKind, w: number, h: number, z: number, t: number) {
+  const ow = DOOR.w + 0.4;
+  const oh = DOOR.h + 0.2;
+  const side = (w - ow) / 2;
+  const zf = z + t / 2 + 0.005;
+  wallWithDoor(b, "screenFrame", w, h, z - t / 4, t / 2, 6);
+  for (const s of [-1, 1]) interiorPane(b, kind, "shopfront", side, h, [s * (ow / 2 + side / 2), h / 2, zf]);
+  if (h > oh) interiorPane(b, kind, "shopfront", ow, h - oh, [0, oh + (h - oh) / 2, zf]);
 }
 
 /** Aluminium door surround with a slim LED trim in the game colour, plus a basalt threshold. */
@@ -115,7 +132,7 @@ function poolHall(b: GeoBatch) {
   b.box("concreteDark", 0.4, H, D, { p: [-W / 2 + 0.2, H / 2, -D / 2], tile: 2 });
   b.box("concreteDark", 0.4, H, D, { p: [W / 2 - 0.2, H / 2, -D / 2], tile: 2 });
   for (const s of [-1, 1]) b.box("lava", 0.12, 1.0, D, { p: [s * (W / 2 + 0.06), 0.5, -D / 2], tile: 1.2 });
-  wallWithDoor(b, "glass", W - 0.8, H - 0.2, -0.6, 0.12, 6);
+  glassWithDoor(b, "pool", W - 0.8, H - 0.2, -0.6, 0.12);
   for (let x = -W / 2 + 0.6; x <= W / 2 - 0.5; x += 0.62) {
     if (Math.abs(x) < 3.0) continue;
     b.box("woodDark", 0.1, H - 0.3, 0.55, { p: [x, (H - 0.3) / 2, -0.2], tile: 1 });
@@ -160,7 +177,7 @@ function ludoLounge(b: GeoBatch) {
   const H = 5.6;
   b.box("brick", 0.45, H, D, { p: [-W / 2 + 0.22, H / 2, -D / 2], tile: 1 });
   b.box("brick", 0.45, H, D, { p: [W / 2 - 0.22, H / 2, -D / 2], tile: 1 });
-  wallWithDoor(b, "glass", W - 0.9, H, -0.4, 0.12, 6);
+  glassWithDoor(b, "ludo", W - 0.9, H, -0.4, 0.12);
   for (const x of [-6.6, -4.4, 4.4, 6.6]) b.box("brick", 0.6, H, 0.6, { p: [x, H / 2, -0.15], tile: 1 });
   b.box("concrete", W + 0.6, 0.5, D + 0.6, { p: [0, H + 0.25, -D / 2], tile: 2 });
   // rooftop garden terrace on the wing: glass balustrade, pergola with LED strings
@@ -227,13 +244,10 @@ function adminBlock(b: GeoBatch) {
   b.box("limestone", W + 0.4, 0.4, D + 0.6, { p: [0, H + 0.2, -D / 2 + 0.3], tile: 2 });
   b.box("bronze", W + 0.42, 0.06, 0.06, { p: [0, H - 1.52, 0.11] });
   // curtain wall on the door line: glass with bronze mullions and transom, the door opening in the middle
-  wallWithDoor(b, "glass", W - 1.8, H - 1.5, z, 0.12, 6);
+  glassWithDoor(b, "admin", W - 1.8, H - 1.5, z, 0.12);
   for (let x = -W / 2 + 0.9; x <= W / 2 - 0.89; x += 1.35) if (Math.abs(x) > DOOR.w / 2 + 0.3) b.box("bronze", 0.08, H - 1.5, 0.16, { p: [x, (H - 1.5) / 2, z + 0.06] });
   b.box("bronze", W - 1.8, 0.08, 0.16, { p: [0, DOOR.h + 0.3, z + 0.06] });
-  // lit lobby volume read through the glazing (ceiling + floor)
-  b.box("concrete", W - 1.8, 0.1, 6, { p: [0, H - 1.6, z - 3], tile: 2 });
-  for (const x of [-4, 0, 4]) b.box("lampHead", 0.1, 0.02, 5.6, { p: [x, H - 1.66, z - 3] });
-  b.box("granite", W - 1.8, 0.03, 6, { p: [0, 0.015, z - 3], tile: 2.4 });
+  // (the lobby behind the curtain wall is drawn by the interior-mapped glass: reception desk, office doors)
   // thin cantilevered canopy over the entrance, with a bronze edge and soft soffit lights
   b.box("white", 7.2, 0.22, 3.4, { p: [0, 4.6, z + 1.55] });
   b.box("bronze", 7.24, 0.24, 0.04, { p: [0, 4.6, z + 3.26] });
@@ -328,12 +342,11 @@ function thatchedBlock(b: GeoBatch, x0: number, x1: number, z0: number, z1: numb
     // exposed rafter ends under the front eaves
     for (let x = x0 - ov + 0.6; x <= x1 + ov - 0.5; x += 0.9)
       if (!opts.hidden || x < opts.hidden[0] - ov || x > opts.hidden[1] + ov) b.box("woodDark", 0.08, 0.1, ov, { p: [x, H - 0.18, z0 + ov / 2], tile: 1 });
-  // windows: timber-framed 0.9 × 1.6 m, sill at 0.9 m, every ~3 m on all walls; neutral glass in front of a warm
-  // out-of-focus view of the hall (columns, lamps, tables) for depth
+  // windows: timber-framed 0.9 × 1.6 m, sill at 0.9 m, every ~3 m on all walls; interior-mapped glass shows the court
+  // inside (low boards on stools, woven pendants, the dark timber walls) with real depth
   const win = (x: number, z: number, rotY: number) => {
     b.frame([x, 0, z], rotY, () => {
-      b.box("windowGlimpse", 0.9, 1.6, 0.02, { p: [0, 1.7, 0.02] });
-      b.box("glassClear", 0.9, 1.6, 0.02, { p: [0, 1.7, 0.1] });
+      interiorPane(b, "igisoro", "window", 0.9, 1.6, [0, 1.7, 0.04]);
       for (const s of [-1, 1]) b.box("woodDark", 0.1, 1.8, 0.16, { p: [s * 0.5, 1.7, 0.08], tile: 1 });
       b.box("woodDark", 1.1, 0.1, 0.16, { p: [0, 2.55, 0.08], tile: 1 });
       b.box("woodDark", 1.2, 0.08, 0.26, { p: [0, 0.86, 0.12], tile: 1 }); // sill
@@ -412,8 +425,12 @@ function tournamentArena(b: GeoBatch, tier: string) {
     b.add("steel", new THREE.TorusGeometry(1, 0.012, 4, seg), { p: [0, wall + 0.9 + y * 1.03, cz], r: [Math.PI / 2, 0, 0], s: [(rx + 0.45) * k, (rz + 0.45) * k, 12] });
   b.add("led-halo", new THREE.TorusGeometry(3, 0.06, 6, 32), { p: [0, wall + 5.85, cz], r: [Math.PI / 2, 0, 0] });
   // entrance: glazed lobby (curtain wall with the door, glass returns), cantilevered canopy on slender columns
-  wallWithDoor(b, "glass", 12.4, 6.2, -1.3, 0.14, 6);
-  for (const s of [-1, 1]) b.box("glass", 0.14, 6.2, 4.4, { p: [s * 6.2, 3.1, -3.4], tile: 6 });
+  // (interior-mapped: the foyer with its turnstiles, trophy cabinet and video wall reads through the front and returns)
+  glassWithDoor(b, "arena", 12.4, 6.2, -1.3, 0.14);
+  for (const s of [-1, 1]) {
+    b.box("screenFrame", 0.07, 6.2, 4.4, { p: [s * 6.17, 3.1, -3.4] });
+    interiorPane(b, "arena", "shopfront", 4.4, 6.2, [s * 6.28, 3.1, -3.4], (s * Math.PI) / 2);
+  }
   // vertical aluminium mullion caps every 1.5 m + transom at door head height
   for (let x = -6; x <= 6.01; x += 1.5) if (Math.abs(x) > 1.8) b.box("alu", 0.08, 6.2, 0.1, { p: [x, 3.1, -1.2] });
   b.box("alu", 12.4, 0.1, 0.1, { p: [0, 4.25, -1.2] });
