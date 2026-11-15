@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { agasekeTextures } from "./agaseke";
 
 /**
  * Procedural canvas textures (no downloads, works offline). Every texture is cached, so materials can share them.
@@ -683,34 +684,9 @@ export function hoardingTexture(): THREE.CanvasTexture {
   });
 }
 
-/** Agaseke basket weave: natural sisal with black and red-ochre zig-zag bands. */
+/** Agaseke (igiseke) weave: cream coiled sisal with black stepped motifs (world/agaseke.ts; v runs with the height). */
 export function agasekeTexture(): THREE.CanvasTexture {
-  return cached("agaseke", () => {
-    const { c, g } = canvas(256, 512);
-    const r = rng(17);
-    g.fillStyle = "#d8bd86";
-    g.fillRect(0, 0, 256, 512);
-    for (let y = 0; y < 512; y += 4) {
-      g.fillStyle = `rgba(120,85,40,${0.12 + r() * 0.12})`;
-      g.fillRect(0, y, 256, 1.5);
-    }
-    const band = (y0: number, h: number, col: string, teeth: number) => {
-      g.fillStyle = col;
-      const w = 256 / teeth;
-      for (let i = 0; i < teeth; i++) {
-        g.beginPath();
-        g.moveTo(i * w, y0 + h);
-        g.lineTo(i * w + w / 2, y0);
-        g.lineTo(i * w + w, y0 + h);
-        g.fill();
-      }
-    };
-    band(400, 40, "#1B1B1B", 8);
-    band(330, 26, "#B5532A", 10);
-    band(170, 30, "#1B1B1B", 10);
-    band(90, 22, "#B5532A", 12);
-    return finish("agaseke", c, { aniso: 4 });
-  });
+  return agasekeTextures().map;
 }
 
 /* ---------- avatar fabric prints ---------- */
@@ -871,64 +847,6 @@ export function doorBadgeTexture(kind: IconKind, color: string): THREE.CanvasTex
     drawIcon(g, kind, 64, 64, 70, color);
     const t = finish(key, c, { aniso: 4 });
     t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
-    return t;
-  });
-}
-
-/**
- * Out-of-focus view into a hall, seen at the back of the entrance vestibule. Painted tiny (96 × 64) and upscaled
- * with linear filtering, which gives a natural defocus without any blur pass.
- */
-export function hallGlimpseTexture(kind: IconKind): THREE.CanvasTexture {
-  const key = `glimpse-${kind}`;
-  return cached(key, () => {
-    const W = 48;
-    const H = 64;
-    const { c, g } = canvas(W, H);
-    const pal: Record<IconKind, { wall: string; floor: string; ceil: string; table: string; lamp: string }> = {
-      pool: { wall: "#3a2c22", floor: "#4a3322", ceil: "#1e1a17", table: "#1f5a36", lamp: "#ffd9a0" },
-      ludo: { wall: "#b08a62", floor: "#a8723f", ceil: "#6a5038", table: "#7a4a2a", lamp: "#ffe2b0" },
-      igisoro: { wall: "#a8794a", floor: "#8a5232", ceil: "#6a4a2a", table: "#5a3a22", lamp: "#ffd79a" },
-      arena: { wall: "#4a4a58", floor: "#6a6a70", ceil: "#22232a", table: "#3a3a48", lamp: "#e8eeff" },
-      admin: { wall: "#cfc9bf", floor: "#a9a397", ceil: "#e2dfd8", table: "#6e5440", lamp: "#fff4e6" },
-      fight: { wall: "#2a2b2f", floor: "#6c6a66", ceil: "#141417", table: "#7a2a24", lamp: "#f4f1ea" },
-      soon: { wall: "#555", floor: "#666", ceil: "#333", table: "#444", lamp: "#ddd" },
-    };
-    const p = pal[kind];
-    // ceiling / wall / floor bands in perspective
-    g.fillStyle = p.ceil;
-    g.fillRect(0, 0, W, H * 0.3);
-    g.fillStyle = p.wall;
-    g.fillRect(0, H * 0.3, W, H * 0.32);
-    const fl = g.createLinearGradient(0, H * 0.62, 0, H);
-    fl.addColorStop(0, p.floor);
-    fl.addColorStop(1, "#000000");
-    g.fillStyle = fl;
-    g.fillRect(0, H * 0.62, W, H * 0.38);
-    // tables and their warm pendant pools
-    for (const [x, w, y] of [
-      [8, 14, 0.6],
-      [28, 16, 0.62],
-      [18, 10, 0.55],
-    ] as const) {
-      const lg = g.createRadialGradient(x + w / 2, H * 0.36, 0, x + w / 2, H * 0.36, 7);
-      lg.addColorStop(0, p.lamp);
-      lg.addColorStop(1, "rgba(0,0,0,0)");
-      g.fillStyle = lg;
-      g.fillRect(x - 4, H * 0.28, w + 8, 14);
-      g.fillStyle = p.table;
-      g.fillRect(x, H * y, w, 4);
-      g.fillStyle = "rgba(0,0,0,0.5)";
-      g.fillRect(x + 1, H * y + 4, 2, 5);
-      g.fillRect(x + w - 3, H * y + 4, 2, 5);
-    }
-    // a far window band with daylight
-    g.fillStyle = "rgba(220,232,240,0.45)";
-    g.fillRect(4, H * 0.34, W - 8, 6);
-    const t = finish(key, c, { aniso: 1 });
-    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
-    t.generateMipmaps = false;
-    t.minFilter = THREE.LinearFilter;
     return t;
   });
 }

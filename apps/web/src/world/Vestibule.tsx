@@ -3,12 +3,15 @@ import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { DOOR, VESTIBULE_DEPTH, type PortalDef } from "./layout";
 import type { Tier } from "./materials";
-import { blobTexture, doorBadgeTexture, hallGlimpseTexture, woodTexture } from "./textures";
+import { blobTexture, doorBadgeTexture, woodTexture } from "./textures";
+import { interiorGlassMaterial, interiorPaneGeometry } from "./interior-glass";
+import { hasInterior } from "./interior-plan";
 
 /**
  * A real entrance vestibule behind each plaza hall door (P1-WLD-03, review P0-2): instead of a glowing poster the
  * doorway opens onto a 4.2 m lobby in the hall's own materials — floor, side walls, a ceiling with warm downlights
- * and soft light pools — ending in the open inner doorway with an out-of-focus view into the hall.
+ * and soft light pools — ending in the open inner doorway with a view into the hall itself (P2-WLD-15: interior-mapped,
+ * with real depth and the hall's own furniture: pool tables, Ludo tables, Igisoro boards, the Arena's video wall…).
  * Local frame = the building's door frame (door centre at x = 0, plaza towards +z), `inset` = door line z.
  */
 const DEPTH = VESTIBULE_DEPTH;
@@ -97,10 +100,6 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
         depthWrite: false,
         blending: THREE.AdditiveBlending,
       }),
-      glimpse: new THREE.MeshBasicMaterial({
-        map: hallGlimpseTexture(def.kind),
-        color: new THREE.Color("#ffffff").multiplyScalar(lite ? 0.62 : 0.78),
-      }),
     };
   }, [def.kind, s, lite]);
   useEffect(
@@ -112,6 +111,9 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
   );
   const w = DOOR.w + 0.3;
   const h = DOOR.h + 0.25;
+  // the hall beyond the inner doorway (shared material: merged with every other pane, never disposed here)
+  const hall = useMemo(() => (hasInterior(def.kind) ? interiorPaneGeometry(def.kind, "vestibule", w, h) : null), [def.kind, w, h]);
+  useEffect(() => () => hall?.dispose(), [hall]);
   const z0 = inset - 0.04;
   const zc = z0 - DEPTH / 2;
   const cast = !lite;
@@ -157,10 +159,8 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
           </group>
         );
       })}
-      {/* inner doorway: the hall seen out of focus beyond the lobby */}
-      <mesh material={mats.glimpse} position={[0, h / 2, z0 - DEPTH]}>
-        <planeGeometry args={[w, h]} />
-      </mesh>
+      {/* inner doorway: the hall itself beyond the lobby, with depth (interior mapping) */}
+      {hall && <mesh geometry={hall} material={interiorGlassMaterial(tier)} position={[0, h / 2, z0 - DEPTH]} />}
     </group>
   );
 }

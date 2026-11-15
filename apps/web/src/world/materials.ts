@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { agasekeTextures } from "./agaseke";
 import {
   blobTexture,
   brickTexture,
@@ -7,7 +8,6 @@ import {
   agasekeTexture,
   curtainWallTextures,
   grassTexture,
-  hallGlimpseTexture,
   hoardingTexture,
   imigongoDiamondTexture,
   imigongoTexture,
@@ -18,6 +18,7 @@ import {
   woodTexture,
 } from "./textures";
 import { roofMembraneTexture } from "./roofs";
+import { interiorGlassMaterial } from "./interior-glass";
 import { BENCHES, FOUNTAIN_COURT, FOUNTAIN_RADIUS, PAVING_R, PLAZA_RADIUS, PORTALS, ringPoint, SPAWN } from "./layout";
 
 export type Tier = "lite" | "standard";
@@ -103,7 +104,8 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     // (P2-WLD-09: a softer charcoal — the many kerb lines read as calm joints, not black stripes across the plaza)
     basalt: std({ map: concreteTexture(), color: "#605d57", roughness: 0.78 }),
     granite: std({ map: concreteTexture(), color: "#a8a196", roughness: 0.7 }),
-    windowGlimpse: new THREE.MeshBasicMaterial({ map: hallGlimpseTexture("igisoro"), color: new THREE.Color("#ffffff").multiplyScalar(tier === "lite" ? 0.5 : 0.62) }),
+    // glazed shopfronts / windows with the room behind them (P2-WLD-15: one interior-mapping shader for all of them)
+    interior: interiorGlassMaterial(tier),
     basinFloor: std({ map: concreteTexture(), color: "#6d6a64", roughness: 0.9 }),
     brass: std({ color: "#9a7a45", metalness: 1, roughness: 0.45 }),
     aluBrushed: std({ map: brushedAluTexture(), color: "#d4d8de", metalness: 0.85, roughness: 0.42 }),
@@ -140,7 +142,7 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     screenFrame: std({ color: "#15171d", metalness: 0.6, roughness: 0.35 }),
     asphalt: std({ map: concreteTexture(), color: "#3a3c40", roughness: 0.95 }),
     thatch: std({ map: thatchTexture(), bumpMap: thatchTexture(), bumpScale: 1.5, color: "#c2a47a", roughness: 1, side: THREE.DoubleSide }),
-    agaseke: std({ map: agasekeTexture(), roughness: 0.8 }),
+    agaseke: std({ map: agasekeTexture(), bumpMap: agasekeTextures().bump, bumpScale: 0.8, roughness: 0.88 }),
     hoarding: std({ map: hoardingTexture(), roughness: 0.7 }),
     "paint-orange": std({ color: "#F28C28", roughness: 0.7, side: THREE.DoubleSide }),
     "paint-teal": std({ color: "#159A9C", roughness: 0.7, side: THREE.DoubleSide }),
