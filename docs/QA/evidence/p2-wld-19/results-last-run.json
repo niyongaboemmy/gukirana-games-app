@@ -1,0 +1,136 @@
+{
+ "at": "2026-11-15T22:42:24.552Z",
+ "tier": "lite",
+ "views": [
+  {
+   "phase": "dawn",
+   "min": 328,
+   "ground": {
+    "calls": 192,
+    "fps": 53,
+    "tier": "lite",
+    "fx": false
+   },
+   "aerial": {
+    "calls": 263,
+    "fps": 60,
+    "tier": "lite",
+    "fx": false
+   }
+  },
+  {
+   "phase": "sunrise",
+   "min": 347,
+   "ground": {
+    "calls": 192,
+    "fps": 61,
+    "tier": "lite",
+    "fx": false
+   },
+   "aerial": {
+    "calls": 263,
+    "fps": 61,
+    "tier": "lite",
+    "fx": false
+   }
+  },
+  {
+   "phase": "morning",
+   "min": 480,
+   "ground": {
+    "calls": 191,
+    "fps": 61,
+    "tier": "lite",
+    "fx": false
+   },
+   "aerial": {
+    "calls": 264,
+    "fps": 61,
+    "tier": "lite",
+    "fx": false
+   }
+  },
+  {
+   "phase": "midday",
+   "min": 750,
+   "ground": {
+    "calls": 191,
+    "fps": 61,
+    "tier": "lite",
+    "fx": false
+   },
+   "aerial": {
+    "calls": 262,
+    "fps": 61,
+    "tier": "lite",
+    "fx": false
+   }
+  },
+  {
+   "phase": "golden",
+   "min": 1035,
+   "ground": {
+    "calls": 191,
+    "fps": 61,
+    "tier": "lite",
+    "fx": false
+   },
+   "aerial": {
+    "calls": 262,
+    "fps": 61,
+    "tier": "lite",
+    "fx": false
+   }
+  },
+  {
+   "phase": "sunset",
+   "min": 1068,
+   "ground": {
+    "calls": 192,
+    "fps": 60,
+    "tier": "lite",
+    "fx": false
+   },
+   "aerial": {
+    "calls": 263,
+    "fps": 61,
+    "tier": "lite",
+    "fx": false
+   }
+  },
+  {
+   "phase": "twilight",
+   "min": 1085,
+   "ground": {
+    "calls": 192,
+    "fps": 60,
+    "tier": "lite",
+    "fx": false
+   },
+   "aerial": {
+    "calls": 263,
+    "fps": 61,
+    "tier": "lite",
+    "fx": false
+   }
+  },
+  {
+   "phase": "night",
+   "min": 1260,
+   "ground": {
+    "calls": 192,
+    "fps": 61,
+    "tier": "lite",
+    "fx": false
+   },
+   "aerial": {
+    "calls": 263,
+    "fps": 61,
+    "tier": "lite",
+    "fx": false
+   }
+  }
+ ],
+ "strip": [],
+ "notes": []
+}

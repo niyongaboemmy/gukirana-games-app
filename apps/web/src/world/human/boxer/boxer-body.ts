@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { ArmBones } from "../procedural";
+import type { TorsoSlices } from "../boxing/rig";
 import { boxerMaterial, type BoxerColors, type BoxerUniforms } from "./boxer-material";
 
 /**
@@ -40,8 +41,12 @@ export interface BoxerSpec {
   /** dithered fade in / out (staff popping in and out of the draw set): the material uses alpha hashing */
   fadeable?: boolean;
   face: { beard: number; brow: number };
+  /** P3-FGT-14: the player's face shape as face targets ("shape:round", "nose:broad", …; facePickOf) */
+  facePick?: string[];
   /** cast shadows */
   shadows?: boolean;
+  /** the body alone, nothing covered (the lab's skinning view) */
+  bare?: boolean;
 }
 
 export interface BoxerInstance {
@@ -50,6 +55,8 @@ export interface BoxerInstance {
   material: THREE.MeshStandardMaterial & { userData: { u: BoxerUniforms } };
   uniforms: BoxerUniforms;
   arms: ArmBones[];
+  /** the torso slices of this body type (rig keep-out; build.mjs torsoSlices) */
+  torso: TorsoSlices | null;
   bone(name: string): THREE.Bone | null;
   dispose(): void;
 }
@@ -58,17 +65,18 @@ interface Extras {
   boxerBody?: number;
   morphs: string[];
   boneMorph: Record<string, number[][]>;
-  landmarks: { headC: number[]; eyeL: number[]; eyeR: number[]; kit?: number[] };
+  torsoMorph?: Record<string, number[][]>;
+  landmarks: { headC: number[]; eyeL: number[]; eyeR: number[]; kit?: number[]; torso?: number[][] };
 }
 
 /** Build one person from the loaded GLB scene (the GLTF stays shared and untouched). */
 export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: BoxerSpec): BoxerInstance {
   const scene = cloneSkinned(gltfScene) as THREE.Object3D;
   const plan = OUTFIT_MESHES[spec.outfit];
-  const wanted = plan.meshes.filter((n) => !(spec.noHeadgear && n === "kit_headgear") && !(spec.noGloves && n === "kit_gloves"));
-  let cover = plan.cover;
+  const wanted = spec.bare ? ["body"] : plan.meshes.filter((n) => !(spec.noHeadgear && n === "kit_headgear") && !(spec.noGloves && n === "kit_gloves"));
+  let cover = spec.bare ? 0 : plan.cover;
   if (spec.noGloves) cover &= ~COVER.gloves;
-  if (spec.noHeadgear && plan.headgear) {
+  if (spec.noHeadgear && plan.headgear && !spec.bare) {
     // no headgear: the hair shows (the short hair cap over the scalp)
     cover = (cover & ~COVER.headgear) | COVER.hair;
     wanted.push("hair_cap");
@@ -91,8 +99,12 @@ export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: Boxer
     const g = m.geometry.clone();
     const pos = g.getAttribute("position") as THREE.BufferAttribute;
     const morphs = g.morphAttributes.position ?? [];
+    // targets by name (the body mesh also carries the face-shape targets after the body types)
+    const dict = m.morphTargetDictionary ?? {};
+    const byIndex: number[] = [];
+    for (const [n, k] of Object.entries(dict)) byIndex[k] = names.includes(n) ? (w[names.indexOf(n)] ?? 0) : (spec.facePick?.includes(n) ? FACE_WEIGHT : 0);
     for (let k = 0; k < morphs.length; k++) {
-      const wk = w[k] ?? 0;
+      const wk = Object.keys(dict).length ? (byIndex[k] ?? 0) : (w[k] ?? 0);
       if (wk < 1e-3) continue;
       const d = morphs[k]!;
       for (let i = 0; i < pos.count; i++) pos.setXYZ(i, pos.getX(i) + d.getX(i) * wk, pos.getY(i) + d.getY(i) * wk, pos.getZ(i) + d.getZ(i) * wk);
@@ -186,12 +198,37 @@ export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: Boxer
     material,
     uniforms: material.userData.u,
     arms,
+    torso: torsoOf(extras, names, w),
     bone,
     dispose() {
       merged.dispose();
       material.dispose();
     },
   };
+}
+
+/** the torso slices for these body-type weights: base + Σ w · morph delta (null on a GLB without them) */
+export function torsoOf(extras: Pick<Extras, "landmarks" | "torsoMorph">, names: string[], w: number[]): TorsoSlices | null {
+  const base = extras.landmarks.torso;
+  if (!base?.length) return null;
+  return base.map((row, i) => {
+    const r = row.slice() as [number, number, number, number];
+    names.forEach((n, k) => {
+      const d = extras.torsoMorph?.[n]?.[i];
+      const wk = w[k] ?? 0;
+      if (d && wk > 1e-3) for (let a = 0; a < 4; a++) r[a] = r[a]! + (d[a] ?? 0) * wk;
+    });
+    return r;
+  });
+}
+
+/** how much of a face target the boxer head takes (the targets are already moderate: build.mjs FACE_MORPHS) */
+const FACE_WEIGHT = 1;
+
+/** the face-shape targets of an avatar face (world/face.ts): shape, eyes, nose, lips (the base options have none) */
+export function facePickOf(face: { shape?: string; eyes?: string; nose?: string; lips?: string } | undefined): string[] {
+  if (!face) return [];
+  return [`shape:${face.shape}`, `eyes:${face.eyes}`, `nose:${face.nose}`, `lips:${face.lips}`];
 }
 
 function boneOf(sk: THREE.Skeleton, name: string): THREE.Bone | null {

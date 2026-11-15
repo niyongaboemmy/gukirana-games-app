@@ -22,6 +22,8 @@ import { CLIMB_S, climbPose } from "./climb";
 import { IMPOSTOR_POSES, impostorGeometry, impostorMaterial } from "./impostor-geometry";
 import { drainMyEvents, useFightBridge } from "./bridge";
 import { RING_BY_ID, RINGS, type RingPlace } from "./plan";
+import { STOOL_PLACE_S, stoolSpot } from "@/rooms/fight/ring-kit-core";
+import { stoolGeometry } from "@/rooms/fight/ring-kit-geometry";
 
 /**
  * Fighters in the rings (P3-FGT-01 §6, §4.5):
@@ -381,9 +383,14 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
       let tx: number, tz: number;
       const counted = phase === "knockdown" && down !== -1 && down !== i;
       if (rest) {
-        const at = cornerAt(place, s, corner);
-        tx = at.x - place.x;
-        tz = at.z - place.z;
+        // P3-FGT-14: on the stool the second set down in the corner (ring-kit-core stoolSpot), hips over its seat: the
+        // seated pose has the hips 6 cm behind the root, so the root stands 9 cm in front of the stool's centre
+        const st = stoolSpot({ x: place.x, z: place.z, rotY: place.rotY, size: place.feature ? "pro" : "training" }, i === 0 ? "red" : "blue");
+        const cx = place.x - st.x,
+          cz = place.z - st.z;
+        const cl = Math.hypot(cx, cz) || 1;
+        tx = st.x + (cx / cl) * STOOL_SEAT_OFFSET - place.x;
+        tz = st.z + (cz / cl) * STOOL_SEAT_OFFSET - place.z;
       } else if (counted) {
         const at = neutralCornerAt(place, s, corner);
         tx = at.x - place.x;
@@ -490,7 +497,10 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
       // signals over the working stance: the wave-off on a stoppage / KO, a point at the fouler on a warning
       const waving = t - ph.waveAt < 1.6;
       const signalling = !waving && t - ph.signalAt < 1.4 && phase === "round";
-      const clip = waving ? "refWave" : signalling ? "refSignal" : spot.clip;
+      // the count on the fingers: 1–5 on one hand, 6–10 with both hands up (count-signs.ts)
+      rb.count = phase === "knockdown" ? snap.count : undefined;
+      const counting = spot.clip === "refCount" && (snap.count ?? 0) >= 6 ? "refCount2" : spot.clip;
+      const clip = waving ? "refWave" : signalling ? "refSignal" : counting;
       const off = waving ? t - ph.waveAt : signalling ? t - ph.signalAt : phaseSince;
       rb.cmd = walking ? null : { clip, offset: off, speed: 1, intensity: 1, hold: 0, key: `${clip}:${phase}:${waving ? ph.waveAt : signalling ? ph.signalAt : 0}` };
       if (signalling) {
@@ -556,10 +566,15 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
   );
 }
 
+/** the seated pose's hips sit 6 cm behind its root: the root stands this far in front of the stool's centre (m) */
+const STOOL_SEAT_OFFSET = 0.09;
+
 /**
  * The corner team between rounds (P3-FGT-13): per corner a coach (advice, hands working) and a second (towel / water)
  * on the apron outside the ropes, leaning in over the stool — staff only, in staff polos, never players. They step up
  * for the rest and are gone while the round is on (kept mounted, hidden: no build hitch at every bell).
+ * P3-FGT-14: at the bell the second lifts the stool over the ropes and sets it down in the corner (STOOL_PLACE_S); the
+ * ring kit's stool takes over once it is down (the hall delays its rest flag by as long).
  */
 function CornerTeam({ place, corner, ring }: { place: RingPlace; corner: Corner; ring: RingId }) {
   const s = corner === "red" ? -1 : 1;
@@ -567,13 +582,20 @@ function CornerTeam({ place, corner, ring }: { place: RingPlace; corner: Corner;
   const looks = useMemo(() => [seededLook(`coach-${ring}-${corner}`, "#7a7a7a"), seededLook(`second-${ring}-${corner}`, "#7a7a7a")], [ring, corner]);
   const motions = useMemo(() => [new BoxingMotion({ base: "cornerCoach" }), new BoxingMotion({ base: "cornerTowel" })], []);
   const paused = useMemo(() => ({ current: true }), []);
-  useFrame(() => {
-    const st = useFightBridge.getState();
-    const snap = st.mine?.ring === ring ? st.mine.snap : st.watched?.ring === ring ? st.watched.snap : null;
-    const on = snap?.phase === "rest";
-    paused.current = !on;
-    if (grp.current) grp.current.visible = on;
-  });
+  const carry = useMemo(() => {
+    const geo = stoolGeometry();
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, color: corner === "red" ? "#b3242b" : "#1f4fb0" });
+    return { geo, mat };
+  }, [corner]);
+  useEffect(
+    () => () => {
+      carry.geo.dispose();
+      carry.mat.dispose();
+    },
+    [carry],
+  );
+  const stool = useRef<THREE.Mesh>(null);
+  const since = useRef(-1);
   // on the apron at the corner post (outside the ropes), one each side of it, facing the stool
   const spots = useMemo(() => {
     const c = cornerAt(place, s, place.half - 0.1);
@@ -581,8 +603,30 @@ function CornerTeam({ place, corner, ring }: { place: RingPlace; corner: Corner;
     const side = (k: number) => ({ x: c.x + Math.cos(toward) * 0.42 * k, z: c.z - Math.sin(toward) * 0.42 * k });
     return [side(1), side(-1)].map((p) => ({ ...p, yaw: toward }));
   }, [place, s]);
+  const carryTo = useMemo(() => stoolSpot({ x: place.x, z: place.z, rotY: place.rotY, size: place.feature ? "pro" : "training" }, corner), [place, corner]);
+  useFrame(() => {
+    const st = useFightBridge.getState();
+    const snap = st.mine?.ring === ring ? st.mine.snap : st.watched?.ring === ring ? st.watched.snap : null;
+    const on = snap?.phase === "rest";
+    paused.current = !on;
+    if (grp.current) grp.current.visible = on;
+    const now = performance.now() / 1000;
+    if (!on) since.current = -1;
+    else if (since.current < 0) since.current = now;
+    const m = stool.current;
+    if (!m) return;
+    const k = on ? (now - since.current) / STOOL_PLACE_S : 2;
+    m.visible = on && k < 1;
+    if (!m.visible) return;
+    // from the second's hands on the apron, up over the top rope, down onto the canvas at the stool spot
+    const e = k * k * (3 - 2 * k);
+    const a = spots[1]!;
+    m.position.set(a.x + (carryTo.x - a.x) * e, place.canvasY + 0.62 * (1 - e) + 0.75 * Math.sin(Math.PI * Math.min(1, e * 1.15)), a.z + (carryTo.z - a.z) * e);
+    m.rotation.set(0.25 * Math.sin(Math.PI * e), carryTo.yaw, 0);
+  });
   return (
     <group ref={grp} visible={false}>
+      <mesh ref={stool} geometry={carry.geo} material={carry.mat} visible={false} castShadow />
       {spots.map((p, k) => (
         <group key={k} position={[p.x, place.canvasY, p.z]} rotation={[0, p.yaw, 0]}>
           <BoxerAvatar look={looks[k]!} outfit="staff" polo={k === 0 ? "#4a2f22" : "#2b2b2e"} motion={motions[k]!} clock={ringNow} seed={hashOf(`${ring}-${corner}-${k}`)} paused={paused} />

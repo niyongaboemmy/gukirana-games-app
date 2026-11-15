@@ -1,33 +1,82 @@
 "use client";
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Environment, Lightformer, Sky } from "@react-three/drei";
 import { Bloom, EffectComposer, ToneMapping } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
 import * as THREE from "three";
 import type { Tier } from "./materials";
 import { Clouds } from "./Clouds";
+import { NightLights } from "./NightLights";
+import { tod } from "./time-of-day/store";
+import { followCamera, skyGeometry, skyMaterial, updateSky } from "./time-of-day/sky";
+import { TodEnvironment } from "./time-of-day/TodEnvironment";
 
 /**
- * Morning in Musanze: low sun from the east-south-east, cool hazy sky, mist in the valleys.
- * Lighting = 1 shadow-casting directional sun + hemisphere fill + a LOCAL procedural environment map (drei
- * <Environment> rendering <Sky> + <Lightformer>s once into a cube map, no HDRI download) for PBR reflections.
- * Atmospheric perspective comes from exponential fog matched to the sky's horizon colour.
+ * Musanze daylight, twilight and night (P2-WLD-19, docs/TIME-OF-DAY.md): everything follows the time-of-day state
+ * (`tod`, world/time-of-day/store.ts) — the real Kigali clock by default, or the player's preset.
+ * Lighting = 1 shadow-casting directional KEY light (the sun by day, the moon by night: one light, so no shader
+ * recompiles; its intensity passes through zero at dusk before it changes body) + hemisphere fill + a local
+ * procedural environment map of the same sky (re-rendered only when the light changed) for PBR reflections.
+ * Atmospheric perspective comes from exponential fog matched to the sky's horizon colour per phase.
  */
-const SUN_AZ = (104 * Math.PI) / 180;
-const SUN_EL = (17 * Math.PI) / 180;
-export const SUN_DIR = new THREE.Vector3(Math.cos(SUN_EL) * Math.sin(SUN_AZ), Math.sin(SUN_EL), -Math.cos(SUN_EL) * Math.cos(SUN_AZ));
+
+/** Direction towards the key light (live: follows the time of day; the classic morning when the flag is off). */
+export const SUN_DIR = tod.keyDir;
+/** Clear-day horizon / fog colour (kept for code that needs a static daytime value). */
 export const FOG_COLOR = "#c4d2dc";
-/** Clear-day fog density (the morning mist thickens it: world/PlazaActivities MorningMist). */
+/** Clear-day fog density (the morning mist thickens it: world/PlazaActivities MorningMist; per phase: tod.look.fogK). */
 export const fogDensity = (tier: Tier) => (tier === "lite" ? 0.0012 : 0.00085);
 
-function SkyDome() {
-  const sun = useMemo(() => SUN_DIR.clone().multiplyScalar(400), []);
-  // clearer, deeper highland blue (Musanze at ~1,850 m): less Rayleigh haze and turbidity than a lowland sky
-  return <Sky distance={2400} sunPosition={sun} turbidity={2.4} rayleigh={2.0} mieCoefficient={0.004} mieDirectionalG={0.84} />;
+const reducedMotion = () => {
+  try {
+    return typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    return false;
+  }
+};
+
+/** The sky dome (world/time-of-day/sky.ts): one draw at the far plane. */
+function SkyDome({ tier }: { tier: Tier }) {
+  const mesh = useMemo(() => {
+    const m = new THREE.Mesh(skyGeometry(), skyMaterial({ lite: tier === "lite" }));
+    followCamera(m);
+    m.name = "sky";
+    return m;
+  }, [tier]);
+  useEffect(() => () => (mesh.material as THREE.Material).dispose(), [mesh]);
+  const twinkle = useMemo(() => (tier === "lite" || reducedMotion() ? 0 : 1), [tier]);
+  useFrame(({ clock }) => updateSky(mesh.material as THREE.ShaderMaterial, { twinkle, time: clock.elapsedTime }));
+  return <primitive object={mesh} />;
 }
 
-/** Sun with a shadow frustum that follows the player (crisp shadows near you, texel-snapped to avoid shimmer). */
+/** Fog colour per phase (the density is the morning mist's: PlazaActivities MorningMist × tod.look.fogK). */
+function FogTint() {
+  const scene = useThree((s) => s.scene);
+  useFrame(() => {
+    const f = scene.fog;
+    if (f) f.color.setRGB(...tod.look.fog);
+  });
+  return null;
+}
+
+function Hemisphere() {
+  const ref = useRef<THREE.HemisphereLight>(null);
+  useFrame(() => {
+    const h = ref.current;
+    if (!h) return;
+    const L = tod.look;
+    h.color.setRGB(...L.hemiSky);
+    h.groundColor.setRGB(...L.hemiGround);
+    h.intensity = L.hemiI;
+  });
+  return <hemisphereLight ref={ref} args={["#c9def0", "#4a5236", 0.45]} />;
+}
+
+/**
+ * Key light with a shadow frustum that follows the player (crisp shadows near you, texel-snapped to avoid shimmer).
+ * Its direction comes from the sun / moon position; in "Now" mode it is re-aimed only when it moved ≥ 0.1°
+ * (≈ every 25 s: a 3 cm shift 20 m from a caster, under one shadow texel), so the shadow map never swims.
+ */
 const look = new THREE.Vector3();
 function Sun({ tier }: { tier: Tier }) {
   const light = useRef<THREE.DirectionalLight>(null);
@@ -35,6 +84,8 @@ function Sun({ tier }: { tier: Tier }) {
   const size = 46;
   const map = 2048;
   const frame = useRef(0);
+  const keyVer = useRef(-1);
+  const dir = useRef(new THREE.Vector3().copy(tod.keyDir));
   // (the aerial view's throttled shadow map, below, hands auto-updates back when the sun unmounts)
   useEffect(() => () => void (gl.shadowMap.autoUpdate = true), [gl]);
   useEffect(() => {
@@ -48,6 +99,15 @@ function Sun({ tier }: { tier: Tier }) {
   useFrame(() => {
     const l = light.current;
     if (!l) return;
+    const L = tod.look;
+    l.color.setRGB(...L.keyCol);
+    l.intensity = L.keyI;
+    l.shadow.intensity = L.shadow;
+    const turned = keyVer.current !== tod.keyVersion;
+    if (turned) {
+      keyVer.current = tod.keyVersion;
+      dir.current.copy(tod.keyDir);
+    }
     // high up (campus aerial view): centre the shadows where the camera looks and widen them to cover the campus
     const h = camera.position.y;
     const half = h > 40 ? Math.min(220, Math.max(size, h * 0.55)) : size;
@@ -74,14 +134,16 @@ function Sun({ tier }: { tier: Tier }) {
     const cz = Math.round(fz / texel) * texel;
     const reach = 120 + half;
     // high up, people and props are a few pixels: the campus shadow map (≈ 70 shadow-pass draws) is re-rendered
-    // when the shadow frame moves and otherwise every 6th frame, instead of every frame (P2-WLD-11)
-    const moved = l.target.position.x !== cx || l.target.position.z !== cz;
+    // when the shadow frame or the light moves and otherwise every 6th frame, instead of every frame (P2-WLD-11);
+    // with no shadow to see (night without a moon) it is not re-rendered at all
+    const moved = l.target.position.x !== cx || l.target.position.z !== cz || turned;
     if (h > 60) {
       gl.shadowMap.autoUpdate = false;
-      if (moved || ++frame.current % 6 === 0) gl.shadowMap.needsUpdate = true;
+      if (L.shadow > 0.01 && (moved || ++frame.current % 6 === 0)) gl.shadowMap.needsUpdate = true;
     } else if (!gl.shadowMap.autoUpdate) gl.shadowMap.autoUpdate = true;
+    const d = dir.current;
     l.target.position.set(cx, 0, cz);
-    l.position.set(cx + SUN_DIR.x * reach, SUN_DIR.y * reach, cz + SUN_DIR.z * reach);
+    l.position.set(cx + d.x * reach, d.y * reach, cz + d.z * reach);
   });
   return (
     <directionalLight
@@ -106,22 +168,14 @@ function Sun({ tier }: { tier: Tier }) {
 export function Lighting({ tier }: { tier: Tier }) {
   return (
     <>
-      <SkyDome />
+      <SkyDome tier={tier} />
       <fogExp2 attach="fog" args={[FOG_COLOR, fogDensity(tier)]} />
-      <hemisphereLight args={["#c9def0", "#4a5236", 0.45]} />
+      <FogTint />
+      <Hemisphere />
       <Sun tier={tier} />
-      <Environment frames={1} near={1} far={3000} resolution={tier === "lite" ? 32 : 128} environmentIntensity={0.55}>
-        <SkyDome />
-        {/* sun disc + warm bounce from the east, cool sky panels, dark-green ground */}
-        <Lightformer form="circle" intensity={6} color="#ffe2b8" position={SUN_DIR.clone().multiplyScalar(50).toArray()} scale={10} target={[0, 0, 0]} />
-        <Lightformer form="rect" intensity={1.2} color="#dbe8f5" position={[0, 40, -60]} scale={[120, 30, 1]} target={[0, 0, 0]} />
-        <Lightformer form="rect" intensity={0.6} color="#ffd6a8" position={[-60, 10, 20]} scale={[60, 12, 1]} target={[0, 0, 0]} />
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2, 0]}>
-          <circleGeometry args={[400, 32]} />
-          <meshBasicMaterial color="#3e4a33" />
-        </mesh>
-      </Environment>
+      <TodEnvironment resolution={tier === "lite" ? 32 : 128} />
       <Clouds tier={tier} />
+      <NightLights tier={tier} fogD={fogDensity(tier)} />
     </>
   );
 }

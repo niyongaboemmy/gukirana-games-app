@@ -31,6 +31,7 @@ import { useSession } from "@/lib/session";
 import { KeyHint, PROMPT_BTN, promptWrap } from "./Prompt";
 import { openQuickMatch, usePhoneHud } from "./usePhoneHud";
 import { useGlassTier } from "@/ui/glass";
+import { TimeOfDayChip } from "./TimeOfDayChip";
 
 
 /**
@@ -230,8 +231,9 @@ export function WorldHud() {
         </button>
       )}
 
-      {/* top-right currency + settings */}
+      {/* top-right time of day (P2-WLD-19) + currency + settings */}
       <div className="absolute right-[max(12px,env(safe-area-inset-right))] top-3 flex items-center gap-2 phone:top-2">
+        <TimeOfDayChip />
         <button type="button" onClick={() => useWalletSheet.getState().set(true)} aria-label={`Open your wallet: ${stars} Stars`} className="glass press num pointer-events-auto flex items-center gap-2 rounded-card px-4 py-2.5 text-lg font-extrabold tabular-nums phone:gap-1.5 phone:rounded-full phone:py-1 phone:pl-1 phone:pr-3 phone:text-sm" title="Your wallet (B) · Stars are practice currency with no cash value">
           <span className="grid size-7 place-items-center rounded-full bg-gradient-to-b from-gold to-warning text-ink-900 shadow-[inset_0_1px_0_rgb(255_255_255/.5)] phone:size-6">
             <Star size={15} strokeWidth={2} fill="currentColor" />

@@ -6,6 +6,7 @@ import { selfPose, useWorld } from "@/lib/world-store";
 import { ACTIVITY_OBSTACLES, NOTICE_BOARD, birdHomes, birdState, flockSettled, fogFactor, kigaliHour, mistLevel, mistUniform, someoneNear } from "./activities";
 import { circle, rect, setObstacles } from "./obstacles";
 import { fogDensity } from "./Lighting";
+import { tod } from "./time-of-day/store";
 import { noticeBoardTexture } from "./textures";
 import { birdFlutter } from "./Ambience";
 import { isOnScreen, useArea } from "./stage";
@@ -336,14 +337,16 @@ function MorningMist({ tier }: { tier: Tier }) {
   const last = useRef(-10);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
-    if (t - last.current < 2 || !isOnScreen(area)) return; // (a hall on screen owns the fog)
+    // (every frame while a time-of-day transition runs, so the fog never steps; otherwise every 2 s)
+    if ((t - last.current < 2 && !tod.transitioning) || !isOnScreen(area)) return; // (a hall on screen owns the fog)
     last.current = t;
     // dev QA: window.__gkHour pins the hour (screenshots of the morning mist)
     const qa = process.env.NODE_ENV !== "production" ? (window as unknown as { __gkHour?: number }).__gkHour : undefined;
-    const mist = mistLevel(qa ?? kigaliHour(Date.now()));
+    // the hour the player sees (P2-WLD-19: the real Kigali clock, or their time-of-day preset)
+    const mist = mistLevel(qa ?? kigaliHour(tod.t));
     mistUniform.value = mist;
     const fog = scene.fog;
-    if (fog instanceof THREE.FogExp2) fog.density = fogDensity(tier) * fogFactor(mist);
+    if (fog instanceof THREE.FogExp2) fog.density = fogDensity(tier) * fogFactor(mist) * tod.look.fogK;
   });
   return null;
 }

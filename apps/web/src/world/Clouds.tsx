@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useMemo } from "react";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Tier } from "./materials";
 import { rng } from "./textures";
 import { StaticMerge } from "./static-merge";
+import { tod } from "./time-of-day/store";
 
 /**
  * Daytime clouds (P1-WLD-03): soft cumulus banks billowing over the Virunga volcanoes (they build up over the peaks
@@ -131,6 +133,15 @@ export function Clouds({ tier }: { tier: Tier }) {
       }),
     [mats],
   );
+  // lit by the time of day (P2-WLD-19): white by day, peach / orange-pink at sunset, dark blue-grey at night (thinner)
+  // (the materials have a shader hook, so the outdoor StaticMerge keys them by uuid: recolouring keeps them merged)
+  useFrame(() => {
+    const L = tod.look;
+    for (const m of mats) {
+      m.color.setRGB(...L.cloud);
+      m.opacity = L.cloudA;
+    }
+  });
   // (static billboards sharing three materials: batched into three draw calls)
   return (
     <StaticMerge>

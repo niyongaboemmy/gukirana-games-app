@@ -2,6 +2,7 @@
 import { Suspense, useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { tintByDaylight, todUniforms } from "./time-of-day/hooks";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { mistTexture, rng } from "./textures";
 import type { Tier } from "./materials";
@@ -765,7 +766,8 @@ function Mist({ tier }: { tier: Tier }) {
     const geo = mergeGeometries(parts, false)!;
     parts.forEach((g) => g.dispose());
     const uTime = { value: 0 };
-    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, color: "#f4f7fa", fog: false });
+    // (unlit: dimmed and tinted with the time of day, P2-WLD-19 — mist banks must not glow white at night)
+    const mat = tintByDaylight(new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, color: "#f4f7fa", fog: false }));
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = uTime;
       sh.uniforms.uMorning = mistUniform; // P2-WLD-09: the banks thicken with the Musanze morning mist
@@ -873,16 +875,20 @@ export function Landscape({ tier }: { tier: Tier }) {
       // aerial perspective: blue-grey haze and loss of saturation with distance (km-scale), output (sRGB) space;
       // thicker while the Musanze morning mist lies in the valleys (P2-WLD-09)
       sh.uniforms.uMorning = mistUniform;
+      // the haze colour follows the time of day (P2-WLD-19: blue-grey by day, peach at sunset, deep blue at night)
+      sh.uniforms.uGkHaze = todUniforms.uGkHaze;
+      sh.uniforms.uGkFar = todUniforms.uGkFar;
       sh.fragmentShader = sh.fragmentShader
-        .replace("#include <common>", "#include <common>\nuniform float uMorning;")
+        .replace("#include <common>", "#include <common>\nuniform float uMorning;\nuniform vec3 uGkHaze;\nuniform float uGkFar;")
         .replace(
           "#include <fog_fragment>",
           `#include <fog_fragment>
         {
           float gkD = length(vViewPosition);
           float gkK = 1.0 - exp(-gkD * 0.00046 * (1.0 + 1.6 * uMorning));
+          gl_FragColor.rgb *= uGkFar;
           vec3 gkG = vec3(dot(gl_FragColor.rgb, vec3(0.3, 0.59, 0.11)));
-          gl_FragColor.rgb = mix(mix(gl_FragColor.rgb, gkG, 0.45 * gkK), vec3(0.706, 0.765, 0.812), gkK);
+          gl_FragColor.rgb = mix(mix(gl_FragColor.rgb, gkG, 0.45 * gkK), uGkHaze, gkK);
         }`,
         );
     };

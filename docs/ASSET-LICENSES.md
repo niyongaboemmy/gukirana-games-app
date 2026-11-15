@@ -125,7 +125,7 @@ See docs/PEOPLE-BEHAVIOUR.md.
 
 | File | Source assets | Author | Licence |
 | --- | --- | --- | --- |
-| `boxer-m.glb`, `boxer-f.glb` | MakeHuman 1.x: `makehuman/data/3dobjs/base.obj` (base mesh hm08), `data/targets/macrodetails/*.target` (gender / age / muscle / weight / height / proportions / ethnic macro targets), `data/rigs/default.mhskel` + `default_weights.mhw` (skeleton and skin weights) — https://github.com/makehumancommunity/makehuman at commit `a8bc2d54ff0ac92e78ff71431b1023eda42bf482` | MakeHuman team (Data Collection AB, Joel Palmius, Jonas Hauquier and contributors) | **CC0 1.0** (`LICENSE.ASSETS.md` of that repository; every target / weights file carries the CC0 notice) |
+| `boxer-m.glb`, `boxer-f.glb` | MakeHuman 1.x: `makehuman/data/3dobjs/base.obj` (base mesh hm08), `data/targets/macrodetails/*.target` (gender / age / muscle / weight / height / proportions / ethnic macro targets), `data/rigs/default.mhskel` + `default_weights.mhw` (skeleton and skin weights), and (P3-FGT-14) face targets from `data/targets/head`, `eyes`, `nose` and `mouth` (the player's face shape on the boxer head) — https://github.com/makehumancommunity/makehuman at commit `a8bc2d54ff0ac92e78ff71431b1023eda42bf482` | MakeHuman team (Data Collection AB, Joel Palmius, Jonas Hauquier and contributors) | **CC0 1.0** (`LICENSE.ASSETS.md` of that repository; every target / weights file carries the CC0 notice) |
 
 - **What we made from them** (`apps/web/scripts/boxer/build.mjs`, run with `MH_DIR=<checkout>/makehuman/data`):
   - the body: the base mesh's `body` group plus the eye, eyelash and teeth helpers, morphed with the macro targets to
@@ -133,11 +133,15 @@ See docs/PEOPLE-BEHAVIOUR.md.
     targets (heavy, slim, mature) are stored with the matching joint offsets;
   - the skeleton: the 163 MakeHuman bones merged into 64 bones named like the Rocketbox `Bip01` rig (so the boxing
     rig layer drives it), keeping jaw, eyelids, brows and mouth corners for the face; skin weights merged
-    accordingly (top four per vertex);
+    accordingly (top four per vertex); P3-FGT-14: the reference rig's hierarchy (clavicles under the neck, the spine
+    pivots at the reference heights), four corrective helper bones (shoulder helpers, forearm twists) with a shoulder
+    weight corrective (docs/FIGHT-REALISM-V4.md §1);
+  - 16 sparse face-shape morph targets (face shape, eyes, nose, lips choices of the avatar), each a weighted sum of
+    MakeHuman face targets; the morph targets are stored as normalised int16 (KHR_mesh_quantization);
   - the garments, generated from the body itself (no third-party clothing): vest with arm holes and neckline,
     knee-length trunks (from the `helper-tights` group), high boots (a lofted last), socks, hand wraps, laced gloves,
-    padded open-face headgear, the referee's shirt / collar / bow tie / trousers / shoes, the staff polo and a short
-    hair cap;
+    padded open-face headgear, the referee's shirt / collar / bow tie / trousers / shoes (P3-FGT-14: draped cloth
+    volume, a stand collar with wings, straight-leg trousers), the staff polo and a short hair cap;
   - vertex data for our own shader: material slot, cavity (muscle definition), hit zones, face paint (lips, brows,
     eye sockets, beard). No textures are shipped.
 - MakeHuman skins (textures), proxies, clothes and hair are **not** used (they are not in the code repository and

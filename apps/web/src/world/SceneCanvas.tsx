@@ -21,6 +21,7 @@ import { AreaContext, areaOf, areaTopUp, getArea, hallOf, isOnScreen, knownAreas
 import { useDoorway } from "./doorway";
 import { StaticMerge } from "./static-merge";
 import { GlassCapture } from "./GlassCapture";
+import { TimeOfDay } from "./time-of-day/TimeOfDay";
 import { HallActors, HallInterior } from "@/rooms/RoomCanvas";
 import { HALLS, type HallGame } from "@/rooms/layouts";
 import { selfPose, useWorld } from "@/lib/world-store";
@@ -591,6 +592,8 @@ function Stage() {
       <WarmKeeper />
       {/* what the halls' glass shows: their real interiors and forecourts, captured once (P2-WLD-18) */}
       <GlassCapture />
+      {/* the time of day (P2-WLD-19): sun, moon, sky, lights for every area, the real Kigali clock or a preset */}
+      <TimeOfDay />
     </>
   );
 }
