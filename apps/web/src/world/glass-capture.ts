@@ -2,18 +2,19 @@ import { HALLS, type HallGame } from "@/rooms/layouts";
 import { PORTALS, ringOf, ringPoint } from "./layout";
 
 /**
- * What you see through a building's glass is what is really there (P2-WLD-18), as data. Pure: no three.js.
+ * The hall glass as data (P2-WLD-18, P2-WLD-20). Pure: no three.js.
  *
- * Every glazed facade on the campus belongs to one hall. Through its glass you see THAT hall's real interior (the
- * same scene you walk into: world/GlassCapture renders it once into a cube map from just inside its door, with the
- * hall's own lights, and the glass shader ray-marches the captured colour + distance), and on its outside face a
- * Fresnel reflection of the real plaza in front of it (a second, small cube captured from the forecourt).
+ * Every glazed facade on the campus belongs to one hall and is the same smoked glass (world/glazing.ts): a near-black
+ * body and, on its outside face, a Fresnel reflection of the real plaza in front of it (a small cube captured once
+ * from the forecourt, world/GlassCapture). Nothing of the room behind is ever shown through it: the interior captures
+ * of P2-WLD-18 (re-projected at depth through the open vestibule doorways and, dimly, through the glass) smeared and
+ * tore at the edges of what the capture point could see, so the doors are closed smoked glass too (P2-WLD-20).
  *
  * Frames. A building's LOCAL frame is the District one (door on its ring point at the origin, +z towards the
  * fountain, world/footprints.ts). The hall's ROOM frame is its interior (rooms/layouts.ts: x ∈ ±w/2, y ∈ [0, h],
  * z ∈ ±d/2, the door in the south wall z = +d/2). A pane maps local → room by `room = local + (door.x, 0, d/2 − zRef)`:
- * the plane z = zRef of the facade (the glass line, or the inner doorway of a vestibule) is the room's south wall,
- * exactly as walking through the door puts you just inside it (the exterior wing is not part of the interior).
+ * the plane z = zRef of the facade (the glass line) is the room's south wall, exactly as walking through the door puts
+ * you just inside it. Vision glass above the room's ceiling or beyond its side walls is drawn as back-painted spandrel.
  */
 
 /** halls with glazing on the campus (the Boxing hall is reached through the Fight lobby, it has no facade) */
@@ -23,13 +24,13 @@ export const isGlazed = (g: string): g is GlazedHall => (GLAZED as readonly stri
 
 /**
  * How a pane is drawn (carried in its UV x, at the centre of an integer cell so merging keeps it exact):
- *  - `glass`: vision glass, the real interior behind it (once captured), a Fresnel reflection of the plaza on it;
- *  - `doorway`: the open inner doorway at the end of a door vestibule (no glass: the interior, no reflection);
+ *  - `glass`: vision glass in a facade: smoked, the plaza reflected on it, the facade's pane grid where it has none;
+ *  - `door`: a door leaf (the sliding doors, the vestibule's inner doors): the same smoked glass, no grid, never
+ *    spandrel (it moves: no room-frame test);
  *  - `blind`: glazing whose room is not modelled behind it (side / back windows): closed woven blinds behind the glass;
  *  - `spandrel`: back-painted opaque glass (in front of a slab, a ceiling void or a wall): reflection only.
- * Vision glass above the room's ceiling or beyond its side walls turns into spandrel by itself (shader).
  */
-export const PANE_MODES = ["glass", "doorway", "blind", "spandrel"] as const;
+export const PANE_MODES = ["glass", "door", "blind", "spandrel"] as const;
 export type PaneMode = (typeof PANE_MODES)[number];
 
 /** UV of a pane's vertices: x = mode cell, y = zRef (local z of the plane that maps to the room's south wall) */
@@ -77,40 +78,10 @@ export function localToRoom(game: GlazedHall, p: { x: number; y: number; z: numb
   return { x: p.x + L.door.x, y: p.y, z: p.z - zRef + L.size.d / 2 };
 }
 
-export interface Projection {
-  /** room box the march is bounded by (m, room frame) */
-  min: [number, number, number];
-  max: [number, number, number];
-  /**
-   * where the interior is captured from (room frame): on the door axis OUTSIDE the south wall, at the distance and height
-   * a visitor looks in from. The south wall, the door and everything outside it (userData.gkSouth) are left out of the
-   * capture, so the room is seen through the door line exactly as from the forecourt.
-   */
-  at: [number, number, number];
-  /** distance encoding range of the capture's alpha channel (m): from the capture point to the far corners */
-  maxD: number;
-  /** height the march stops at (under the ceiling fixtures; the ceiling above it is box-projected) */
-  cut: number;
-}
-
-/** capture point: CAPTURE_OUT m outside the south wall on the door axis, at eye height */
-export const CAPTURE_OUT = 3.5;
-export const CAPTURE_EYE = 1.7;
-
-/** Ray-march parameters and the capture point of a hall (room frame). */
-export function projectionOf(game: GlazedHall): Projection {
-  const L = HALLS[game];
-  const { w, d, h } = L.size;
-  const min: [number, number, number] = [-w / 2, 0, -d / 2];
-  const max: [number, number, number] = [w / 2, h, d / 2];
-  const y = Math.min(CAPTURE_EYE, h - 0.3);
-  return {
-    min,
-    max,
-    at: [L.door.x, y, d / 2 + CAPTURE_OUT],
-    maxD: Math.ceil(Math.hypot(w / 2 + Math.abs(L.door.x), d + CAPTURE_OUT, h)),
-    cut: Math.max(CAPTURE_EYE + 0.6, h - 0.9),
-  };
+/** The hall's room box (room frame, m): vision glass outside it (above the ceiling, beyond the side walls) is spandrel. */
+export function roomBox(game: GlazedHall): { min: [number, number, number]; max: [number, number, number] } {
+  const { w, d, h } = HALLS[game].size;
+  return { min: [-w / 2, 0, -d / 2], max: [w / 2, h, d / 2] };
 }
 
 /** Outside reflection capture: on the forecourt, `REFLECT_OUT` m in front of the door line, eye height (world). */
@@ -125,12 +96,12 @@ export function reflectionPoint(game: GlazedHall): [number, number, number] {
   return [f.x + c * lx + s * lz, 1.7, f.z - s * lx + c * lz];
 }
 
-/** distance from the player at which a hall's glass gets captured (and kept), and the order they are taken in */
+/** distance from the player at which a hall's glass gets its reflection captured (and kept), nearest first */
 export const CAPTURE_RANGE = 40;
 
 /**
- * The next hall to capture: the nearest glazed hall within range (its door), not yet captured, that can be entered
- * (a closed hall is never mounted, its glass stays honest: tinted, reflecting).
+ * The next hall whose reflection to capture: the nearest glazed hall within range (its door), not yet captured. Closed
+ * halls too: the reflection is of the plaza, the hall itself is never mounted for it.
  */
 export function nextCapture(pos: { x: number; z: number }, done: ReadonlySet<string>, range = CAPTURE_RANGE): GlazedHall | null {
   let best: GlazedHall | null = null;
@@ -138,7 +109,6 @@ export function nextCapture(pos: { x: number; z: number }, done: ReadonlySet<str
   for (const g of GLAZED) {
     if (done.has(g)) continue;
     const f = doorFrame(g);
-    if (!f.open) continue;
     const dd = Math.hypot(f.x - pos.x, f.z - pos.z);
     if (dd <= range && dd < bd) {
       bd = dd;
@@ -148,19 +118,14 @@ export function nextCapture(pos: { x: number; z: number }, done: ReadonlySet<str
   return best;
 }
 
-/** GPU memory of the captures (bytes): RGBA8 cube maps, with their mip chain (+1/3) */
+/** GPU memory of a capture (bytes): an RGBA8 cube map, with its mip chain (+1/3) or without */
 export const cubeBytes = (size: number, mips = true) => Math.round(size * size * 4 * 6 * (mips ? 4 / 3 : 1));
 
-/**
- * Capture sizes. Behind the smoked glass the interior is only a dim, heavily blurred impression (a high mip level), so
- * the captures are small; the open doorway of a vestibule shows it sharper. The reflection is what reads on the glass:
- * desktop 512 px interior / 256 px reflection, phones and small-memory devices 256 / 128.
- */
-export const interiorSize = (desktop: boolean) => (desktop ? 512 : 256);
+/** Reflection capture size: desktop 256 px, phones and small-memory devices 128 px (no mips). */
 export const reflectSize = (desktop: boolean) => (desktop ? 256 : 128);
 
 /** a desktop-class device: not a coarse pointer, more than 4 GB reported (or not reported) */
 export const isDesktopClass = (deviceMemoryGb: number | undefined, coarsePointer: boolean) => !coarsePointer && !(deviceMemoryGb !== undefined && deviceMemoryGb <= 4);
 
-/** the most GPU memory the glass captures hold (bytes): one interior (with mips) and one reflection per glazed hall */
-export const captureBudget = (desktop: boolean) => GLAZED.length * (cubeBytes(interiorSize(desktop)) + cubeBytes(reflectSize(desktop), false));
+/** the most GPU memory the glass captures hold (bytes): one reflection per glazed hall (≈ 9.4 MB desktop, 2.4 MB phone) */
+export const captureBudget = (desktop: boolean) => GLAZED.length * cubeBytes(reflectSize(desktop), false);
