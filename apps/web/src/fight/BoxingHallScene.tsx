@@ -31,7 +31,7 @@ import { FocusMode, useFocusRings } from "./FocusMode";
 
 /**
  * The Boxing hall interior (P3-FGT-01, plan §4.3–4.5): a matte, floodlit sports hall — polished-but-matte concrete,
- * timber wall slats, black trusses — with the 50 rings (instanced ring kit), an emissive light panel over every ring,
+ * timber wall slats, black trusses — with the 32 rings (instanced ring kit), an emissive light panel over every ring,
  * contact shadows under the platforms, the raised feature stage (R1 / R2) under the four-sided screen, number boxes
  * with the status in colour AND words. Budget (Standard): shell ≈ 10 draw calls (static merge), rings ≈ 7, panels /
  * boxes / words ≈ 4, screen 1.

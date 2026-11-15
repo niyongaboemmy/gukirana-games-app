@@ -8,7 +8,7 @@
  * the neutral corners at (+p, −p) and (−p, +p), p = the size's post offset.
  *
  * Two ring sizes share every helper (P3-FGT-03): `pro` (RING, the feature rings) and `training` (TRAINING_RING, the
- * Boxing hall's 48 standard rings: 4.3 m inside the ropes on a 6.2 × 6.4 m pitch). A spec's `size` picks them.
+ * Boxing hall's 30 standard rings: 4.3 m inside the ropes on a 7.8 × 9.0 m pitch, P3-FGT-11). A spec's `size` picks them.
  */
 
 export type RingStatus = "free" | "waiting" | "fighting" | "closed";
@@ -89,7 +89,7 @@ export const RING = {
 /**
  * The training-gym ring (plan §4.3): 4.3 m inside the ropes (posts at ±2.28, the ropes 0.13 m in from them), a 4.9 m
  * platform (narrow apron), the same 0.8 m deck, rope heights and corner convention; shorter steps and a low barrier
- * rail 0.2 m off the skirt, so the aisles of the 6.2 × 6.4 m pitch stay walkable.
+ * rail 0.2 m off the skirt (P3-FGT-11: open on the steps' half of a stepped side, where the corner kit stands).
  */
 export const TRAINING_RING = {
   post: 2.28,

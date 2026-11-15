@@ -47,7 +47,7 @@ const TRAINING_LOD = { standard: { near: 15 }, lite: { near: 9 } } as const;
 
 /**
  * A field of hall rings with the assets ring kit (P3-FGT-03): `size` "pro" (the feature rings R1 / R2, on the raised
- * stage `y`, with the feature extras) or "training" (the 48 standard rings). The lamps take the hall's status
+ * stage `y`, with the feature extras) or "training" (the 30 standard rings). The lamps take the hall's status
  * colours (practice white, closed dark); the number signs are the hall's own (fight/ring-signs), so no boards here.
  * `rest` puts the stools in the corners.
  */

@@ -517,7 +517,7 @@ function StatusBoard() {
   );
 }
 
-/** board canvas (px) and its card grid: 10 × 5 cards under a header, a legend row at the bottom */
+/** board canvas (px) and its card grid: 10 cards a row (ceil(RINGS / 10) rows: 4 for 32 rings) under a header, a legend row at the bottom */
 const BOARD_PX = { w: 1600, h: 800 };
 const GRID = { cols: 10, x0: 40, y0: 128, cw: 152, ch: 104, gap: 12 };
 /** which card (index into RINGS) is under a canvas point, or -1 */

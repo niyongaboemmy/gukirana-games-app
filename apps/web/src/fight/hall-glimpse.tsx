@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
-import { CORNER_COLORS } from "@gukirana/contracts";
+import { BOXING_RING_COUNT, CORNER_COLORS } from "@gukirana/contracts";
 import { useFightBridge } from "./bridge";
 import { ringCounts } from "./rings";
 import { F } from "./strings";
@@ -104,7 +104,7 @@ function paint(c: HTMLCanvasElement, free: number | null) {
   g.fillText(F.boxingHall.toUpperCase(), vx, bh * 0.36);
   g.fillStyle = "#6fdc8c";
   g.font = `700 ${Math.round(bh * 0.24)}px system-ui, sans-serif`;
-  g.fillText(F.ringsFree(free ?? 50), vx, bh * 0.76);
+  g.fillText(F.ringsFree(free ?? BOXING_RING_COUNT), vx, bh * 0.76);
 }
 
 /** one ring in perspective: x = lateral offset (m), d = depth (m); platform 1 m high, 5 m wide, posts and 3 ropes */
