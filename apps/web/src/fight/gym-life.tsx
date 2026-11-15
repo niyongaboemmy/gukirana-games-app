@@ -376,9 +376,11 @@ function StaffNpc({ spot, lite }: { spot: StaffSpot; lite: boolean }) {
           outlineWidth={0.01}
           outlineColor="#000000"
           letterSpacing={0.08}
+          color="#f2e9dc"
         >
+          {/* colour as a prop, never a child material: with an outline, troika's material getter returns an array,
+              and R3F's detach would restore that array as the base material ("addEventListener is not a function") */}
           {(F.role[spot.role] ?? "").toUpperCase()}
-          <meshBasicMaterial color="#f2e9dc" toneMapped={false} />
         </Text>
       </group>
       {spot.role === "cleaner" && <MopCart />}

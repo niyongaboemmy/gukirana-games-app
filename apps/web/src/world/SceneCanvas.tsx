@@ -77,7 +77,15 @@ const targetFor = (fx: boolean) => (fx ? (fxTarget ??= new THREE.WebGLRenderTarg
 function texturesOf(root: THREE.Object3D): THREE.Texture[] {
   const out = new Set<THREE.Texture>();
   root.traverse((o) => {
-    const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+    let m: THREE.Material | THREE.Material[] | undefined;
+    // troika text builds its material lazily on read and throws on a bad base material; a warm-up pass must never
+    // take the page down over one label (its glyph atlas is warmed when it first draws anyway)
+    try {
+      m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+    } catch (e) {
+      if (process.env.NODE_ENV !== "production") console.warn("[warm] skipped", o.name || o.type, o.parent?.name, (e as Error).message);
+      return;
+    }
     if (!m) return;
     for (const mat of Array.isArray(m) ? m : [m])
       for (const v of Object.values(mat as unknown as Record<string, unknown>)) {
