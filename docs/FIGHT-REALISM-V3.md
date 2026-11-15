@@ -170,6 +170,10 @@ Download: `boxer-m.glb` / `boxer-f.glb` ≈ 3.3 MB each (≈ 1.4 MB gzipped), lo
 
 ## 9. Not done / open
 
+> P3-FGT-14 (docs/FIGHT-REALISM-V4.md) closed the first four items below: the face shape carries over, the referee
+> counts on his fingers, judges sit at the feature rings, the fighter sits on a real stool, the referee's shirt hangs
+> as cloth, the morph targets are quantised. Garment LODs remain open.
+
 - The player's exact face (Rocketbox head shape) does not carry over; skin tone, eye colour, brows, facial hair, gender
   and age do. A face-shape transfer onto the MakeHuman head is future work.
 - The referee counts with the arm (no per-number finger poses); no judges' tables at feature rings yet.
