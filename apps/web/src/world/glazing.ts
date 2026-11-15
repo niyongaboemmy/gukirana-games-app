@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { HALLS } from "@/rooms/layouts";
 import type { GeoBatch } from "./geo";
 import { paneUV, roomBox, worldToLocal, type GlazedHall, type PaneMode } from "./glass-capture";
+import { todUniforms } from "./time-of-day/hooks";
 
 /**
  * Hall glazing (P2-WLD-18, P2-WLD-20): smoked glass, the same on every building and every door, like the Tournament
@@ -55,6 +56,8 @@ uniform float uGrid;
 uniform float uDoorHalf;
 uniform vec3 uDark;
 uniform vec3 uBlind;
+uniform vec3 uGkUnlit;
+uniform float uGkWin;
 varying vec3 vW;
 varying vec3 vN;
 varying vec3 vRoom;
@@ -83,14 +86,16 @@ void main() {
   float c = dot(rel, rel) - uReflR * uReflR;
   float h = b * b - c;
   vec3 rd = (c < 0.0 && h > 0.0) ? rel + R * (-b + sqrt(h)) : R;
-  vec3 refl = mix(skyRefl(R), textureLod(uRefl, rd, 0.0).rgb, uReflHas) * uReflK;
+  // (the sky fallback follows the time of day; the captured plaza is retaken per phase: P2-WLD-19)
+  vec3 refl = mix(skyRefl(R) * uGkUnlit, textureLod(uRefl, rd, 0.0).rgb, uReflHas) * uReflK;
 
   // smoked glass, like the arena's glass band: near-black, a subtle Fresnel reflection of the real forecourt
   float cosv = clamp(dot(-Vw, N), 0.0, 1.0);
   float F = 0.06 + 0.94 * pow(1.0 - cosv, 5.0);
 
   // never readable content behind it: close up only the barest constant warm glow of the room's light
-  vec3 behind = uDark + uGlow * (1.0 - smoothstep(2.5, 9.0, d0));
+  // (the glow is the halls' light: a little stronger at night, never a lit panel)
+  vec3 behind = uDark + uGlow * clamp(uGkWin, 1.0, 1.3) * (1.0 - smoothstep(2.5, 9.0, d0));
   if (mode == 2) {
     // closed woven blinds behind the pane: horizontal slats
     float slat = smoothstep(0.0, 0.18, abs(fract(vW.y / 0.05) - 0.5) * 2.0);
@@ -155,6 +160,9 @@ function make(game: GlazedHall, tier: "lite" | "standard", part: GlassPart): THR
       uDoorHalf: { value: 1.7 },
       uDark: { value: new THREE.Color(DARK) },
       uBlind: { value: new THREE.Color("#b9ab92").multiplyScalar(tier === "lite" ? 0.5 : 0.6) },
+      // shared time-of-day uniforms (the same objects: updated once for every material)
+      uGkUnlit: todUniforms.uGkUnlit,
+      uGkWin: todUniforms.uGkWin,
     },
   });
 }
