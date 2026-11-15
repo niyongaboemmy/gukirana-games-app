@@ -8,8 +8,13 @@ import { decodeLook, seededLook, type AvatarLook } from "@/world/outfits";
 import { lookOf, useProfile } from "@/lib/profile-store";
 import { hiddenPeople, SELF_ID } from "@/rooms/hall-hooks";
 import { isOnScreen, useArea } from "@/world/stage";
-import { FightAvatar, newBody, RefereeAvatar, type RingBody } from "./fighter-avatar";
-import { clampInRing, hitFeel, layoutOf, moodOf, presentFighter, reactionFor, refereeSpot, ringSeed } from "./present";
+import { BOXER_BODY, FightAvatar, newBody, RefereeAvatar, type RingBody } from "./fighter-avatar";
+import { BoxerAvatar } from "@/world/human/boxer/BoxerAvatar";
+import { BoxingMotion } from "@/world/human/boxing/motion";
+import { ringNow } from "./ring-clock";
+import { blockReaction, clampInRing, hitFeel, layoutOf, moodOf, presentFighter, reactionFor, refereeSpot, ringSeed } from "./present";
+import { PUNCH_SPECS } from "@gukirana/boxing";
+import type { BoxerProbe } from "@/world/human/boxer/BoxerAvatar";
 import { cameraKick, hitStop } from "./ring-clock";
 import { focusNow, ringCulled } from "./focus";
 import { replayFrame } from "./game/replay";
@@ -171,8 +176,40 @@ interface Track {
   /** smoothed ground velocity (m/s, hall axes): which way the feet step (engine v2 footwork) */
   vx: number;
   vz: number;
+  /** contact IK: the punch instance its aim was taken for, and the aim (P3-FGT-13) */
+  aimKey: string;
+  aim: [number, number, number] | null;
+  /** redness flash from the last hits [head, torso] (decays) */
+  flash: [number, number];
 }
-const newTrack = (): Track => ({ key: "", since: 0, x: 0, z: 0, yaw: 0, init: false, hitAt: -1e9, spd: 0, vx: 0, vz: 0 });
+const newTrack = (): Track => ({ key: "", since: 0, x: 0, z: 0, yaw: 0, init: false, hitAt: -1e9, spd: 0, vx: 0, vz: 0, aimKey: "", aim: null, flash: [0, 0] });
+
+const _aw = new THREE.Vector3();
+const _ag = new THREE.Vector3();
+const _as = new THREE.Vector3();
+/**
+ * Contact IK target for a punch (P3-FGT-13): where on the other fighter it lands — the face / headgear front, the
+ * stomach / ribs for a body shot, or the gloves when a held guard is in the way — in the puncher's root frame and
+ * reference-body units (motion.ts fitAim). The wrist stops a glove's radius short of the point. Null without bodies.
+ */
+function aimFor(att: BoxerProbe | null, def: BoxerProbe | null, root: THREE.Object3D | null, body: boolean, guard: boolean): [number, number, number] | null {
+  if (!att || !def || !root) return null;
+  if (body) def.body(_aw);
+  else if (guard) {
+    def.glove(true, _aw);
+    def.glove(false, _ag);
+    _aw.add(_ag).multiplyScalar(0.5);
+  } else def.head(_aw);
+  // a glove's radius short of the point, along the line from the puncher's shoulders
+  root.getWorldPosition(_as);
+  _as.y = _aw.y;
+  _ag.subVectors(_aw, _as).normalize();
+  _aw.addScaledVector(_ag, -0.1);
+  root.updateMatrixWorld();
+  root.worldToLocal(_aw);
+  const k = att.rig.kArm || 1;
+  return [_aw.x / k, _aw.y / k, _aw.z / k];
+}
 
 /** the step direction of a boxer moving with (vx, vz) while facing yaw: forward / back / left / right, or planted */
 export function stepDirOf(vx: number, vz: number, yaw: number): "f" | "b" | "l" | "r" | null {
@@ -230,8 +267,9 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
   const refG = useRef<THREE.Group>(null);
   const bodies = [useRef<RingBody | null>(newBody()), useRef<RingBody | null>(newBody())] as const;
   const refBody = useRef<RingBody | null>(newBody());
+  const probes = [useRef<BoxerProbe | null>(null), useRef<BoxerProbe | null>(null)] as const;
   const tracks = useRef([newTrack(), newTrack(), newTrack()]);
-  const phaseRef = useRef({ phase: "", since: 0, clinchSince: -1, refSide: 0 });
+  const phaseRef = useRef({ phase: "", since: 0, clinchSince: -1, refSide: 0, signalAt: -10, signalTo: 0 as 0 | 1, waveAt: -10 });
   const loopT0 = useMemo(() => performance.now() - ((hashOf(slot.ring) % 997) * 1000) / 3, [slot.ring]);
   // a spectated pair takes over from its impostors once faded in; the impostors come back the moment it goes
   useEffect(() => {
@@ -278,6 +316,29 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
         const r = reactionFor(e, snap.fighters[to].composure);
         bodies[to].current!.react = { clip: r.clip, intensity: r.intensity, at: now };
         trs[to]!.hitAt = t;
+        // a flash of redness where it landed (no blood, no injury)
+        const fl = trs[to]!.flash;
+        if (e.body) fl[1] = Math.min(1, fl[1] + 0.25 * r.intensity);
+        else fl[0] = Math.min(1, fl[0] + 0.25 * r.intensity);
+      } else if (e.k === "block") {
+        // the punch lands on the gloves / forearms: they are driven back (unless the defender is already punching)
+        const to = (1 - e.by) as 0 | 1;
+        if (!PUNCH_SPECS[snap.fighters[to].act as keyof typeof PUNCH_SPECS]) {
+          const r = blockReaction(e);
+          bodies[to].current!.react = { clip: r.clip, intensity: r.intensity, at: now };
+        }
+      } else if (e.k === "warning" && e.foul !== "IDLE") {
+        // the referee stops the action and points at the fouler (a caution / warning)
+        phaseRef.current.signalAt = t;
+        phaseRef.current.signalTo = e.to;
+      } else if (e.k === "stoppage" || e.k === "ko") {
+        // the referee waves it off before raising the winner's hand
+        phaseRef.current.waveAt = t;
+      } else if (e.k === "parry") {
+        // the defender taps the straight across; the puncher's arm is swept off line
+        const to = (1 - e.by) as 0 | 1;
+        bodies[to].current!.react = { clip: "parry", intensity: 1, at: now };
+        bodies[e.by].current!.react = { clip: "parried", intensity: 1, at: now + 1 };
       }
       // the connection lands with weight: a few frames of hit-stop, a small camera punch (P3-FGT-07)
       if (!replay && (e.k === "hit" || e.k === "block" || e.k === "knockdown")) {
@@ -297,8 +358,11 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
     const waiting = b.rings[slot.ring]?.status === "waiting";
     const rest = snap.phase === "rest" || waiting;
     const corner = place.half - 1.0;
+    const phase0 = snap.phase;
     const winner = snap.phase === "over" ? snap.fighters.findIndex((f) => f.act === "celebrate") : -1;
-    const down = snap.fighters.findIndex((f) => f.act === "down") as 0 | 1 | -1;
+    const downed = snap.fighters.findIndex((f) => f.act === "down") as 0 | 1 | -1;
+    // (a standing count: the referee counts the fighter on their feet, P3-FGT-13)
+    const down = (downed !== -1 ? downed : phase0 === "knockdown" && snap.counted ? snap.counted.to : -1) as 0 | 1 | -1;
     // a clinch: in close, both idle (presentation; the engine's break field, when present, makes it official)
     const breakLeft = (snap as { breakLeft?: number }).breakLeft ?? 0;
     const close = snap.phase === "round" && (v2 ? !!snap.clinch || snap.fighters.every((f) => f.act === "clinch") : snap.dist <= 80 && snap.fighters.every((f) => f.act === "idle"));
@@ -353,6 +417,20 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
       body.walk = walking;
       const moveDir = v2 && phase === "round" ? stepDirOf(tr.vx, tr.vz, tr.yaw) : null;
       body.cmd = walking ? null : presentFighter(view, phase, { actSince: t - tr.since, phaseSince, clinch, tick, gap: half * 2, moveDir, moveSpeed: tr.spd }, won);
+      // contact IK: the glove lands on the other's face / body / guard (aim taken once, when the punch starts)
+      if (body.cmd && PUNCH_SPECS[view.act as keyof typeof PUNCH_SPECS]) {
+        if (tr.aimKey !== body.cmd.key) {
+          tr.aimKey = body.cmd.key;
+          const o = snap.fighters[1 - i]!;
+          const oBusy = o.act !== "idle" && o.act !== "blockHit";
+          tr.aim = aimFor(probes[i]!.current, probes[1 - i]!.current, g[i]!.current, !!view.body, o.guard && !oBusy);
+        }
+        if (tr.aim) body.cmd.aim = tr.aim;
+      }
+      // redness: the damage taken (head wear, body wear) plus the flash of the last hits, fading
+      tr.flash[0] *= Math.exp(-dt / 1.6);
+      tr.flash[1] *= Math.exp(-dt / 1.6);
+      body.red = [Math.min(1, ((view.wear ?? 0) / 650) * 0.75 + tr.flash[0]), Math.min(1, ((view.bodyWear ?? 0) / 550) * 0.75 + tr.flash[1])];
       body.mood = moodOf(view, phase, t - tr.hitAt, won);
       // ring life while the round is live: fresher = bouncier; tired late in the round = heavier feet, lower gloves
       const live = (phase === "round" || phase === "countdown") && !walking && view.act !== "down" && !clinch;
@@ -371,6 +449,15 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
       // round the pair's middle (it drifts round the ring), never through the ropes
       const mid = phase === "rest" ? { x: 0, z: 0 } : { x: lay.cx, z: lay.cz };
       let ra = clampInRing(mid.x + spot.x * ax + spot.z * px, mid.z + spot.x * az + spot.z * pz, place.rotY, inside);
+      if (phase === "rest") {
+        // between rounds the referee waits in the neutral corner away from the camera (the corners are the corner teams')
+        const n1 = neutralCornerAt(place, 1, place.half - 0.95);
+        const n2 = neutralCornerAt(place, -1, place.half - 0.95);
+        const d1 = Math.hypot(n1.x - camera.position.x, n1.z - camera.position.z);
+        const d2 = Math.hypot(n2.x - camera.position.x, n2.z - camera.position.z);
+        const n = d1 > d2 ? n1 : n2;
+        ra = { x: n.x - place.x, z: n.z - place.z };
+      }
       // the referee is a body too: never inside a boxer (keep 0.75 m from each, then back inside the ropes)
       for (let k = 0; k < 3; k++) {
         for (const tb of [trs[0]!, trs[1]!]) {
@@ -400,7 +487,18 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
       refG.current.rotation.y = tr.yaw;
       const rb = refBody.current!;
       rb.walk = walking;
-      rb.cmd = walking ? null : { clip: spot.clip, offset: phaseSince, speed: 1, intensity: 1, hold: 0, key: `${spot.clip}:${phase}` };
+      // signals over the working stance: the wave-off on a stoppage / KO, a point at the fouler on a warning
+      const waving = t - ph.waveAt < 1.6;
+      const signalling = !waving && t - ph.signalAt < 1.4 && phase === "round";
+      const clip = waving ? "refWave" : signalling ? "refSignal" : spot.clip;
+      const off = waving ? t - ph.waveAt : signalling ? t - ph.signalAt : phaseSince;
+      rb.cmd = walking ? null : { clip, offset: off, speed: 1, intensity: 1, hold: 0, key: `${clip}:${phase}:${waving ? ph.waveAt : signalling ? ph.signalAt : 0}` };
+      if (signalling) {
+        // face the fouler while pointing
+        const st = trs[ph.signalTo]!;
+        tr.yaw = Math.atan2(st.x - tr.x, st.z - tr.z);
+        refG.current.rotation.y = tr.yaw;
+      }
       rb.life = walking ? null : { seed: hashOf(slot.ring) + 31, energy: 0, tired: 0, move: tr.spd, official: true };
     }
     // my climb in / out over the corner steps overrides my fighter's place and pose
@@ -435,22 +533,67 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
     <group>
       {showRed && (
         <group ref={g[0]}>
-          <FightAvatar look={red} corner="red" body={bodies[0]} lite={lite} />
+          <FightAvatar look={red} corner="red" body={bodies[0]} lite={lite} seed={hashOf(`${slot.ring}-red-${entry?.red?.sid ?? ""}`)} klass={klassOf(slot.ring)} probe={probes[0]} />
         </group>
       )}
       {showBlue && (
         <group ref={g[1]}>
-          <FightAvatar look={blue} corner="blue" body={bodies[1]} lite={lite} />
+          <FightAvatar look={blue} corner="blue" body={bodies[1]} lite={lite} seed={hashOf(`${slot.ring}-blue-${entry?.blue?.sid ?? ""}`)} klass={klassOf(slot.ring)} probe={probes[1]} />
         </group>
       )}
       {withRef && (
         <group ref={refG}>
-          <RefereeAvatar look={refLookV} body={refBody} lite={lite} />
+          <RefereeAvatar look={refLookV} body={refBody} lite={lite} seed={hashOf(`referee-${slot.ring}`)} />
         </group>
+      )}
+      {withRef && BOXER_BODY && !lite && (
+        <>
+          <CornerTeam place={place} corner="red" ring={slot.ring} />
+          <CornerTeam place={place} corner="blue" ring={slot.ring} />
+        </>
       )}
     </group>
   );
 }
+
+/**
+ * The corner team between rounds (P3-FGT-13): per corner a coach (advice, hands working) and a second (towel / water)
+ * on the apron outside the ropes, leaning in over the stool — staff only, in staff polos, never players. They step up
+ * for the rest and are gone while the round is on (kept mounted, hidden: no build hitch at every bell).
+ */
+function CornerTeam({ place, corner, ring }: { place: RingPlace; corner: Corner; ring: RingId }) {
+  const s = corner === "red" ? -1 : 1;
+  const grp = useRef<THREE.Group>(null);
+  const looks = useMemo(() => [seededLook(`coach-${ring}-${corner}`, "#7a7a7a"), seededLook(`second-${ring}-${corner}`, "#7a7a7a")], [ring, corner]);
+  const motions = useMemo(() => [new BoxingMotion({ base: "cornerCoach" }), new BoxingMotion({ base: "cornerTowel" })], []);
+  const paused = useMemo(() => ({ current: true }), []);
+  useFrame(() => {
+    const st = useFightBridge.getState();
+    const snap = st.mine?.ring === ring ? st.mine.snap : st.watched?.ring === ring ? st.watched.snap : null;
+    const on = snap?.phase === "rest";
+    paused.current = !on;
+    if (grp.current) grp.current.visible = on;
+  });
+  // on the apron at the corner post (outside the ropes), one each side of it, facing the stool
+  const spots = useMemo(() => {
+    const c = cornerAt(place, s, place.half - 0.1);
+    const toward = Math.atan2(place.x - c.x, place.z - c.z);
+    const side = (k: number) => ({ x: c.x + Math.cos(toward) * 0.42 * k, z: c.z - Math.sin(toward) * 0.42 * k });
+    return [side(1), side(-1)].map((p) => ({ ...p, yaw: toward }));
+  }, [place, s]);
+  return (
+    <group ref={grp} visible={false}>
+      {spots.map((p, k) => (
+        <group key={k} position={[p.x, place.canvasY, p.z]} rotation={[0, p.yaw, 0]}>
+          <BoxerAvatar look={looks[k]!} outfit="staff" polo={k === 0 ? "#4a2f22" : "#2b2b2e"} motion={motions[k]!} clock={ringNow} seed={hashOf(`${ring}-${corner}-${k}`)} paused={paused} />
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** the weight class of a ring (both fighters alike): −0.6 light … +0.6 heavy, from the ring id (deterministic) */
+const klassOf = (ring: string) => ((hashOf(`class-${ring}`) % 5) - 2) * 0.3;
 
 function hashOf(s: string) {
   let h = 2166136261;

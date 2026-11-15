@@ -778,8 +778,8 @@ function buildVariant(key, base, morphParams) {
           a1 = rings[q][(r + 1) % R],
           b0 = rings[q + 1][r],
           b1 = rings[q + 1][(r + 1) % R];
-        m.face(a0, b0, a1);
-        m.face(a1, b0, b1);
+        m.face(a0, a1, b0);
+        m.face(a1, b1, b0);
       }
   }
   const bootShaft = (i) => Math.min(bootTop(i), V(i)[1] - (ankleL[1] + 0.012));
@@ -1139,10 +1139,10 @@ function buildVariant(key, base, morphParams) {
         const p = V(i);
         if (Math.abs(p[1] - neckBaseY) < 0.01 && Math.abs(p[0]) < 0.02) rz = Math.max(rz, Math.abs(p[2] - cz));
       }
-    rx = Math.min(rx, 0.075) + 0.006;
-    rz = (rz || 0.06) + 0.006;
+    rx = Math.min(rx, 0.06) + 0.004;
+    rz = Math.min(rz || 0.055, 0.06) + 0.004;
     for (let k = 0; k < 3; k++) {
-      const y = neckBaseY - 0.01 + 0.022 * k;
+      const y = neckBaseY - 0.004 + 0.016 * k;
       const grow = 1 + 0.05 * k;
       const row = [];
       for (let u = 0; u < R; u++) {

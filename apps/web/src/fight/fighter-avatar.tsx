@@ -93,7 +93,7 @@ function useBodyDriver(motion: BoxingMotion, body: React.RefObject<RingBody | nu
     L.clip = c.clip;
     L.key = c.key;
     L.start = LOOP(c.clip) ? t : start;
-    motion.play({ clip: c.clip, start: L.start, speed: c.speed, intensity: c.intensity, hold: c.hold, reach: c.reach });
+    motion.play({ clip: c.clip, start: L.start, speed: c.speed, intensity: c.intensity, hold: c.hold, reach: c.reach, ...(c.aim ? { aim: c.aim } : {}) });
   });
 }
 

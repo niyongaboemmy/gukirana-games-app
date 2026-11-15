@@ -35,6 +35,10 @@ export interface BoxerSpec {
   build: { heavy: number; slim: number; mature: number };
   /** without headgear (sparring at a bag, a fighter between fights) */
   noHeadgear?: boolean;
+  /** without gloves (skipping, shadow boxing in wraps): the hands show */
+  noGloves?: boolean;
+  /** dithered fade in / out (staff popping in and out of the draw set): the material uses alpha hashing */
+  fadeable?: boolean;
   face: { beard: number; brow: number };
   /** cast shadows */
   shadows?: boolean;
@@ -61,8 +65,14 @@ interface Extras {
 export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: BoxerSpec): BoxerInstance {
   const scene = cloneSkinned(gltfScene) as THREE.Object3D;
   const plan = OUTFIT_MESHES[spec.outfit];
-  const wanted = plan.meshes.filter((n) => !(spec.noHeadgear && n === "kit_headgear"));
-  const cover = plan.cover & ~(spec.noHeadgear ? COVER.headgear : 0);
+  const wanted = plan.meshes.filter((n) => !(spec.noHeadgear && n === "kit_headgear") && !(spec.noGloves && n === "kit_gloves"));
+  let cover = plan.cover;
+  if (spec.noGloves) cover &= ~COVER.gloves;
+  if (spec.noHeadgear && plan.headgear) {
+    // no headgear: the hair shows (the short hair cap over the scalp)
+    cover = (cover & ~COVER.headgear) | COVER.hair;
+    wanted.push("hair_cap");
+  }
   const byName = new Map<string, THREE.SkinnedMesh>();
   scene.traverse((o) => {
     const m = o as THREE.SkinnedMesh;
@@ -146,6 +156,7 @@ export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: Boxer
     spec.face,
     extras.landmarks.kit,
   );
+  if (spec.fadeable) material.alphaHash = true;
   const mesh = new THREE.SkinnedMesh(merged, material);
   mesh.name = "boxer-body";
   mesh.castShadow = spec.shadows !== false;

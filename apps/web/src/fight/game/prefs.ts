@@ -19,6 +19,8 @@ export interface FightPrefsData {
   leftHanded: boolean;
   /** no camera shake / hit zoom (W reads it for the fight camera) */
   reducedMotion: boolean;
+  /** P3-FGT-13: a short push-in on big hits (knockdowns, heavy counters); off with reduced motion */
+  impactCam: boolean;
   speed: TrainingSpeed;
   /** the player's own key bindings (P3-FGT-05; the defaults stay where free) */
   keys: KeyBinds;
@@ -43,6 +45,7 @@ export const DEFAULT_FIGHT_PREFS: FightPrefsData = {
   buttonSize: "l",
   leftHanded: false,
   reducedMotion: false,
+  impactCam: true,
   speed: "normal",
   keys: {},
   tutorialDone: false,
@@ -63,6 +66,7 @@ export const useFightPrefs = create<FightPrefs>()(
       buttonSize: s.buttonSize,
       leftHanded: s.leftHanded,
       reducedMotion: s.reducedMotion,
+      impactCam: s.impactCam,
       speed: s.speed,
       keys: s.keys,
       tutorialDone: s.tutorialDone,

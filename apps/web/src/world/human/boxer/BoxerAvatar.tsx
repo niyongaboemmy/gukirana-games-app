@@ -46,6 +46,11 @@ export interface BoxerAvatarProps {
   lite?: boolean;
   noHeadgear?: boolean;
   probe?: React.MutableRefObject<BoxerProbe | null>;
+  /** skip posing while hidden (corner staff during the round) */
+  paused?: { current: boolean };
+  noGloves?: boolean;
+  /** dithered fade 0…1 (the material alpha-hashes; hidden at 0) */
+  fade?: { current: number };
 }
 
 const BEARD: Record<string, number> = { none: 0, stubble: 0.45, shadow: 0.35, moustache: 0.55, goatee: 0.6, chinstrap: 0.6, short: 0.78, full: 0.95 };
@@ -57,7 +62,8 @@ const FWD = new THREE.Vector3(0, 0, 1);
 export function BoxerAvatar(props: BoxerAvatarProps) {
   const gender: BoxerGender = props.look.bodyType === "feminine" ? "f" : "m";
   const gltf = useGLTF(BOXER_URL[gender], false);
-  const { look, outfit, kit, polo, seed, klass = 0, lite = false, noHeadgear = false } = props;
+  const { look, outfit, kit, polo, seed, klass = 0, lite = false, noHeadgear = false, noGloves = false } = props;
+  const fadeable = !!props.fade;
   const inst = useMemo(() => {
     const extras = gltf.scene.userData as Parameters<typeof makeBoxer>[1];
     const facial = gender === "m" ? (BEARD[look.face?.facialHair ?? "none"] ?? 0) : 0;
@@ -66,10 +72,12 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
       colors: { skin: look.skinTone, hair: look.hairColor, iris: look.face?.eyeColor ?? "#3d2314", kit, polo },
       build: buildOf(outfit === "boxer" ? klass : 0.1, seed, look.age),
       noHeadgear,
+      noGloves,
+      fadeable,
       face: { beard: facial, brow: BROW[look.face?.brows ?? "natural"] ?? 0.85 },
       shadows: !lite,
     });
-  }, [gltf, gender, look, outfit, kit, polo, seed, klass, lite, noHeadgear]);
+  }, [gltf, gender, look, outfit, kit, polo, seed, klass, lite, noHeadgear, noGloves, fadeable]);
   useEffect(() => () => inst.dispose(), [inst]);
   const rig = useMemo(() => new BoxingRig(inst.root, inst.arms), [inst]);
   const face = useMemo(() => new BoxerFace(inst.bone, seed), [inst, seed]);
@@ -105,6 +113,13 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
   }, [inst, rig, parts, props.probe]);
 
   useFrame(({ camera }, dt) => {
+    if (props.fade) {
+      const f = props.fade.current;
+      inst.material.opacity = f;
+      inst.root.visible = f > 0.01;
+      if (f <= 0.01) return;
+    }
+    if (props.paused?.current) return;
     const w = props.weight?.current ?? 1;
     for (const x of bind) {
       x.b.quaternion.copy(x.q);
