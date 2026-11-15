@@ -4,6 +4,7 @@ import { EAR_LANDMARKS } from "../skull";
 import type { BodyType } from "../../outfits";
 import type { LookUniforms } from "../materials";
 import { bindData } from "./rig";
+import { fitBodyForKit } from "./kit-fit";
 import type { BoxingKit } from "./kit";
 
 /**
@@ -582,6 +583,9 @@ export function dressBody(root: THREE.Object3D, arms: ArmBones[], materials: THR
   const objects: THREE.Object3D[] = [];
   const own: THREE.Material[] = [];
   const undo: (() => void)[] = [];
+  // the everyday clothes are modelled into the body: refit it to an athlete's legs, bare arms and a fitted vest first
+  // (P3-FGT-07), so the trunks and boot shafts below are fitted to the legs, not to baggy trousers
+  undo.push(fitBodyForKit(root));
   const { body, bind } = bindData(root);
   const bone = (n: string) => (root.getObjectByName(n) as THREE.Bone | undefined) ?? null;
   const bonePos = (n: string) => {
@@ -764,6 +768,74 @@ export function dressBody(root: THREE.Object3D, arms: ArmBones[], materials: THR
         });
       gloveGeo.dispose();
       own.forEach((m) => m.dispose());
+      undo.forEach((f) => f());
+    },
+  };
+}
+
+/**
+ * The referee's dress (P3-FGT-07): white shirt, black trousers and shoes on the staff body (its uniform recoloured),
+ * and a black bow tie at the collar. Returns the undo.
+ */
+export function dressReferee(root: THREE.Object3D, materials: THREE.Material[], shadows: boolean): Dressing {
+  // the hood of the modelled hoodie folds away: a plain shirt
+  const undo: (() => void)[] = [fitBodyForKit(root, "official")];
+  for (const m of materials) {
+    const u = m.userData.gkUniforms as LookUniforms | undefined;
+    if (!u) continue;
+    const prev = { top: u.uTop.value.clone(), bottom: u.uBottom.value.clone(), shoes: u.uShoes.value.clone() };
+    u.uTop.value.set("#f2f1ec");
+    u.uBottom.value.set("#1a1a1d");
+    u.uShoes.value.set("#0f0f10");
+    undo.push(() => {
+      u.uTop.value.copy(prev.top);
+      u.uBottom.value.copy(prev.bottom);
+      u.uShoes.value.copy(prev.shoes);
+    });
+  }
+  const objects: THREE.Object3D[] = [];
+  const { body, bind } = bindData(root);
+  const neck = root.getObjectByName("Bip01_Neck") as THREE.Bone | undefined;
+  const head = root.getObjectByName("Bip01_Head") as THREE.Bone | undefined;
+  const mat = new THREE.MeshStandardMaterial({ color: "#111113", roughness: 0.55 });
+  if (body && neck && head) {
+    const nm = bind.rel(neck);
+    const hm = bind.rel(head);
+    if (nm && hm) {
+      // the collar front: a little below the neck bone, forward by the neck's radius (root frame, bind pose)
+      const np = V3().setFromMatrixPosition(nm);
+      const hp = V3().setFromMatrixPosition(hm);
+      const at = np.clone().lerp(hp, -0.15).add(V3(0, -0.01, 0.075));
+      const b = new Builder();
+      const col = new THREE.Color("#111113");
+      const X = V3(1, 0, 0),
+        Y = V3(0, 1, 0),
+        Z = V3(0, 0, 1);
+      // two wings and the knot
+      blob(b, V3(0.026, 0, 0), X, Y, Z, [0.026, 0.018, 0.008], 0.8, 10, 5, () => col, (_v, _a, p) => void (p.y *= 1 + Math.abs(p.x) * 14));
+      blob(b, V3(-0.026, 0, 0), X, Y, Z, [0.026, 0.018, 0.008], 0.8, 10, 5, () => col, (_v, _a, p) => void (p.y *= 1 + Math.abs(p.x) * 14));
+      blob(b, V3(0, 0, 0.004), X, Y, Z, [0.009, 0.011, 0.008], 0.9, 8, 4, () => col);
+      const g = b.geometry();
+      const tie = new THREE.Mesh(g, mat);
+      tie.name = "gk-bowtie";
+      tie.castShadow = shadows;
+      tie.frustumCulled = false;
+      // into the neck bone's frame
+      const inv = nm.clone().invert();
+      const m = new THREE.Matrix4().makeTranslation(at.x, at.y, at.z).premultiply(inv);
+      m.decompose(tie.position, tie.quaternion, tie.scale);
+      neck.add(tie);
+      objects.push(tie);
+    }
+  }
+  return {
+    objects,
+    dispose() {
+      for (const o of objects) {
+        o.removeFromParent();
+        (o as THREE.Mesh).geometry?.dispose();
+      }
+      mat.dispose();
       undo.forEach((f) => f());
     },
   };

@@ -93,11 +93,19 @@ export function boxingKitOverride(look: AvatarLook, corner: Corner, opts: Boxing
   return kit;
 }
 
-/** The referee's look on any body (staff NPC): white shirt, dark trousers, black shoes; no accessories. */
+/** short styles that read as an official's neat cut */
+const REF_HAIR = new Set<HairStyle>(["short", "fade", "bald"]);
+
+/**
+ * The referee's look (staff NPC): white shirt, black trousers, black shoes, no accessories. Always the masculine
+ * base body (its modelled shirt + trousers take the white / black; the hood is trimmed by the referee dressing) with a
+ * neat short cut; skin tone and face stay the seeded person's.
+ */
 export function refereeLook(look: AvatarLook): AvatarLook {
   return {
     ...look,
-    hairStyle: RING_HAIR[look.hairStyle] ?? look.hairStyle,
+    bodyType: "masculine",
+    hairStyle: REF_HAIR.has(look.hairStyle) ? look.hairStyle : "short",
     outfit: { top: "tee-white", bottom: "jeans", shoes: "loafers", accessory: "none", headwear: "no-hat" },
     topColor: undefined,
     face: { ...look.face },
