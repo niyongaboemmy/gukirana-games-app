@@ -234,3 +234,15 @@ processing (as before), slower transitions, no flashes.
 * The scene-level `fogExp2` declared in `Lighting.tsx` attaches to the `lighting` group, not the scene (pre-existing):
   the haze comes from the volcano shader and the landscape's own fades; the fog colour is kept up to date for when it
   is attached.
+
+## 12. Evidence
+
+`docs/QA/evidence/p2-wld-19/` (from `qa/e2e/time-of-day.mjs` on an isolated stack, 15–16 Nov 2026):
+`sheet-plaza.jpg` / `sheet-aerial.jpg` (the same plaza ground view and campus aerial view at dawn 05:28, sunrise
+05:47, morning 08:00, midday 12:30, golden hour 17:15, sunset 17:48, dusk 18:05, night 21:00), `sheet-strip.jpg`
+(a Midday → Night preset transition, one frame every ~0.5 s), `hud-*` (chip and menu, desktop 1280×720 and phone
+844×390), `sheet-hall.jpg` (Pool Hall at 11:00 and 21:00: the window view follows the time, the interior keeps its
+own light), `plaza-night-lite.jpg` (Lite tier), `results-last-run.json`. z-scan of the plaza (`qa/e2e/zscan.mjs`):
+0 flat and 0 wall z-fighting hits.
+
+Lite tier draw calls (same poses): ground 191–192, aerial 262–264 at every phase.
