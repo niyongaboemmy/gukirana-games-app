@@ -75,7 +75,7 @@ describe("walk anywhere in the compound (P2-WLD-16)", () => {
     expect(route.length).toBeGreaterThan(1);
     const end = route[route.length - 1]!;
     expect(Math.hypot(end.x - b.x, end.z - b.z)).toBeLessThan(0.01);
-    let at = a;
+    let at: { x: number; z: number } = a;
     for (const w of route) {
       expect(segBlocked(at, w)).toBe(false);
       at = w;

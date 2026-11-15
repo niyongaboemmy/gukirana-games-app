@@ -44,7 +44,8 @@ import { SEAT_PROFILES, type SeatProfile } from "./human/seat-profiles";
 import { applyPeople, lookTarget as personLook, nearSpot, people, SPOTS } from "@/social/people";
 import { useSocial } from "@/social/social-store";
 import { HUMAN_MODELS } from "./human/meta";
-import { aerialPivot, FOLLOW_MAX, isAerial, maxPitch, pinchZoom, viewPitch, wheelZoom } from "./aerial";
+import { aerialPivot, FOLLOW_MAX, isAerial, maxPitch, pinchZoom, viewPitch, wheelZoom, ZOOM_MIN } from "./aerial";
+import { eye, EYE_H, EYE_NEAR, eyeDrag, eyePose, reducedMotion, smooth01, stepBlend, useCamMode, zoomEye } from "./eye-view";
 
 /** Walking speeds (m/s): real walking pace by default; the player can change it (HUD speed control). */
 export const WALK_SPEEDS = { slow: 1.4, normal: 2.2, fast: 3.2 } as const;
@@ -295,24 +296,49 @@ export function LocalPlayer({
       el,
       () => camera,
       (dx, dy) => {
+        if (useCamMode.getState().mode === "eye") {
+          // eye view: the drag turns you and looks up / down (world/eye-view.ts)
+          const r = eyeDrag(facing.current, eye.pitch, dx, dy);
+          facing.current = r.facing;
+          eye.pitch = r.pitch;
+          cameraState.yaw = r.facing + Math.PI;
+          return;
+        }
         cameraState.yaw -= dx * 0.006;
         cameraState.pitch = THREE.MathUtils.clamp(cameraState.pitch + dy * 0.004, 0.08, maxPitch(cameraState.distance));
       },
       (p) => (FREE_WALK_ON ? tapFree(p) : tapOnWalks(p)),
     );
     const wheel = (e: WheelEvent) => {
+      // all the way in: one more step into the eye view; out of it: back to the follow camera
+      const z = e.deltaY ? zoomEye(useCamMode.getState().mode, cameraState.distance, Math.sign(e.deltaY)) : null;
+      if (z) {
+        cameraState.distance = z.distance;
+        useCamMode.getState().set(z.mode);
+        return;
+      }
       cameraState.distance = wheelZoom(cameraState.distance, e.deltaY);
     };
     el.addEventListener("wheel", wheel, { passive: true });
     // two-finger pinch on phones and tablets: spread to zoom in, pinch to zoom out (all the way up to the campus view)
     let spread = 0;
+    /** how far this pinch has spread (> 1) or closed (< 1) since the fingers went down: the eye view's threshold */
+    let pinchAcc = 1;
     const touchSpread = (e: TouchEvent) => (e.touches.length === 2 ? Math.hypot(e.touches[0]!.clientX - e.touches[1]!.clientX, e.touches[0]!.clientY - e.touches[1]!.clientY) : 0);
     const tstart = (e: TouchEvent) => {
       spread = touchSpread(e);
+      pinchAcc = 1;
     };
     const tmove = (e: TouchEvent) => {
       const now = touchSpread(e);
-      if (spread > 0 && now > 0) cameraState.distance = pinchZoom(cameraState.distance, spread, now);
+      if (spread > 0 && now > 0) {
+        const mode = useCamMode.getState().mode;
+        pinchAcc *= now / spread;
+        if (mode === "eye") {
+          if (pinchAcc < 0.82) useCamMode.getState().set("follow");
+        } else if (cameraState.distance <= ZOOM_MIN + 0.01 && pinchAcc > 1.25) useCamMode.getState().set("eye");
+        else cameraState.distance = pinchZoom(cameraState.distance, spread, now);
+      }
       spread = now;
     };
     el.addEventListener("touchstart", tstart, { passive: true });
@@ -391,6 +417,9 @@ export function LocalPlayer({
       pos.current.z += s.dz;
       facing.current = s.facing;
       autoFollow(cameraState, s, dt); // the camera follows the person
+      // eye view: the camera looks the way you face (the joystick stays camera-relative, leaving it puts the follow
+      // camera straight behind you)
+      if (useCamMode.getState().mode === "eye") cameraState.yaw = facing.current + Math.PI;
       // click-to-walk: manual input cancels the route; arriving at a waypoint continues to the next one
       if (s.mode === "keys" || s.mode === "joy") route.current = [];
       else if (!nav.target && route.current.length) nav.target = route.current.shift()!;
@@ -493,9 +522,15 @@ export function LocalPlayer({
     // person-level behaviour: gestures turn to their target, contact actions, leaning / coffee, social facing
     if (!onBench && !inXR) applyPeople(pos.current, facing, anim, dt, manual.current, still.current);
 
+    // eye view blend (0 follow → 1 at your eyes); not in VR, not while walking in through a door
+    const eyeOn = useCamMode.getState().mode === "eye" && !inXR;
+    eye.blend = stepBlend(eye.blend, eyeOn, dt, reducedMotion());
+    const eyeK = entering || inXR ? 0 : smooth01(eye.blend);
     if (group.current) {
       group.current.position.copy(pos.current);
       group.current.rotation.y = facing.current;
+      // your own body is hidden while the camera is at your eyes
+      group.current.visible = eyeK < 0.55;
     }
 
     // third-person camera (DESIGN-SPEC §8.1)
@@ -566,9 +601,17 @@ export function LocalPlayer({
       if (!aerial && Math.abs(cx) < 10 && Math.abs(cz - ENTRY_Z) < 4.6) cy = Math.min(cy, 4.6);
       camera.position.lerp(new THREE.Vector3(cx, cy, cz), Math.min(1, dt * (d < L + 0.01 ? 14 : 8)));
       // aim only a little right of the head: the camera's own sideways offset then puts you left of centre
-      camera.lookAt(pivot.x + rx * 0.25, pivot.y, pivot.z + rz * 0.25);
+      if (eyeK > 0.001) {
+        // eye view (world/eye-view.ts): glide from the follow pose to your eyes, looking where you face
+        const e = eyePose(pos.current.x, 0, pos.current.z, facing.current, eye.pitch, THREE.MathUtils.lerp(EYE_H, 1.18, seatCam.current));
+        if (eyeK > 0.999) camera.position.set(e.p.x, e.p.y, e.p.z);
+        else camera.position.lerp(new THREE.Vector3(e.p.x, e.p.y, e.p.z), eyeK);
+        const lx = pivot.x + rx * 0.25;
+        const lz = pivot.z + rz * 0.25;
+        camera.lookAt(lx + (e.look.x - lx) * eyeK, pivot.y + (e.look.y - pivot.y) * eyeK, lz + (e.look.z - lz) * eyeK);
+      } else camera.lookAt(pivot.x + rx * 0.25, pivot.y, pivot.z + rz * 0.25);
       // far views: push the near plane out with the distance so the far campus keeps its depth precision
-      const near = L > FOLLOW_MAX ? Math.min(2, 0.15 + (L - FOLLOW_MAX) * 0.004) : 0.15;
+      const near = eyeK > 0.5 ? EYE_NEAR : L > FOLLOW_MAX ? Math.min(2, 0.15 + (L - FOLLOW_MAX) * 0.004) : 0.15;
       const pc = camera as THREE.PerspectiveCamera;
       if (Math.abs(pc.near - near) > 0.01) {
         pc.near = near;
