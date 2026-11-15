@@ -706,7 +706,9 @@ export function arenaScreenTexture(msgs: [string, string, string, string]): THRE
 export function ledScreenTexture(
   key: string,
   msgs: [string, string, string, string],
-  look: { stops: string[]; ink: [string, string] } = { stops: ["#22266E", "#9B51E0", "#2F80ED", "#9B51E0", "#22266E"], ink: ["#ffffff", "#FFC83D"] },
+  // the house look for every LED screen (gate, arena…): a deep chocolate field with warm white and amber type (the
+  // old purple-blue gradient is gone — no blue / purple anywhere in the brand)
+  look: { stops: string[]; ink: [string, string] } = { stops: ["#1e130c", "#3b2416", "#2a1a10", "#3b2416", "#1e130c"], ink: ["#f6eee4", "#e8b67e"] },
 ): THREE.CanvasTexture {
   return cached(key, () => {
     const { c, g } = canvas(2048, 150);
@@ -1005,7 +1007,7 @@ export function noticeBoardTexture(): THREE.CanvasTexture {
       g.fill();
       g.restore();
     };
-    card(26, 70, 222, 150, -0.03, "ARENA EVENTS", "#9b51e0");
+    card(26, 70, 222, 150, -0.03, "ARENA EVENTS", "#b5773f");
     card(272, 74, 214, 140, 0.025, "HALLS TODAY", "#27ae60");
     card(118, 236, 276, 52, 0, "", "#d9a441");
     g.fillStyle = "#2b2f36";

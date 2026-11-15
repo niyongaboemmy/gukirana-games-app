@@ -37,7 +37,8 @@ export const GAME_COLORS = {
   admin: "#C9A96B",
   fight: "#C8322A",
   soon: "#8A94A6",
-  sky: "#3DA9FC",
+  /** the neutral accent (totem strips, service pavilion, entry gate glow): warm amber — was sky blue, off-brand */
+  sky: "#E8B67E",
   gold: "#FFC83D",
   warm: "#FFD9A0",
 } as const;
