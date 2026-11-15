@@ -451,6 +451,7 @@ function ResultCard({ mine, onLeave }: { mine: MyFight; onLeave: () => void }) {
   const result = useFightUi((s) => s.result);
   const stats = useFightUi((s) => s.stats);
   const record = useFightUi((s) => s.record);
+  const skill = useFightUi((s) => s.skill);
   if (!result) return null;
   const me = mine.corner === "red" ? 0 : 1;
   const practice = mine.mode === "practice";
@@ -476,6 +477,8 @@ function ResultCard({ mine, onLeave }: { mine: MyFight; onLeave: () => void }) {
       practiceLevel={practice ? level : undefined}
       record={record}
       settledLine={settledLine}
+      skill={skill}
+      live={!practice}
       actions={{
         retry: practice ? () => startPractice(mine.ring, level, name) : undefined,
         nextLevel: practice && passed && level < 5 ? () => startPractice(mine.ring, level + 1, name) : undefined,

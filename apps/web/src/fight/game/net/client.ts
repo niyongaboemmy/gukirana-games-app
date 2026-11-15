@@ -1,4 +1,6 @@
 "use client";
+import type { FightRatingChange, FightStatLine } from "@gukirana/contracts";
+import { useFightRating } from "../rating";
 import { useEffect } from "react";
 import { create } from "zustand";
 import { Client, type Room } from "colyseus.js";
@@ -69,7 +71,9 @@ interface FightResultMsg {
   outcome: BoxingOutcome | null;
   /** the signed result's state hash (P3-FGT-06): shown in the fight record */
   stateHash?: string;
-  settlement: { xp?: Record<string, number> } | null;
+  settlement: { xp?: Record<string, number>; fightRating?: Record<string, FightRatingChange> } | null;
+  /** P3-FGT-10: the server's skill lines (signed with the result), by user id */
+  stats?: Record<string, FightStatLine>;
   pending?: boolean;
 }
 
@@ -154,6 +158,11 @@ async function openFight(m: { ring: RingId; roomId: string; matchId: string; cor
     const xp = me ? (r.settlement?.xp?.[me] ?? 0) : 0;
     setMine({ settled: { stars: starsFor(r, cur?.stake ?? 0), xp } });
     useFightUi.getState().setRecord({ id: m.matchId, hash: r.stateHash ?? null, kind: "match" });
+    // who is better (P3-FGT-10): the skill report from the server's lines, the rating change from the settlement
+    const opp = Object.keys(r.ranks).find((u) => u !== me);
+    if (me && opp && r.stats?.[me] && r.stats[opp]) useFightUi.getState().setSkill({ mine: r.stats[me]!, theirs: r.stats[opp]! });
+    useFightRating.getState().setChange(me ? (r.settlement?.fightRating?.[me] ?? null) : null);
+    void useFightRating.getState().loadMe();
     // the result card reads the outcome from the feed: make sure it is there even when no `over` event came
     if (r.outcome && !useFightUi.getState().result) useFightUi.getState().push([{ k: "over", t: cur?.snap?.tick ?? 0, result: r.outcome }]);
   });

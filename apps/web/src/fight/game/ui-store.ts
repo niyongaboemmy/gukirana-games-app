@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { BoxingAction, BoxingOutcome, FightEvent } from "@gukirana/contracts";
 import type { FgKey } from "./strings";
 import { newStats, tallyStats, type FightStats } from "./outcome";
+import type { SkillPair } from "./rating";
 
 /**
  * HUD-only state of the boxing client (not part of the bridge): the event feed the HUD shows (round cards, combo /
@@ -38,6 +39,9 @@ export interface FightUi {
   captionSet: (text: string, who: "referee" | "corner") => void;
   /** actions the player has done this session (tutorial steps) */
   done: Partial<Record<BoxingAction | "guard", number>>;
+  /** the skill report of the finished fight (P3-FGT-10): the server's signed lines (live) or the local engine's (practice) */
+  skill: SkillPair | null;
+  setSkill: (p: SkillPair | null) => void;
   /** the footwork direction held right now (HUD key hints light up) */
   mv: [number, number];
   setMove: (mv: [number, number]) => void;
@@ -61,6 +65,8 @@ export const useFightUi = create<FightUi>()((set) => ({
   press: null,
   done: {},
   mv: [0, 0],
+  skill: null,
+  setSkill: (skill) => set({ skill }),
   setMove: (mv) => set((s) => (s.mv[0] === mv[0] && s.mv[1] === mv[1] ? s : { mv })),
   push: (events) =>
     set((s) => {
@@ -77,5 +83,5 @@ export const useFightUi = create<FightUi>()((set) => ({
   captionSet: (text, who) => set({ caption: { text, who, at: clock() } }),
   pressed: (a, via) => set((s) => ({ press: { a, at: clock(), n: ++pressN, state: "pending", via }, done: { ...s.done, [a]: (s.done[a] ?? 0) + 1 } })),
   confirm: (state) => set((s) => (s.press && s.press.state !== state ? { press: { ...s.press, state } } : s)),
-  clear: () => set({ feed: [], result: null, hintKey: null, hintAt: 0, press: null, caption: null, stats: newStats(), record: null }),
+  clear: () => set({ feed: [], result: null, hintKey: null, hintAt: 0, press: null, caption: null, stats: newStats(), record: null, skill: null }),
 }));

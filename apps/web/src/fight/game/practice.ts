@@ -11,6 +11,7 @@ import {
   beginFight,
   boxingBotInput,
   createFight,
+  fightStatsOf,
   hashFight,
   reachOf,
   isBusy,
@@ -37,6 +38,9 @@ export async function practiceHash(state: FightState): Promise<string | null> {
   }
 }
 async function recordPractice(id: string, state: FightState): Promise<void> {
+  // the skill report vs the AI (practice is never rated: no rating line)
+  const [mine, theirs] = fightStatsOf(state);
+  useFightUi.getState().setSkill({ mine, theirs });
   const hash = await practiceHash(state);
   useFightUi.getState().setRecord({ id, hash, kind: "practice" });
 }
