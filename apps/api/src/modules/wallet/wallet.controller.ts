@@ -4,6 +4,8 @@ import { LedgerService } from "../ledger/ledger.service.js";
 import { userStars } from "../ledger/accounts.js";
 import { EconomyService } from "../economy/economy.service.js";
 import { WalletService } from "./wallet.service.js";
+import { CornerRefreshRequestSchema } from "@gukirana/contracts";
+import { parse } from "../../common/zod.js";
 
 /** Fallback only; the live amount comes from the economy settings (EconomyService). */
 export const DAILY_STARS = 200;
@@ -45,6 +47,13 @@ export class WalletController {
   @HttpCode(200)
   daily(@CurrentUser() u: AccessClaims) {
     return this.wallet.claimDaily(u.sub);
+  }
+
+  /** Practice corner refresh (P3-FGT-09, FF_FIGHT_BOOST): Stars for stamina, once per practice fight and round. */
+  @Post("corner-refresh")
+  @HttpCode(200)
+  cornerRefresh(@CurrentUser() u: AccessClaims, @Body() b: unknown) {
+    return this.wallet.cornerRefresh(u.sub, parse(CornerRefreshRequestSchema, b));
   }
 
   /** Honest buy / cash-out quote: you pay, you get, spread, fee, rate version. */

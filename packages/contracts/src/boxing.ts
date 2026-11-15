@@ -524,6 +524,26 @@ export const BoxingRingMsgSchema = z.object({ ring: RingIdSchema });
 export const BoxingQuickSchema = z.object({ stake: z.number().int().min(0).max(10_000) });
 export const BoxingWatchSchema = z.object({ ring: RingIdSchema.nullable() });
 
+/**
+ * Practice "corner refresh" (P3-FGT-09, behind FF_FIGHT_BOOST): `POST /wallet/corner-refresh`. Practice vs the AI
+ * only — the API refuses any other mode, and never in player-vs-player fights. One per practice fight and round: the
+ * ledger idempotency key is derived on the server from (user, practiceId, round), so a retry never charges twice.
+ */
+export const CornerRefreshRequestSchema = z.object({
+  mode: z.enum(["practice", "live"]),
+  practiceId: z.string().min(8).max(80).regex(/^practice-[A-Za-z0-9-]+$/),
+  round: z.number().int().min(1).max(12),
+});
+export type CornerRefreshRequest = z.infer<typeof CornerRefreshRequestSchema>;
+export const CornerRefreshResponseSchema = z.object({
+  /** false when this exact refresh was already bought (the replay of an earlier, confirmed spend) */
+  charged: z.boolean(),
+  price: z.number().int(),
+  stamina: z.number().int(),
+  stars: z.number().int(),
+});
+export type CornerRefreshResponse = z.infer<typeof CornerRefreshResponseSchema>;
+
 /* ------------------------------------------------------------ errors ------------------------------------------------------------ */
 
 /**

@@ -124,6 +124,17 @@ export class PracticeSession {
     }
   }
 
+  /**
+   * The corner refresh (P3-FGT-09): adds stamina to MY fighter in this local practice engine. Called only after the
+   * API confirmed the Stars spend (actions.ts buyCornerRefresh); practice only — a live fight has no such call.
+   */
+  cornerRefresh(stamina: number): void {
+    if (this.over) return;
+    const [me, ai] = this.state.fighters;
+    this.state = { ...this.state, fighters: [{ ...me, stamina: Math.min(1000, me.stamina + Math.max(0, Math.trunc(stamina))) }, ai] };
+    this.publish([]);
+  }
+
   setGuard(g: boolean): void {
     this.guard = g;
   }

@@ -1,6 +1,7 @@
-import { BadRequestException, ConflictException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import type { CornerRefreshRequest, CornerRefreshResponse } from "@gukirana/contracts";
 import { eq, journalEntries, journalLines, ledgerAccounts, sql, walletLimits } from "@gukirana/db";
-import { coins, quoteBuy, quoteCashout, streakBonus } from "@gukirana/money";
+import { CORNER_REFRESH_PRICE_STARS, CORNER_REFRESH_STAMINA, coins, cornerRefreshKey, quoteBuy, quoteCashout, streakBonus } from "@gukirana/money";
 import { DB, type Db } from "../../common/db.module.js";
 import { kigaliDay } from "../../common/ids.js";
 import { LedgerService } from "../ledger/ledger.service.js";
@@ -110,6 +111,35 @@ export class WalletService {
       if (!r.replayed) total += s.levelUpStars;
     }
     return total;
+  }
+
+  /* ---------------- practice boosts (P3-FGT-09) ---------------- */
+
+  /**
+   * The practice "corner refresh": Stars from the player back to the Stars budget (no cash value), once per practice
+   * fight and round. Practice vs the AI only — never in a fight against a player (friendly or staked): there the corner
+   * between rounds is the only recovery. Off unless FF_FIGHT_BOOST=1. The idempotency key is derived here from (user,
+   * practice fight, round): a retried request replays the same entry and never charges twice; a second refresh in the
+   * same round is the same key, so it is never charged either.
+   */
+  async cornerRefresh(userId: string, req: CornerRefreshRequest, enabled = process.env.FF_FIGHT_BOOST === "1"): Promise<CornerRefreshResponse> {
+    if (!enabled) throw new NotFoundException({ code: "FEATURE_OFF" });
+    if (req.mode !== "practice") throw new ForbiddenException({ code: "NOT_PRACTICE" });
+    const price = coins(CORNER_REFRESH_PRICE_STARS);
+    const s = await this.economy.current();
+    const r = await this.ledger.post({
+      type: "stars_boost",
+      idempotencyKey: cornerRefreshKey(userId, req.practiceId, req.round),
+      // (journal refs are uuids: the practice fight id lives in the idempotency key)
+      ref: { type: "user", id: userId },
+      createdBy: "wallet",
+      economyVersion: s.version,
+      lines: [
+        { account: userStars(userId), amount: price, direction: "D" },
+        { account: starsBudget(), amount: price, direction: "C" },
+      ],
+    });
+    return { charged: !r.replayed, price, stamina: CORNER_REFRESH_STAMINA, stars: await this.ledger.balance(userStars(userId)) };
   }
 
   /* ---------------- coins ---------------- */

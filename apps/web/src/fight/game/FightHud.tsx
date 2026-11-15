@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Check, Clapperboard, DoorOpen, Flag, GraduationCap, Hourglass, Megaphone, SlidersHorizontal, Square, Video } from "lucide-react";
+import { Check, Clapperboard, DoorOpen, Flag, GlassWater, GraduationCap, Hourglass, Megaphone, SlidersHorizontal, Square, Video } from "lucide-react";
 import { CORNER_COLORS, TICK_HZ, type BoxingSnapshot, type Corner, type FightEvent, type FighterView } from "@gukirana/contracts";
 import { Modal } from "@/games/GameShell";
 import { useFightBridge, type MyFight } from "../bridge";
-import { gameFightActions, startPractice } from "./actions";
+import { BOOST_ON, buyCornerRefresh, gameFightActions, startPractice } from "./actions";
+import { CORNER_REFRESH_PRICE_STARS, CORNER_REFRESH_STAMINA } from "@gukirana/money";
 import { eventFx } from "./fx";
 import { FightSettings } from "./FightSettings";
 import { actionKey, foulKey, ft, type FgKey } from "./strings";
@@ -287,6 +288,41 @@ function PowerWarning({ snap, me }: { snap: BoxingSnapshot; me: 0 | 1 }) {
   );
 }
 
+/**
+ * The corner refresh (P3-FGT-09): practice fights against the AI only, behind NEXT_PUBLIC_FF_FIGHT_BOOST. Once per round;
+ * the stamina comes back only after the API confirmed the Stars spend. Never shown in a fight against a player.
+ */
+function CornerRefresh({ mine }: { mine: MyFight }) {
+  const [state, setState] = useState<{ round: number; s: "idle" | "pending" | "done" | "failed" }>({ round: 0, s: "idle" });
+  const snap = mine.snap;
+  if (!BOOST_ON || mine.mode !== "practice" || !snap || (snap.phase !== "round" && snap.phase !== "rest")) return null;
+  const round = Math.max(1, snap.round);
+  const cur = state.round === round ? state.s : "idle";
+  const used = cur === "done";
+  return (
+    <div className="pointer-events-auto absolute bottom-[22%] right-3 flex max-w-[15rem] flex-col items-end gap-1 phone:bottom-[40%] phone:right-2" data-corner-refresh={cur}>
+      <button
+        type="button"
+        className="pbtn pbtn-primary !min-h-10 !px-3 !py-1 !text-xs"
+        disabled={used || cur === "pending"}
+        title={ft("boost.practiceOnly")}
+        onClick={() => {
+          setState({ round, s: "pending" });
+          void buyCornerRefresh().then((r) => setState({ round, s: r.ok ? "done" : "failed" }));
+        }}
+      >
+        <GlassWater size={16} />
+        <span className="flex flex-col items-start leading-tight">
+          <span>{ft(used ? "boost.used" : cur === "pending" ? "boost.pending" : "boost.label")}</span>
+          {!used && cur !== "pending" && <span className="text-[10px] font-semibold opacity-90">{ft("boost.price", { n: CORNER_REFRESH_PRICE_STARS })} · +{CORNER_REFRESH_STAMINA}</span>}
+        </span>
+      </button>
+      {cur === "failed" && <span className={`${glass} px-2 py-1 text-[11px] font-semibold`}>{ft("boost.failed")}</span>}
+      {cur === "done" && <span className={`${glass} px-2 py-1 text-[11px] font-semibold`}>{ft("boost.done", { n: CORNER_REFRESH_STAMINA })}</span>}
+    </div>
+  );
+}
+
 /** camera choice (P3-FGT-09): side broadcast (default), behind your boxer, or auto */
 function CameraToggle() {
   const cam = useWorldUi((s) => s.fightCam);
@@ -532,6 +568,7 @@ export function FightHud() {
       <HitFlash me={me} now={now} />
       <Callouts snap={snap} me={me} now={now} />
       <PowerWarning snap={snap} me={me} />
+      <CornerRefresh mine={mine} />
       <Caption now={now} hide={snap.phase === "knockdown" && useFightUi.getState().caption?.who === "referee"} />
       <PressChip now={now} />
       <Coach snap={snap} me={me} now={now} />

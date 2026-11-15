@@ -285,10 +285,10 @@ export const FG = {
   "drill.left": "{s} s",
   "boost.label": "Corner refresh",
   "boost.sub": "Water, towel and your coach: +{n} power",
-  "boost.price": "{n} coins",
+  "boost.price": "{n} Stars",
   "boost.used": "Used this round",
   "boost.pending": "Refreshing…",
-  "boost.failed": "Could not refresh. No coins were taken.",
+  "boost.failed": "Could not refresh. No Stars were taken.",
   "boost.done": "Refreshed: +{n} power",
   "boost.practiceOnly": "Practice only: in fights against players the corner between rounds is the only recovery.",
 } as const;

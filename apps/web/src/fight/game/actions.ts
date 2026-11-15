@@ -1,5 +1,6 @@
 "use client";
-import type { BoxingAction, FightRules, RingId } from "@gukirana/contracts";
+import type { BoxingAction, CornerRefreshResponse, FightRules, RingId } from "@gukirana/contracts";
+import { api } from "@/lib/session";
 import { createFairRng, newSeed } from "@gukirana/fairness";
 import type { BotLevel } from "@gukirana/boxing";
 import { useFightBridge } from "../bridge";
@@ -96,6 +97,30 @@ export function stopPractice(clear = true): void {
 export const practiceSession = (): PracticeSession | null => session;
 // dev QA handle: script practice states (knockdowns, endings) for screenshots
 if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") Object.assign(window as unknown as Record<string, unknown>, { __gkPractice: { session: () => session, input: () => fightInput } });
+
+/* ------------------------------------------------------------ the corner refresh (P3-FGT-09) ------------------------------------------------------------ */
+
+/** practice only and behind NEXT_PUBLIC_FF_FIGHT_BOOST (default off) */
+export const BOOST_ON = process.env.NEXT_PUBLIC_FF_FIGHT_BOOST === "1";
+
+/**
+ * Buy a corner refresh for the current practice round: the API spends the Stars (ledger, idempotent per fight and
+ * round); only once it confirms is the stamina added to the local practice engine. Never offered in a live fight.
+ */
+export async function buyCornerRefresh(): Promise<{ ok: true; stamina: number } | { ok: false }> {
+  const mine = useFightBridge.getState().mine;
+  const s = session;
+  if (!BOOST_ON || !s || mine?.mode !== "practice" || !mine.snap) return { ok: false };
+  const round = Math.max(1, mine.snap.round);
+  try {
+    const r = await api<CornerRefreshResponse>("/wallet/corner-refresh", { method: "POST", body: JSON.stringify({ mode: "practice", practiceId: s.id, round }) });
+    if (session !== s) return { ok: false };
+    s.cornerRefresh(r.stamina);
+    return { ok: true, stamina: r.stamina };
+  } catch {
+    return { ok: false };
+  }
+}
 
 /* ------------------------------------------------------------ controls → the fight ------------------------------------------------------------ */
 
