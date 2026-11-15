@@ -27,7 +27,9 @@ export function GymPrompt({ game }: { game: string }) {
   const inFight = useFightBridge((s) => !!s.mine);
   const chatOpen = useSocial((s) => s.chatOpen);
   const phone = usePhoneHud();
-  const show = game === "boxing" && !nearExit && !ring && !inFight && !seated;
+  // the watch bar has priority: no gym prompt while you watch a ring
+  const watching = useFightBridge((s) => !!s.watched);
+  const show = game === "boxing" && !nearExit && !ring && !inFight && !seated && !watching;
   const seat = show && !prop ? nearSeat : null;
   const act = () => {
     if (prop) {

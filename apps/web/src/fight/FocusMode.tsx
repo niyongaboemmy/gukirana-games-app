@@ -57,7 +57,6 @@ export function FocusMode() {
       publishFocus(FOCUS_IDLE);
       state.current = FOCUS_IDLE;
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 

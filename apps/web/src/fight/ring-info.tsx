@@ -24,8 +24,9 @@ const PROMPT_MARGIN = 0.6;
 const PROMPT_GAIN = 0.3;
 const PROMPT_HOLD = 0.3;
 const RING_KEYS = RINGS.map((_, i) => String(i));
-const WATCH_R = 6;
-const WATCH_S = 1.5;
+const WATCH_R = 4.5;
+/** a deliberate dwell (standing still, facing the ring) before watching starts on its own: no surprise watching (P3-FGT-05) */
+const WATCH_S = 4;
 
 /**
  * Which ring you stand by (prompt target), automatic watching (standing within 6 m of a live ring and facing it

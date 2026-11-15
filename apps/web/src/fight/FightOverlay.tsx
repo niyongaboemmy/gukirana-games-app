@@ -95,7 +95,7 @@ export function FightOverlay({ layout }: { layout: HallLayout }) {
     // a focused text field (chat) would swallow the fight keys
     const a = document.activeElement as HTMLElement | null;
     if (a && /^(INPUT|TEXTAREA)$/.test(a.tagName)) a.blur();
-    useSocial.getState().chatOpen && useSocial.setState({ chatOpen: false });
+    if (useSocial.getState().chatOpen) useSocial.setState({ chatOpen: false });
   }, [focused]);
   const [hint, setHint] = useState(true);
   useEffect(() => {

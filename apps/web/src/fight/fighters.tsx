@@ -37,6 +37,7 @@ const fullReady = new Set<RingId>();
 const impostorDirty = { v: true };
 /** impostor fighters drawn right now (QA / perf readout) */
 export const impostorCount = { n: 0 };
+const COARSE = typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches;
 const LIVE = new Set(["fighting", "practice", "starting", "result", "waiting"]);
 
 interface Slot {
@@ -120,7 +121,8 @@ export function FightersLayer({ lite }: { lite: boolean }) {
     if (b.watched && b.watched.ring !== b.mine?.ring) out.push({ ring: b.watched.ring, src: "watched" });
     // the nearest live rings get full pairs: a ring keeps its pair until FULL_OUT, new ones join inside FULL_IN while
     // there is room (sticky: two rings at almost the same distance do not swap pairs back and forth)
-    const cap = lite ? 1 : 2;
+    // phones: one full pair at a time (≈ 11 draws + a mount hitch each; P3-FGT-04 found 157 calls with two)
+    const cap = lite || COARSE ? 1 : 2;
     const dist = (r: RingPlace) => Math.hypot(r.x - camera.position.x, r.z - camera.position.z);
     const free = (r: RingPlace) => LIVE.has(b.rings[r.id]?.status ?? "free") && !out.some((s) => s.ring === r.id);
     const kept = slots.filter((s) => s.src === "loop").map((s) => RING_BY_ID[s.ring]!).filter((r) => free(r) && dist(r) < FULL_OUT);
