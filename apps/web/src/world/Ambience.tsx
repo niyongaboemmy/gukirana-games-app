@@ -7,6 +7,8 @@ import { uiAudio } from "@/lib/audio";
 import { isOnScreen, useArea } from "./stage";
 import { DOOR_RING, PORTALS, ringOf, ringPoint } from "./layout";
 import { ADMIN_FLAGPOLES, ADMIN_FLAG_Z } from "./District";
+import { ARENA_FLAG, ARENA_FLAGPOLES } from "./footprints";
+import { paintRwandaFlag, rwandaFlagSpec } from "./rwanda-flag";
 import type { Tier } from "./materials";
 import { useGamePrefs } from "@/games/feedback";
 import { kigaliHour } from "./activities";
@@ -267,15 +269,13 @@ function Soundscape() {
 
 /* ---------------- flags ---------------- */
 
-const FLAG_W = 1.8;
-const FLAG_H = 1.1;
-const POLES = [-11.5, -10, 10, 11.5];
-const FLAG_COLORS = ["#00A1DE", "#FAD201", "#20603D", "#9B51E0"]; // Rwanda blue/yellow/green + arena purple
-
-/** Cloth flag: vertices sway with a travelling wave whose amplitude grows away from the pole (pinned edge stays still). */
-function Flag({ x, color, phase, tier, y = 10.3, z = -DOOR_RING + 3, map }: { x: number; color: string; phase: number; tier: Tier; y?: number; z?: number; map?: THREE.Texture }) {
+/**
+ * Cloth flag (w × h, hoist edge on the pole at x): vertices sway with a slow travelling wave whose amplitude grows away
+ * from the pole (the pinned edge stays still). P2-WLD-17: a gentler, slower wave (a calm breeze, not a gale).
+ */
+function Flag({ x, y, z, w, h, phase, tier, map, color = "#ffffff" }: { x: number; y: number; z: number; w: number; h: number; phase: number; tier: Tier; map?: THREE.Texture; color?: string }) {
   const mat = useMemo(() => {
-    const m = new THREE.MeshStandardMaterial({ color, map: map ?? null, roughness: 0.85, side: THREE.DoubleSide });
+    const m = new THREE.MeshStandardMaterial({ color, map: map ?? null, roughness: 0.82, side: THREE.DoubleSide });
     m.onBeforeCompile = (s) => {
       s.uniforms.uTime = { value: 0 };
       s.uniforms.uPhase = { value: phase };
@@ -285,79 +285,64 @@ function Flag({ x, color, phase, tier, y = 10.3, z = -DOOR_RING + 3, map }: { x:
         .replace(
           "#include <begin_vertex>",
           `#include <begin_vertex>
-           float u = clamp(position.x / ${FLAG_W.toFixed(2)}, 0.0, 1.0);
-           float w = uTime * 5.0 + uPhase - u * 6.0;
-           transformed.z += sin(w) * 0.16 * u + sin(w * 1.7 + 0.6) * 0.05 * u;
-           transformed.y += sin(w * 0.8) * 0.04 * u - 0.06 * u * u;
-           transformed.x -= 0.05 * u * u * (1.0 + 0.3 * sin(w));`,
+           float u = clamp(position.x / ${w.toFixed(2)}, 0.0, 1.0);
+           float w = uTime * 3.2 + uPhase - u * 5.0;
+           transformed.z += sin(w) * 0.11 * u + sin(w * 1.6 + 0.6) * 0.035 * u;
+           transformed.y += sin(w * 0.8) * 0.025 * u - 0.05 * u * u;
+           transformed.x -= 0.035 * u * u * (1.0 + 0.3 * sin(w));`,
         );
     };
+    m.customProgramCacheKey = () => `gk-flag-${w.toFixed(2)}`;
     return m;
-  }, [color, phase, map]);
-  const geo = useMemo(() => new THREE.PlaneGeometry(FLAG_W, FLAG_H, tier === "lite" ? 8 : 20, tier === "lite" ? 3 : 6).translate(FLAG_W / 2, 0, 0), [tier]);
+  }, [color, phase, map, w]);
+  const geo = useMemo(() => new THREE.PlaneGeometry(w, h, tier === "lite" ? 8 : 20, tier === "lite" ? 3 : 6).translate(w / 2, 0, 0), [tier, w, h]);
   useFrame(({ clock }) => {
     const s = mat.userData.shader as { uniforms: { uTime: { value: number } } } | undefined;
     if (s) s.uniforms.uTime.value = clock.elapsedTime;
   });
-  // arena door on the ring at 0°: local +z faces the fountain; poles stand 3 m in front of the facade
   return <mesh geometry={geo} material={mat} position={[x + 0.06, y, z]} castShadow={tier !== "lite"} />;
 }
 
 export function PlazaLife({ tier }: { tier: Tier }) {
+  const map = useMemo(() => (typeof document === "undefined" ? undefined : rwandaFlag()), []);
   return (
     <group>
-      {POLES.map((x, i) => (
-        <Flag key={x} x={x} color={FLAG_COLORS[i]!} phase={i * 1.7} tier={tier} />
+      {/* the arena door is on the ring at 0° (local +z faces the fountain): Rwanda's flag on every pole (P2-WLD-17) */}
+      {ARENA_FLAGPOLES.map((x, i) => (
+        <Flag key={x} x={x} y={ARENA_FLAG.y} z={-DOOR_RING + ARENA_FLAG.z} w={ARENA_FLAG.w} h={ARENA_FLAG.h} map={map} phase={i * 1.7} tier={tier} />
       ))}
-      <AdminFlags tier={tier} />
+      <AdminFlags tier={tier} map={map} />
       <Soundscape />
     </group>
   );
 }
 
-/** Rwanda's flag (blue, yellow, green; the golden sun in the fly-side top corner), painted once. */
+/** Rwanda's flag (world/rwanda-flag.ts: 2:3, official colours, the 24-ray sun ringed in blue), painted once, crisp. */
 let rwanda: THREE.CanvasTexture | null = null;
 function rwandaFlag() {
   if (rwanda) return rwanda;
+  const spec = rwandaFlagSpec(768);
   const c = document.createElement("canvas");
-  c.width = 192;
-  c.height = 128;
-  const g = c.getContext("2d")!;
-  g.fillStyle = "#00A1DE";
-  g.fillRect(0, 0, 192, 64);
-  g.fillStyle = "#FAD201";
-  g.fillRect(0, 64, 192, 32);
-  g.fillStyle = "#20603D";
-  g.fillRect(0, 96, 192, 32);
-  g.fillStyle = "#E5BE01";
-  const cx = 160;
-  const cy = 26;
-  for (let i = 0; i < 24; i++) {
-    const a = (i / 24) * Math.PI * 2;
-    g.beginPath();
-    g.moveTo(cx + Math.cos(a - 0.09) * 10, cy + Math.sin(a - 0.09) * 10);
-    g.lineTo(cx + Math.cos(a) * 18, cy + Math.sin(a) * 18);
-    g.lineTo(cx + Math.cos(a + 0.09) * 10, cy + Math.sin(a + 0.09) * 10);
-    g.fill();
-  }
-  g.beginPath();
-  g.arc(cx, cy, 9, 0, Math.PI * 2);
-  g.fill();
+  c.width = spec.w;
+  c.height = spec.h;
+  paintRwandaFlag(c.getContext("2d")!, spec);
   rwanda = new THREE.CanvasTexture(c);
   rwanda.colorSpace = THREE.SRGBColorSpace;
+  rwanda.anisotropy = 8;
+  rwanda.generateMipmaps = true;
+  rwanda.minFilter = THREE.LinearMipmapLinearFilter;
   return rwanda;
 }
 
 /** The Administrative Block's three flags (Rwanda in the middle, the compound's gold either side). */
-function AdminFlags({ tier }: { tier: Tier }) {
+function AdminFlags({ tier, map }: { tier: Tier; map?: THREE.Texture }) {
   const p = PORTALS.find((q) => q.id === "admin");
-  const map = useMemo(() => (typeof document === "undefined" ? undefined : rwandaFlag()), []);
   if (!p) return null;
   const d = ringPoint(p.angleDeg, ringOf(p));
   return (
     <group position={[d.x, 0, d.z]} rotation={[0, d.rotY, 0]}>
       {ADMIN_FLAGPOLES.map((x, i) => (
-        <Flag key={x} x={x} y={8.3} z={ADMIN_FLAG_Z} color={i === 1 ? "#ffffff" : "#C9A96B"} map={i === 1 ? map : undefined} phase={i * 1.3 + 0.4} tier={tier} />
+        <Flag key={x} x={x} y={8.3} z={ADMIN_FLAG_Z} w={ARENA_FLAG.w} h={ARENA_FLAG.h} color={i === 1 ? "#ffffff" : "#C9A96B"} map={i === 1 ? map : undefined} phase={i * 1.3 + 0.4} tier={tier} />
       ))}
     </group>
   );
