@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { nearCampusWalk, PROMENADE_DEG, PROMENADE_EAST_DEG } from "./campus";
+import { nearCampusWalk } from "./campus";
+import { plazaEdgeArcs } from "./walk-mesh";
 import { GeoBatch } from "./geo";
 import { roofKit, roofMembrane } from "./roofs";
 import { LAMPS } from "./obstacles";
@@ -16,17 +17,12 @@ import {
   FOUNTAIN_RADIUS,
   PAVING_R,
   PERIMETER_R,
-  PORTALS,
   ringPoint,
   SPAWN,
   TOTEMS,
   ENTRY_Z,
-  EXPANSION_PLOTS,
-  EXPANSION_RING,
-  OUTER_PROMENADE,
   WAYFINDING,
   wayfindingRows,
-  ringOf,
   type PortalDef,
 } from "./layout";
 
@@ -628,11 +624,10 @@ function plaza(b: GeoBatch, tier: string) {
   // the fountain court: a honed granite disc framed by a basalt band (the second band halfway out was dropped: a calm
   // floor, fewer lines)
   b.add("granite", flat(new THREE.CircleGeometry(FOUNTAIN_COURT, tier === "lite" ? 64 : 128)), { p: [0, 0.003, 0], tile: 4.8 });
-  for (const [r0, r1, k] of [
-    [FOUNTAIN_COURT - 0.05, FOUNTAIN_COURT + 0.3, "basalt"],
-    [PAVING_R, PAVING_R + 0.8, "lava"],
-  ] as const)
-    b.add(k, flat(new THREE.RingGeometry(r0, r1, ringSeg, 1)), { p: [0, 0.007, 0], tile: 1.2 }); // (≥ 4 mm over the granite: no z-fighting from the gate)
+  b.add("basalt", flat(new THREE.RingGeometry(FOUNTAIN_COURT - 0.05, FOUNTAIN_COURT + 0.3, ringSeg, 1)), { p: [0, 0.007, 0], tile: 1.2 }); // (≥ 4 mm over the granite: no z-fighting from the gate)
+  // the paving's lava edge band, open where a campus walk leaves the plaza (P2-WLD-16: the walk's paving meets the
+  // plaza's there, no band across the junction); ring angle θ = 90° − bearing
+  for (const [d0, d1] of plazaEdgeArcs()) b.add("lava", flat(new THREE.RingGeometry(PAVING_R, PAVING_R + 0.8, Math.max(2, Math.ceil(((d1 - d0) / 360) * ringSeg)), 1, ((90 - d1) * Math.PI) / 180, ((d1 - d0) * Math.PI) / 180)), { p: [0, 0.007, 0], tile: 1.2 });
   // (no promenade lines: the floor keeps only its circles — the fountain court band, the paving edge and each door's
   // threshold; the Go To route guide draws a path when one is wanted)
   // spawn medallion: flush granite disc with a 15 mm brass inlay ring
@@ -744,23 +739,8 @@ function plaza(b: GeoBatch, tier: string) {
     if (near || gate || builder(deg) || nearCampusWalk(p.x, p.z, 2.2)) continue;
     b.box("lava", 3.6, 0.8, 0.6, { p: [p.x, 0.4, p.z], r: [0, p.rotY, 0], tile: 1.2 });
   }
-  // expansion district: the outer promenade ring (honed granite between basalt kerbs), served by the main avenue
-  // (P2-WLD-12: kept only north of the gate line; P2-WLD-14: it ends at the Boxing hall's body in the east, bearings
-  // −PROMENADE_DEG … +PROMENADE_EAST_DEG; ring angle θ = 90° − bearing)
-  const t0 = ((90 - PROMENADE_EAST_DEG) * Math.PI) / 180;
-  const tl = ((PROMENADE_DEG + PROMENADE_EAST_DEG) * Math.PI) / 180;
-  b.add("granite", flat(new THREE.RingGeometry(OUTER_PROMENADE.r0, OUTER_PROMENADE.r1, 160, 1, t0, tl)), { p: [0, 0.008, 0], tile: 4.8 });
-  for (const r of [OUTER_PROMENADE.r0, OUTER_PROMENADE.r1]) b.add("basalt", flat(new THREE.RingGeometry(r - 0.1, r + 0.1, 160, 1, t0, tl)), { p: [0, 0.012, 0], tile: 1.2 });
-  // a forecourt in front of every expansion plot
-  for (const e of EXPANSION_PLOTS) {
-    const m = ringPoint(e.angleDeg, (OUTER_PROMENADE.r1 + EXPANSION_RING) / 2 + 0.3);
-    b.box("granite", 16, 0.02, EXPANSION_RING - OUTER_PROMENADE.r1 + 1.2, { p: [m.x, 0.007, m.z], r: [0, m.rotY, 0], tile: 4.8 });
-  }
-  // …and in front of the outer-ring halls (the Administrative Block, P2-WLD-14)
-  for (const p of PORTALS.filter((q) => ringOf(q) === EXPANSION_RING)) {
-    const m = ringPoint(p.angleDeg, (OUTER_PROMENADE.r1 + EXPANSION_RING) / 2 + 0.3);
-    b.box("granite", 18, 0.02, EXPANSION_RING - OUTER_PROMENADE.r1 + 1.2, { p: [m.x, 0.007, m.z], r: [0, m.rotY, 0], tile: 4.8 });
-  }
+  // expansion district: the outer promenade and the forecourts of the expansion plots and the outer-ring halls are
+  // part of the campus walk network's one paved surface since P2-WLD-16 (world/walk-mesh.ts, drawn by CampusRoads)
   // the 16.5 m avenue from the plaza entry gate to the arrival gate (P2-WLD-12: it ends there; the ring road gave way
   // to the campus loop road and the frontage, world/CampusRoads.tsx and Frontage.tsx)
   const a0 = PAVING_R - 1;
