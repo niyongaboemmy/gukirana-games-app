@@ -15,6 +15,8 @@ const S = BOXING_SIZE.d / 2; // the south wall (z = +15)
 export const TRAINING_FLOOR = { x0: 12, x1: 45, z0: 13.85, z1: S };
 /** the line people stand on to use a prop (just in front of the rubber) */
 const STAND_Z = 13.65;
+/** the strip people training at the wall take (the stand line less a body radius → the wall), for the aisle check */
+export const TRAINING_USE = { x0: TRAINING_FLOOR.x0, x1: TRAINING_FLOOR.x1, z0: STAND_Z - 0.25, z1: S };
 
 export type GymPropKind = "heavyBag" | "speedBag" | "water" | "mirror";
 export interface GymProp {

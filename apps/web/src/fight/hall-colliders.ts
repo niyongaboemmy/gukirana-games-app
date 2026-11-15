@@ -1,4 +1,4 @@
-import { CORNERS, dimsOf, stepZ, stoolParked, toHall } from "@/rooms/fight/ring-kit-core";
+import { cornerKit, dimsOf, toHall } from "@/rooms/fight/ring-kit-core";
 import { FEATURE_STAGE, RINGS, type RingPlace } from "./plan";
 import { kitSpec } from "./climb";
 
@@ -24,24 +24,18 @@ export interface Seg {
   r: number;
 }
 
-/** where the bucket group of a fighter's corner stands (ring frame → hall), beside the steps (ring-kit-geometry) */
-export const bucketSpot = (r: RingPlace, c: "red" | "blue") => {
+/** a ring's corner floor kit in hall coordinates (ring-kit-core cornerKit: stool, buckets, bottles) */
+export const cornerKitHall = (r: RingPlace, c: "red" | "blue") => {
   const spec = kitSpec(r);
-  const K = dimsOf(spec);
-  const [sx, sz] = CORNERS[c];
-  return toHall(spec, sx * (K.half + 0.35), 0, sz * (stepZ(K) - 0.85));
+  return cornerKit(dimsOf(spec), c).map((it) => ({ ...it, ...toHall(spec, it.lx, 0, it.lz) }));
 };
 
+/** one disc per piece of every standard ring's corner kit (its footprint + 3 cm) */
 export const HALL_DISCS: Disc[] = (() => {
   const out: Disc[] = [];
   for (const r of RINGS) {
     if (r.feature) continue; // the feature rings' corners are on the stage (solid for everyone but the fighters)
-    for (const c of ["red", "blue"] as const) {
-      const st = stoolParked(kitSpec(r), c);
-      out.push({ x: st.x, z: st.z, r: 0.2 });
-      const b = bucketSpot(r, c);
-      out.push({ x: b.x, z: b.z, r: 0.24 });
-    }
+    for (const c of ["red", "blue"] as const) for (const it of cornerKitHall(r, c)) out.push({ x: it.x, z: it.z, r: it.r + 0.03 });
   }
   return out;
 })();

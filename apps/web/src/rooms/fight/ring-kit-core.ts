@@ -55,6 +55,11 @@ export interface RingDims {
   radius: number;
   /** run of each of the three corner steps (m) */
   stepRun: number;
+  /**
+   * corner kit tucked in a bay (P3-FGT-11): the barrier rail stays off the steps' half of a stepped side, and the
+   * stool, buckets and bottles stand against the skirt there (≤ 0.42 m out), never past the steps' footprint
+   */
+  bay: boolean;
 }
 
 export const RING = {
@@ -78,6 +83,7 @@ export const RING = {
   /** bounding sphere radius of a ring incl. its rail (culling) */
   radius: 7.2,
   stepRun: 0.3,
+  bay: false,
 } as const satisfies RingDims;
 
 /**
@@ -97,6 +103,7 @@ export const TRAINING_RING = {
   stoolH: RING.stoolH,
   radius: 4.4,
   stepRun: 0.24,
+  bay: true,
 } as const satisfies RingDims;
 
 export const RING_SIZES: Record<RingSize, RingDims> = { pro: RING, training: TRAINING_RING };
@@ -159,13 +166,53 @@ export function stoolSpot(r: Placed, c: "red" | "blue"): Spot {
   return toHall(r, sx * d, D.deck, sz * d, facing(sx * d, sz * d, 0, 0));
 }
 
-/** The stool off duty: on the hall floor outside the corner, by the steps. */
-export function stoolParked(r: Placed, c: "red" | "blue"): Spot {
-  const [sx, sz] = CORNERS[c];
-  const d = dimsOf(r);
-  // beside the bucket, clear of the steps
-  return toHall(r, sx * (d.half + 0.4), 0, sz * (stepZ(d) - 1.35), 0);
+export type KitKind = "stool" | "bucket" | "spit" | "bottle";
+/** one piece of a fighter corner's floor kit in the ring frame: its centre and footprint radius */
+export interface KitItem {
+  kind: KitKind;
+  lx: number;
+  lz: number;
+  r: number;
 }
+
+/**
+ * The floor kit of a fighter's corner (the parked stool, the water bucket, the spit bucket, two bottles), ring frame —
+ * the one source for the geometry (ring-kit-geometry), the hall colliders and the aisle clearance check.
+ *  - pro ring (no bay): beside the steps, out on the floor as before (the feature stage has room);
+ *  - training ring (bay, P3-FGT-11): tucked against the skirt on the steps' half of the side, the stool past the steps
+ *    in the corner, everything ≤ 0.42 m off the platform — inside the steps' own reach into the aisle.
+ */
+export function cornerKit(K: RingDims, c: "red" | "blue"): KitItem[] {
+  const [sx, sz] = CORNERS[c];
+  const sZ = stepZ(K);
+  const at = (kind: KitKind, out: number, along: number, r: number): KitItem => ({ kind, lx: sx * (K.half + out), lz: sz * along, r });
+  if (K.bay)
+    return [
+      at("stool", 0.22, sZ + 0.68, 0.19),
+      at("bucket", 0.2, sZ - 0.78, 0.165),
+      at("spit", 0.16, sZ - 1.13, 0.12),
+      at("bottle", 0.07, sZ - 1.36, 0.035),
+      at("bottle", 0.07, sZ - 1.45, 0.035),
+    ];
+  const bz = sZ - 0.85;
+  return [
+    at("stool", 0.4, sZ - 1.35, 0.19),
+    at("bucket", 0.35, bz, 0.165),
+    at("spit", 0.35, bz - 0.32, 0.12),
+    // (the two bottles' offsets along the side were not mirrored per corner: kept as they were drawn)
+    { kind: "bottle", lx: sx * (K.half + 0.63), lz: sz * bz + 0.05, r: 0.035 },
+    { kind: "bottle", lx: sx * (K.half + 0.69), lz: sz * bz + 0.14, r: 0.035 },
+  ];
+}
+
+/** The stool off duty: on the hall floor outside the corner (cornerKit), facing out of the ring. */
+export function stoolParked(r: Placed, c: "red" | "blue"): Spot {
+  const s = cornerKit(dimsOf(r), c)[0]!;
+  return toHall(r, s.lx, 0, s.lz, 0);
+}
+
+/** how far the corner steps reach out from the platform edge, hand rails included (m) */
+export const stepsReach = (d: RingDims) => 3 * d.stepRun + 0.07;
 
 /** Root-to-root distance at which straight punches land (the jab / cross reach of the motion library + the head). */
 export const PUNCH_RANGE = 1.0;

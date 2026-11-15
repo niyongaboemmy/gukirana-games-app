@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { CORNERS, RING, RING_SIZES, stepZ, type CornerId, type RingDims, type RingSize } from "./ring-kit-core";
+import { cornerKit, CORNERS, RING, RING_SIZES, stepZ, type CornerId, type RingDims, type RingSize } from "./ring-kit-core";
 
 /**
  * Boxing ring geometry (P3-FGT-02), in the ring frame (ring-kit-core.ts). Every level is ONE merged geometry with
@@ -259,28 +259,29 @@ function setDressing(p: Parts, K: RingDims) {
   for (const c of ["red", "blue"] as const) {
     const [sx, sz] = CORNERS[c];
     const tint = c === "red" ? COL.red : COL.blue;
-    // the corner's floor kit beside the steps (P3-FGT-08): water bucket, spit bucket with its funnel, two bottles
-    const x = sx * (K.half + 0.35),
-      z = sz * (stepZ(K) - 0.85);
-    const bucket = new THREE.CylinderGeometry(0.16, 0.13, 0.3, 14, 1, true);
-    p.add(bucket, COL.bucket, new THREE.Matrix4().makeTranslation(x, 0.15, z));
-    p.cyl(0.13, 0.13, 0.01, x, 0.012, z, COL.bucket, 14);
-    p.cyl(0.165, 0.165, 0.018, x, 0.3, z, COL.bucketRim, 14); // rolled rim
-    p.cyl(0.15, 0.15, 0.02, x, 0.22, z, "#7e9aa6", 14); // water, a little ice-grey
-    const sp = z - sz * 0.32;
-    p.cyl(0.12, 0.1, 0.24, x, 0.12, sp, "#2a2c31", 12); // spit bucket
-    p.add(new THREE.CylinderGeometry(0.12, 0.03, 0.1, 12, 1, true), "#3b3e44", new THREE.Matrix4().makeTranslation(x, 0.29, sp)); // its funnel
-    for (const [k, dz] of [
-      [0, 0.05],
-      [1, 0.14],
-    ] as const) {
-      const bx = x + sx * (0.28 + k * 0.06);
-      p.cyl(0.035, 0.035, 0.2, bx, 0.1, z + dz, COL.bottle, 8);
-      p.cyl(0.02, 0.028, 0.04, bx, 0.22, z + dz, tint, 8);
+    // the corner's floor kit beside the steps (P3-FGT-08; P3-FGT-11: from ring-kit-core cornerKit, on a training ring
+    // tucked against the skirt in the rail's bay): water bucket, spit bucket with its funnel, two bottles (the stool is
+    // its own instanced part)
+    for (const it of cornerKit(K, c)) {
+      const { lx: x, lz: z } = it;
+      if (it.kind === "bucket") {
+        const bucket = new THREE.CylinderGeometry(0.16, 0.13, 0.3, 14, 1, true);
+        p.add(bucket, COL.bucket, new THREE.Matrix4().makeTranslation(x, 0.15, z));
+        p.cyl(0.13, 0.13, 0.01, x, 0.012, z, COL.bucket, 14);
+        p.cyl(0.165, 0.165, 0.018, x, 0.3, z, COL.bucketRim, 14); // rolled rim
+        p.cyl(0.15, 0.15, 0.02, x, 0.22, z, "#7e9aa6", 14); // water, a little ice-grey
+      } else if (it.kind === "spit") {
+        p.cyl(0.12, 0.1, 0.24, x, 0.12, z, "#2a2c31", 12); // spit bucket
+        p.add(new THREE.CylinderGeometry(0.12, 0.03, 0.1, 12, 1, true), "#3b3e44", new THREE.Matrix4().makeTranslation(x, 0.29, z)); // its funnel
+      } else if (it.kind === "bottle") {
+        p.cyl(0.035, 0.035, 0.2, x, 0.1, z, COL.bottle, 8);
+        p.cyl(0.02, 0.028, 0.04, x, 0.22, z, tint, 8);
+      }
     }
-    // a corner towel folded over the barrier rail next to the kit (two drops and the fold on the top tube)
+    // a corner towel folded over the barrier rail next to the kit (two drops and the fold on the top tube); with a bay
+    // on the rail's other half (the steps' half has no rail)
     const rx = sx * K.rail,
-      tz = sz * (stepZ(K) - 1.1),
+      tz = K.bay ? -sz * 0.5 : sz * (stepZ(K) - 1.1),
       th = K.railH;
     p.box(0.05, 0.03, 0.34, rx, th + 0.02, tz, COL.towel);
     for (const s2 of [-1, 1]) p.box(0.012, 0.36, 0.34, rx + s2 * 0.035, th - 0.16, tz, COL.towel);
@@ -299,7 +300,10 @@ function rail(p: Parts, K: RingDims, near: boolean) {
     // (the gap is 1.3 m round the steps' centre line, stepZ either side)
     const g0 = stepZ(K) - 0.65,
       g1 = stepZ(K) + 0.65;
-    const spans: [number, number][] = gap
+    // bay (P3-FGT-11): no rail on the steps' half of the side (t < 0 in this frame), the corner kit stands there
+    const spans: [number, number][] = gap && K.bay
+      ? [[0, R]]
+      : gap
       ? [
           [-R, -g1],
           [-g0, g0],

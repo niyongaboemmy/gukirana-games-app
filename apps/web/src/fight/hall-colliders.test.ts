@@ -4,8 +4,8 @@ import { BOXING_AISLES, BOXING_SIZE, FEATURE_STAGE, RINGS, ringSteps } from "./p
 import { boxingWalkable } from "./hooks";
 
 describe("Boxing hall fixture colliders (P3-FGT-08)", () => {
-  it("every standard ring's floor kit (2 stools + 2 bucket groups) is solid", () => {
-    expect(HALL_DISCS.length).toBe(RINGS.filter((r) => !r.feature).length * 4);
+  it("every standard ring's floor kit (per corner: stool, two buckets, two bottles) is solid", () => {
+    expect(HALL_DISCS.length).toBe(RINGS.filter((r) => !r.feature).length * 2 * 5);
     for (const d of HALL_DISCS) expect(fixtureBlocks(d.x, d.z)).toBe(true);
   });
   it("the foot of every ring's steps and the walking aisles stay open", () => {

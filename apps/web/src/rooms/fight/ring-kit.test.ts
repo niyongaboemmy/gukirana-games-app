@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cornerPost, fightSpots, onStepsFootprint, LOD_BY_TIER, RING, ringDrawCalls, ringSteps, selectLods, stepHeight, stoolSpot, toHall, TRAINING_RING, type RingLod, type RingSpec } from "./ring-kit-core";
+import { cornerKit, cornerPost, fightSpots, onStepsFootprint, LOD_BY_TIER, RING, ringDrawCalls, ringSteps, selectLods, stepHeight, stepsReach, stoolParked, stoolSpot, toHall, TRAINING_RING, type RingLod, type RingSpec } from "./ring-kit-core";
 import { farRingGeometry, nearRingGeometry, stoolGeometry, triangles } from "./ring-kit-geometry";
 
 /** a 50-ring hall field: 10 × 5 rings on a 12 m grid */
@@ -156,6 +156,25 @@ describe("training ring size (P3-FGT-03)", () => {
       expect(onStepsFootprint(t, off, s.foot.z, 0.22)).toBe(true);
     }
     expect(onStepsFootprint(t, t.x + 8, t.z, 0.22)).toBe(false);
+  });
+
+  it("a training ring's corner kit is tucked in the rail's bay: against the skirt, inside the steps' reach, off the treads (P3-FGT-11)", () => {
+    const K = TRAINING_RING;
+    for (const c of ["red", "blue"] as const) {
+      const kit = cornerKit(K, c);
+      expect(kit.map((k) => k.kind).sort()).toEqual(["bottle", "bottle", "bucket", "spit", "stool"]);
+      for (const it of kit) {
+        const out = Math.abs(it.lx) + it.r - K.half;
+        expect(out).toBeLessThanOrEqual(0.42);
+        expect(out).toBeLessThan(stepsReach(K));
+        expect(Math.abs(it.lx) - it.r).toBeGreaterThan(K.half); // on the floor, not in the skirt
+        expect(Math.abs(it.lz) + it.r).toBeLessThanOrEqual(K.half); // not past the corner
+        expect(onStepsFootprint({ x: 0, z: 0, rotY: 0, size: "training" }, it.lx, it.lz, it.r)).toBe(false);
+        for (const o of kit) if (o !== it) expect(Math.hypot(o.lx - it.lx, o.lz - it.lz)).toBeGreaterThanOrEqual(o.r + it.r);
+      }
+    }
+    // the parked stool is the kit's stool
+    expect(stoolParked({ x: 0, z: 0, rotY: 0, size: "training" }, "red")).toMatchObject({ x: cornerKit(K, "red")[0]!.lx, z: cornerKit(K, "red")[0]!.lz });
   });
 
   it("training geometry is lighter than the pro kit; the field stays in budget", () => {
