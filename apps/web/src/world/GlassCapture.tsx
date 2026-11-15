@@ -99,18 +99,54 @@ interface Job {
   rt: THREE.WebGLCubeRenderTarget;
   cam: THREE.CubeCamera;
   face: number;
+  /** the invalidation epoch it was started in (a capture started before an invalidation is thrown away) */
+  epoch: number;
 }
 
 /** session cache (survives remounts of the canvas tree) */
 const interiors = new Map<GlazedHall, THREE.WebGLCubeRenderTarget>();
 const reflections = new Map<GlazedHall, THREE.WebGLCubeRenderTarget>();
 const fade = new Map<string, number>();
+let epoch = 0;
 /** capture state for QA (window.__gkGlass) */
 const stats = { interiors: [] as string[], reflections: [] as string[], bytes: 0, budget: 0, warming: null as string | null };
 if (typeof window !== "undefined") {
   (window as unknown as { __gkGlass: typeof stats }).__gkGlass = stats;
   // dev: the capture targets themselves, for QA read-backs
   if (process.env.NODE_ENV !== "production") Object.assign(stats, { targets: { interiors, reflections } });
+}
+
+/**
+ * Throw away the glass captures so they are taken again (e.g. when the time of day changes the light: P2-WLD-19).
+ * `what`: the reflections (the plaza's light), the interiors, or both. The glass falls back to its plain smoked look and
+ * the new captures fade in as GlassCapture retakes them (the reflection first, for halls within range).
+ */
+export function invalidateCaptures(what: "all" | "reflections" | "interiors" = "all") {
+  epoch++;
+  for (const g of GLAZED) {
+    if (what !== "interiors") {
+      reflections.get(g)?.dispose();
+      reflections.delete(g);
+      fade.delete(`r:${g}`);
+    }
+    if (what !== "reflections") {
+      interiors.get(g)?.dispose();
+      interiors.delete(g);
+      fade.delete(`i:${g}`);
+    }
+    for (const m of glazingMaterials(g)) {
+      if (what !== "interiors") {
+        m.uniforms.uRefl!.value = null;
+        m.uniforms.uReflHas!.value = 0;
+      }
+      if (what !== "reflections") {
+        m.uniforms.uCube!.value = null;
+        m.uniforms.uHas!.value = 0;
+      }
+    }
+  }
+  stats.interiors = [...interiors.keys()];
+  stats.reflections = [...reflections.keys()];
 }
 
 const doorDist = (g: GlazedHall) => {
@@ -172,7 +208,7 @@ export function GlassCapture() {
     cam.coordinateSystem = gl.coordinateSystem;
     cam.updateCoordinateSystem();
     cam.updateMatrixWorld(true);
-    job.current = { game, kind, rt, cam, face: 0 };
+    job.current = { game, kind, rt, cam, face: 0, epoch };
   };
 
   /** render one face of the current job (returns true when the job is complete) */
@@ -281,6 +317,12 @@ export function GlassCapture() {
       const areaKey = j.kind === "interior" ? (`hall:${j.game}` as const) : "outdoor";
       if (!st.ready[areaKey]) {
         // the hall was released while capturing (you walked to another door): start over later
+        j.rt.dispose();
+        job.current = null;
+        return;
+      }
+      if (j.epoch !== epoch) {
+        // taken under the old light (invalidateCaptures): start over
         j.rt.dispose();
         job.current = null;
         return;
