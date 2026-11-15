@@ -60,8 +60,9 @@ export const INTERIOR_ROOMS: Record<InteriorKind, InteriorRoom> = {
   igisoro: { depth: 5.2, hallDepth: 13, ceiling: 4.2, tile: 5.2, near: 1.9, far: 3.6, lamps: 2.6, pane: 0, transom: 0, wall: "#4a3020", floor: "#9a4e32", ceil: "#3a2616", lamp: "#ffd79a", avg: "#5e3a26" },
   // Tournament Arena foyer: tall, cool-white light, turnstiles, the video wall in front of the drum
   arena: { depth: 4.6, hallDepth: 18, ceiling: 6.1, tile: 6.0, near: 1.6, far: 3.3, lamps: 2.4, pane: 0, transom: 0, wall: "#3a3b44", floor: "#8e8a84", ceil: "#2c2d33", lamp: "#eef1ff", avg: "#4a4a54" },
-  // Administrative Block: light lobby, reception desk in timber and stone, office doors and the directory
-  admin: { depth: 7.0, hallDepth: 14, ceiling: 5.0, tile: 7.0, near: 2.8, far: 5.0, lamps: 2.4, pane: 0, transom: 0, wall: "#e2ddd3", floor: "#c4beb3", ceil: "#ece9e2", lamp: "#fff3e0", avg: "#b8b0a2" },
+  // Administrative Block: light lobby, ONE reception desk in timber and stone (a 13 m repeat: one per curtain wall
+  // half), lounge seating, office doors and the directory
+  admin: { depth: 7.0, hallDepth: 14, ceiling: 5.0, tile: 13.0, near: 2.8, far: 5.0, lamps: 2.4, pane: 0, transom: 0, wall: "#e2ddd3", floor: "#c4beb3", ceil: "#ece9e2", lamp: "#fff3e0", avg: "#b8b0a2" },
   // Fight Games pavilion: the lit training-ring corner behind the glazing, heavy bags beyond, board-formed concrete walls
   fight: { depth: 8.0, hallDepth: 16, ceiling: 4.4, tile: 7.6, near: 2.0, far: 4.8, lamps: 2.6, pane: 0, transom: 0, wall: "#8a8178", floor: "#6c6a66", ceil: "#18181b", lamp: "#f4f1ea", avg: "#4a4642" },
 };

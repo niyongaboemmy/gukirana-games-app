@@ -528,6 +528,19 @@ const KIND_DRAW: Record<InteriorKind, { near: (p: Pen) => void; far: (p: Pen) =>
       p.rect(x + 0.82, 1.13, 0.06, 0.08, "#2a2c30");
       plant(p, 0.7, 1.5);
       plant(p, 6.3, 1.2);
+      // the waiting area beside reception: two armchairs and a low table, a tall plant
+      for (const [x, d] of [
+        [8.6, -1],
+        [10.4, 1],
+      ] as const) {
+        p.rect(x - 0.4, 0.12, 0.8, 0.34, "#6d6a66");
+        p.rect(x + d * 0.32 - 0.08, 0.12, 0.16, 0.7, "#5f5c58");
+        p.rect(x - 0.36, 0, 0.05, 0.12, "#2a2a2a");
+        p.rect(x + 0.31, 0, 0.05, 0.12, "#2a2a2a");
+      }
+      p.rect(9.15, 0.36, 0.7, 0.05, "#3f382f");
+      p.rect(9.47, 0, 0.06, 0.36, "#3f382f");
+      plant(p, 12.2, 1.6);
     },
     far: (p) => {
       // lounge armchairs round a low table, a glazed meeting room partition
@@ -550,16 +563,16 @@ const KIND_DRAW: Record<InteriorKind, { near: (p: Pen) => void; far: (p: Pen) =>
     },
     back: (p) => {
       // light plaster, two timber office doors, the dark office directory board (lines only), wall washers
-      p.rect(0, 0, 7, BACK_H, "#e2ddd3");
-      p.rect(0, 0, 7, 0.1, "#9a948a");
-      for (const x of [0.7, 5.3]) {
+      p.rect(0, 0, 13, BACK_H, "#e2ddd3");
+      p.rect(0, 0, 13, 0.1, "#9a948a");
+      for (const x of [0.7, 5.3, 8.2, 11.4]) {
         p.rect(x - 0.05, 0, 1.1, 2.3, "#2e2a26");
         p.rect(x, 0, 1.0, 2.25, "#8a5a36");
         p.rect(x + 0.82, 1.0, 0.04, 0.22, "#c9ced6");
       }
       p.rect(2.7, 1.2, 1.6, 1.5, "#1d1e22");
       for (let i = 0; i < 6; i++) p.rect(2.85, 1.4 + i * 0.2, 1.0 - (i % 3) * 0.2, 0.05, "#e8e4dc");
-      for (const x of [1.2, 3.5, 5.8]) p.glow(x, 4.2, 0.8, "#fff6e6", 0.5);
+      for (const x of [1.2, 3.5, 5.8, 8.7, 11.9]) p.glow(x, 4.2, 0.8, "#fff6e6", 0.5);
     },
   },
   fight: {
