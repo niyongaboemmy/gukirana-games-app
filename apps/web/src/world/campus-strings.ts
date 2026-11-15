@@ -8,6 +8,8 @@ export const CAMPUS = {
   view: "Campus view",
   backToMe: "Back to me",
   hint: "Drag to turn · zoom in to come back down",
+  potdTitle: "Player of the Day",
+  potdWhen: "DAILY · 10:00",
 } as const;
 
 /** Campus frontage, roads and wayfinding (P2-WLD-12), i18n keys `campus.site.*` (English catalogue). */

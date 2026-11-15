@@ -24,6 +24,7 @@ import { W } from "./strings";
 import { arenaGate } from "@/arena/flags";
 import { FightFacadeBoard } from "@/fight/FacadeBoard";
 import { NearOnly, StaticMerge } from "./static-merge";
+import { PlayerOfDayHolo } from "./PlayerOfDayHolo";
 import { campusWalkLength } from "./campus";
 
 const FONT = "/fonts/Baloo2.ttf";
@@ -329,34 +330,11 @@ function ArenaScreen({ tier }: { tier: Tier }) {
 }
 
 function Fountain({ tier }: { tier: Tier }) {
-  const holo = useRef<THREE.Group>(null);
-  useFrame(({ clock }) => {
-    if (holo.current) holo.current.rotation.y = clock.elapsedTime * 0.5;
-  });
   return (
     <group>
       <FountainWater tier={tier} />
-      {/* Player of the Day hologram (SRS §5.10) */}
-      <group ref={holo} position={[0, 6.0, 0]}>
-        <mesh>
-          <cylinderGeometry args={[1.0, 1.0, 0.03, 40]} />
-          <meshBasicMaterial color={new THREE.Color(GAME_COLORS.gold).multiplyScalar(1.4)} transparent opacity={0.45} toneMapped={false} />
-        </mesh>
-        {/* (lettering 0.2–0.3 m high: unreadable beyond ~30 m, not drawn there) */}
-        <NearOnly max={32}>
-          {[0, Math.PI].map((r) => (
-            <group key={r} rotation={[0, r, 0]}>
-              <Text font={FONT} fontSize={0.3} color="#FFC83D" position={[0, 0.55, 0]} anchorX="center">
-                Player of the Day
-              </Text>
-              <Text font={FONT} fontSize={0.2} color="#ffffff" position={[0, 0.22, 0]} anchorX="center">
-                Announced daily at 10:00
-              </Text>
-            </group>
-          ))}
-        </NearOnly>
-      </group>
-      {/* (P2-WLD-09: the twinkling gold sparkles round the hologram are gone: flicker over the calmest spot) */}
+      {/* Player of the Day hologram (SRS §5.10): a readable card that faces you, over the Agaseke's tip */}
+      <PlayerOfDayHolo />
     </group>
   );
 }
