@@ -215,6 +215,10 @@ export interface FighterView {
   knockdowns: number;
   warnings: number;
   connected: boolean;
+  /** referee cautions (no points) so far (P3-FGT-06; docs/BOXING-SCORING.md §4) */
+  cautions?: number;
+  /** points deducted on every judge's card so far (one per warning) */
+  deductions?: number;
 }
 
 /** fight room → fighters (`snap`, FIGHTER_SNAPSHOT_HZ) and hall room → watchers (`boxing-frame`, SPECTATOR_FRAME_HZ) */
@@ -231,21 +235,56 @@ export interface BoxingSnapshot {
   /** presentation-only orbit angle of the pair around the ring centre (deg × 10, integer; derived deterministically) */
   orbit: number;
   fighters: [FighterView, FighterView];
-  /** referee count during a knockdown (1..8) */
+  /** referee count during a knockdown (1..8; 9..10 only on a count-out, which ends the fight by KO) */
   count?: number;
+  /** number of virtual judges scoring the fight (P3-FGT-06) */
+  judges?: number;
+  /**
+   * judges' cards of the FINISHED rounds (open scoring: revealed at each bell). With `openScoring` off the cards are
+   * sealed: absent until the fight is over.
+   */
+  cards?: RoundCard[];
+  /** the referee's "Break!" is in force (ticks left; a punch pressed now is HIT_ON_BREAK) */
+  breakLeft?: number;
 }
 
 /* ------------------------------------------------------------ events ------------------------------------------------------------ */
 
-export const FOULS = ["PASSIVITY", "IDLE"] as const;
+/**
+ * Fouls (P3-FGT-06, docs/BOXING-SCORING.md §4). Referee fouls go up the escalation ladder (FOUL_LEVELS):
+ *  - PASSIVITY     no punch thrown for 15 s in a round (IBA 21.1.15 "completely passive defence")
+ *  - HOLDING       a second clinch in one round: in close range (<= CLINCH_DIST) for 2 s without punching, the
+ *                  referee calls "Break!" (the first call of a round is free) (IBA 21.1.2 / 21.1.17)
+ *  - HIT_ON_BREAK  a punch pressed in the second after "Break!" (the punch is cancelled) (IBA 21.1.18)
+ *  - DUCKING       DUCKING_SLIPS slips in a row without throwing a punch (IBA 21.1.14 ducking below the belt)
+ *  - LOW_BLOW      reserved: the engine has no body / head target zones yet; never emitted today
+ * IDLE is not a referee foul: it is the exit-rules inactivity strike (row 9), outside the ladder, never a deduction.
+ */
+export const FOULS = ["PASSIVITY", "IDLE", "HOLDING", "HIT_ON_BREAK", "DUCKING", "LOW_BLOW"] as const;
 export type Foul = (typeof FOULS)[number];
+/** referee fouls (the ladder applies); IDLE is an exit-rules strike */
+export const REFEREE_FOULS = [
+  "PASSIVITY",
+  "HOLDING",
+  "HIT_ON_BREAK",
+  "DUCKING",
+  "LOW_BLOW",
+] as const satisfies readonly Foul[];
+export type RefereeFoul = (typeof REFEREE_FOULS)[number];
+/**
+ * The referee ladder, per fighter, all fouls together: the first `cautions` fouls are cautions (no points); every
+ * foul after is a warning (-1 on every judge's card for that round); the `warningsToDq`-th warning disqualifies (DQ).
+ */
+export const FOUL_LEVELS = ["caution", "warning", "dq"] as const;
+export type FoulLevel = (typeof FOUL_LEVELS)[number];
 export const PAUSE_REASONS = ["DISCONNECT", "STAFF"] as const;
 export type PauseReason = (typeof PAUSE_REASONS)[number];
 
 /** fight room → fighters (`ev`, batched per tick) and hall room → watchers. `t` = tick. `by` / `to` = fighter index 0 (red) | 1 (blue). */
 export type FightEvent =
   | { k: "bell"; t: number; round: number }
-  | { k: "roundEnd"; t: number; round: number; points: [number, number] }
+  /** `card`: this round's judges' cards (open scoring only; with sealed cards it is absent) */
+  | { k: "roundEnd"; t: number; round: number; points: [number, number]; card?: RoundCard }
   | { k: "hit"; t: number; by: 0 | 1; punch: Punch; points: number; counter: boolean; combo: number }
   | { k: "block"; t: number; by: 0 | 1; punch: Punch }
   | { k: "evade"; t: number; by: 0 | 1; punch: Punch }
@@ -253,15 +292,70 @@ export type FightEvent =
   | { k: "knockdown"; t: number; to: 0 | 1; points: number }
   | { k: "count"; t: number; n: number }
   | { k: "up"; t: number; to: 0 | 1 }
-  | { k: "warning"; t: number; to: 0 | 1; foul: Foul; penalty: number }
+  /**
+   * a foul (`penalty` = points deducted on every card, 0 for a caution / IDLE). `level` + `n` (warnings so far) are set
+   * for referee fouls; IDLE strikes have neither.
+   */
+  | { k: "warning"; t: number; to: 0 | 1; foul: Foul; penalty: number; level?: FoulLevel; n?: number }
+  /** the referee separates a clinch: `by` = the fighter(s) holding; the pair is reset to BREAK_DIST */
+  | { k: "break"; t: number; by: (0 | 1)[] }
   | { k: "pause"; t: number; reason: PauseReason; who?: 0 | 1 }
   | { k: "resume"; t: number }
   | { k: "stoppage"; t: number; winner: 0 | 1 }
+  /** a fighter could not beat the count (count-out -> KO) */
+  | { k: "ko"; t: number; to: 0 | 1 }
+  /** a fighter disqualified on the warning ladder */
+  | { k: "dq"; t: number; to: 0 | 1; foul: Foul }
   | { k: "over"; t: number; result: BoxingOutcome };
 
-/** how the fight was decided (FIGHT-GAMES-PLAN §2.6) */
-export const BOXING_DECISIONS = ["points", "stoppage", "draw", "forfeit", "void"] as const;
+/** how the fight was decided (FIGHT-GAMES-PLAN §2.6; `dq` added by P3-FGT-06). The detail is `method`. */
+export const BOXING_DECISIONS = ["points", "stoppage", "draw", "forfeit", "void", "dq"] as const;
 export type BoxingDecision = (typeof BOXING_DECISIONS)[number];
+
+/* ------------------------------------------------------------ scoring (P3-FGT-06) ------------------------------------------------------------ */
+
+/**
+ * Decision method (docs/BOXING-SCORING.md §5):
+ *  KO   counted out (knocked down with no stamina left: can't beat the count)       decision "stoppage"
+ *  RSC  referee stops contest: 3 knockdowns in a round / 4 in the fight              decision "stoppage"
+ *  DQ   disqualified on the warning ladder                                           decision "dq"
+ *  UD   unanimous: every judge has the winner ahead                                  decision "points"
+ *  SD   split: a majority for the winner, at least one judge for the other fighter   decision "points"
+ *  MD   majority: a majority for the winner, the others level, none for the other    decision "points"
+ *  TB   no majority on the cards -> countback (TIEBREAK_STEPS) named the winner      decision "points"
+ *  DRAW no majority and no countback (friendly), or the countback is level too       decision "draw"
+ *  FORFEIT / VOID: exit rules                                                        decision "forfeit" / "void"
+ */
+export const BOXING_METHODS = ["KO", "RSC", "DQ", "UD", "SD", "MD", "TB", "DRAW", "FORFEIT", "VOID"] as const;
+export type BoxingMethod = (typeof BOXING_METHODS)[number];
+/** countback order when the cards give no majority (first difference wins; symmetric, never by corner) */
+export const TIEBREAK_STEPS = [
+  "VOTES", // more judges with you ahead
+  "CARDS", // higher sum of all judges' totals
+  "KNOCKDOWNS", // more knockdowns scored
+  "WARNINGS", // fewer warnings
+  "CAUTIONS", // fewer cautions
+  "POWER", // more clean power punches
+  "LANDED", // more clean punches landed
+  "LAST_ROUND", // higher sum of the judges' last-round scores
+] as const;
+export type TiebreakStep = (typeof TIEBREAK_STEPS)[number];
+
+/**
+ * One round on every judge's card. `judges[j]` = [red, blue] BEFORE deductions, 10-point must: the round winner 10,
+ * the loser 9 (close) / 8 (clear: a knockdown or dominance) / 7 (total dominance); 10-10 only when the judge sees
+ * nothing between them. `deductions` (one per warning in this round) come off every judge's card.
+ */
+export interface RoundCard {
+  round: number;
+  judges: [number, number][];
+  deductions: [number, number];
+  /** knockdowns SUFFERED in this round, by fighter */
+  knockdowns: [number, number];
+  /** the round was cut short (stoppage / KO / DQ / forfeit / void): scored up to that moment (IBA 19.1.2) */
+  partial?: boolean;
+}
+
 export interface BoxingOutcome {
   decision: BoxingDecision;
   /** fighter index of the winner; null = draw / void */
@@ -272,6 +366,22 @@ export interface BoxingOutcome {
   power: [number, number];
   /** points per round, by fighter */
   rounds: [number, number][];
+  /* -------- P3-FGT-06 (always set by the engine; optional for older payloads) -------- */
+  method?: BoxingMethod;
+  /** every round on every card (incl. a partial last round) */
+  cards?: RoundCard[];
+  /** per judge: [red, blue] totals after deductions */
+  totals?: [number, number][];
+  /** per judge: who they have ahead (null = level) */
+  votes?: (0 | 1 | null)[];
+  cautions?: [number, number];
+  warnings?: [number, number];
+  /** points deducted on every card, by fighter */
+  deductions?: [number, number];
+  /** method DQ: the foul of the disqualifying warning */
+  dqFoul?: Foul;
+  /** method TB: the countback step that named the winner */
+  tiebreak?: TiebreakStep;
 }
 
 /* ------------------------------------------------------------ rules (game_settings) ------------------------------------------------------------ */
@@ -283,6 +393,15 @@ export const FIGHT_RULE_BOUNDS = {
   restSeconds: { min: 10, max: 60 },
   idleSeconds: { min: 10, max: 60 },
 } as const;
+/** scoring / referee bounds (P3-FGT-06). Judges: an odd count (3 or 5). */
+export const FIGHT_SCORING_BOUNDS = {
+  judges: { min: 3, max: 5 },
+  cautions: { min: 0, max: 3 },
+  warningsToDq: { min: 2, max: 5 },
+} as const;
+/** when the cards give no majority: name a winner by countback in staked fights only (default), always, or never */
+export const DRAW_TIEBREAKS = ["staked", "always", "never"] as const;
+export type DrawTiebreak = (typeof DRAW_TIEBREAKS)[number];
 const FB = FIGHT_RULE_BOUNDS;
 const fint = (b: { min: number; max: number }) =>
   z.number().int("WHOLE_NUMBER").min(b.min, "TOO_SMALL").max(b.max, "TOO_BIG");
@@ -292,13 +411,49 @@ export const FightRulesSchema = z.object({
   restSeconds: fint(FB.restSeconds),
   /** a fighter with no input for this long in a round gets an IDLE strike (maxTimeouts strikes in a row → forfeit) */
   idleSeconds: fint(FB.idleSeconds),
+  /* scoring + referee (P3-FGT-06). Optional: a row saved before them runs with DEFAULT_SCORING_RULES. */
+  /** virtual judges, 3 or 5 (odd) */
+  judges: fint(FIGHT_SCORING_BOUNDS.judges)
+    .refine((n) => n % 2 === 1, "ODD_NUMBER")
+    .optional(),
+  /** fouls that are only a caution before warnings start */
+  cautions: fint(FIGHT_SCORING_BOUNDS.cautions).optional(),
+  /** the warning that disqualifies */
+  warningsToDq: fint(FIGHT_SCORING_BOUNDS.warningsToDq).optional(),
+  /** judges' cards revealed at every bell (true) or sealed until the end (false) */
+  openScoring: z.boolean().optional(),
+  drawTiebreak: z.enum(DRAW_TIEBREAKS).optional(),
 });
 export type FightRules = z.infer<typeof FightRulesSchema>;
+export interface ScoringRules {
+  judges: number;
+  cautions: number;
+  warningsToDq: number;
+  openScoring: boolean;
+  drawTiebreak: DrawTiebreak;
+}
+/** IBA-like defaults: 5 judges, 1 caution, the 3rd warning disqualifies (IBA 23.2), open scoring, countback when staked */
+export const DEFAULT_SCORING_RULES: ScoringRules = {
+  judges: 5,
+  cautions: 1,
+  warningsToDq: 3,
+  openScoring: true,
+  drawTiebreak: "staked",
+};
+/** the scoring part of a rules block, defaults filled in */
+export const scoringRulesOf = (r: Partial<FightRules>): ScoringRules => ({
+  judges: r.judges ?? DEFAULT_SCORING_RULES.judges,
+  cautions: r.cautions ?? DEFAULT_SCORING_RULES.cautions,
+  warningsToDq: r.warningsToDq ?? DEFAULT_SCORING_RULES.warningsToDq,
+  openScoring: r.openScoring ?? DEFAULT_SCORING_RULES.openScoring,
+  drawTiebreak: r.drawTiebreak ?? DEFAULT_SCORING_RULES.drawTiebreak,
+});
 export const DEFAULT_FIGHT_RULES: FightRules = {
   rounds: 3,
   roundSeconds: 60,
   restSeconds: 15,
   idleSeconds: 20,
+  ...DEFAULT_SCORING_RULES,
 };
 
 /* ------------------------------------------------------------ realtime messages ------------------------------------------------------------ */

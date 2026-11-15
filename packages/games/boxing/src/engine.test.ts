@@ -11,6 +11,8 @@ import {
   COUNTDOWN_TICKS,
   createFight,
   forfeitFight,
+  auditFight,
+  cardFor,
   hashFight,
   hasBegun,
   KNOCKDOWN_COUNT_TICKS,
@@ -65,36 +67,64 @@ function play(s0: FightState, n: number, script: Script, guards?: [boolean, bool
 const kinds = (ev: FightEvent[]) => ev.map((e) => e.k).filter((k) => k !== "count");
 
 describe("boxing engine — clock and decision", () => {
-  it("runs the rounds and rests on the fixed tick, then decides (no punches → draw)", () => {
+  it("runs the rounds and rests on the fixed tick, then decides (mirror-image whiffs → level cards → draw)", () => {
     const r = DEFAULT_FIGHT_RULES;
-    const end = run(beginFight(createFight(["a", "b"], r)));
+    // both throw a jab from out of reach every 10 s: active (no PASSIVITY), identical → every card 10-10
+    const jabs = (t: number): TickInputs =>
+      t % 300 === 0
+        ? [
+            { seq: t, a: "jab", g: true },
+            { seq: t, a: "jab", g: true },
+          ]
+        : NONE;
+    const end = run(beginFight(createFight(["a", "b"], r)), jabs);
     expect(end.phase).toBe("over");
     expect(end.tick).toBe(
       COUNTDOWN_TICKS + r.rounds * r.roundSeconds * TICK_HZ + (r.rounds - 1) * r.restSeconds * TICK_HZ,
     );
     expect(end.rounds).toHaveLength(r.rounds);
-    expect(end.outcome).toMatchObject({ decision: "draw", winner: null });
+    expect(end.cards).toHaveLength(r.rounds);
+    expect(end.cards.every((c) => c.judges.every(([x, y]) => x === 10 && y === 10))).toBe(true);
+    expect(end.outcome).toMatchObject({ decision: "draw", method: "DRAW", winner: null });
     expect(matchResultOf(end).ranks).toEqual({ a: 1, b: 1 });
+    expect(auditFight(end)).toEqual([]);
   });
 
-  it("decision order: points, then knockdowns scored, then power punches", () => {
-    const base = inRound();
-    const atEnd = (patch: [Partial<FighterState>, Partial<FighterState>]): FightState => ({
-      ...base,
-      round: base.rules.rounds,
-      left: 1,
-      fighters: base.fighters.map((f, i) => ({ ...f, ...patch[i] })) as [FighterState, FighterState],
+  it("nobody throws a punch: passivity up the ladder → both disqualified at the 3rd warning (no winner)", () => {
+    const end = run(beginFight(createFight(["a", "b"])));
+    // caution at 15 s, warnings at 30 / 45 s, the 3rd warning (DQ) at 60 s
+    expect(end.tick).toBe(COUNTDOWN_TICKS + 4 * PASSIVITY_TICKS);
+    expect(end.outcome).toMatchObject({
+      decision: "dq",
+      method: "DQ",
+      winner: null,
+      warnings: [3, 3],
+      cautions: [1, 1],
     });
-    const decide = (p: [Partial<FighterState>, Partial<FighterState>]) => stepFight(atEnd(p), NONE).outcome!;
-    expect(decide([{ points: 10 }, { points: 9 }])).toMatchObject({ decision: "points", winner: 0 });
-    expect(decide([{ points: 9, knockdowns: 1 }, { points: 9 }])).toMatchObject({ winner: 1 });
-    expect(
-      decide([
-        { points: 9, power: 3 },
-        { points: 9, power: 2 },
-      ]),
-    ).toMatchObject({ winner: 0 });
-    expect(decide([{ points: 9 }, { points: 9 }])).toMatchObject({ decision: "draw", winner: null });
+    expect(end.outcome!.dqFoul).toBeUndefined();
+    expect(matchResultOf(end).ranks).toEqual({ a: 1, b: 1 });
+    expect(auditFight(end)).toEqual([]);
+  });
+
+  it("the decision follows the judges' cards (10-point must), not the raw points", () => {
+    // red lands 3 clean jabs in round 1; blue lands one cross: red wins the round 10-9 on every card
+    const s = play(inRound(150), 120, {
+      0: ["jab", null],
+      20: ["jab", null],
+      40: ["jab", null],
+      60: [null, "cross"],
+    }).s;
+    const card = cardFor(1, s.tally, 5);
+    expect(card.judges).toEqual(Array.from({ length: 5 }, () => [10, 9]));
+    const atBell = stepFight({ ...s, rules: { ...s.rules, rounds: 1 }, left: 1 }, NONE);
+    expect(atBell.outcome).toMatchObject({
+      decision: "points",
+      method: "UD",
+      winner: 0,
+      votes: [0, 0, 0, 0, 0],
+    });
+    expect(atBell.outcome!.totals).toEqual(Array.from({ length: 5 }, () => [10, 9]));
+    expect(auditFight(atBell)).toEqual([]);
   });
 
   it("forfeit and void", () => {
@@ -231,7 +261,7 @@ describe("boxing engine — knockdown, stoppage, fouls, pauses", () => {
     expect(s.fighters[0].act).toBe("celebrate");
   });
 
-  it("passivity: a warning after 15 s without a punch, −1 pt from the 2nd", () => {
+  it("passivity: a caution after 15 s without a punch, then a warning (−1 on every card)", () => {
     let s = inRound();
     s.fighters[0] = { ...s.fighters[0], points: 3 };
     const ev: FightEvent[] = [];
@@ -245,7 +275,9 @@ describe("boxing engine — knockdown, stoppage, fouls, pauses", () => {
     const w = ev.filter((e) => e.k === "warning" && e.to === 0);
     expect(w).toHaveLength(2);
     expect(w.map((e) => (e.k === "warning" ? e.penalty : -1))).toEqual([0, 1]);
-    expect(s.fighters[0].warnings).toBe(2);
+    expect(w.map((e) => (e.k === "warning" ? e.level : null))).toEqual(["caution", "warning"]);
+    expect(s.fighters[0]).toMatchObject({ cautions: 1, warnings: 1, deductions: 1, points: 2 });
+    expect(s.tally[1].ded + s.tally[0].ded).toBe(1);
   });
 
   it("idle: an IDLE strike after idleSeconds without any input", () => {
