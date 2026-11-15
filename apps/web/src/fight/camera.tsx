@@ -45,9 +45,25 @@ export function broadcastFrame(gap: number, aspect = 16 / 9): { dist: number; ey
 
 export function fightShot(ring: RingPlace, snap: BoxingSnapshot | null, me: 0 | 1, side: number, mode: "fight" | "behind", eye: THREE.Vector3, look: THREE.Vector3, aspect = 16 / 9): void {
   shot(ring, snap, me, side, mode, eye, look, aspect);
-  // the operator stays inside the ropes (P3-FGT-09): a close shot never ends up behind a corner post or the ropes
-  // (FightCamera cuts to the other side first when the pair works the ropes on the camera's side)
-  const c = clampInRing(eye.x - ring.x, eye.z - ring.z, ring.rotY, CAM_LIM(ring));
+  // stay inside the ropes by coming CLOSER along the line of the shot (P3-FGT-13): the side view stays square to the
+  // pair and both fighters get bigger, instead of sliding sideways into an oblique view behind one of them
+  const lim = CAM_LIM(ring);
+  const co = Math.cos(ring.rotY);
+  const sn = Math.sin(ring.rotY);
+  const loc = (x: number, z: number) => ({ u: (x - ring.x) * co - (z - ring.z) * sn, v: (x - ring.x) * sn + (z - ring.z) * co });
+  const e = loc(eye.x, eye.z);
+  const l = loc(look.x, look.z);
+  let k = 1;
+  for (const [a, b] of [
+    [e.u, l.u],
+    [e.v, l.v],
+  ] as const) {
+    if (Math.abs(a) > lim && Math.abs(a - b) > 1e-6) k = Math.min(k, (Math.sign(a) * lim - b) / (a - b));
+  }
+  k = Math.max(0.55, Math.min(1, k));
+  eye.x = look.x + (eye.x - look.x) * k;
+  eye.z = look.z + (eye.z - look.z) * k;
+  const c = clampInRing(eye.x - ring.x, eye.z - ring.z, ring.rotY, lim);
   eye.x = ring.x + c.x;
   eye.z = ring.z + c.z;
 }
@@ -81,12 +97,17 @@ function shot(ring: RingPlace, snap: BoxingSnapshot | null, me: 0 | 1, side: num
   const phase = snap?.phase ?? "intro";
   const r = phase === "rest" ? ring : { ...ring, x: ring.x + lay.cx, z: ring.z + lay.cz };
   if (phase === "rest") {
-    // my corner: from the ring centre, a little high, looking at the stool
+    // my corner on the ring's own diagonal (a turned ring turns its corners: P3-FGT-13 fix), from across the ring
     const c = r.half - 1.0;
-    const cx = r.x + ms * c;
-    const cz = r.z + ms * c;
-    eye.set(r.x + ms * 0.2 + px * 0.9, cy + 1.75, r.z + ms * 0.2 + pz * 0.9);
-    look.set(cx, cy + 0.85, cz);
+    const co = Math.cos(r.rotY);
+    const sn = Math.sin(r.rotY);
+    const cx = r.x + ms * c * (co + sn);
+    const cz = r.z + ms * c * (co - sn);
+    // the eye on the ring's centre side of the corner, a little off the diagonal (the corner team in view)
+    const ex = r.x + (cx - r.x) * -0.25 + (cz - r.z) * 0.22;
+    const ez = r.z + (cz - r.z) * -0.25 - (cx - r.x) * 0.22;
+    eye.set(ex, cy + 1.75, ez);
+    look.set(cx, cy + 0.95, cz);
     return;
   }
   if (phase === "knockdown" && snap) {
@@ -131,6 +152,14 @@ function shot(ring: RingPlace, snap: BoxingSnapshot | null, me: 0 | 1, side: num
  * Which shot a camera choice gives right now: side (default) / behind as picked; auto = the side broadcast with an
  * over-the-shoulder view for ~5 s of every 20 s of round time (deterministic from the tick: the same on replays).
  */
+/** how far (share of the eye → look distance) the impact camera pushes in, `t` s after a big hit (0 outside its window) */
+export const IMPACT_S = 0.75;
+export function impactPush(t: number): number {
+  if (t < 0 || t > IMPACT_S) return 0;
+  const u = t / IMPACT_S;
+  return 0.22 * Math.sin(Math.PI * Math.min(1, u * 1.6)) * (u < 0.625 ? 1 : 1 - (u - 0.625) / 0.375);
+}
+
 export function autoShot(mode: string | null, snap: { tick: number; phase: string } | null): "fight" | "behind" {
   if (mode === "behind") return "behind";
   if (mode !== "auto" || !snap || snap.phase !== "round") return "fight";
@@ -151,6 +180,8 @@ export function FightCamera() {
   const seen = useRef(0);
   const clock = useRef(0);
   const lastCut = useRef(-10);
+  /** P3-FGT-13: the impact camera — a short push-in on a big hit (0 → 1 → 0 over IMPACT_S) */
+  const impact = useRef(-10);
   useFrame((_, raw) => {
     if (!isOnScreen(area)) {
       w.current = 0;
@@ -225,13 +256,17 @@ export function FightCamera() {
       if (f.id <= seen.current) continue;
       seen.current = f.id;
       trauma.current = Math.min(1, trauma.current + shakeFor(f.e));
+      if (shakeFor(f.e) >= 0.5 && useFightPrefs.getState().impactCam) impact.current = clock.current;
     }
     const reduced = useFightPrefs.getState().reducedMotion || (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+    // the impact camera: a quick push towards the action and back (both fighters stay in frame), never with reduced motion
+    const ip = reduced ? 0 : impactPush(clock.current - impact.current);
     trauma.current = Math.max(0, trauma.current - dt * 1.8);
     const a = reduced ? 0 : trauma.current * trauma.current * 0.06;
     const t = clock.current;
     const s = smooth(w.current);
     camera.position.lerpVectors(_fpos, eye.current, s);
+    if (ip > 0) camera.position.lerp(look.current, ip * s);
     if (a > 0) camera.position.add(_eye.set(Math.sin(t * 47.3) * a, Math.sin(t * 59.1 + 1.3) * a * 0.7, Math.sin(t * 41.7 + 2.1) * a));
     _look.lerpVectors(_flook, look.current, s);
     // the camera punch on a connection (P3-FGT-07): a quick push towards the action, eased back; never with reduced motion

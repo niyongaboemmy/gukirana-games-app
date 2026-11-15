@@ -5,6 +5,8 @@ import { FREE_BREAKS } from "./fouls.js";
 import {
   CLINCH_REACH,
   EXHAUSTED_STAMINA,
+  KO_COUNT_TICKS,
+  LIFE,
   MOVE,
   PASSIVITY_TICKS,
   PUNCH_SPECS,
@@ -14,6 +16,7 @@ import {
   isBusy,
   perceived,
   reachOf,
+  riseGap,
   stageOf,
   type FightState,
   type FighterState,
@@ -57,16 +60,19 @@ export interface BotProfile {
   feint: number;
   /** ties up when hurt (%) */
   clinch: number;
+  /** composure on the canvas (%): steady get-up presses; lower = more slack between presses and more panic presses */
+  steady?: number;
   /** a button masher: walks forward and throws punches non-stop, never defends (sims only) */
   mash?: boolean;
 }
 
 export const BOT_PROFILES: Record<BotLevel, BotProfile> = {
-  1: { react: 12, defend: 15, read: 25, guard: 20, counter: 5, attack: 4, range: 25, combo: 5, craft: 5, reserve: 0, body: 10, feint: 0, clinch: 0 },
-  2: { react: 9, defend: 35, read: 45, guard: 45, counter: 20, attack: 5, range: 45, combo: 15, craft: 20, reserve: 150, body: 15, feint: 3, clinch: 10 },
-  3: { react: 7, defend: 55, read: 65, guard: 65, counter: 40, attack: 6, range: 65, combo: 30, craft: 40, reserve: 250, body: 20, feint: 6, clinch: 25 },
-  4: { react: 6, defend: 72, read: 82, guard: 80, counter: 60, attack: 7, range: 80, combo: 45, craft: 60, reserve: 300, body: 25, feint: 10, clinch: 40 },
-  5: { react: 5, defend: 85, read: 92, guard: 90, counter: 80, attack: 8, range: 92, combo: 60, craft: 80, reserve: 350, body: 25, feint: 12, clinch: 50 },
+  // P3-FGT-13: level 1 engages (it used to hover just outside the jab's reach) and fights back a little
+  1: { react: 12, defend: 22, read: 30, guard: 35, counter: 8, attack: 6, range: 30, combo: 8, craft: 8, reserve: 0, body: 12, feint: 0, clinch: 0, steady: 45 },
+  2: { react: 9, defend: 35, read: 45, guard: 45, counter: 20, attack: 6, range: 45, combo: 15, craft: 20, reserve: 150, body: 15, feint: 3, clinch: 10, steady: 60 },
+  3: { react: 7, defend: 55, read: 65, guard: 65, counter: 40, attack: 6, range: 65, combo: 30, craft: 40, reserve: 250, body: 20, feint: 6, clinch: 25, steady: 72 },
+  4: { react: 6, defend: 72, read: 82, guard: 80, counter: 60, attack: 7, range: 80, combo: 45, craft: 60, reserve: 300, body: 25, feint: 10, clinch: 40, steady: 84 },
+  5: { react: 5, defend: 85, read: 92, guard: 90, counter: 80, attack: 8, range: 92, combo: 60, craft: 80, reserve: 350, body: 25, feint: 12, clinch: 50, steady: 92 },
 };
 /** the button masher (simulations: discipline must beat it) */
 export const MASHER: BotProfile = { react: 99, defend: 0, read: 0, guard: 0, counter: 0, attack: 100, range: 0, combo: 100, craft: 0, reserve: 0, body: 20, feint: 0, clinch: 0, mash: true };
@@ -122,8 +128,9 @@ function escapeSide(f: FighterState, o: FighterState): 1 | -1 {
  * The AI's input for this tick (null = nothing new). `who` is the level (practice) or a profile (sims).
  */
 export function boxingBotInput(s: FightState, me: 0 | 1, who: BotLevel | BotProfile, rng: GameRng): FightInput | null {
-  if (s.phase !== "round") return null;
   const p = typeof who === "number" ? BOT_PROFILES[who] : who;
+  if (s.phase === "knockdown") return riseInput(s, me, p, rng);
+  if (s.phase !== "round") return null;
   const f = s.fighters[me];
   const of = s.fighters[(1 - me) as 0 | 1];
   const o = perceived(of);
@@ -149,8 +156,12 @@ export function boxingBotInput(s: FightState, me: 0 | 1, who: BotLevel | BotProf
   // footwork: circle (direction changes now and then), in / out by distance discipline, off the ropes
   const circleDir = ((s.tick >> 6) + me) % 3 === 0 ? 0 : ((s.tick >> 7) & 1) === 0 ? 1 : -1;
   let fwd = 0;
-  if (gap > PUNCH_SPECS.jab.reach + 40 && !(tired && roll(rng, 50))) fwd = roll(rng, p.range + 20) ? 1 : 0;
+  // in to where the jab lands (P3-FGT-13: the old "jab reach + 4 cm" target left level 1 hovering just out of range)
+  if (gap > PUNCH_SPECS.jab.reach - 60 && !(tired && roll(rng, 50))) fwd = roll(rng, p.range + 30) ? 1 : 0;
   else if (gap < 760 && f.composure < 500 && roll(rng, p.range)) fwd = -1;
+  // hurt or gassed: out of range to breathe (fighter life: recovery on the move), unless the opponent is hurt too
+  const hurt = f.composure < 420 || f.stamina < 320;
+  if (s.life === 1 && hurt && p.range >= 40 && of.composure > 450 && gap < PUNCH_SPECS.jab.reach + 260 && roll(rng, p.range)) fwd = -1;
   // circle at range (planted feet in the exchange: you punch and defend from your stance)
   let lat = gap > 1000 && roll(rng, p.craft) ? circleDir : 0;
   if (onRopes(f) && roll(rng, p.craft)) lat = escapeSide(f, of);
@@ -217,4 +228,23 @@ export function boxingBotInput(s: FightState, me: 0 | 1, who: BotLevel | BotProf
     return send(roll(rng, 50) ? "pivotL" : "pivotR", f.guard, mv);
   if (onRopes(f) && gap < 1000 && roll(rng, Math.trunc(p.craft / 8))) return send(escapeSide(f, of) > 0 ? "pivotR" : "pivotL", f.guard, mv);
   return send(undefined, wantGuard, mv);
+}
+
+/**
+ * Getting up during a count (fighter life, P3-FGT-13): steady presses, one per riseGap ticks plus a little slack; a
+ * less composed fighter waits longer between presses and sometimes panics (a press too soon costs progress). A masher
+ * presses every tick and never gets up.
+ */
+function riseInput(s: FightState, me: 0 | 1, p: BotProfile, rng: GameRng): FightInput | null {
+  const f = s.fighters[me];
+  if (f.act !== "down" || !f.rise || f.rise.got >= f.rise.need || s.ko === me || s.counted?.standing) return null;
+  const seq = f.seq + 1;
+  if (p.mash) return { seq, g: false, a: "jab" };
+  if (KO_COUNT_TICKS - s.left < LIFE.rise.from) return null;
+  const steady = p.steady ?? 60;
+  const slack = Math.trunc((100 - steady) / 18);
+  const wait = riseGap(f) + (slack > 0 ? rng.int(0, slack) : 0);
+  if (s.tick - f.rise.last >= wait) return { seq, g: false, a: "jab" };
+  if (s.tick - f.rise.last >= 2 && roll(rng, Math.trunc((100 - steady) / 12))) return { seq, g: false, a: "jab" };
+  return null;
 }

@@ -33,10 +33,17 @@ export interface BoxingCommand {
   blend?: number;
   /** punches: distance to the target (m forward of the root); the glove travels there (0 = the clip's own reach) */
   reach?: number;
+  /**
+   * punches (P3-FGT-13, contact IK): the point the glove lands on at impact, in the root frame of the puncher (reference
+   * body units, orthodox authoring frame): the other's face / headgear, stomach / ribs, or gloves when they guard. The
+   * glove's path is bent onto it progressively (none at the guard, all of it at impact), so it neither punches air
+   * nor passes through the target. Captured when the punch starts: a target that slips or ducks away is missed.
+   */
+  aim?: readonly [number, number, number];
 }
 
 interface Active {
-  cmd: Required<Omit<BoxingCommand, "blend">> & { blend: number };
+  cmd: Required<Omit<BoxingCommand, "blend" | "aim">> & { blend: number; aim?: readonly [number, number, number] };
   /** the pose showing when this command started (blend source) */
   from: Pose | null;
 }
@@ -45,7 +52,7 @@ const smooth = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 const _tr: [number, number, number] = [0, 0, 0];
 
 /** reactions scale with intensity (a light tap barely moves the head); punches only in commitment (body turn) */
-const SCALED_REACTION = new Set<BoxingClipName>(["hitHeadLight", "hitHeadHeavy", "hitBodyLight", "hitBodyHeavy"]);
+const SCALED_REACTION = new Set<BoxingClipName>(["hitHeadLight", "hitHeadHeavy", "hitBodyLight", "hitBodyHeavy", "hitHookFromLead", "hitHookFromRear", "hitUppercut", "hitStraight", "hitBodyLead", "hitBodyRear", "blockImpact", "parried"]);
 const COMMIT = [P.yaw, P.chest, P.lean, P.bend, P.hx, P.hz, P.fLheel, P.fRheel, P.effort];
 
 export class BoxingMotion {
@@ -176,7 +183,8 @@ export class BoxingMotion {
       }
     }
     if (BOXING_CLIPS[cmd.clip].travel) compensateTravel(out, clipTravel(cmd.clip, ct, false, _tr));
-    if (cmd.reach) fitReach(cmd.clip, out, cmd.reach);
+    if (cmd.aim) fitAim(cmd.clip, out, cmd.aim);
+    else if (cmd.reach) fitReach(cmd.clip, out, cmd.reach);
     if (this.life) {
       const [w, hands] = lifeWeight(cmd.clip, this.life);
       // eased in from the clip's start: a one-shot ends exactly in the guard, the life grows from there (no pop)
@@ -265,9 +273,67 @@ function fitReach(clip: BoxingClipName, out: Pose, want: number) {
   }
 }
 
+/** the striking glove at the clip's impact (cached per clip) */
+const impactGlove = new Map<BoxingClipName, [number, number, number]>();
+function gloveAtImpact(clip: BoxingClipName): [number, number, number] {
+  let g = impactGlove.get(clip);
+  if (!g) {
+    const info = BOXING_CLIPS[clip];
+    const p = sampleClip(clip, info.impact ?? 0);
+    const i = info.hand === "rear" ? P.rx : P.lx;
+    g = [p[i]!, p[i + 1]!, p[i + 2]!];
+    impactGlove.set(clip, g);
+  }
+  return g;
+}
+/**
+ * Contact IK (P3-FGT-13): bend the striking glove's path so it arrives at `aim` at impact. The share of the correction
+ * follows how far the glove has travelled from the guard towards its impact position (0 in the guard, 1 at impact,
+ * back to 0 in the recovery), so the punch keeps its shape and its timing. A target past the clip's reach also carries
+ * the body after it (an over-extended miss leans in); the correction is capped at 40 cm.
+ */
+export function fitAim(clip: BoxingClipName, out: Pose, aim: readonly [number, number, number]) {
+  const info = BOXING_CLIPS[clip];
+  if (info.kind !== "punch") return;
+  const i = info.hand === "rear" ? P.rx : P.lx;
+  const imp = gloveAtImpact(clip);
+  const g0 = GUARD[i]!,
+    g1 = GUARD[i + 1]!,
+    g2 = GUARD[i + 2]!;
+  const tx = imp[0] - g0,
+    ty = imp[1] - g1,
+    tz = imp[2] - g2;
+  const L2 = tx * tx + ty * ty + tz * tz;
+  if (L2 < 1e-6) return;
+  const k = Math.min(1, Math.max(0, ((out[i]! - g0) * tx + (out[i + 1]! - g1) * ty + (out[i + 2]! - g2) * tz) / L2));
+  let ox = aim[0] - imp[0],
+    oy = aim[1] - imp[1],
+    oz = aim[2] - imp[2];
+  const ol = Math.hypot(ox, oy, oz);
+  if (ol > 0.4) {
+    ox *= 0.4 / ol;
+    oy *= 0.4 / ol;
+    oz *= 0.4 / ol;
+  }
+  out[i] = out[i]! + ox * k;
+  out[i + 1] = out[i + 1]! + oy * k;
+  out[i + 2] = out[i + 2]! + oz * k;
+  // a lower target takes the body down with it (knees and waist), a farther one leans in after it
+  if (oy < 0) {
+    out[P.hy] = out[P.hy]! + oy * 0.35 * k;
+    out[P.lean] = out[P.lean]! - oy * 0.4 * k;
+  }
+  if (oz > 0) {
+    out[P.lean] = out[P.lean]! + 0.5 * oz * k;
+    out[P.hz] = out[P.hz]! + 0.3 * oz * k;
+    out[i === P.rx ? P.fRheel : P.fLheel] = out[i === P.rx ? P.fRheel : P.fLheel]! + 0.8 * oz * k;
+  }
+}
+
 function full(cmd: BoxingCommand): Active["cmd"] {
   const kind = BOXING_CLIPS[cmd.clip].kind;
   return {
+    ...(cmd.aim ? { aim: cmd.aim } : {}),
     reach: cmd.reach ?? 0,
     clip: cmd.clip,
     start: cmd.start,

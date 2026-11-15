@@ -25,7 +25,7 @@ const en = {
   "rules.ludo.win": "Bring all four of your tokens home first.",
   "rules.pool.howTo": "8-Ball. The first ball you pot decides your group (solids 1–7 or stripes 9–15). Hit your own group first and make a ball reach a cushion; after a foul your opponent gets ball in hand.",
   "rules.pool.win": "Pot all of your group, then call a pocket and sink the 8. Sinking the 8 too early, or in the wrong pocket, loses.",
-  "rules.boxing.howTo": "Real-time boxing in a ring: jab, cross, hooks and uppercuts to head or body, guard, slip and move. Stamina drains as you throw; a fighter out of stamina who is knocked down is counted out.",
+  "rules.boxing.howTo": "Real-time boxing in a ring: jab, cross, hooks and uppercuts to head or body, guard, slip and move. Stamina drains as you throw and comes back when you defend, move out of range and in the corner; head and body damage stay. Knocked down: press a punch in a steady rhythm to get up before ten, or you are counted out.",
   "rules.boxing.win": "{rounds} rounds of {roundSecs} s. Five virtual judges score every round (10-point must); a knockout or a stopped fight (3 knockdowns in a round) ends it early. Fouls draw warnings; enough warnings disqualify.",
 
   "rules.time.turn": "You have {turn} s for each turn. Run out and the game moves for you (a strike); {maxTimeouts} timeouts in a row is a forfeit. Your own move resets the count.",

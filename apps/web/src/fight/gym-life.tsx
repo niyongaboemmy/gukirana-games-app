@@ -1,4 +1,6 @@
 "use client";
+import { BoxerAvatar } from "@/world/human/boxer/BoxerAvatar";
+import { BOXER_BODY } from "./fighter-avatar";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
@@ -245,9 +247,18 @@ const phase = (id: string) => {
   return ((h >>> 0) % 1000) / 100;
 };
 const clock = () => performance.now() / 1000;
+const phaseSeed = (id: string) => Math.round(phase(id) * 1000);
 
 /** a staff member dithers in / out over this long when the draw set changes (they used to pop in and out of view) */
 const STAFF_FADE_S = 0.4;
+
+/** P3-FGT-13: which boxer-body outfit a role wears (staff in the venue's red polo; trainees in kit without headgear) */
+function staffOutfit(role: StaffSpot["role"]): { outfit: "boxer" | "referee" | "staff"; noGloves?: boolean } {
+  if (role === "referee") return { outfit: "referee" };
+  if (role === "shadow" || role === "trainee") return { outfit: "boxer" };
+  if (role === "skipper") return { outfit: "boxer", noGloves: true };
+  return { outfit: "staff" };
+}
 
 function StaffNpc({ spot, lite, shown = true }: { spot: StaffSpot; lite: boolean; shown?: boolean }) {
   const fade = useRef(0);
@@ -256,7 +267,10 @@ function StaffNpc({ spot, lite, shown = true }: { spot: StaffSpot; lite: boolean
   const g = useRef<THREE.Group>(null);
   const anim = useRef(0);
   const loop = LOOPS[spot.role];
-  const motion = useMemo(() => (loop ? new BoxingMotion() : null), [loop]);
+  const kitted = staffOutfit(spot.role);
+  // the boxer body has no plaza mocap underneath: everyone gets a motion (an idle stance when the role has no loop)
+  const motion = useMemo(() => (loop || BOXER_BODY ? new BoxingMotion({ base: kitted.outfit === "boxer" ? "guardIdle" : "refIdle" }) : null), [loop, kitted.outfit]);
+  const walkState = useRef<{ on: boolean }>({ on: false });
   const weight = useMemo(() => ({ current: 1 }), []);
   const layer = useMemo(
     () => (motion ? boxingLayer({ motion, kit: null, weight, face: false }) : undefined),
@@ -325,7 +339,14 @@ function StaffNpc({ spot, lite, shown = true }: { spot: StaffSpot; lite: boolean
       z = p.z;
       yaw = walking ? p.yaw : p.yaw + Math.PI / 2;
       anim.current = walking ? 1 : 0;
-      weight.current = walking ? 0 : 1;
+      weight.current = walking && !BOXER_BODY ? 0 : 1;
+      // the boxer body walks with the motion library: a walking cycle at the path's speed (no sliding feet)
+      if (BOXER_BODY && motion && walking !== walkState.current.on) {
+        walkState.current.on = walking;
+        last.current = -1;
+        motion.play({ clip: walking ? "refWalk" : motion.base, start: clock(), speed: walking ? Math.max(0.6, Math.min(1.4, spot.speed! / 1.3)) : 1, blend: 0.25 });
+      }
+      if (walkState.current.on) weight.current = 0.4;
     }
     if (spot.role === "skipper") {
       // skipping: a light double-bounce and the rope turning about 2 turns a second
@@ -363,7 +384,7 @@ function StaffNpc({ spot, lite, shown = true }: { spot: StaffSpot; lite: boolean
       });
     }
     if (label.current) label.current.visible = Math.hypot(x - selfPose.x, z - selfPose.z) < 5;
-    if (motion && loop && weight.current > 0.5) {
+    if (motion && loop && weight.current > 0.5 && !walkState.current.on) {
       const cur = loopAt(loop, t);
       if (cur.i !== last.current) {
         last.current = cur.i;
@@ -385,17 +406,21 @@ function StaffNpc({ spot, lite, shown = true }: { spot: StaffSpot; lite: boolean
   });
   return (
     <group ref={g}>
-      <Avatar
-        look={look}
-        animRef={anim}
-        showTag={false}
-        shadows={!lite}
-        quality={lite ? "lite" : "standard"}
-        lod
-        rigLayer={layer}
-        fadeRef={fade}
-        seedId={`gym-${spot.id}`}
-      />
+      {BOXER_BODY && motion ? (
+        <BoxerAvatar look={look} outfit={kitted.outfit} noGloves={kitted.noGloves} noHeadgear kit="#B3242B" polo="#B3242B" motion={motion} clock={clock} seed={phaseSeed(spot.id)} lite={lite} fade={fade} />
+      ) : (
+        <Avatar
+          look={look}
+          animRef={anim}
+          showTag={false}
+          shadows={!lite}
+          quality={lite ? "lite" : "standard"}
+          lod
+          rigLayer={layer}
+          fadeRef={fade}
+          seedId={`gym-${spot.id}`}
+        />
+      )}
       {spot.role === "skipper" && (
         <group ref={rope} position={[0, 0.98, 0]}>
           <mesh scale={[0.62, 1, 1]}>

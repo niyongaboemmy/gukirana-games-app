@@ -400,7 +400,8 @@ export class BoxingRoom extends Room {
     slot.g = p.data.g;
     if (p.data.mv) slot.mv = p.data.mv;
     if (!p.data.a) return;
-    if (this.fight.phase !== "round") return this.reject(client, "NOT_FIGHTING");
+    // fighter life (P3-FGT-13): during a count the downed fighter's presses are the get-up task
+    if (this.fight.phase !== "round" && !(this.fight.phase === "knockdown" && this.fight.life === 1)) return this.reject(client, "NOT_FIGHTING");
     // at most one press per tick per fighter: a second press in the same tick is dropped
     if (slot.a) return;
     slot.a = p.data.a;

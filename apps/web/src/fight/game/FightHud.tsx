@@ -1,4 +1,5 @@
 "use client";
+import { CornerCard, DamageBars, GetUpPanel } from "./LifeHud";
 import { useEffect, useRef, useState } from "react";
 import { Check, Clapperboard, DoorOpen, Flag, GlassWater, GraduationCap, Hourglass, Megaphone, SlidersHorizontal, Square, Video } from "lucide-react";
 import { CORNER_COLORS, TICK_HZ, type BoxingSnapshot, type Corner, type FightEvent, type FighterView } from "@gukirana/contracts";
@@ -88,6 +89,7 @@ function FighterPanel({ f, name, me, side }: { f: FighterView; name: string; me:
       </div>
       <Meter value={f.stamina} label={ft("hud.stamina")} tone="stamina" flip={right} />
       <Meter value={f.composure} label={ft("hud.composure")} tone="composure" flip={right} />
+      <DamageBars f={f} flip={right} />
       {(((f as { deductions?: number }).deductions ?? 0) > 0 || ((f as { cautions?: number }).cautions ?? 0) > 0) && (
         <div className={`flex gap-2 text-[10px] font-bold uppercase text-on-glass-muted ${right ? "justify-end" : ""}`}>
           {((f as { cautions?: number }).cautions ?? 0) > 0 && <span>{ft("hud.caution")} {(f as { cautions?: number }).cautions}</span>}
@@ -197,6 +199,7 @@ function Callouts({ snap, me, now }: { snap: BoxingSnapshot; me: 0 | 1; now: num
             : "";
       outs.push({ id, word: ft(`out.${pv.outcome}` as FgKey), sub: pv.mine ? why : ft("out.theirs", { punch: ft(actionKey(pv.punch)) }), color: OUTCOME_COLOR[pv.outcome], mine: pv.mine });
     }
+    if (e.k === "secondWind" && age < 1600) pops.push({ id, text: ft(e.to === me ? "life.secondWind" : "life.theirSecondWind"), good: e.to === me });
     if (e.k === "warning" && age < 1400 && e.to === me)
       pops.push({
         id,
@@ -211,10 +214,12 @@ function Callouts({ snap, me, now }: { snap: BoxingSnapshot; me: 0 | 1; now: num
     <div className="pointer-events-none absolute inset-x-0 top-[28%] flex flex-col items-center gap-2 phone:top-[21%]">
       {snap.phase === "knockdown" && snap.count !== undefined && (
         <div className={`${glass} flex flex-col items-center px-8 py-3 phone:px-4 phone:py-1`} role="status" aria-live="assertive">
-          <span className="text-xs font-bold uppercase tracking-widest text-on-glass-muted">{ft("hud.knockdown")}</span>
+          <span className="text-xs font-bold uppercase tracking-widest text-on-glass-muted">{ft(snap.counted?.standing ? "life.standing" : "hud.knockdown")}</span>
           <span className="font-display text-6xl font-black tabular-nums phone:text-3xl">{snap.count}</span>
         </div>
       )}
+      <GetUpPanel snap={snap} me={me} now={now} touch={!!phone} />
+      {!card && <CornerCard snap={snap} me={me} />}
       {snap.phase !== "knockdown" && card && (
         <div
           className={`${glass} gk-fade-up flex flex-col items-center px-8 py-3 phone:px-4 phone:py-1.5`}

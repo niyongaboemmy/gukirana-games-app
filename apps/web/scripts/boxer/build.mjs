@@ -1,0 +1,1260 @@
+#!/usr/bin/env node
+// Boxer body build (P3-FGT-13, docs/FIGHT-REALISM-V3.md §3): a dedicated athletic body for the ring people, built
+// from the MakeHuman 1.x CC0 assets (base mesh, macro targets, default skeleton + weights) and garments generated
+// from the body itself (vest, trunks, boots, gloves, headgear, hand wraps; referee shirt, bow tie, trousers, shoes;
+// staff polo; a short hair cap). Output: apps/web/public/assets/characters/boxer-{m,f}.glb.
+//
+//   MH_DIR=/path/to/makehuman/makehuman/data node apps/web/scripts/boxer/build.mjs
+//
+// MH_DIR is a checkout of https://github.com/makehumancommunity/makehuman (data/3dobjs, data/rigs,
+// data/targets/macrodetails). Licences: docs/ASSET-LICENSES.md (MakeHuman assets CC0 1.0).
+import { mkdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { jointPos, macroTargets, morph, readObj, readSkeleton } from "./mh.mjs";
+import { writeGlb } from "./glb.mjs";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const OUT = join(HERE, "../../public/assets/characters");
+const MH = process.env.MH_DIR;
+if (!MH) throw new Error("set MH_DIR to makehuman/makehuman/data");
+
+/* ------------------------------------------------------------ material slots (shader palette, boxer-material.ts) ------------------------------------------------------------ */
+export const MAT = {
+  skin: 0,
+  vest: 1,
+  vestTrim: 2,
+  trunks: 3,
+  trunksTrim: 4,
+  boot: 5,
+  sole: 6,
+  lace: 7,
+  glove: 8,
+  gloveTarget: 9,
+  gloveCuff: 10,
+  headgear: 11,
+  headgearTrim: 12,
+  wrap: 13,
+  shirt: 14,
+  trousers: 15,
+  shoe: 16,
+  bowtie: 17,
+  polo: 18,
+  hair: 19,
+  eye: 20,
+  lash: 21,
+  teeth: 22,
+  sock: 23,
+  belt: 24,
+};
+/** body cover bits: a body face whose three corners are covered by the worn outfit is not drawn */
+const COVER = { vest: 1, trunks: 2, boots: 4, gloves: 8, headgear: 16, shirt: 32, trousers: 64, shoes: 128, hair: 256 };
+
+/* ------------------------------------------------------------ small vector maths ------------------------------------------------------------ */
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const scl = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const len = (a) => Math.hypot(a[0], a[1], a[2]);
+const norm = (a) => {
+  const l = len(a) || 1;
+  return [a[0] / l, a[1] / l, a[2] / l];
+};
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const smooth = (e0, e1, x) => {
+  const t = clamp((x - e0) / (e1 - e0), 0, 1);
+  return t * t * (3 - 2 * t);
+};
+const lerp = (a, b, t) => a + (b - a) * t;
+
+/* ------------------------------------------------------------ the skeleton: MakeHuman default → Bip01 names (rig.ts) ------------------------------------------------------------ */
+const SIDES = [
+  ["L", ".L"],
+  ["R", ".R"],
+];
+/** [final name, parent, MakeHuman bones merged into it (the first one gives the joint position)] */
+function finalBones() {
+  const b = [
+    ["Bip01", null, ["root"]],
+    ["Bip01_Pelvis", "Bip01", ["root", "pelvis.L", "pelvis.R"]],
+    ["Bip01_Spine", "Bip01_Pelvis", ["spine05", "spine04"]],
+    ["Bip01_Spine1", "Bip01_Spine", ["spine03"]],
+    ["Bip01_Spine2", "Bip01_Spine1", ["spine02", "spine01", "breast.L", "breast.R"]],
+    ["Bip01_Neck", "Bip01_Spine2", ["neck01", "neck02", "neck03"]],
+    ["Bip01_Head", "Bip01_Neck", ["head"]],
+    ["Bip01_Jaw", "Bip01_Head", ["jaw", "special04", "tongue00", "tongue01", "tongue02", "tongue03", "tongue04", "tongue05.L", "tongue05.R", "tongue06.L", "tongue06.R", "tongue07.L", "tongue07.R", "oris05", "oris06", "oris06.L", "oris06.R", "oris07.L", "oris07.R"]],
+  ];
+  for (const [S, s] of SIDES) {
+    b.push(
+      [`Bip01_${S}_Eye`, "Bip01_Head", [`eye${s}`]],
+      [`Bip01_${S}_UpperLid`, "Bip01_Head", [`orbicularis03${s}`]],
+      [`Bip01_${S}_LowerLid`, "Bip01_Head", [`orbicularis04${s}`]],
+      [`Bip01_${S}_Brow`, "Bip01_Head", [`oculi01${s}`, `oculi02${s}`]],
+      [`Bip01_${S}_MouthCorner`, "Bip01_Head", [`risorius03${s}`, `risorius02${s}`]],
+      [`Bip01_${S}_Clavicle`, "Bip01_Spine2", [`clavicle${s}`, `shoulder01${s}`]],
+      [`Bip01_${S}_UpperArm`, `Bip01_${S}_Clavicle`, [`upperarm01${s}`, `upperarm02${s}`]],
+      [`Bip01_${S}_Forearm`, `Bip01_${S}_UpperArm`, [`lowerarm01${s}`, `lowerarm02${s}`]],
+      [`Bip01_${S}_Hand`, `Bip01_${S}_Forearm`, [`wrist${s}`, `metacarpal1${s}`, `metacarpal2${s}`, `metacarpal3${s}`, `metacarpal4${s}`]],
+    );
+    for (let f = 0; f < 5; f++) {
+      const mh = (k) => `finger${f + 1}-${k}${s}`;
+      b.push([`Bip01_${S}_Finger${f}`, `Bip01_${S}_Hand`, [mh(1)]], [`Bip01_${S}_Finger${f}1`, `Bip01_${S}_Finger${f}`, [mh(2)]], [`Bip01_${S}_Finger${f}2`, `Bip01_${S}_Finger${f}1`, [mh(3)]]);
+    }
+    b.push(
+      [`Bip01_${S}_Thigh`, "Bip01_Pelvis", [`upperleg01${s}`, `upperleg02${s}`]],
+      [`Bip01_${S}_Calf`, `Bip01_${S}_Thigh`, [`lowerleg01${s}`, `lowerleg02${s}`]],
+      [`Bip01_${S}_Foot`, `Bip01_${S}_Calf`, [`foot${s}`]],
+      [`Bip01_${S}_Toe0`, `Bip01_${S}_Foot`, [1, 2, 3, 4, 5].flatMap((t) => [1, 2, 3].map((k) => `toe${t}-${k}${s}`))],
+    );
+  }
+  return b;
+}
+
+/* ------------------------------------------------------------ one body variant ------------------------------------------------------------ */
+const DM = 0.1; // MakeHuman decimetres → metres
+const { pos: BASE, groups: GROUPS } = readObj(join(MH, "3dobjs/base.obj"));
+const { skel, weights: MHW } = readSkeleton(MH);
+const FB = finalBones();
+const FINAL_INDEX = new Map(FB.map((b, i) => [b[0], i]));
+/** MakeHuman bone → final bone index (bones not listed go to their nearest listed ancestor) */
+const MH_TO_FINAL = new Map();
+for (const [i, b] of FB.entries()) for (const m of b[2]) if (!MH_TO_FINAL.has(m)) MH_TO_FINAL.set(m, i);
+const finalOf = (mh) => {
+  let k = mh;
+  while (k) {
+    if (MH_TO_FINAL.has(k)) return MH_TO_FINAL.get(k);
+    k = skel.bones[k]?.parent;
+  }
+  return FINAL_INDEX.get("Bip01_Pelvis");
+};
+/** per vertex: up to 4 [final bone, weight] */
+const NV = BASE.length / 3;
+const VW = (() => {
+  const acc = Array.from({ length: NV }, () => new Map());
+  for (const [bone, list] of Object.entries(MHW)) {
+    const f = finalOf(bone);
+    for (const [vi, w] of list) acc[vi].set(f, (acc[vi].get(f) ?? 0) + w);
+  }
+  return acc.map((m) => {
+    const top = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+    const s = top.reduce((n, [, w]) => n + w, 0) || 1;
+    return top.length ? top.map(([b, w]) => [b, w / s]) : [[FINAL_INDEX.get("Bip01_Head"), 1]];
+  });
+})();
+const wOf = (vi, name) => {
+  const k = FINAL_INDEX.get(name);
+  for (const [b, w] of VW[vi]) if (b === k) return w;
+  return 0;
+};
+const wSum = (vi, names) => names.reduce((n, x) => n + wOf(vi, x), 0);
+
+function variantPositions(params) {
+  const p = morph(BASE, macroTargets(MH, params));
+  return p;
+}
+
+/** everything the garments need, from one morphed position set (metres, feet on y = 0) */
+function geometry(pdm) {
+  // ground: the lowest body vertex
+  const body = GROUPS.get("body");
+  let minY = Infinity;
+  for (const f of body) for (const i of f) minY = Math.min(minY, pdm[i * 3 + 1]);
+  const P = new Float64Array(pdm.length);
+  for (let i = 0; i < NV; i++) {
+    P[i * 3] = pdm[i * 3] * DM;
+    P[i * 3 + 1] = (pdm[i * 3 + 1] - minY) * DM;
+    P[i * 3 + 2] = pdm[i * 3 + 2] * DM;
+  }
+  const J = (name) => {
+    const j = jointPos(skel, pdm, name);
+    return [j[0] * DM, (j[1] - minY) * DM, j[2] * DM];
+  };
+  const bones = FB.map(([name, parent, mh]) => ({ name, parent: parent ? FINAL_INDEX.get(parent) : -1, pos: J(`${mh[0]}____head`) }));
+  // the toe bone sits at the ball of the foot (the foot's tail)
+  for (const [S, s] of SIDES) bones[FINAL_INDEX.get(`Bip01_${S}_Toe0`)].pos = J(`foot${s}____tail`);
+  return { P, bones, J, minY };
+}
+
+/** smooth vertex normals over a face list (area-weighted) */
+function normalsOf(P, faces) {
+  const N = new Float64Array(P.length);
+  for (const f of faces) {
+    for (let k = 0; k < f.length; k++) {
+      const a = f[k],
+        b = f[(k + 1) % f.length],
+        c = f[(k + f.length - 1) % f.length];
+      const pa = [P[a * 3], P[a * 3 + 1], P[a * 3 + 2]];
+      const n = cross(sub([P[b * 3], P[b * 3 + 1], P[b * 3 + 2]], pa), sub([P[c * 3], P[c * 3 + 1], P[c * 3 + 2]], pa));
+      N[a * 3] += n[0];
+      N[a * 3 + 1] += n[1];
+      N[a * 3 + 2] += n[2];
+    }
+  }
+  for (let i = 0; i < N.length; i += 3) {
+    const l = Math.hypot(N[i], N[i + 1], N[i + 2]) || 1;
+    N[i] /= l;
+    N[i + 1] /= l;
+    N[i + 2] /= l;
+  }
+  return N;
+}
+const tri = (faces) => faces.flatMap((f) => (f.length === 4 ? [[f[0], f[1], f[2]], [f[0], f[2], f[3]]] : [f.slice(0, 3)]));
+
+/**
+ * A mesh under construction: positions (metres), normals, skin (4 joints / weights), material slot, extra attributes.
+ */
+class MeshBuilder {
+  constructor(name) {
+    this.name = name;
+    this.p = [];
+    this.n = [];
+    this.j = [];
+    this.w = [];
+    this.mat = [];
+    this.ao = [];
+    this.zone = [];
+    this.cover = [];
+    this.paint = [];
+    this.src = [];
+    this.idx = [];
+  }
+  vert(p, n, skin, mat, extra = {}) {
+    this.p.push(...p);
+    this.n.push(...n);
+    const s = skin.slice(0, 4);
+    while (s.length < 4) s.push([0, 0]);
+    this.j.push(...s.map((x) => x[0]));
+    this.w.push(...s.map((x) => x[1]));
+    this.mat.push(mat);
+    this.ao.push(extra.ao ?? 0.5);
+    this.zone.push(extra.zone ?? 0);
+    this.cover.push(extra.cover ?? 0);
+    this.paint.push(...(extra.paint ?? [0, 0, 0, 0]));
+    this.src.push(extra.src ?? -1);
+    return this.p.length / 3 - 1;
+  }
+  face(a, b, c) {
+    this.idx.push(a, b, c);
+  }
+  get count() {
+    return this.p.length / 3;
+  }
+  build(withBody) {
+    const u8n = (arr) => Uint8Array.from(arr, (x) => Math.round(clamp(x, 0, 1) * 255));
+    // weights as normalised bytes: each vertex's four re-summed to exactly 255
+    const w8 = new Uint8Array(this.w.length);
+    for (let v = 0; v < this.w.length; v += 4) {
+      const q = [0, 1, 2, 3].map((k) => Math.round(this.w[v + k] * 255));
+      q[0] += 255 - (q[0] + q[1] + q[2] + q[3]);
+      w8.set(q, v);
+    }
+    const attrs = {
+      POSITION: { data: Float32Array.from(this.p), size: 3 },
+      NORMAL: { data: Float32Array.from(this.n), size: 3 },
+      JOINTS_0: { data: Uint8Array.from(this.j), size: 4 },
+      WEIGHTS_0: { data: w8, size: 4, norm: true },
+      _MAT: { data: Uint8Array.from(this.mat), size: 1 },
+      _AO: { data: u8n(this.ao), size: 1, norm: true },
+    };
+    if (withBody) {
+      attrs._ZONE = { data: Uint8Array.from(this.zone), size: 1 };
+      attrs._COVER = { data: Uint16Array.from(this.cover), size: 1 };
+      attrs._PAINT = { data: u8n(this.paint), size: 4, norm: true };
+    }
+    return { name: this.name, attrs, index: Uint32Array.from(this.idx) };
+  }
+}
+
+/* ------------------------------------------------------------ the build of one gender ------------------------------------------------------------ */
+function buildVariant(key, base, morphParams) {
+  const pdm = variantPositions(base);
+  const G = geometry(pdm);
+  const { P, bones, J } = G;
+  const V = (i) => [P[i * 3], P[i * 3 + 1], P[i * 3 + 2]];
+  const bodyFaces = GROUPS.get("body");
+  const bodyTris = tri(bodyFaces);
+  const NB = normalsOf(P, bodyFaces);
+  const Nv = (i) => [NB[i * 3], NB[i * 3 + 1], NB[i * 3 + 2]];
+  const bp = (name) => bones[FINAL_INDEX.get(name)].pos;
+
+  // landmarks
+  const pelvis = bp("Bip01_Pelvis");
+  const spine = bp("Bip01_Spine");
+  const spine2 = bp("Bip01_Spine2");
+  const neck = bp("Bip01_Neck");
+  const head = bp("Bip01_Head");
+  const shoulderL = bp("Bip01_L_UpperArm");
+  const elbowL = bp("Bip01_L_Forearm");
+  const kneeL = bp("Bip01_L_Calf");
+  const ankleL = bp("Bip01_L_Foot");
+  const thighL = bp("Bip01_L_Thigh");
+  const eyeL = bp("Bip01_L_Eye");
+  const eyeR = bp("Bip01_R_Eye");
+  const jaw = bp("Bip01_Jaw");
+  const mouthL = bp("Bip01_L_MouthCorner");
+  const mouthR = bp("Bip01_R_MouthCorner");
+  const waistY = lerp(pelvis[1], spine[1], 0.85);
+  const bootTopY = ankleL[1] + 0.13;
+  const neckBaseY = neck[1];
+  const shoulderX = Math.abs(shoulderL[0]);
+  const headC = [head[0], (head[1] + eyeL[1]) / 2 + 0.01, head[2] - 0.01];
+
+  // neighbours (cavity)
+  const neigh = Array.from({ length: NV }, () => new Set());
+  for (const f of bodyFaces)
+    for (let k = 0; k < f.length; k++) {
+      neigh[f[k]].add(f[(k + 1) % f.length]);
+      neigh[f[k]].add(f[(k + f.length - 1) % f.length]);
+    }
+  /** Laplacian-smoothed positions over a face set (cloth bridging, the shoe last) */
+  const smoothed = (faces, iters, region = () => true) => {
+    const nb = new Map();
+    for (const f of faces)
+      for (let k = 0; k < f.length; k++) {
+        const a = f[k];
+        if (!nb.has(a)) nb.set(a, new Set());
+        nb.get(a).add(f[(k + 1) % f.length]);
+        nb.get(a).add(f[(k + f.length - 1) % f.length]);
+      }
+    let cur = Float64Array.from(P);
+    for (let it = 0; it < iters * 2; it++) {
+      const lam = it % 2 === 0 ? 0.5 : -0.53;
+      const nx = Float64Array.from(cur);
+      for (const [a, ns] of nb) {
+        if (!region(a)) continue;
+        let x = 0, y = 0, z = 0;
+        for (const q of ns) {
+          x += cur[q * 3];
+          y += cur[q * 3 + 1];
+          z += cur[q * 3 + 2];
+        }
+        const n = ns.size;
+        nx[a * 3] = cur[a * 3] + lam * (x / n - cur[a * 3]);
+        nx[a * 3 + 1] = cur[a * 3 + 1] + lam * (y / n - cur[a * 3 + 1]);
+        nx[a * 3 + 2] = cur[a * 3 + 2] + lam * (z / n - cur[a * 3 + 2]);
+      }
+      cur = nx;
+    }
+    return cur;
+  };
+  const SMOOTH_BODY = smoothed(bodyFaces, 40);
+  const SMOOTH_TIGHTS = smoothed(GROUPS.get("helper-tights"), 16);
+  let SM_SRC = SMOOTH_BODY;
+  const SM = (i) => [SM_SRC[i * 3], SM_SRC[i * 3 + 1], SM_SRC[i * 3 + 2]];
+  const cavity = new Float64Array(NV);
+  for (const f of bodyFaces)
+    for (const i of f) {
+      if (cavity[i]) continue;
+      const ns = [...neigh[i]];
+      let c = [0, 0, 0];
+      let e = 0;
+      for (const n of ns) {
+        c = add(c, V(n));
+        e += len(sub(V(n), V(i)));
+      }
+      c = scl(c, 1 / ns.length);
+      e /= ns.length;
+      // > 0 concave (a groove between muscles), < 0 convex
+      cavity[i] = clamp(0.5 + (dot(Nv(i), sub(c, V(i))) / (e || 1)) * 2.2, 0, 1) || 0.5;
+    }
+
+  // region tests on body vertices
+  const isHand = (i) => wSum(i, ["Bip01_L_Hand", "Bip01_R_Hand"]) + FB.reduce((n, b, k) => n + (b[0].includes("Finger") ? wOf(i, b[0]) : 0), 0) > 0.5;
+  const isArm = (i) => wSum(i, ["Bip01_L_UpperArm", "Bip01_R_UpperArm", "Bip01_L_Forearm", "Bip01_R_Forearm"]) > 0.3 || isHand(i);
+  const isHeadV = (i) => wSum(i, ["Bip01_Head", "Bip01_Jaw", "Bip01_L_Eye", "Bip01_R_Eye", "Bip01_L_UpperLid", "Bip01_R_UpperLid", "Bip01_L_LowerLid", "Bip01_R_LowerLid", "Bip01_L_Brow", "Bip01_R_Brow", "Bip01_L_MouthCorner", "Bip01_R_MouthCorner"]) > 0.5;
+  const footW = (i) => wSum(i, ["Bip01_L_Foot", "Bip01_R_Foot", "Bip01_L_Toe0", "Bip01_R_Toe0"]);
+
+  /* ---------------- garment fields (metres; > 0 inside the garment) ---------------- */
+  const armW = (i) => wSum(i, ["Bip01_L_UpperArm", "Bip01_R_UpperArm", "Bip01_L_Forearm", "Bip01_R_Forearm", "Bip01_L_Hand", "Bip01_R_Hand"]) + FB.reduce((n, b) => n + (b[0].includes("Finger") ? wOf(i, b[0]) : 0), 0);
+  const headW = (i) => (isHeadV(i) ? 1 : 0) + wOf(i, "Bip01_Neck") * 0.5;
+  // the neck's front at its base (vest neckline / collar)
+  const backZ = (p) => smooth(spine2[2] - 0.02, spine2[2] + 0.04, p[2]);
+  const vestField = (i) => {
+    const p = V(i);
+    const side = p[0] >= 0 ? 1 : -1;
+    const fBottom = p[1] - (waistY - 0.075);
+    // arm hole: farther than R from a point just under the shoulder joint
+    const hole = [shoulderX * side * 0.98, shoulderL[1] - 0.045, shoulderL[2] - 0.005];
+    const fArm = len(sub(p, hole)) - 0.118;
+    const fArmW = (0.22 - armW(i)) * 0.3;
+    // neckline: a round scoop at the front, higher at the back
+    const ax = Math.abs(p[0]);
+    const front = backZ(p);
+    const lineY = lerp(neckBaseY - 0.012 + 0.016 * smooth(0.03, 0.09, ax), neckBaseY - 0.088 + 0.07 * smooth(0.02, 0.1, ax), front);
+    const fNeck = lineY - p[1];
+    return Math.min(fBottom, fArm, fArmW, fNeck, 0.3 - headW(i));
+  };
+  const shirtField = (i) => {
+    const p = V(i);
+    const side = p[0] >= 0 ? 1 : -1;
+    const fBottom = p[1] - (waistY - 0.1);
+    const sh = [shoulderL[0] * side, shoulderL[1], shoulderL[2]];
+    const el = [elbowL[0] * side, elbowL[1], elbowL[2]];
+    const axis = norm(sub(el, sh));
+    const along = dot(sub(p, sh), axis);
+    const upper = wSum(i, ["Bip01_L_UpperArm", "Bip01_R_UpperArm"]);
+    const fSleeve = upper > 0.25 ? len(sub(el, sh)) * 0.5 - along : 1;
+    const fFore = (0.15 - (armW(i) - upper)) * 0.3;
+    const front = backZ(p);
+    const fNeck = lerp(neckBaseY + 0.012, neckBaseY - 0.02, front) - p[1];
+    return Math.min(fBottom, fSleeve, fFore, fNeck, 0.3 - headW(i));
+  };
+  const hemY = kneeL[1] + 0.105;
+  const trunksTop = waistY + 0.012;
+  const bootTop = (i) => (wSum(i, ["Bip01_L_Calf", "Bip01_R_Calf", "Bip01_L_Foot", "Bip01_R_Foot", "Bip01_L_Toe0", "Bip01_R_Toe0"]) > 0.3 ? bootTopY - V(i)[1] : -1);
+  const shoeTop = (i) => (footW(i) > 0.3 || wOf(i, "Bip01_L_Calf") + wOf(i, "Bip01_R_Calf") > 0.5 ? ankleL[1] + 0.035 - V(i)[1] : -1);
+  const wrapBand = (i) => (wSum(i, ["Bip01_L_Forearm", "Bip01_R_Forearm"]) > 0.5 ? Math.min(distToWrist(i) - 0.04, 0.085 - distToWrist(i)) : -1);
+
+  /* ---------------- per body vertex: covers, zones, face paint ---------------- */
+  const vestCover = (i) => {
+    const p = V(i);
+    if (isArm(i) || isHeadV(i)) return false;
+    if (p[1] < waistY - 0.07 || p[1] > neckBaseY + 0.005) return false;
+    // arm holes: a scoop round the shoulder joint
+    const ax = Math.abs(p[0]);
+    if (ax > shoulderX * 0.62 && p[1] > shoulderL[1] - 0.16) return false;
+    // neckline: a round scoop at the front, higher at the back
+    const front = p[2] > spine2[2];
+    if (front && p[1] > neckBaseY - 0.085 + 0.05 * smooth(0.02, 0.09, ax)) return false;
+    if (!front && p[1] > neckBaseY - 0.025 + 0.02 * smooth(0.03, 0.09, ax)) return false;
+    return true;
+  };
+  const shirtCover = (i) => {
+    const p = V(i);
+    if (isHand(i) || isHeadV(i)) return false;
+    if (p[1] < waistY - 0.09 || p[1] > neckBaseY + 0.02) return false;
+    // short sleeves: the upper arm down to a third of the way to the elbow
+    const side = p[0] > 0 ? 1 : -1;
+    const sh = [shoulderL[0] * side, shoulderL[1], shoulderL[2]];
+    const el = [elbowL[0] * side, elbowL[1], elbowL[2]];
+    const armAxis = norm(sub(el, sh));
+    const along = dot(sub(p, sh), armAxis);
+    if (wSum(i, ["Bip01_L_Forearm", "Bip01_R_Forearm"]) > 0.2) return false;
+    if (wSum(i, ["Bip01_L_UpperArm", "Bip01_R_UpperArm"]) > 0.25 && along > len(sub(el, sh)) * 0.45) return false;
+    const front = p[2] > spine2[2];
+    if (front && p[1] > neckBaseY - 0.03) return false;
+    return true;
+  };
+  const glovesCover = (i) => isHand(i) || (wSum(i, ["Bip01_L_Forearm", "Bip01_R_Forearm"]) > 0.4 && distToWrist(i) < 0.06);
+  const distToWrist = (i) => {
+    const p = V(i);
+    const wl = bp("Bip01_L_Hand");
+    const wr = bp("Bip01_R_Hand");
+    return Math.min(len(sub(p, wl)), len(sub(p, wr)));
+  };
+  const bootsCover = (i) => footW(i) > 0.4 || (V(i)[1] < bootTopY && wSum(i, ["Bip01_L_Calf", "Bip01_R_Calf"]) > 0.3);
+  const shoesCover = (i) => footW(i) > 0.5 && V(i)[1] < ankleL[1] + 0.02;
+  const headLocal = (i) => sub(V(i), headC);
+  const faceOval = (p) => {
+    // the open face of the headgear (and the face, for paint): an oval round the eyes, nose, mouth and chin, front
+    const q = sub(p, headC);
+    if (q[2] < 0.035) return false;
+    const yTop = eyeL[1] - headC[1] + 0.035;
+    const yBot = jaw[1] - headC[1] - 0.075;
+    const halfW = 0.058 + 0.012 * smooth(yBot, yTop, q[1]);
+    return q[1] < yTop && q[1] > yBot && Math.abs(q[0]) < halfW;
+  };
+  const headgearCover = (i) => isHeadV(i) && !faceOval(V(i)) && V(i)[1] > jaw[1] - 0.02;
+  const hairCover = (i) => {
+    if (!isHeadV(i)) return false;
+    const q = headLocal(i);
+    // the scalp: above the ears / forehead line
+    const hairline = eyeL[1] - headC[1] + 0.06 - 0.05 * smooth(-0.02, -0.1, q[2]);
+    return q[1] > hairline && !(q[2] > 0.06 && q[1] < eyeL[1] - headC[1] + 0.065);
+  };
+  const trunksCoverBody = (i) => {
+    const p = V(i);
+    return p[1] < waistY + 0.005 && p[1] > kneeL[1] + 0.09 && !isArm(i);
+  };
+  const trousersCoverBody = (i) => {
+    const p = V(i);
+    return p[1] < waistY + 0.01 && p[1] > ankleL[1] + 0.03 && !isArm(i) && footW(i) < 0.3;
+  };
+  const coverBits = (i) =>
+    (vestField(i) > 0.012 ? COVER.vest : 0) |
+    (trunksCoverBody(i) ? COVER.trunks : 0) |
+    (bootTop(i) > 0.012 ? COVER.boots : 0) |
+    (glovesCover(i) ? COVER.gloves : 0) |
+    (headgearCover(i) ? COVER.headgear : 0) |
+    (shirtField(i) > 0.012 ? COVER.shirt : 0) |
+    (trousersCoverBody(i) ? COVER.trousers : 0) |
+    (shoeTop(i) > 0.012 ? COVER.shoes : 0) |
+    (hairCover(i) ? COVER.hair : 0);
+  const zoneOf = (i) => {
+    if (isHeadV(i)) return 1;
+    const p = V(i);
+    if (!isArm(i) && p[1] > pelvis[1] + 0.03 && p[1] < spine2[1] + 0.06) return 2;
+    return 0;
+  };
+  const paintOf = (i) => {
+    if (!isHeadV(i)) return [0, 0, 0, 0];
+    const p = V(i);
+    const n = Nv(i);
+    // lips: an ellipse between the mouth corners, a little below the corner line
+    const mc = scl(add(mouthL, mouthR), 0.5);
+    const hw = Math.abs(mouthL[0] - mouthR[0]) / 2 + 0.004;
+    const q = sub(p, mc);
+    const lipE = (q[0] / hw) ** 2 + ((q[1] + 0.001) / 0.0115) ** 2;
+    const lips = n[2] > 0.2 && q[2] > -0.02 ? 1 - smooth(0.55, 1.05, lipE) : 0;
+    // brows: an arch above each eye
+    let brow = 0;
+    let socket = 0;
+    for (const e of [eyeL, eyeR]) {
+      const d = sub(p, e);
+      const ax = d[0] * Math.sign(e[0] || 1);
+      const arch = 0.021 + 0.006 * Math.cos((ax / 0.03) * 1.3);
+      const by = d[1] - arch;
+      if (n[2] > 0.1 && d[2] > -0.005 && ax > -0.018 && ax < 0.034) brow = Math.max(brow, (1 - smooth(0.0035, 0.0075, Math.abs(by))) * (1 - smooth(0.024, 0.036, ax)) * smooth(-0.02, -0.01, ax));
+      const r = Math.hypot(d[0], d[1]);
+      if (d[2] > -0.012) socket = Math.max(socket, smooth(0.01, 0.016, r) * (1 - smooth(0.016, 0.026, r)));
+    }
+    // beard / stubble region (jaw, chin, upper lip) for a masculine face
+    const jl = sub(p, jaw);
+    const beard = n[2] > -0.6 && p[1] < mc[1] + 0.012 && p[1] > jaw[1] - 0.09 && jl[2] > -0.03 && lips < 0.3 ? smooth(0.0, 0.02, p[1] - (jaw[1] - 0.085)) : 0;
+    return [lips, brow, socket, beard];
+  };
+
+  /* ---------------- the body mesh: skin + eyes + lashes + teeth ---------------- */
+  const bodyMesh = new MeshBuilder("body");
+  const map = new Map();
+  const addBodyVert = (i, mat, N) => {
+    const key = `${mat}:${i}`;
+    if (map.has(key)) return map.get(key);
+    const k = bodyMesh.vert(V(i), N ? [N[i * 3], N[i * 3 + 1], N[i * 3 + 2]] : Nv(i), VW[i], mat, mat === MAT.skin ? { ao: cavity[i], zone: zoneOf(i), cover: coverBits(i), paint: paintOf(i), src: i } : { src: i });
+    map.set(key, k);
+    return k;
+  };
+  for (const [a, b, c] of bodyTris) bodyMesh.face(addBodyVert(a, MAT.skin), addBodyVert(b, MAT.skin), addBodyVert(c, MAT.skin));
+  for (const [g, mat] of [
+    ["helper-l-eye", MAT.eye],
+    ["helper-r-eye", MAT.eye],
+    ["helper-l-eyelashes-1", MAT.lash],
+    ["helper-r-eyelashes-1", MAT.lash],
+    ["helper-l-eyelashes-2", MAT.lash],
+    ["helper-r-eyelashes-2", MAT.lash],
+    ["helper-upper-teeth", MAT.teeth],
+    ["helper-lower-teeth", MAT.teeth],
+  ]) {
+    const faces = GROUPS.get(g);
+    const N = normalsOf(P, faces);
+    for (const [a, b, c] of tri(faces)) bodyMesh.face(addBodyVert(a, mat, N), addBodyVert(b, mat, N), addBodyVert(c, mat, N));
+  }
+
+  /* ---------------- shells: a garment cut from the body by a smooth field (> 0 inside), offset along the normals ---------------- */
+  /**
+   * The garment's edge follows the field's zero line exactly: triangles across it are clipped (new vertices on the
+   * edges, their position / normal / skin / morph interpolated), so arm holes, necklines and hems are smooth curves,
+   * not the body's quad steps. Boundary edges get a hem strip (cloth thickness) in the rim slot.
+   */
+  function shell(name, faces, normals, { field, offset, mat, hem = 0.006, rimMat, surface = null, bridge = 0 }) {
+    const SV = (i) => (surface ? [surface[i * 3], surface[i * 3 + 1], surface[i * 3 + 2]] : V(i));
+    const m = new MeshBuilder(name);
+    const f = new Map();
+    const F = (i) => {
+      if (!f.has(i)) f.set(i, field(i));
+      return f.get(i);
+    };
+    // generalised vertex: [a, b, t] (a point on the edge a→b at t; a === b for a body vertex)
+    const gv = new Map();
+    const at = (a, b, t, inside) => {
+      const key = `${a < b ? a : b}_${a < b ? b : a}_${inside ? 1 : 0}`;
+      if (gv.has(key)) return gv.get(key);
+      const lerp3 = (A, B) => [A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, A[2] + (B[2] - A[2]) * t];
+      const na = [normals[a * 3], normals[a * 3 + 1], normals[a * 3 + 2]];
+      const nb = [normals[b * 3], normals[b * 3 + 1], normals[b * 3 + 2]];
+      const n = norm(lerp3(na, nb));
+      const br = (q) => (bridge > 0 ? Math.max(0, dot(sub(SM(q), V(q)), [normals[q * 3], normals[q * 3 + 1], normals[q * 3 + 2]])) * bridge : 0);
+      const o = offset(a) + br(a) + (offset(b) + br(b) - offset(a) - br(a)) * t - (inside ? hem : 0);
+      const pos = add(lerp3(SV(a), SV(b)), scl(n, o));
+      // skin: blend the two vertices' weights
+      const wm = new Map();
+      for (const [bone, w] of VW[a]) wm.set(bone, (wm.get(bone) ?? 0) + w * (1 - t));
+      for (const [bone, w] of VW[b]) wm.set(bone, (wm.get(bone) ?? 0) + w * t);
+      const top = [...wm.entries()].sort((x, y) => y[1] - x[1]).slice(0, 4);
+      const sum = top.reduce((q, [, w]) => q + w, 0) || 1;
+      const slot = typeof mat === "function" ? mat(t < 0.5 ? a : b) : mat;
+      const k = m.vert(pos, n, top.map(([bone, w]) => [bone, w / sum]), slot, { ao: 0.5 + 0.35 * (((cavity[a] || 0.5) * (1 - t) + (cavity[b] || 0.5) * t) - 0.5), src: [a, b, t] });
+      gv.set(key, k);
+      return k;
+    };
+    const V0 = (i, inside = false) => at(i, i, 0, inside);
+    const E = (a, b, inside = false) => {
+      const fa = F(a),
+        fb = F(b);
+      const t = fa / (fa - fb);
+      return at(a, b, t, inside);
+    };
+    const out = [];
+    for (const [a, b, c] of tri(faces)) {
+      const ins = [F(a) > 0, F(b) > 0, F(c) > 0];
+      const n = ins.filter(Boolean).length;
+      if (n === 0) continue;
+      if (n === 3) {
+        out.push([
+          [a, a],
+          [b, b],
+          [c, c],
+        ]);
+        continue;
+      }
+      // rotate so the odd one out is first
+      let r = [a, b, c];
+      let k = ins;
+      for (let s2 = 0; s2 < 3; s2++) {
+        const odd = n === 1 ? k[0] && !k[1] && !k[2] : !k[0] && k[1] && k[2];
+        if (odd) break;
+        r = [r[1], r[2], r[0]];
+        k = [k[1], k[2], k[0]];
+      }
+      const [x, y, z] = r;
+      if (n === 1)
+        out.push([
+          [x, x],
+          [x, y],
+          [x, z],
+        ]);
+      else {
+        out.push([
+          [y, y],
+          [z, z],
+          [z, x],
+        ]);
+        out.push([
+          [y, y],
+          [z, x],
+          [y, x],
+        ]);
+      }
+    }
+    const id = (e, inside = false) => (e[0] === e[1] ? V0(e[0], inside) : E(e[0], e[1], inside));
+    const edges = new Map();
+    const ekey = (e) => (e[0] === e[1] ? `v${e[0]}` : `e${Math.min(e[0], e[1])}_${Math.max(e[0], e[1])}`);
+    for (const t3 of out) {
+      m.face(id(t3[0]), id(t3[1]), id(t3[2]));
+      for (const [u, v] of [
+        [t3[0], t3[1]],
+        [t3[1], t3[2]],
+        [t3[2], t3[0]],
+      ]) {
+        const ku = ekey(u),
+          kv = ekey(v);
+        const k2 = ku < kv ? `${ku}|${kv}` : `${kv}|${ku}`;
+        const e = edges.get(k2);
+        if (e) e.n++;
+        else edges.set(k2, { u, v, n: 1 });
+      }
+    }
+    // the hem: a strip from the outer surface down towards the body along every boundary edge
+    for (const { u, v, n } of edges.values()) {
+      if (n !== 1) continue;
+      const ou = id(u),
+        ov = id(v);
+      const iu = id(u, true),
+        iv = id(v, true);
+      const pu = [m.p[ou * 3], m.p[ou * 3 + 1], m.p[ou * 3 + 2]];
+      const pv = [m.p[ov * 3], m.p[ov * 3 + 1], m.p[ov * 3 + 2]];
+      const nu = [m.n[ou * 3], m.n[ou * 3 + 1], m.n[ou * 3 + 2]];
+      const dir = norm(cross(sub(pv, pu), nu));
+      const skinOf = (k) => [0, 1, 2, 3].map((q) => [m.j[k * 4 + q], m.w[k * 4 + q]]);
+      const slot = rimMat ?? m.mat[ou];
+      const r1 = m.vert(pu, dir, skinOf(ou), slot, { src: m.src[ou] });
+      const r2 = m.vert(pv, dir, skinOf(ov), slot, { src: m.src[ov] });
+      const i1 = m.vert([m.p[iu * 3], m.p[iu * 3 + 1], m.p[iu * 3 + 2]], dir, skinOf(iu), slot, { src: m.src[iu] });
+      const i2 = m.vert([m.p[iv * 3], m.p[iv * 3 + 1], m.p[iv * 3 + 2]], dir, skinOf(iv), slot, { src: m.src[iv] });
+      m.face(r1, i1, r2);
+      m.face(r2, i1, i2);
+      m.face(r2, i1, r1);
+      m.face(i2, i1, r2);
+    }
+    return m;
+  }
+
+  // vest: corner colour, white binding at the neckline and arm holes (the hem strips)
+  const vest = shell("kit_vest", bodyFaces, NB, {
+    field: vestField,
+    offset: (i) => 0.0055 + 0.006 * smooth(spine2[1], pelvis[1], V(i)[1]) * (V(i)[2] > spine[2] ? 1 : 0.6),
+    bridge: 1,
+    mat: MAT.vest,
+    hem: 0.004,
+    rimMat: MAT.vestTrim,
+  });
+
+  // trunks: the tights helper above the knee, loose and flared towards the hem (waistband / stripe: the shader)
+  const tightsFaces = GROUPS.get("helper-tights");
+  const NT = normalsOf(P, tightsFaces);
+  SM_SRC = SMOOTH_TIGHTS;
+  const trunks = shell("kit_trunks", tightsFaces, NT, {
+    bridge: 1,
+    field: (i) => Math.min(V(i)[1] - hemY, trunksTop - V(i)[1]),
+    offset: (i) => 0.013 + 0.03 * smooth(thighL[1] - 0.05, hemY, V(i)[1]) + 0.004 * smooth(trunksTop - 0.07, trunksTop - 0.05, V(i)[1]),
+    mat: MAT.trunks,
+    hem: 0.006,
+    rimMat: MAT.trunks,
+  });
+
+  // boots: high (mid-calf), black, white laces down the front, a light sole
+  /**
+   * The foot of a boot / shoe: a loft of rounded sections along the foot (heel → toe), fitted to the foot's own
+   * length, width and instep height, with a flat sole, a toe spring and closed ends; skinned to the foot / toe bones.
+   */
+  function loftFoot(m, S, { top, slot, soleSlot, laceSlot, pad }) {
+    const A = bp(`Bip01_${S}_Foot`);
+    const T = bp(`Bip01_${S}_Toe0`);
+    const fwd = norm([T[0] - A[0], 0, T[2] - A[2]]);
+    const side = norm(cross([0, 1, 0], fwd));
+    const sideOf = (q) => (S === "L" ? q[0] > 0 : q[0] < 0);
+    const footB = FINAL_INDEX.get(`Bip01_${S}_Foot`);
+    const toeB = FINAL_INDEX.get(`Bip01_${S}_Toe0`);
+    const loc = (k) => {
+      const d = sub(V(k), A);
+      return [dot(d, fwd), dot(d, side), V(k)[1]];
+    };
+    // the foot's extent per slice along its length
+    const NS = 14;
+    let u0 = Infinity,
+      u1 = -Infinity;
+    const fv = [];
+    for (let k = 0; k < NV; k++) if (footW(k) > 0.3 && sideOf(V(k)) && V(k)[1] < A[1] + 0.02) fv.push(k);
+    for (const k of fv) {
+      const [u] = loc(k);
+      u0 = Math.min(u0, u);
+      u1 = Math.max(u1, u);
+    }
+    const ext = Array.from({ length: NS }, () => ({ vmin: Infinity, vmax: -Infinity, h: 0 }));
+    const bin = (u) => clamp(Math.floor(((u - u0) / (u1 - u0)) * NS), 0, NS - 1);
+    for (const k of fv) {
+      const [u, v, h] = loc(k);
+      const e = ext[bin(u)];
+      e.vmin = Math.min(e.vmin, v);
+      e.vmax = Math.max(e.vmax, v);
+      e.h = Math.max(e.h, h);
+    }
+    for (let b = 0; b < NS; b++) if (!Number.isFinite(ext[b].vmin)) Object.assign(ext[b], ext[Math.max(0, b - 1)]);
+    const prof = (u) => {
+      const x = clamp(((u - u0) / (u1 - u0)) * NS - 0.5, 0, NS - 1);
+      const a = Math.floor(x),
+        b = Math.min(NS - 1, a + 1),
+        t = x - a;
+      const ea = ext[a],
+        eb = ext[b];
+      return { vc: lerp((ea.vmin + ea.vmax) / 2, (eb.vmin + eb.vmax) / 2, t), w: lerp(ea.vmax - ea.vmin, eb.vmax - eb.vmin, t) / 2, h: lerp(ea.h, eb.h, t) };
+    };
+    const ballU = dot(sub(T, A), fwd);
+    const R = 20;
+    const rings = [];
+    const US = 18;
+    for (let q = 0; q <= US; q++) {
+      const uu = (u0 - pad) + ((u1 - u0 + 2 * pad) * q) / US;
+      const end = Math.min(q, US - q) / US;
+      const cap = Math.sqrt(Math.max(0, 1 - (1 - Math.min(1, end * 5)) ** 2));
+      const pr = prof(clamp(uu, u0, u1));
+      const tip = smooth(u1 - 0.06, u1 + pad, uu);
+      const hw = (pr.w * (1 - 0.25 * tip) + pad) * (0.25 + 0.75 * cap);
+      const ht = Math.min(top, Math.max(0.03, pr.h + pad)) * (1 - 0.35 * tip);
+      const spring = 0.012 * tip;
+      const row = [];
+      for (let r = 0; r < R; r++) {
+        const th = (2 * Math.PI * r) / R;
+        const cx = Math.cos(th),
+          cy = Math.sin(th);
+        // a flattened, slightly boxy section on a flat sole
+        const sp = (x, e) => Math.sign(x) * Math.abs(x) ** e;
+        const v = pr.vc + hw * sp(cx, 0.8);
+        const yy = cy < 0 ? spring * (0.5 + 0.5 * cx * 0) : (ht - 0.004) * sp(cy, 0.85) * (0.3 + 0.7 * cap);
+        const h = Math.max(0, cy < 0 ? spring : yy) + (cy < 0 ? 0 : 0.004);
+        const pos = add(add(A, add(scl(fwd, uu), scl(side, v))), [0, 0, 0]);
+        pos[1] = h + 0.003; // (3 mm off the floor: a sole flush with the canvas z-fights)
+        const n = norm(add(scl(side, cx), [0, cy < -0.2 ? -1 : cy, 0]));
+        const kToe = smooth(ballU - 0.02, ballU + 0.03, uu);
+        const sl = cy < -0.15 ? soleSlot : laceSlot !== null && cy > 0.75 && uu > 0.0 && uu < ballU - 0.01 ? laceSlot : slot;
+        row.push(m.vert(pos, n, [[footB, 1 - kToe], [toeB, kToe]], sl, { ao: 0.5 }));
+      }
+      rings.push(row);
+    }
+    for (let q = 0; q < US; q++)
+      for (let r = 0; r < R; r++) {
+        const a0 = rings[q][r],
+          a1 = rings[q][(r + 1) % R],
+          b0 = rings[q + 1][r],
+          b1 = rings[q + 1][(r + 1) % R];
+        m.face(a0, a1, b0);
+        m.face(a1, b1, b0);
+      }
+  }
+  const bootShaft = (i) => Math.min(bootTop(i), V(i)[1] - (ankleL[1] + 0.012));
+  const boots = shell("kit_boots", bodyFaces, NB, {
+    field: bootShaft,
+    offset: () => 0.007,
+    mat: (i) => {
+      const p = V(i);
+      const n = Nv(i);
+      const side = p[0] > 0 ? 1 : -1;
+      const ax = bp(side > 0 ? "Bip01_L_Foot" : "Bip01_R_Foot");
+      if (n[2] > 0.6 && Math.abs(p[0] - ax[0]) < 0.024) return MAT.lace;
+      return MAT.boot;
+    },
+    hem: 0.005,
+    rimMat: MAT.boot,
+  });
+  for (const S of ["L", "R"]) loftFoot(boots, S, { top: ankleL[1] + 0.04, slot: MAT.boot, soleSlot: MAT.sole, laceSlot: MAT.lace, pad: 0.009 });
+  // socks: a short white band folded over the boot top
+  const socks = shell("kit_socks", bodyFaces, NB, {
+    field: (i) => (wSum(i, ["Bip01_L_Calf", "Bip01_R_Calf"]) > 0.3 ? Math.min(V(i)[1] - (bootTopY - 0.012), bootTopY + 0.026 - V(i)[1]) : -1),
+    offset: () => 0.0045,
+    mat: MAT.sock,
+    hem: 0.003,
+  });
+
+  // hand wraps: a white band round the forearm just above the glove cuff
+  SM_SRC = SMOOTH_BODY;
+  const wraps = shell("kit_wraps", bodyFaces, NB, { field: wrapBand, offset: () => 0.0035, mat: MAT.wrap, hem: 0.0025 });
+
+  // referee / staff: short-sleeved shirt (tucked in), trousers, shoes
+  SM_SRC = SMOOTH_BODY;
+  const shirt = shell("ref_shirt", bodyFaces, NB, {
+    field: shirtField,
+    offset: (i) => 0.012 + 0.016 * smooth(spine2[1], pelvis[1] + 0.05, V(i)[1]) * (V(i)[2] > spine[2] ? 1 : 0.5),
+    mat: MAT.shirt,
+    bridge: 1,
+    hem: 0.004,
+  });
+  SM_SRC = SMOOTH_TIGHTS;
+  const trousers = shell(
+    "ref_trousers",
+    tightsFaces,
+    NT,
+    {
+      field: (i) => Math.min(V(i)[1] - (ankleL[1] + 0.03), waistY + 0.02 - V(i)[1]),
+      bridge: 1,
+      offset: (i) => 0.012 + 0.018 * smooth(kneeL[1] + 0.2, ankleL[1] + 0.05, V(i)[1]),
+      mat: (i) => (V(i)[1] > waistY - 0.018 ? MAT.belt : MAT.trousers),
+      hem: 0.005,
+    },
+  );
+  SM_SRC = SMOOTH_BODY;
+  const shoes = new MeshBuilder("ref_shoes");
+  for (const S of ["L", "R"]) loftFoot(shoes, S, { top: ankleL[1] + 0.012, slot: MAT.shoe, soleSlot: MAT.sole, laceSlot: null, pad: 0.008 });
+
+  /* ---------------- rigid kit: gloves, headgear, bow tie, hair cap, shirt collar ---------------- */
+  const handFrame = (S) => {
+    const wrist = bp(`Bip01_${S}_Hand`);
+    const mid = bp(`Bip01_${S}_Finger2`);
+    const idx = bp(`Bip01_${S}_Finger1`);
+    const pinky = bp(`Bip01_${S}_Finger4`);
+    const f = norm(sub(mid, wrist));
+    // palm normal: across the knuckles × along the fingers, signed so it faces the palm side (away from the thumb's back)
+    const across = norm(sub(idx, pinky));
+    let nrm = norm(cross(f, across));
+    const thumb = bp(`Bip01_${S}_Finger01`);
+    if (dot(sub(thumb, wrist), nrm) < 0) nrm = scl(nrm, -1);
+    const s = norm(cross(nrm, f));
+    return { wrist, f, n: nrm, s: s, across };
+  };
+  const gloves = new MeshBuilder("kit_gloves");
+  for (const S of ["L", "R"]) {
+    const { wrist, f, n, s } = handFrame(S);
+    const bone = FINAL_INDEX.get(`Bip01_${S}_Hand`);
+    const skin = [[bone, 1]];
+    const P3 = (x, y, z) => add(wrist, add(scl(f, x), add(scl(n, y), scl(s, z))));
+    const D3 = (x, y, z) => norm(add(scl(f, x), add(scl(n, y), scl(s, z))));
+    // the fist: a rounded box (superellipsoid), 25 cm long from the wrist, 12 cm wide, 11 cm deep
+    const cx = 0.08,
+      a = 0.088,
+      b = 0.056,
+      c = 0.062;
+    const U = 28,
+      W = 16;
+    const ring = [];
+    for (let v = 0; v <= W; v++) {
+      const phi = -Math.PI / 2 + (Math.PI * v) / W;
+      const row = [];
+      for (let u = 0; u < U; u++) {
+        const th = (2 * Math.PI * u) / U;
+        const sp = (x, e) => Math.sign(x) * Math.abs(x) ** e;
+        const ex = 0.62;
+        const lx = a * sp(Math.sin(phi), ex);
+        const ly = b * sp(Math.cos(phi) * Math.cos(th), ex) - 0.006;
+        const lz = c * sp(Math.cos(phi) * Math.sin(th), ex);
+        // the knuckle front bulges, the cuff end narrows into the wrist
+        const taper = phi < 0 ? 0.8 + 0.2 * Math.cos(phi) : 1;
+        const p = P3(cx + lx, ly * taper, lz * taper);
+        const nn = D3(Math.sin(phi) / a, (Math.cos(phi) * Math.cos(th)) / b, (Math.cos(phi) * Math.sin(th)) / c);
+        const target = phi > 0.55 && Math.cos(th) < 0.35 && Math.cos(th) > -0.95;
+        row.push(gloves.vert(p, nn, skin, target ? MAT.gloveTarget : MAT.glove));
+      }
+      ring.push(row);
+    }
+    for (let v = 0; v < W; v++)
+      for (let u = 0; u < U; u++) {
+        const a0 = ring[v][u],
+          a1 = ring[v][(u + 1) % U],
+          b0 = ring[v + 1][u],
+          b1 = ring[v + 1][(u + 1) % U];
+        gloves.face(a0, b0, a1);
+        gloves.face(a1, b0, b1);
+      }
+    // the thumb: a smaller ellipsoid along the side, fused to the fist
+    const tc = [0.07, 0.02, 0.054];
+    const tr = [0.045, 0.028, 0.024];
+    const trow = [];
+    for (let v = 0; v <= 10; v++) {
+      const phi = -Math.PI / 2 + (Math.PI * v) / 10;
+      const row = [];
+      for (let u = 0; u < 14; u++) {
+        const th = (2 * Math.PI * u) / 14;
+        const lx = tr[0] * Math.sin(phi),
+          ly = tr[1] * Math.cos(phi) * Math.cos(th),
+          lz = tr[2] * Math.cos(phi) * Math.sin(th);
+        row.push(gloves.vert(P3(tc[0] + lx, tc[1] + ly, tc[2] + lz), D3(Math.sin(phi) / tr[0], (Math.cos(phi) * Math.cos(th)) / tr[1], (Math.cos(phi) * Math.sin(th)) / tr[2]), skin, MAT.glove));
+      }
+      trow.push(row);
+    }
+    for (let v = 0; v < 10; v++)
+      for (let u = 0; u < 14; u++) {
+        const a0 = trow[v][u],
+          a1 = trow[v][(u + 1) % 14],
+          b0 = trow[v + 1][u],
+          b1 = trow[v + 1][(u + 1) % 14];
+        gloves.face(a0, b0, a1);
+        gloves.face(a1, b0, b1);
+      }
+    // the cuff: a short tube over the wrist with a white lace strip on the palm side
+    const cuff = [];
+    const CR = 20;
+    for (let k = 0; k <= 4; k++) {
+      const x = -0.085 + (0.09 * k) / 4;
+      const r = 0.05 + 0.006 * (k / 4);
+      const row = [];
+      for (let u = 0; u < CR; u++) {
+        const th = (2 * Math.PI * u) / CR;
+        const ny = Math.cos(th),
+          nz = Math.sin(th);
+        const lace = ny > 0.92 && k > 0 && k < 4;
+        row.push(gloves.vert(P3(x, ny * r * 0.9, nz * r), D3(0, ny, nz), skin, lace ? MAT.lace : MAT.gloveCuff));
+      }
+      cuff.push(row);
+    }
+    for (let k = 0; k < 4; k++)
+      for (let u = 0; u < CR; u++) {
+        const a0 = cuff[k][u],
+          a1 = cuff[k][(u + 1) % CR],
+          b0 = cuff[k + 1][u],
+          b1 = cuff[k + 1][(u + 1) % CR];
+        gloves.face(a0, b0, a1);
+        gloves.face(a1, b0, b1);
+      }
+  }
+
+  /** a smooth shell round the head: per direction from the head centre, the head's own extent + thickness */
+  function headShell(name, { thick, region, mat, skinBones, rimMat }) {
+    const m = new MeshBuilder(name);
+    const AZ = 44,
+      EL = 26;
+    const el0 = -1.25,
+      el1 = Math.PI / 2;
+    const headVerts = [];
+    for (const f of bodyFaces) for (const i of f) if (isHeadV(i) || wOf(i, "Bip01_Neck") > 0.5) headVerts.push(i);
+    const uniq = [...new Set(headVerts)];
+    const radius = Array.from({ length: EL + 1 }, () => new Float64Array(AZ));
+    for (let e = 0; e <= EL; e++) {
+      const el = el0 + ((el1 - el0) * e) / EL;
+      for (let a = 0; a < AZ; a++) {
+        const az = (2 * Math.PI * a) / AZ;
+        const dir = [Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)];
+        let r = 0.07;
+        for (const i of uniq) {
+          const q = sub(V(i), headC);
+          const d = len(q);
+          if (d < 1e-6) continue;
+          const c = dot(q, dir) / d;
+          if (c > 0.985) r = Math.max(r, dot(q, dir));
+        }
+        radius[e][a] = r;
+      }
+    }
+    // smooth (the ears and nose would make bumps): a few passes of neighbour averaging, keeping the max-ish envelope
+    for (let pass = 0; pass < 3; pass++) {
+      const copy = radius.map((r) => Float64Array.from(r));
+      for (let e = 0; e <= EL; e++)
+        for (let a = 0; a < AZ; a++) {
+          let s = 0,
+            n = 0,
+            mx = 0;
+          for (let de = -1; de <= 1; de++)
+            for (let da = -1; da <= 1; da++) {
+              const ee = clamp(e + de, 0, EL);
+              const v = copy[ee][(a + da + AZ) % AZ];
+              s += v;
+              n++;
+              mx = Math.max(mx, v);
+            }
+          radius[e][a] = lerp(s / n, mx, 0.3);
+        }
+    }
+    const grid = [];
+    for (let e = 0; e <= EL; e++) {
+      const el = el0 + ((el1 - el0) * e) / EL;
+      const row = [];
+      for (let a = 0; a < AZ; a++) {
+        const az = (2 * Math.PI * a) / AZ;
+        const dir = [Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)];
+        const inside = region(el, az, dir);
+        if (!inside) {
+          row.push(-1);
+          continue;
+        }
+        const r = radius[e][a] + thick(el, az, dir);
+        const p = add(headC, scl(dir, r));
+        row.push(m.vert(p, dir, skinBones(p), typeof mat === "function" ? mat(el, az, dir) : mat));
+      }
+      grid.push(row);
+    }
+    const edges = new Map();
+    for (let e = 0; e < EL; e++)
+      for (let a = 0; a < AZ; a++) {
+        const a0 = grid[e][a],
+          a1 = grid[e][(a + 1) % AZ],
+          b0 = grid[e + 1][a],
+          b1 = grid[e + 1][(a + 1) % AZ];
+        if (a0 < 0 || a1 < 0 || b0 < 0 || b1 < 0) continue;
+        // outward winding
+        m.face(a0, a1, b0);
+        m.face(a1, b1, b0);
+        for (const [x, y] of [
+          [a0, a1],
+          [a1, b1],
+          [b1, b0],
+          [b0, a0],
+        ]) {
+          const k = x < y ? `${x}_${y}` : `${y}_${x}`;
+          edges.set(k, (edges.get(k) ?? 0) + 1);
+        }
+      }
+    // the rim at every opening: a rolled edge inwards
+    if (rimMat !== undefined)
+      for (const [k, cnt] of edges) {
+        if (cnt !== 1) continue;
+        const [x, y] = k.split("_").map(Number);
+        const px = [m.p[x * 3], m.p[x * 3 + 1], m.p[x * 3 + 2]];
+        const py = [m.p[y * 3], m.p[y * 3 + 1], m.p[y * 3 + 2]];
+        const inX = add(px, scl(norm(sub(headC, px)), 0.016));
+        const inY = add(py, scl(norm(sub(headC, py)), 0.016));
+        const out = norm(sub(scl(add(px, py), 0.5), headC));
+        const r1 = m.vert(px, out, skinBones(px), rimMat);
+        const r2 = m.vert(py, out, skinBones(py), rimMat);
+        const i1 = m.vert(inX, out, skinBones(inX), rimMat);
+        const i2 = m.vert(inY, out, skinBones(inY), rimMat);
+        m.face(r1, i1, r2);
+        m.face(r2, i1, i2);
+        m.face(r2, i1, r1);
+        m.face(i2, i1, r2);
+      }
+    return m;
+  }
+  const headBone = FINAL_INDEX.get("Bip01_Head");
+  const eyeEl = Math.atan2(eyeL[1] - headC[1], Math.max(0.05, eyeL[2] - headC[2]));
+  const chinEl = Math.atan2(jaw[1] - 0.06 - headC[1], 0.07);
+  const headgear = headShell("kit_headgear", {
+    thick: (el, az, d) => {
+      const front = Math.cos(az);
+      const cheek = Math.abs(Math.sin(az)) > 0.45 && Math.abs(Math.sin(az)) < 0.9 && front > 0.2 && el < eyeEl && el > chinEl - 0.1 ? 0.012 : 0;
+      const brow = front > 0.55 && el > eyeEl + 0.05 && el < eyeEl + 0.42 ? 0.01 : 0;
+      return 0.011 + cheek + brow + 0.003 * Math.max(0, d[1]);
+    },
+    region: (el, az, d) => {
+      const front = Math.cos(az);
+      // the open face: in front, between the brow pad and the chin
+      if (front > 0.68 && el < eyeEl + 0.2 && el > chinEl - 0.05) return false;
+      // a chin strap: a narrow band under the chin
+      if (el < chinEl - 0.05) return front > 0.25 && el > chinEl - 0.38 && Math.abs(Math.sin(az)) < 0.75 ? Math.abs(el - (chinEl - 0.24)) < 0.11 || front < 0.55 : false;
+      // the back of the neck stays open below the skull
+      if (front < -0.3 && el < -0.62) return false;
+      return el > -1.0 || front > 0;
+    },
+    mat: MAT.headgear,
+    skinBones: () => [[headBone, 1]],
+    rimMat: MAT.headgearTrim,
+  });
+  const hairCap = headShell("hair_cap", {
+    thick: (el, az, d) => 0.004 + 0.004 * Math.max(0, d[1]),
+    region: (el, az) => {
+      const front = Math.cos(az);
+      if (front > 0.5) return el > eyeEl + 0.38;
+      if (front > -0.2) return el > eyeEl + 0.02 - 0.1 * (0.5 - front);
+      return el > -0.55;
+    },
+    mat: MAT.hair,
+    skinBones: () => [[headBone, 1]],
+  });
+
+  // the referee's bow tie and the shirt / polo collar: small rigid pieces at the throat on the neck / upper spine
+  const bowtie = new MeshBuilder("ref_bowtie");
+  {
+    const neckB = FINAL_INDEX.get("Bip01_Neck");
+    // the front of the neck at its base: the frontmost body vertex near the neck joint height
+    let front = null;
+    for (const f of bodyFaces)
+      for (const i of f) {
+        const p = V(i);
+        if (Math.abs(p[0]) < 0.012 && Math.abs(p[1] - (neckBaseY + 0.01)) < 0.012 && (!front || p[2] > front[2])) front = p;
+      }
+    const c = add(front ?? [0, neckBaseY, 0.06], [0, 0.0, 0.012]);
+    const skin = [[neckB, 0.6], [FINAL_INDEX.get("Bip01_Spine2"), 0.4]];
+    const quad = (pts, nn) => {
+      const ids = pts.map((p) => bowtie.vert(add(c, p), nn, skin, MAT.bowtie));
+      bowtie.face(ids[0], ids[1], ids[2]);
+      bowtie.face(ids[0], ids[2], ids[3]);
+    };
+    for (const sgn of [-1, 1]) {
+      quad([[0, 0.006, 0.004], [0.05 * sgn * 0.9, 0.022, 0], [0.05 * sgn * 0.9, -0.022, 0], [0, -0.006, 0.004]].map((p) => (sgn < 0 ? p : p)), [0, 0, 1]);
+      quad([[0, -0.006, -0.002], [0.045 * sgn, -0.02, -0.006], [0.045 * sgn, 0.02, -0.006], [0, 0.006, -0.002]], [0, 0, -1]);
+    }
+    quad([[-0.008, 0.008, 0.007], [0.008, 0.008, 0.007], [0.008, -0.008, 0.007], [-0.008, -0.008, 0.007]], [0, 0, 1]);
+  }
+  // the collar: the shirt's neck opening edge raised into a stand-up band (shirt / polo)
+  const collar = (name, mat) => {
+    const m = new MeshBuilder(name);
+    const ring = [];
+    const R = 28;
+    const neckB = FINAL_INDEX.get("Bip01_Neck");
+    const skin = [[neckB, 0.5], [FINAL_INDEX.get("Bip01_Spine2"), 0.5]];
+    // neck radius at its base from the body
+    let rx = 0,
+      rz = 0,
+      cz = 0,
+      n = 0;
+    for (const f of bodyFaces)
+      for (const i of f) {
+        const p = V(i);
+        if (Math.abs(p[1] - neckBaseY) < 0.01 && wOf(i, "Bip01_Neck") + wOf(i, "Bip01_Spine2") > 0.6 && !isArm(i)) {
+          rx = Math.max(rx, Math.abs(p[0]));
+          cz += p[2];
+          n++;
+        }
+      }
+    cz /= n || 1;
+    for (const f of bodyFaces)
+      for (const i of f) {
+        const p = V(i);
+        if (Math.abs(p[1] - neckBaseY) < 0.01 && Math.abs(p[0]) < 0.02) rz = Math.max(rz, Math.abs(p[2] - cz));
+      }
+    rx = Math.min(rx, 0.06) + 0.004;
+    rz = Math.min(rz || 0.055, 0.06) + 0.004;
+    for (let k = 0; k < 3; k++) {
+      const y = neckBaseY - 0.004 + 0.016 * k;
+      const grow = 1 + 0.05 * k;
+      const row = [];
+      for (let u = 0; u < R; u++) {
+        const th = (2 * Math.PI * u) / R;
+        // the collar opens at the front
+        if (Math.abs(th) < 0.32 || Math.abs(th - 2 * Math.PI) < 0.32) {
+          row.push(-1);
+          continue;
+        }
+        const nn = [Math.sin(th), 0, Math.cos(th)];
+        row.push(m.vert([Math.sin(th) * rx * grow, y, cz + Math.cos(th) * rz * grow], nn, skin, mat));
+      }
+      ring.push(row);
+    }
+    for (let k = 0; k < 2; k++)
+      for (let u = 0; u < R; u++) {
+        const a0 = ring[k][u],
+          a1 = ring[k][(u + 1) % R],
+          b0 = ring[k + 1][u],
+          b1 = ring[k + 1][(u + 1) % R];
+        if (a0 < 0 || a1 < 0 || b0 < 0 || b1 < 0) continue;
+        m.face(a0, a1, b0);
+        m.face(a1, b1, b0);
+        m.face(a0, b0, a1);
+        m.face(a1, b0, b1);
+      }
+    return m;
+  };
+  const refCollar = collar("ref_collar", MAT.shirt);
+  // the staff polo: the shirt shape in the polo colour, with its collar
+  const polo = shell("staff_polo", bodyFaces, NB, {
+    field: shirtField,
+    offset: (i) => 0.012 + 0.018 * smooth(spine2[1], pelvis[1] + 0.05, V(i)[1]) * (V(i)[2] > spine[2] ? 1 : 0.5),
+    mat: MAT.polo,
+    bridge: 1,
+    hem: 0.004,
+  });
+  const poloCollar = collar("staff_collar", MAT.polo);
+
+  const meshes = [bodyMesh, vest, trunks, boots, socks, gloves, headgear, wraps, shirt, refCollar, bowtie, trousers, shoes, polo, poloCollar, hairCap];
+  return { key, G, meshes, landmarks: { headC, eyeL, eyeR, kit: [Math.abs(thighL[0]), pelvis[1] - 0.07, trunksTop, hemY] }, morphParams };
+}
+
+/* ------------------------------------------------------------ variants: body types as morph targets ------------------------------------------------------------ */
+const ETH = { african: 1 / 3, asian: 1 / 3, caucasian: 1 / 3 };
+const GENDERS = {
+  m: {
+    base: { gender: 1, age: 0.55, muscle: 0.92, weight: 0.42, height: 0.52, proportions: 0.85, ...ETH },
+    morphs: {
+      heavy: { muscle: 0.9, weight: 0.78, height: 0.6 },
+      slim: { muscle: 0.74, weight: 0.3, height: 0.46 },
+      mature: { age: 0.66, muscle: 0.62, weight: 0.6 },
+    },
+  },
+  f: {
+    base: { gender: 0, age: 0.55, muscle: 0.84, weight: 0.44, height: 0.56, proportions: 0.85, ...ETH },
+    morphs: {
+      heavy: { muscle: 0.82, weight: 0.74, height: 0.6 },
+      slim: { muscle: 0.68, weight: 0.32, height: 0.52 },
+      mature: { age: 0.66, muscle: 0.55, weight: 0.6 },
+    },
+  },
+};
+
+mkdirSync(OUT, { recursive: true });
+for (const [key, spec] of Object.entries(GENDERS)) {
+  const base = buildVariant(key, spec.base);
+  const morphNames = Object.keys(spec.morphs);
+  // each morph: the same build with other macro values; garment vertices follow their source body vertex
+  const morphGeo = morphNames.map((m) => geometry(variantPositions({ ...spec.base, ...spec.morphs[m] })));
+  const out = base.meshes.map((mb) => {
+    const built = mb.build(mb.name === "body");
+    // morph deltas: body / shell vertices follow their source vertex; rigid pieces follow their bone
+    built.morphs = morphGeo.map((g) => {
+      const d = new Float32Array(mb.p.length);
+      for (let k = 0; k < mb.count; k++) {
+        const src = mb.src[k];
+        let dx, dy, dz;
+        if (Array.isArray(src) || src >= 0) {
+          const [a, b, t] = Array.isArray(src) ? src : [src, src, 0];
+          const d = (q, ax) => g.P[q * 3 + ax] - base.G.P[q * 3 + ax];
+          dx = d(a, 0) * (1 - t) + d(b, 0) * t;
+          dy = d(a, 1) * (1 - t) + d(b, 1) * t;
+          dz = d(a, 2) * (1 - t) + d(b, 2) * t;
+        } else {
+          // the bone this vertex is weighted to most
+          const j = mb.j[k * 4];
+          dx = g.bones[j].pos[0] - base.G.bones[j].pos[0];
+          dy = g.bones[j].pos[1] - base.G.bones[j].pos[1];
+          dz = g.bones[j].pos[2] - base.G.bones[j].pos[2];
+        }
+        d[k * 3] = dx;
+        d[k * 3 + 1] = dy;
+        d[k * 3 + 2] = dz;
+      }
+      return d;
+    });
+    return built;
+  });
+  // shell vertices that were not tracked (hem strips) inherit nothing: fine (they are tiny); rigid pieces use the bone
+  const boneMorph = Object.fromEntries(morphNames.map((m, k) => [m, morphGeo[k].bones.map((b, i) => b.pos.map((v, a) => +(v - base.G.bones[i].pos[a]).toFixed(5)))]));
+  const extras = {
+    boxerBody: 1,
+    source: "MakeHuman 1.x (CC0 1.0): base.obj, macrodetails targets, default.mhskel, default_weights.mhw",
+    morphs: morphNames,
+    boneMorph,
+    landmarks: base.landmarks,
+    mat: MAT,
+    cover: COVER,
+  };
+  const bytes = writeGlb(join(OUT, `boxer-${key}.glb`), { bones: base.G.bones, meshes: out, morphNames, extras });
+  const tris = out.reduce((n, m) => n + m.index.length / 3, 0);
+  console.log(`boxer-${key}.glb: ${(bytes / 1024).toFixed(0)} KB, ${out.length} meshes, ${tris} triangles, ${base.G.bones.length} bones, height ${Math.max(...base.G.P.filter((_, i) => i % 3 === 1)).toFixed(3)} m`);
+  for (const m of out) { const P = m.attrs.POSITION.data; let lo = 9, hi = -9; for (let i = 1; i < P.length; i += 3) { lo = Math.min(lo, P[i]); hi = Math.max(hi, P[i]); } console.log(`  ${m.name}: ${P.length / 3} verts, ${m.index.length / 3} tris, y ${lo.toFixed(2)}..${hi.toFixed(2)}`); }
+}

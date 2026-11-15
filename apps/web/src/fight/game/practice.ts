@@ -165,7 +165,8 @@ export class PracticeSession {
   pressAction(a: BoxingAction, now = performance.now(), body = false): void {
     if (this.over) return;
     const me = this.state.fighters[0];
-    if (isTooTired(me, a)) {
+    // (on the canvas every press is a get-up press: fighter life, P3-FGT-13)
+    if (this.state.phase !== "knockdown" && isTooTired(me, a)) {
       useFightUi.getState().hint("hud.tooTired");
       return;
     }
