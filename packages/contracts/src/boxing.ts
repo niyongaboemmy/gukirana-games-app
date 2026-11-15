@@ -244,7 +244,7 @@ export interface BoxingSnapshot {
    * sealed: absent until the fight is over.
    */
   cards?: RoundCard[];
-  /** the referee's "Break!" is in force (ticks left; a punch pressed now is HIT_ON_BREAK) */
+  /** the referee's "Break!" is in force (ticks left; punches pressed now are cancelled) */
   breakLeft?: number;
 }
 
@@ -253,9 +253,10 @@ export interface BoxingSnapshot {
 /**
  * Fouls (P3-FGT-06, docs/BOXING-SCORING.md §4). Referee fouls go up the escalation ladder (FOUL_LEVELS):
  *  - PASSIVITY     no punch thrown for 15 s in a round (IBA 21.1.15 "completely passive defence")
- *  - HOLDING       a second clinch in one round: in close range (<= CLINCH_DIST) for 2 s without punching, the
+ *  - HOLDING       a second clinch in one round: in close range (<= CLINCH_DIST) for 3 s without punching, the
  *                  referee calls "Break!" (the first call of a round is free) (IBA 21.1.2 / 21.1.17)
- *  - HIT_ON_BREAK  a punch pressed in the second after "Break!" (the punch is cancelled) (IBA 21.1.18)
+ *  - HIT_ON_BREAK  stepping back in and pressing a punch in the second after "Break!" (once per break; every punch
+ *                  pressed during the break is cancelled) (IBA 21.1.18)
  *  - DUCKING       DUCKING_SLIPS slips in a row without throwing a punch (IBA 21.1.14 ducking below the belt)
  *  - LOW_BLOW      reserved: the engine has no body / head target zones yet; never emitted today
  * IDLE is not a referee foul: it is the exit-rules inactivity strike (row 9), outside the ladder, never a deduction.

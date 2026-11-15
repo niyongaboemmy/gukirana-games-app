@@ -153,6 +153,8 @@ export interface FighterState {
   breaks: number;
   /** slips in a row without a punch (DUCKING) */
   slips: number;
+  /** already fouled (HIT_ON_BREAK) during the current break */
+  breakFoul: boolean;
   connected: boolean;
   /** ticks since this fighter's last input during a round (IDLE foul) */
   idle: number;
@@ -195,7 +197,7 @@ export interface FightState {
   tally: RoundTally;
   tallies: RoundTally[];
   cards: RoundCard[];
-  /** ticks left of the referee's "Break!" (a punch pressed meanwhile is HIT_ON_BREAK) */
+  /** ticks left of the referee's "Break!" (punches pressed meanwhile are cancelled; stepping in to punch is HIT_ON_BREAK) */
   breakLeft: number;
   /** a downed fighter who can't beat the count (count runs to 10 → KO) */
   ko: 0 | 1 | null;
@@ -236,6 +238,7 @@ const fighter = (id: string, corner: Corner): FighterState => ({
   clinch: 0,
   breaks: 0,
   slips: 0,
+  breakFoul: false,
   connected: true,
   idle: 0,
   idleStrikes: 0,
@@ -373,6 +376,7 @@ const resetForBell = (f: FighterState): FighterState => ({
   clinch: 0,
   breaks: 0,
   slips: 0,
+  breakFoul: false,
 });
 
 /** the judges' decision on the cards so far (P3-FGT-06; docs/BOXING-SCORING.md §5) */
@@ -671,12 +675,21 @@ function stepRound(s: FightState, inputs: TickInputs, t: number, events: FightEv
     }
   };
   let breakLeft = Math.max(0, s.breakLeft - 1);
-  // HIT_ON_BREAK: a punch pressed while "Break!" is in force is cancelled and is a foul
+  // while "Break!" is in force the referee holds them apart: a punch pressed now is cancelled. Stepping back in and
+  // punching before the break ends is HIT_ON_BREAK (once per break; a press from where the referee put you is free)
   for (const i of [0, 1] as const) {
     const f = fs[i];
     if (s.breakLeft > 0 && isPunchAct(f.act) && f.actT === 0) {
-      fs[i] = { ...f, act: "idle", actT: 0, stage: "none", resolved: false };
-      foul(i, "HIT_ON_BREAK");
+      const charged = dist < BREAK_DIST && !f.breakFoul;
+      fs[i] = {
+        ...f,
+        act: "idle",
+        actT: 0,
+        stage: "none",
+        resolved: false,
+        breakFoul: f.breakFoul || charged,
+      };
+      if (charged) foul(i, "HIT_ON_BREAK");
     }
   }
   // DUCKING: slips in a row without a punch
@@ -702,7 +715,7 @@ function stepRound(s: FightState, inputs: TickInputs, t: number, events: FightEv
     events.push({ k: "break", t, by: [...holders] });
     dist = BREAK_DIST;
     breakLeft = BREAK_TICKS;
-    for (const i of [0, 1] as const) fs[i] = { ...fs[i], clinch: 0 };
+    for (const i of [0, 1] as const) fs[i] = { ...fs[i], clinch: 0, breakFoul: false };
     for (const i of holders) {
       const breaks = fs[i].breaks + 1;
       fs[i] = { ...fs[i], breaks };

@@ -15,10 +15,10 @@ import { TICK_HZ } from "@gukirana/contracts";
 /** in this close range (cm) a fighter who doesn't punch is holding / smothering */
 export const CLINCH_DIST = 90;
 /** close range without a punch this long → the referee calls "Break!" */
-export const CLINCH_TICKS = 2 * TICK_HZ;
+export const CLINCH_TICKS = 3 * TICK_HZ;
 /** after "Break!" the pair stands at this distance (beyond every punch's reach) */
 export const BREAK_DIST = 200;
-/** a punch pressed this long after "Break!" is HIT_ON_BREAK (cancelled) */
+/** "Break!" lasts this long: punches pressed meanwhile are cancelled; stepping back in to punch is HIT_ON_BREAK */
 export const BREAK_TICKS = TICK_HZ;
 /** "Break!" calls on the same fighter in one round before it is a HOLDING foul (the first is free) */
 export const FREE_BREAKS = 1;

@@ -10,7 +10,7 @@ export const FS = {
   "foul.PASSIVITY": "Too passive: throw punches",
   "foul.IDLE": "Are you there? No input",
   "foul.HOLDING": "Holding: punch or step out of the clinch",
-  "foul.HIT_ON_BREAK": "Punch on the break: wait after “Break!”",
+  "foul.HIT_ON_BREAK": "Punching on the break: step back and wait",
   "foul.DUCKING": "Ducking: too many slips without a punch",
   "foul.LOW_BLOW": "Low blow",
   // the ladder
@@ -56,9 +56,9 @@ export const FS = {
   // tutorial: each foul (what triggers it, how to avoid it)
   "rule.PASSIVITY.when": "No punch thrown for 15 seconds.",
   "rule.PASSIVITY.avoid": "Keep throwing: even a jab resets it.",
-  "rule.HOLDING.when": "Standing chest to chest for 2 seconds without punching. The first “Break!” of a round is free.",
+  "rule.HOLDING.when": "Standing chest to chest for 3 seconds without punching. The first “Break!” of a round is free.",
   "rule.HOLDING.avoid": "Punch when you are close, or step out.",
-  "rule.HIT_ON_BREAK.when": "Pressing a punch in the second after the referee says “Break!”.",
+  "rule.HIT_ON_BREAK.when": "Stepping back in and punching in the second after the referee says “Break!”.",
   "rule.HIT_ON_BREAK.avoid": "Wait for the break to end before you punch.",
   "rule.DUCKING.when": "Five slips in a row without a punch.",
   "rule.DUCKING.avoid": "Slip, then punch back.",

@@ -93,8 +93,8 @@ marked `partial` (IBA 19.1.2).
 | Code | Trigger (engine, fixed thresholds) | How to avoid it | Real rule |
 |---|---|---|---|
 | `PASSIVITY` | no punch thrown for 15 s in a round | throw something, even a jab | IBA 21.1.15 completely passive defence |
-| `HOLDING` | both in close range (≤ 90 cm) and this fighter throws nothing for 2 s → the referee calls **"Break!"**: the pair is reset to 200 cm. The first break on a fighter in a round is free; each later one in that round is a foul. | punch when you are close, or step out | 21.1.2 holding, 21.1.17 not stepping back on break |
-| `HIT_ON_BREAK` | a punch pressed in the 1 s after "Break!" (the punch is cancelled) | wait for the break to end | 21.1.18 striking immediately after "break" |
+| `HOLDING` | both in close range (≤ 90 cm) and this fighter throws nothing for 3 s → the referee calls **"Break!"**: the pair is reset to 200 cm. The first break on a fighter in a round is free; each later one in that round is a foul. | punch when you are close, or step out | 21.1.2 holding, 21.1.17 not stepping back on break |
+| `HIT_ON_BREAK` | during the 1 s "Break!" every punch pressed is cancelled, because the referee holds them apart. A fighter who steps back in (closer than 200 cm) and presses a punch commits the foul, once per break. Pressing from where the referee put you is free, so mashing buttons is never punished. | wait for the break to end | 21.1.18 striking immediately after "break" |
 | `DUCKING` | 5 slips in a row without a punch | slip, then punch back | 21.1.14 ducking below the belt |
 | `LOW_BLOW` | reserved, never emitted: the engine has no body / head target zones yet | — | 21.1.1.1 |
 | `IDLE` | no input at all for `idleSeconds`. This is the exit-rules strike (row 9), **outside** the ladder, and never a deduction. | send any input | — |

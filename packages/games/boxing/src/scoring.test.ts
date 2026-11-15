@@ -283,12 +283,20 @@ describe("fouls and the referee ladder", () => {
     expect(r2.s.dist).toBe(BREAK_DIST);
   });
 
-  it("HIT_ON_BREAK: a punch pressed within a second of Break! is cancelled and is a foul; waiting is fine", () => {
+  it("HIT_ON_BREAK: during Break! punches are cancelled; stepping in to punch is the foul (once); waiting is fine", () => {
     let s = play(inRound(80), CLINCH_TICKS).s;
     expect(s.breakLeft).toBeGreaterThan(0);
-    const bad = play(s, 3, (k) => [k === 0 ? "jab" : null, null]);
-    expect(bad.events).toContainEqual(expect.objectContaining({ k: "warning", to: 0, foul: "HIT_ON_BREAK" }));
-    expect(bad.s.fighters[0].act).toBe("idle");
+    // a press from where the referee put them: cancelled, no foul (button mashing is never punished)
+    const mash = play(s, 3, (k) => [k === 0 ? "jab" : null, null]);
+    expect(mash.events.some((e) => e.k === "warning")).toBe(false);
+    expect(mash.s.fighters[0].act).toBe("idle");
+    // stepping back in and punching before the break ends: the foul, once per break
+    const bad = play(s, 20, (k) => [k === 0 ? "stepIn" : k === 9 || k === 12 ? "jab" : null, null]);
+    expect(bad.events.filter((e) => e.k === "warning" && e.foul === "HIT_ON_BREAK")).toHaveLength(1);
+    expect(bad.events).toContainEqual(
+      expect.objectContaining({ k: "warning", to: 0, foul: "HIT_ON_BREAK", level: "caution" }),
+    );
+    expect(bad.events.some((e) => e.k === "hit")).toBe(false);
     s = play(s, 40).s; // the break is over
     const ok = play(s, 3, (k) => [k === 0 ? "jab" : null, null]);
     expect(ok.events.some((e) => e.k === "warning")).toBe(false);
