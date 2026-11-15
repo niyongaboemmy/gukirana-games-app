@@ -33,6 +33,27 @@ describe("boxing practice bot", () => {
     expect(botFight(3, 4, 9).outcome).toEqual(botFight(3, 4, 9).outcome);
   });
 
+  it("boxes like a boxer: chains combinations, works inside with hooks, steps in and out (P3-FGT-07)", () => {
+    const ra = lcg(5);
+    const rb = lcg(77);
+    let s = beginFight(createFight(["red", "blue"]));
+    const seen: Record<string, number> = {};
+    let chained = 0;
+    let prev = s.fighters[1];
+    while (s.phase !== "over") {
+      s = stepFight(s, [boxingBotInput(s, 0, 4, ra), boxingBotInput(s, 1, 4, rb)]);
+      const f = s.fighters[1];
+      if (f.actT === 0 && f.act !== "idle") seen[f.act] = (seen[f.act] ?? 0) + 1;
+      // a punch straight out of another punch's recovery (the buffered press of a combination)
+      if (f.actT === 0 && ["jab", "cross", "hook", "uppercut"].includes(f.act) && ["jab", "cross", "hook"].includes(prev.act)) chained++;
+      prev = f;
+    }
+    expect(chained).toBeGreaterThan(3);
+    expect(seen.hook ?? 0).toBeGreaterThan(0);
+    expect(seen.stepIn ?? 0).toBeGreaterThan(2);
+    expect(seen.stepOut ?? 0).toBeGreaterThan(2);
+  });
+
   it("level n+1 beats level n in ≥ 60 % of 500 fights (corners alternate)", () => {
     for (const n of [1, 2, 3, 4] as const) {
       const up = (n + 1) as BotLevel;

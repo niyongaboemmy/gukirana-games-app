@@ -101,6 +101,7 @@ export function FightSettings({ live, onClose }: { live: boolean; onClose: () =>
           <Switch k="voice" label="settings.voice" />
           <Switch k="crowd" label="settings.crowd" />
           <Switch k="reducedMotion" label="settings.reducedMotion" />
+          <Switch k="coach" label="settings.coach" />
         </Section>
         <Section icon={Hand} title="settings.layout">
           <Segments<ButtonSize>

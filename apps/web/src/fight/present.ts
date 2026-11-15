@@ -21,6 +21,8 @@ export interface PoseCmd {
   speed: number;
   intensity: number;
   hold: number;
+  /** punches: distance to the target (m forward of the root): the glove travels there (motion reach fit) */
+  reach?: number;
   /** a new instance of the same clip (restart even if the clip name is unchanged) */
   key: string;
 }
@@ -31,6 +33,8 @@ export interface PresentCtx {
   phaseSince: number;
   /** the two are tied up (close distance, no punches) */
   clinch: boolean;
+  /** the gap on the canvas (m, ringLayout): punches reach the target at it */
+  gap?: number;
   /** the snapshot tick (instance keys) */
   tick: number;
 }
@@ -53,13 +57,14 @@ export function warp(clip: BoxingClipName, ticks: number, toImpact: boolean): nu
   return Math.min(3.5, Math.max(0.35, src / secs));
 }
 
-const cmd = (clip: BoxingClipName, offset: number, key: string, o: Partial<Pick<PoseCmd, "speed" | "intensity" | "hold">> = {}): PoseCmd => ({
+const cmd = (clip: BoxingClipName, offset: number, key: string, o: Partial<Pick<PoseCmd, "speed" | "intensity" | "hold" | "reach">> = {}): PoseCmd => ({
   clip,
   offset,
   key,
   speed: o.speed ?? 1,
   intensity: o.intensity ?? 1,
   hold: o.hold ?? 0,
+  ...(o.reach ? { reach: o.reach } : {}),
 });
 
 /** the motion for one fighter right now */
@@ -80,7 +85,7 @@ export function presentFighter(f: FighterView, phase: FightPhase, ctx: PresentCt
   if (PUNCH_SPECS[p]) {
     const clip = punchClip(p, ctx.tick - f.actT);
     const tired = f.stamina < TIRED_STAMINA;
-    return cmd(clip, engineT, inst, { speed: warp(clip, windOf(f), true), intensity: tired ? 0.7 : 1 });
+    return cmd(clip, engineT, inst, { speed: warp(clip, windOf(f), true), intensity: tired ? 0.7 : 1, reach: ctx.gap ? ctx.gap - TARGET_FWD : undefined });
   }
   switch (f.act) {
     case "slipL":
@@ -158,9 +163,98 @@ export function shakeFor(e: FightEvent): number {
   return 0;
 }
 
+/**
+ * Feel of a connection (P3-FGT-07), presentation only: `stop` = hit-stop seconds (the ring's motion clock holds for a
+ * few frames at the connection, then catches up), `kick` = a small camera punch towards the action (m). Scaled by the
+ * punch's weight; my own landed punches hit a little harder on screen. Blocks give a tiny stop, whiffs nothing.
+ */
+export function hitFeel(e: FightEvent, mine: boolean): { stop: number; kick: number } {
+  if (e.k === "knockdown") return { stop: 0.12, kick: 0.09 };
+  if (e.k === "block") return { stop: 0.025, kick: 0 };
+  if (e.k !== "hit") return { stop: 0, kick: 0 };
+  const w = e.punch === "jab" ? 0.4 : e.punch === "cross" ? 0.7 : 1;
+  const partial = e.points <= 1 && e.punch === "uppercut" ? 0.4 : 1;
+  const k = w * partial * (e.counter ? 1.2 : 1);
+  return { stop: 0.035 + 0.05 * k, kick: (mine ? 0.05 : 0.03) * k };
+}
+
+/* ------------------------------------------------------------ ring layout (P3-FGT-07) ------------------------------------------------------------ */
+
+/**
+ * Engine distance (cm, centre to centre; DIST.min 70 … max 360) → the gap on the canvas (m, root to root). The engine's
+ * reaches are game numbers (a jab lands from 190); on the canvas a jab lands at about an arm + a step (~1 m) and hooks /
+ * uppercuts inside that. Piecewise linear through the punch reaches, so a punch that lands in the engine visibly
+ * reaches its target (with the reach fit, motion.ts), and out of range they stand a real step or two apart.
+ */
+const GAP_KEYS: readonly (readonly [number, number])[] = [
+  [70, 0.66],
+  [PUNCH_SPECS.uppercut.reach, 0.76],
+  [PUNCH_SPECS.hook.reach, 0.82],
+  [PUNCH_SPECS.jab.reach, 0.98],
+  [260, 1.42],
+  [360, 2.1],
+];
+export function gapOf(dist: number): number {
+  if (dist <= GAP_KEYS[0]![0]) return GAP_KEYS[0]![1];
+  for (let i = 1; i < GAP_KEYS.length; i++) {
+    const [d1, g1] = GAP_KEYS[i]!;
+    const [d0, g0] = GAP_KEYS[i - 1]!;
+    if (dist <= d1) return g0 + ((g1 - g0) * (dist - d0)) / (d1 - d0);
+  }
+  return GAP_KEYS[GAP_KEYS.length - 1]![1];
+}
+/** the target (chin / body) is this far forward of the other fighter's root (m): a punch reaches gap − this */
+export const TARGET_FWD = 0.17;
+
+export interface RingLayout {
+  /** the pair's middle (m from the ring centre, world axes) */
+  cx: number;
+  cz: number;
+  /** the pair axis angle (rad): red at −half along it, blue at +half */
+  th: number;
+  /** half the gap (m) */
+  half: number;
+}
+
+/**
+ * Where the pair stands (presentation only; the engine has no ring position): the gap from the distance, the axis
+ * from the engine's orbit plus a slow circling (they keep turning round each other, changing direction), and the
+ * pair's middle drifting round the ring (to the ropes, into a corner, back to the centre) — never past the ropes.
+ * A pure function of the snapshot tick + the ring's seed: the same on every screen, no randomness.
+ */
+export function ringLayout(snap: { dist: number; orbit: number; tick: number }, ringHalf: number, seed: number): RingLayout {
+  const t = snap.tick / TICK_HZ;
+  const so = (seed % 997) / 997;
+  const so2 = ((seed >>> 10) % 991) / 991;
+  const half = Math.min(gapOf(snap.dist) / 2, ringHalf - 0.8);
+  const spin = 1.1 * Math.sin(0.17 * t + so * 6.28) + 0.5 * Math.sin(0.061 * t + so2 * 6.28);
+  const th = ((snap.orbit / 10) * Math.PI) / 180 + spin;
+  // ropes at ~ringHalf − 0.3; a fighter keeps ~0.4 m off them
+  const room = Math.max(0, ringHalf - 0.3 - 0.42 - half);
+  const cx = room * Math.sin(0.083 * t + so * 6.28);
+  const cz = room * 0.9 * Math.sin(0.061 * t + so2 * 6.28 + 1.1);
+  return { cx, cz, th, half };
+}
+
+/** a ring's presentation seed (FNV-1a of its id): the same on every screen */
+export function ringSeed(id: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+/** keep a ring-local point inside the ropes (square ring turned by rotY), `lim` m from the centre on each axis */
+export function clampInRing(x: number, z: number, rotY: number, lim: number): { x: number; z: number } {
+  const c = Math.cos(rotY);
+  const s = Math.sin(rotY);
+  const lx = Math.max(-lim, Math.min(lim, x * c - z * s));
+  const lz = Math.max(-lim, Math.min(lim, x * s + z * c));
+  return { x: lx * c + lz * s, z: -lx * s + lz * c };
+}
+
 /** where the referee stands (ring-local metres; +x along the pair axis, +z its perpendicular) */
-export function refereeSpot(phase: FightPhase, ctx: { dist: number; down: 0 | 1 | -1; winner: 0 | 1 | null; breaking: boolean; half: number }): { x: number; z: number; clip: BoxingClipName; face: number } {
-  const half = Math.min(ctx.dist / 200, ctx.half - 0.8);
+export function refereeSpot(phase: FightPhase, ctx: { dist: number; down: 0 | 1 | -1; winner: 0 | 1 | null; breaking: boolean; half: number; t?: number }): { x: number; z: number; clip: BoxingClipName; face: number } {
+  const half = Math.min(gapOf(ctx.dist) / 2, ctx.half - 0.8);
   if (phase === "knockdown" && ctx.down !== -1) {
     const s = ctx.down === 0 ? -1 : 1;
     return { x: s * (half - 0.7), z: 0.75, clip: "refCount", face: s };
@@ -172,5 +266,12 @@ export function refereeSpot(phase: FightPhase, ctx: { dist: number; down: 0 | 1 
   if (ctx.breaking) return { x: 0, z: 0.35, clip: "refBreak", face: 0 };
   if (phase === "intro" || phase === "countdown") return { x: 0, z: 0.9, clip: "refStart", face: 0 };
   if (phase === "rest") return { x: 0, z: ctx.half - 0.9, clip: "refIdle", face: 0 };
-  return { x: 0, z: 1.25, clip: "refIdle", face: 0 };
+  // the round: the "V" with both boxers in view (never behind one, never between them), a little closer in when they
+  // are close, and always moving with the action (ref manuals: keep as much of each boxer's target in view as possible)
+  const t = ctx.t ?? 0;
+  const close = half < 0.5 ? 0.85 : 1;
+  // the apex of the V: well off the pair line (seen in the gap between them, never hidden behind a boxer), drifting
+  // from one side to the other now and then
+  const side = Math.tanh(3 * Math.sin(0.07 * t + 0.6));
+  return { x: 0.35 * side + 0.12 * Math.sin(0.71 * t + 1), z: (1.4 + 0.15 * Math.sin(0.31 * t + 0.4)) * close, clip: "refIdle", face: 0 };
 }

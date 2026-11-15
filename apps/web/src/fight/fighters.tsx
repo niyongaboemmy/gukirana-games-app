@@ -9,7 +9,8 @@ import { lookOf, useProfile } from "@/lib/profile-store";
 import { hiddenPeople, SELF_ID } from "@/rooms/hall-hooks";
 import { isOnScreen, useArea } from "@/world/stage";
 import { FightAvatar, newBody, RefereeAvatar, type RingBody } from "./fighter-avatar";
-import { moodOf, presentFighter, reactionFor, refereeSpot } from "./present";
+import { clampInRing, hitFeel, moodOf, presentFighter, reactionFor, refereeSpot, ringLayout, ringSeed } from "./present";
+import { cameraKick, hitStop } from "./ring-clock";
 import { focusNow, ringCulled } from "./focus";
 import { replayFrame } from "./game/replay";
 import { CLIMB_S, climbPose } from "./climb";
@@ -165,8 +166,10 @@ interface Track {
   yaw: number;
   init: boolean;
   hitAt: number;
+  /** smoothed ground speed (m/s): drives the shuffle */
+  spd: number;
 }
-const newTrack = (): Track => ({ key: "", since: 0, x: 0, z: 0, yaw: 0, init: false, hitAt: -1e9 });
+const newTrack = (): Track => ({ key: "", since: 0, x: 0, z: 0, yaw: 0, init: false, hitAt: -1e9, spd: 0 });
 
 function turn(a: number, b: number, k: number) {
   const d = Math.atan2(Math.sin(b - a), Math.cos(b - a));
@@ -256,18 +259,28 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
     }
     const phaseSince = t - ph.since;
     const trs = tracks.current;
-    for (const e of events)
+    const myIdx = slot.src === "mine" && b.mine ? (b.mine.corner === "red" ? 0 : 1) : -1;
+    for (const e of events) {
       if (e.k === "hit") {
         const to = (1 - e.by) as 0 | 1;
         const r = reactionFor(e, snap.fighters[to].composure);
         bodies[to].current!.react = { clip: r.clip, intensity: r.intensity, at: now };
         trs[to]!.hitAt = t;
       }
-    // placement from dist (cm) and orbit (deg × 10) around the ring centre, on the canvas
-    const th = ((snap.orbit / 10) * Math.PI) / 180;
-    const half = Math.min(snap.dist / 200, place.half - 0.8);
-    const ax = Math.cos(th);
-    const az = Math.sin(th);
+      // the connection lands with weight: a few frames of hit-stop, a small camera punch (P3-FGT-07)
+      if (!replay && (e.k === "hit" || e.k === "block" || e.k === "knockdown")) {
+        const feel = hitFeel(e, e.k !== "knockdown" && e.by === myIdx);
+        hitStop(feel.stop);
+        cameraKick.v = Math.max(cameraKick.v, feel.kick);
+      }
+    }
+    // placement (P3-FGT-07 ringLayout): the canvas gap from the engine distance, the pair circling and drifting round
+    // the ring (ropes, corners, centre), presentation only
+    const lay = ringLayout(snap, place.half, ringSeed(slot.ring));
+    const half = lay.half;
+    const ax = Math.cos(lay.th);
+    const az = Math.sin(lay.th);
+    const inside = place.half - 0.3 - 0.38;
     const waiting = b.rings[slot.ring]?.status === "waiting";
     const rest = snap.phase === "rest" || waiting;
     const corner = place.half - 1.0;
@@ -299,11 +312,15 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
         tx = at.x - place.x;
         tz = at.z - place.z;
       } else {
-        tx = s * half * ax;
-        tz = s * half * az;
+        const at = clampInRing(lay.cx + s * half * ax, lay.cz + s * half * az, place.rotY, inside);
+        tx = at.x;
+        tz = at.z;
       }
       const faceYaw = rest || counted ? Math.atan2(-tx, -tz) : Math.atan2(-s * ax, -s * az);
+      const px0 = tr.x;
+      const pz0 = tr.z;
       const walking = moveTo(tr, tx, tz, faceYaw, dt, false);
+      tr.spd += ((dt > 0 ? Math.hypot(tr.x - px0, tr.z - pz0) / dt : 0) - tr.spd) * Math.min(1, dt * 8);
       grp?.position.set(place.x + tr.x, place.canvasY, place.z + tr.z);
       if (grp) grp.rotation.y = tr.yaw;
       // my own press shows at once (prediction), the next snapshot corrects it
@@ -317,30 +334,40 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
       const won = winner === -1 ? null : winner === i;
       const body = bodies[i]!.current!;
       body.walk = walking;
-      body.cmd = walking ? null : presentFighter(view, phase, { actSince: t - tr.since, phaseSince, clinch, tick }, won);
+      body.cmd = walking ? null : presentFighter(view, phase, { actSince: t - tr.since, phaseSince, clinch, tick, gap: half * 2 }, won);
       body.mood = moodOf(view, phase, t - tr.hitAt, won);
+      // ring life while the round is live: fresher = bouncier; tired late in the round = heavier feet, lower gloves
+      const live = (phase === "round" || phase === "countdown") && !walking && view.act !== "down" && !clinch;
+      body.life = live ? { seed: hashOf(slot.ring) + i * 7919, energy: Math.min(1, view.stamina / 800), tired: view.stamina < 450 ? (450 - view.stamina) / 450 : 0, move: tr.spd } : null;
     });
     // the referee: on the far side of the pair from the camera, stepping in to count, break and raise the winner
     if (withRef && refG.current) {
       // stay on the far side of the pair from the camera (he walks round when the camera changes sides)
       const camSide = (camera.position.x - place.x) * -az + (camera.position.z - place.z) * ax >= 0 ? 1 : -1;
       if (!ph.refSide || ph.refSide === camSide) ph.refSide = -camSide;
-      const spot = refereeSpot(phase, { dist: snap.dist, down, winner: winner === -1 ? null : (winner as 0 | 1), breaking, half: place.half });
+      const spot = refereeSpot(phase, { dist: snap.dist, down, winner: winner === -1 ? null : (winner as 0 | 1), breaking, half: place.half, t: tick / TICK_HZ });
       const px = -az * ph.refSide;
       const pz = ax * ph.refSide;
-      const rx = spot.x * ax + spot.z * px;
-      const rz = spot.x * az + spot.z * pz;
+      // round the pair's middle (it drifts round the ring), never through the ropes
+      const mid = phase === "rest" ? { x: 0, z: 0 } : { x: lay.cx, z: lay.cz };
+      const ra = clampInRing(mid.x + spot.x * ax + spot.z * px, mid.z + spot.x * az + spot.z * pz, place.rotY, inside);
+      const rx = ra.x;
+      const rz = ra.z;
       const tr = trs[2]!;
       // face the action: the pair's middle, the downed fighter, or the camera side when raising a hand
-      const fx = spot.face ? spot.face * half * ax : 0;
-      const fz = spot.face ? spot.face * half * az : 0;
+      const fx = mid.x + (spot.face ? spot.face * half * ax : 0);
+      const fz = mid.z + (spot.face ? spot.face * half * az : 0);
       const faceYaw = phase === "over" ? Math.atan2(-px, -pz) : Math.atan2(fx - rx, fz - rz);
+      const rx0 = tr.x;
+      const rz0 = tr.z;
       const walking = moveTo(tr, rx, rz, faceYaw, dt, false);
+      tr.spd += ((dt > 0 ? Math.hypot(tr.x - rx0, tr.z - rz0) / dt : 0) - tr.spd) * Math.min(1, dt * 8);
       refG.current.position.set(place.x + tr.x, place.canvasY, place.z + tr.z);
       refG.current.rotation.y = tr.yaw;
       const rb = refBody.current!;
       rb.walk = walking;
       rb.cmd = walking ? null : { clip: spot.clip, offset: phaseSince, speed: 1, intensity: 1, hold: 0, key: `${spot.clip}:${phase}` };
+      rb.life = walking ? null : { seed: hashOf(slot.ring) + 31, energy: 0, tired: 0, move: tr.spd, official: true };
     }
     // my climb in / out over the corner steps overrides my fighter's place and pose
     const run = myClimb.run;

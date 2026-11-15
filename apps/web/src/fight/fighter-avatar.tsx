@@ -8,7 +8,9 @@ import { boxingKitOverride, KitSwap, refereeLook } from "@/world/human/boxing/ki
 import { boxingLayer } from "@/world/human/boxing/layer";
 import { BoxingMotion } from "@/world/human/boxing/motion";
 import { BOXING_CLIPS, type BoxingClipName } from "@/world/human/boxing/clips";
+import type { RingLife } from "@/world/human/boxing/life";
 import type { Mood, PoseCmd } from "./present";
+import { ringNow } from "./ring-clock";
 
 /**
  * Ring people driven by fight/present.ts (P3-FGT-05): a fighter in the corner's kit and the referee in white shirt,
@@ -24,12 +26,15 @@ export interface RingBody {
   react: { clip: BoxingClipName; intensity: number; at: number } | null;
   mood: Mood | null;
   walk: boolean;
+  /** ring life (P3-FGT-07): bounce, weight shifts, pawing, feints, shuffle while the round is live (null = off) */
+  life?: RingLife | null;
   /** through the ropes (climb in / out): the duck pose */
   duck?: boolean;
 }
 export const newBody = (): RingBody => ({ cmd: null, react: null, mood: null, walk: false });
 
-const now = () => performance.now() / 1000;
+/** the ring motion clock (hit-stops hold it for a few frames; fight/ring-clock) */
+const now = ringNow;
 const LOOP = (c: BoxingClipName) => BOXING_CLIPS[c].loop;
 
 function useBodyDriver(motion: BoxingMotion, body: React.RefObject<RingBody | null>, weight: { current: number }, anim: React.RefObject<number>) {
@@ -42,12 +47,14 @@ function useBodyDriver(motion: BoxingMotion, body: React.RefObject<RingBody | nu
     weight.current += (target - weight.current) * 0.2;
     anim.current = b.walk ? 1 : 0;
     if (b.mood) motion.setMood(b.mood);
+    motion.setLife(b.life ?? null);
     const L = last.current;
     const c = b.cmd;
     // a hit reaction plays once over whatever was showing (a knockdown overrides it)
     if (b.react && b.react.at !== L.reactAt && c?.clip !== "knockdown") {
       L.reactAt = b.react.at;
-      const start = b.react.at / 1000;
+      // starts on the ring clock now: during a hit-stop the clock holds, so the head snaps once the stop lets go
+      const start = t;
       L.reactEnd = start + BOXING_CLIPS[b.react.clip].duration * 0.85;
       motion.play({ clip: b.react.clip, start, intensity: b.react.intensity, blend: 0.05 });
       L.key = "";
@@ -64,7 +71,7 @@ function useBodyDriver(motion: BoxingMotion, body: React.RefObject<RingBody | nu
     L.clip = c.clip;
     L.key = c.key;
     L.start = LOOP(c.clip) ? t : start;
-    motion.play({ clip: c.clip, start: L.start, speed: c.speed, intensity: c.intensity, hold: c.hold });
+    motion.play({ clip: c.clip, start: L.start, speed: c.speed, intensity: c.intensity, hold: c.hold, reach: c.reach });
   });
 }
 
@@ -72,7 +79,7 @@ export function FightAvatar({ look, corner, body, lite = false }: { look: Avatar
   const motion = useMemo(() => new BoxingMotion(), []);
   const kit = useMemo(() => boxingKitOverride(look, corner, { headgear: true }), [look, corner]);
   const weight = useMemo(() => ({ current: 1 }), []);
-  const layer = useMemo(() => boxingLayer({ motion, kit, weight }), [motion, kit, weight]);
+  const layer = useMemo(() => boxingLayer({ motion, kit, weight, clock: ringNow }), [motion, kit, weight]);
   const swap = useMemo(() => new KitSwap(), []);
   const fade = useRef(0);
   const anim = useRef(0);
@@ -89,8 +96,9 @@ export function RefereeAvatar({ look, body, lite = false }: { look: AvatarLook; 
   const motion = useMemo(() => new BoxingMotion({ base: "refIdle" }), []);
   const refLook = useMemo(() => refereeLook(look), [look]);
   const weight = useMemo(() => ({ current: 1 }), []);
-  const layer = useMemo(() => boxingLayer({ motion, kit: null, weight }), [motion, weight]);
+  const layer = useMemo(() => boxingLayer({ motion, kit: null, weight, referee: true, clock: ringNow }), [motion, weight]);
   const anim = useRef(0);
   useBodyDriver(motion, body, weight, anim);
+  // white shirt / black trousers / bow tie on the masculine body (refereeLook), the hood trimmed (referee dressing)
   return <Avatar look={refLook} animRef={anim} showTag={false} shadows={!lite} quality={lite ? "lite" : "standard"} lod rigLayer={layer} />;
 }

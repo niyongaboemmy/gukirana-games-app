@@ -1,6 +1,6 @@
 import type { AvatarRig, AvatarRigLayer, AvatarRigLayerFactory } from "../../Avatar";
 import { BoxingFace, type FaceWeights } from "./face";
-import { dressBody, type Dressing } from "./kit-mesh";
+import { dressBody, dressReferee, type Dressing } from "./kit-mesh";
 import type { BoxingKit } from "./kit";
 import type { BoxingMotion } from "./motion";
 import { P } from "./pose";
@@ -24,6 +24,8 @@ export interface BoxingLayerOptions {
   /** dress the body in the ring kit (null: motion only, e.g. the referee) */
   kit?: BoxingKit | null;
   weight?: { current: number };
+  /** dress the body as the referee (white shirt, black trousers, bow tie; P3-FGT-07) */
+  referee?: boolean;
   /** drive the face (default true) */
   face?: boolean;
 }
@@ -43,6 +45,7 @@ export function boxingLayer(opts: BoxingLayerOptions): AvatarRigLayerFactory {
     return {
       attach() {
         if (opts.kit && !dress) dress = dressBody(rig.root, rig.arms, rig.materials, rig.modelId, opts.kit, rig.shadows);
+        else if (opts.referee && !dress) dress = dressReferee(rig.root, rig.materials, rig.shadows);
       },
       update(_dt, dist) {
         const w = opts.weight?.current ?? 1;

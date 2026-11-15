@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Check, Clapperboard, DoorOpen, Flag, Hourglass, Megaphone, RotateCcw, SlidersHorizontal, Square, Trophy } from "lucide-react";
+import { Check, ChevronsUp, Clapperboard, DoorOpen, Flag, GraduationCap, Hourglass, Megaphone, RotateCcw, SlidersHorizontal, Square, Trophy } from "lucide-react";
 import { CORNER_COLORS, TICK_HZ, type BoxingOutcome, type BoxingSnapshot, type Corner, type FightEvent, type FighterView } from "@gukirana/contracts";
 import { Modal } from "@/games/GameShell";
 import { useFightBridge, type MyFight } from "../bridge";
@@ -11,6 +11,8 @@ import { actionKey, foulKey, ft, methodKey, type FgKey } from "./strings";
 import { foulText, fst, levelText, methodText, tiebreakText, type FsKey } from "./scoring-strings";
 import { playHighlights, stopReplay, useReplay } from "./replay";
 import { useFightUi } from "./ui-store";
+import { useFightPrefs } from "./prefs";
+import { COACH_SHOW_MS, coachMayShow, coachTip, type CoachTip } from "./coach";
 
 /**
  * The fight HUD (FIGHT-GAMES-PLAN §12 Do 5): both names with corner badges, points, round + clock, stamina and
@@ -142,13 +144,17 @@ function Callouts({ snap, me, now }: { snap: BoxingSnapshot; me: 0 | 1; now: num
     if (k === "dq" && age < 3500) card = { title: ft("hud.dq") };
     if (k === "break" && age < 1200) card = { title: ft("hud.break") };
     if (age > 1400) continue;
+    // why a punch scored or not (P3-FGT-07): clean +points, on the guard, slipped, out of range
     if (e.k === "hit" && e.by === me) {
       if (e.combo >= 2) pops.push({ id, text: ft("hud.combo", { n: e.combo }), good: true });
       else if (e.counter) pops.push({ id, text: ft("hud.counter"), good: true });
+      else pops.push({ id, text: ft("hud.clean", { n: e.points }), good: true });
     }
     if (e.k === "block" && e.by !== me) pops.push({ id, text: ft("hud.blocked"), good: true });
     if (e.k === "evade" && e.by !== me) pops.push({ id, text: ft("hud.evaded"), good: true });
-    if (e.k === "whiff" && e.by === me) pops.push({ id, text: ft("hud.missed"), good: false });
+    if (e.k === "block" && e.by === me) pops.push({ id, text: ft("hud.onGuard"), good: false });
+    if (e.k === "evade" && e.by === me) pops.push({ id, text: ft("hud.theySlipped"), good: false });
+    if (e.k === "whiff" && e.by === me) pops.push({ id, text: ft("hud.missedFar"), good: false });
     if (e.k === "warning" && age < 1400 && e.to === me)
       pops.push({
         id,
@@ -293,6 +299,42 @@ function ReplayBadge() {
   );
 }
 
+/**
+ * The coach (P3-FGT-07, coach.ts): one short tip, only when the player is stuck (idle, missing, on the guard, getting
+ * hit, out of breath), rate-limited, a single line above the press chip (clear of the thumbs on phones). Off in
+ * Settings; never during the first-fight tutorial (it already guides).
+ */
+function Coach({ snap, me, now }: { snap: BoxingSnapshot; me: 0 | 1; now: number }) {
+  const on = useFightPrefs((s) => s.coach);
+  const tutorialDone = useFightPrefs((s) => s.tutorialDone);
+  const st = useRef({ tip: null as CoachTip | null, at: -1e9, history: {} as Partial<Record<CoachTip, number>>, roundAt: 0, round: -1, phase: "" });
+  const S = st.current;
+  if (snap.round !== S.round || (snap.phase === "round" && S.phase !== "round")) {
+    S.round = snap.round;
+    S.roundAt = now;
+  }
+  S.phase = snap.phase;
+  if (on && tutorialDone && now - S.at > COACH_SHOW_MS) {
+    const ui = useFightUi.getState();
+    const tip = coachTip({ snap, me, feed: ui.feed, now, lastPress: Math.max(ui.press?.at ?? 0, S.roundAt), roundAge: now - S.roundAt });
+    if (tip && coachMayShow(tip, now, S, S.history)) {
+      S.tip = tip;
+      S.at = now;
+      S.history[tip] = now;
+    }
+  }
+  if (!on || !S.tip || now - S.at > COACH_SHOW_MS || snap.phase !== "round") return null;
+  return (
+    <div className="pointer-events-none absolute bottom-[15%] left-1/2 w-max max-w-[min(30rem,70vw)] -translate-x-1/2 phone:bottom-[13%]" role="status" aria-live="polite">
+      <div key={S.at} className={`${glass} gk-fade-up flex items-center gap-2 px-4 py-2 text-sm font-semibold phone:px-3 phone:py-1 phone:text-xs`}>
+        <GraduationCap size={15} className="shrink-0 text-gold" />
+        <span className="sr-only">{ft("coach.label")}: </span>
+        <span>{ft(S.tip)}</span>
+      </div>
+    </div>
+  );
+}
+
 function ResultCard({ mine, onLeave }: { mine: MyFight; onLeave: () => void }) {
   const result = useFightUi((s) => s.result);
   if (!result) return null;
@@ -380,10 +422,19 @@ function ResultCard({ mine, onLeave }: { mine: MyFight; onLeave: () => void }) {
           )
         )}
         <Highlights />
-        <div className="flex gap-2">
+        <p className="pnote text-center text-xs">
+          <span className="font-bold">{ft("result.next")}: </span>
+          {ft(practice ? "result.nextPractice" : "result.nextLive")}
+        </p>
+        <div className="flex flex-wrap gap-2">
           {practice && (
             <button type="button" className="pbtn pbtn-primary flex-1" data-autofocus onClick={() => startPractice(mine.ring, mine.level ?? 3, mine.names?.[0] ?? "")}>
               <RotateCcw size={18} /> {ft("result.again")}
+            </button>
+          )}
+          {practice && won && (mine.level ?? 3) < 5 && (
+            <button type="button" className="pbtn pbtn-primary flex-1" onClick={() => startPractice(mine.ring, (mine.level ?? 3) + 1, mine.names?.[0] ?? "")}>
+              <ChevronsUp size={18} /> {ft("result.nextLevel")}
             </button>
           )}
           <button type="button" className={`pbtn flex-1 ${practice ? "pbtn-secondary" : "pbtn-primary"}`} onClick={onLeave}>
@@ -484,6 +535,7 @@ export function FightHud() {
       <Callouts snap={snap} me={me} now={now} />
       <Caption now={now} hide={snap.phase === "knockdown" && useFightUi.getState().caption?.who === "referee"} />
       <PressChip now={now} />
+      <Coach snap={snap} me={me} now={now} />
       <ReplayBadge />
       <div className="pointer-events-auto">
         {snap.phase === "over" && !replaying && !ceremony && <ResultCard mine={mine} onLeave={leave} />}

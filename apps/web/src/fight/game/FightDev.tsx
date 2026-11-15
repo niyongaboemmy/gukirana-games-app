@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { Swords } from "lucide-react";
 import type { RingId } from "@gukirana/contracts";
 import { PaperCard } from "@/ui/PaperCard";
@@ -7,6 +8,9 @@ import { useFightBridge } from "../bridge";
 import { startPractice, stopPractice } from "./actions";
 import { FightOverlay } from "./FightOverlay";
 import { ft } from "./strings";
+
+/** the dev 3D ring (?scene=1), loaded only when asked for */
+const RingLab = dynamic(() => import("./RingLab").then((m) => m.RingLab), { ssr: false });
 
 /**
  * Dev test bed for the boxing HUD + controls in practice (no hall needed): a plain backdrop stands in for the 3D ring.
@@ -16,8 +20,10 @@ export function FightDev() {
   const mine = useFightBridge((s) => s.mine);
   const [level, setLevel] = useState(3);
   const [ring, setRing] = useState<RingId>("R7");
+  const [scene, setScene] = useState(false);
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
+    setScene(q.get("scene") === "1");
     const l = Number(q.get("level"));
     if (l >= 1 && l <= 5) setLevel(l);
     const r = q.get("ring");
@@ -50,6 +56,7 @@ export function FightDev() {
           </div>
         </div>
       )}
+      {scene && mine && <RingLab ring={mine.ring} />}
       <FightOverlay />
     </main>
   );
