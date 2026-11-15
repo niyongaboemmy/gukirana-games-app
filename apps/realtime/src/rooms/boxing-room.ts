@@ -47,7 +47,7 @@ import { createLogger } from "@gukirana/observability";
 import { verifyToken } from "../auth.js";
 import { api, ApiError } from "../api-client.js";
 import { eligibilityOf, trackAccount } from "../social/accounts.js";
-import { DEFAULT_RULES, matchConfig, trackLiveMatch, untrackLiveMatch } from "./match-room.js";
+import { DEFAULT_RULES, liveSeats, matchConfig, reconnectBudgetOf, reportRoom, trackLiveMatch, untrackLiveMatch } from "./match-room.js";
 import { boxingHallOf, type StartFightInput, type StartedFight } from "./boxing-hall.js";
 
 const log = createLogger("boxing-room");
@@ -119,6 +119,7 @@ export async function startBoxing(input: StartFightInput): Promise<StartedFight>
       ring: input.ring,
       hallId: input.hallId,
     } satisfies BoxingOptions);
+    reportRoom(created.matchId, room.roomId, input.ring); // P2-NET-05 resume (the hall also re-sends fight-ready)
     return { roomId: room.roomId, matchId: created.matchId, rules };
   } catch (e) {
     // no room to run it: refund at once (never a stuck escrow)
@@ -177,6 +178,9 @@ export class BoxingRoom extends Room {
   /** a fighter treated as gone without closing the socket (stale): any message brings them back */
   private stale: [boolean, boolean] = [false, false];
   private awayTimer: [{ clear(): void } | null, { clear(): void } | null] = [null, null];
+  /** P2-NET-05: time-outs per fighter (one more than maxDisconnects forfeits at once) and the current one's length */
+  private drops: [number, number] = [0, 0];
+  private windowMs: [number, number] = [0, 0];
   private joinTimer: { clear(): void } | null = null;
   private maxTimer: { clear(): void } | null = null;
   private introTimer: { clear(): void } | null = null;
@@ -193,11 +197,13 @@ export class BoxingRoom extends Room {
     const staked = options.stake > 0;
     this.fight = createFight(this.ids, fr, { staked });
     this.log = newFightLog([...this.ids], fr, staked);
-    this.budget = [this.rules.reconnectSeconds * 1000, this.rules.reconnectSeconds * 1000];
+    const total = reconnectBudgetOf(this.rules, true).totalMs;
+    this.budget = [total, total];
     this.autoDispose = true;
     this.setPrivate(true);
     rooms.set(this.roomId, this);
     trackLiveMatch(options.matchId, this);
+    for (const p of options.players) liveSeats.set(p.userId, { roomId: this.roomId, matchId: options.matchId, game: BOXING_GAME_ID });
     this.joinTimer = this.clock.setTimeout(() => void this.finish("void", "NO_SHOW"), this.rules.joinSeconds * 1000);
     this.maxTimer = this.clock.setTimeout(() => void this.finish("void", "MATCH_TOO_LONG"), this.rules.maxMatchMinutes * 60_000);
 
@@ -300,7 +306,7 @@ export class BoxingRoom extends Room {
     this.gone(this.seatOf(uid));
     try {
       const seat = this.seatOf(uid);
-      const re = await this.allowReconnection(client, Math.max(0.05, this.budget[seat] / 1000));
+      const re = await this.allowReconnection(client, Math.max(0.05, this.windowMs[seat] / 1000));
       this.sessions.set(re.sessionId, uid);
       this.lastSeen.set(uid, Date.now());
       re.send("init", this.initFor(uid));
@@ -321,15 +327,23 @@ export class BoxingRoom extends Room {
   private gone(seat: Seat): void {
     if (this.finished || this.away[seat] !== null) return;
     this.away[seat] = Date.now();
+    // P2-NET-05: each time-out lasts at most reconnectSeconds, drawn from the fighter's total budget; past maxDisconnects
+    // time-outs the next one forfeits at once
+    this.drops[seat]++;
+    const maxDrops = reconnectBudgetOf(this.rules, true).maxDrops;
+    const windowMs = this.drops[seat] > maxDrops ? 0 : Math.min(this.rules.reconnectSeconds * 1000, this.budget[seat]);
+    this.windowMs[seat] = windowMs;
+    log.info({ event: "fight.disconnect", matchId: this.opts.matchId, userId: this.ids[seat], drop: this.drops[seat], windowMs }, "fighter gone: referee time-out");
     this.fight = pauseFight(this.fight, "DISCONNECT", seat);
     this.log.ops.push({ o: "pause", reason: "DISCONNECT", who: seat });
     this.flushEvents();
     for (const c of this.clients) c.send(FightEvt.snap, snapshotOf(this.fight, this.opts.ring));
     this.frame();
-    this.broadcast(FightEvt.pause, { who: seat, connected: false, budgetMs: this.budget[seat] });
+    this.broadcast(FightEvt.pause, { who: seat, connected: false, budgetMs: this.budget[seat], ms: windowMs, drop: this.drops[seat], maxDrops });
     // the other fighter gone too → nobody to win: void now (exit rules row 8)
     if (this.away[(1 - seat) as Seat] !== null) return void this.forfeitOrVoid(seat, "DISCONNECT");
-    this.awayTimer[seat] = this.clock.setTimeout(() => void this.forfeitOrVoid(seat, "DISCONNECT"), this.budget[seat]);
+    if (windowMs <= 0) return void this.forfeitOrVoid(seat, "DISCONNECT");
+    this.awayTimer[seat] = this.clock.setTimeout(() => void this.forfeitOrVoid(seat, "DISCONNECT"), windowMs);
   }
 
   /** a fighter is back: their budget is charged; when nobody is away the fight resumes after a 3 s countdown */
@@ -340,6 +354,7 @@ export class BoxingRoom extends Room {
     this.away[seat] = null;
     this.awayTimer[seat]?.clear();
     this.awayTimer[seat] = null;
+    log.info({ event: "fight.reconnect", matchId: this.opts.matchId, userId: this.ids[seat], awayMs: Date.now() - since }, "fighter back");
     this.broadcast(FightEvt.pause, { who: seat, connected: true, budgetMs: this.budget[seat] });
     if (this.away.every((a) => a === null) && this.fight.phase === "paused") {
       this.fight = resumeFight(this.fight);
@@ -534,6 +549,7 @@ export class BoxingRoom extends Room {
     this.finished = true;
     this.clearTimers();
     untrackLiveMatch(this.opts.matchId);
+    for (const id of this.ids ?? []) if (liveSeats.get(id)?.roomId === this.roomId) liveSeats.delete(id);
     this.fight = voidFight(this.fight);
     this.log.ops.push({ o: "void" });
     const equal = Object.fromEntries(this.ids.map((id) => [id, 1]));
@@ -567,6 +583,7 @@ export class BoxingRoom extends Room {
     this.finished = true;
     this.clearTimers();
     untrackLiveMatch(this.opts.matchId);
+    for (const id of this.ids ?? []) if (liveSeats.get(id)?.roomId === this.roomId) liveSeats.delete(id);
     let reason = reason0;
     let cause = cause0;
     if (reason === "forfeit" && loser !== undefined) {
@@ -663,6 +680,7 @@ export class BoxingRoom extends Room {
     this.clearTimers();
     rooms.delete(this.roomId);
     untrackLiveMatch(this.opts.matchId);
+    for (const id of this.ids ?? []) if (liveSeats.get(id)?.roomId === this.roomId) liveSeats.delete(id);
     if (!this.finished) {
       void api.voidMatch(this.opts.matchId, "ROOM_CLOSED").catch(() => undefined);
       this.finished = true;

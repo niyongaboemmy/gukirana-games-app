@@ -1,5 +1,6 @@
 import { matchMaker } from "@colyseus/core";
 import { api } from "./api-client.js";
+import { reportRoom } from "./rooms/match-room.js";
 
 export const GAMES = ["igisoro", "ludo", "pool"] as const;
 export type GameId = (typeof GAMES)[number];
@@ -18,6 +19,7 @@ export async function startMatch(game: GameId, stake: number, userIds: [string, 
   const created = await api.createMatch({ game, variant: "classic", stake, players: userIds.map((userId, i) => ({ userId, seat: seats[i]! })) });
   // the room runs with the rules the API copied onto the match (running matches keep them when an admin edits)
   const room = await matchMaker.createRoom("match", { matchId: created.matchId, game, variant: "classic", stake, players: created.players, rules: created.rules });
+  reportRoom(created.matchId, room.roomId); // P2-NET-05: a reload / another device finds the room through the API
   return { roomId: room.roomId, matchId: created.matchId };
 }
 

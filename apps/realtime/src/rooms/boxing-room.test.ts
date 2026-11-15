@@ -268,6 +268,23 @@ describe("rows 5-8: disconnect = referee time-out", () => {
     expect(settled.filter((s) => s.matchId === m.matchId)).toHaveLength(0);
   }, 30_000);
 
+  it("P2-NET-05: each time-out lasts at most reconnectSeconds; past maxDisconnects the next drop forfeits at once", async () => {
+    const { roomId } = await create({ reconnectSeconds: 2, reconnectBudgetSeconds: 10, maxDisconnects: 1 }, { roundSeconds: 30 });
+    const { a, b } = await bell(roomId);
+    a.send("jab");
+    await wait(100);
+    b.room.connection.close(4010);
+    await until(() => (a.last("pause") as { connected?: boolean } | undefined)?.connected === false);
+    expect(a.last("pause")).toMatchObject({ who: 1, connected: false, ms: 2000, drop: 1, maxDrops: 1 });
+    const b2 = await join(roomId, B);
+    await until(() => (a.last("pause") as { connected?: boolean }).connected === true);
+    expect(result(a)).toBeUndefined();
+    b2.room.connection.close(4010); // a second drop with none left
+    await until(() => !!result(a));
+    expect(result(a)).toMatchObject({ reason: "forfeit", cause: "DISCONNECT", loser: B });
+    await a.room.leave(true);
+  }, 20_000);
+
   it("a connection that goes silent is a time-out too (no input, no ping)", async () => {
     const { roomId } = await create({ reconnectSeconds: 5 }, { roundSeconds: 30 });
     const { a, b } = await bell(roomId);

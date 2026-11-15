@@ -18,6 +18,26 @@ const DRAW_OFFER_COOLDOWN_MS = 30_000;
 
 /** used when a room is created without rules (older API); the API normally sends the game's settings snapshot */
 export const DEFAULT_RULES: MatchRules = { settingsVersion: 0, turnSeconds: 30, reconnectSeconds: 60, joinSeconds: 60, maxTimeouts: 3, maxMatchMinutes: 90 };
+/** P2-NET-05: a player back on their own turn gets at least this much of it (the clock was paused while away) */
+export const MIN_TURN_LEFT_MS = 10_000;
+/** P2-NET-05 reconnect budget: drops per player per match and all their time away together (older rules: defaults) */
+export const reconnectBudgetOf = (r: MatchRules, fight = false): { maxDrops: number; totalMs: number } => ({
+  maxDrops: r.maxDisconnects ?? 3,
+  totalMs: (r.reconnectBudgetSeconds ?? (fight ? r.reconnectSeconds : 2 * r.reconnectSeconds)) * 1000,
+});
+
+/**
+ * P2-NET-05 resume: who sits in which live room of this process (userId → room). The web finds the room through the
+ * API (`GET /games/active`, the room id reported by `api.attachRoom`); this is the in-process view for tests / ops.
+ */
+export const liveSeats = new Map<string, { roomId: string; matchId: string; game: string }>();
+
+/** P2-NET-05: report the room running a match to the API (best effort: the web also keeps the room id locally) */
+export function reportRoom(matchId: string, roomId: string, ring?: string): void {
+  void Promise.resolve()
+    .then(() => api.attachRoom?.(matchId, roomId, ring))
+    .catch((e: unknown) => log.warn({ err: String(e), matchId }, "could not report the match room (resume falls back to the local reference)"));
+}
 
 /** knobs tests shorten */
 export const matchConfig = {
@@ -110,6 +130,12 @@ export class MatchRoom extends Room {
   private lastDrawOffer = new Map<string, number>();
   /** sessionId → unregister from the account registry (a suspended player's match is voided) */
   private tracked = new Map<string, () => void>();
+  /** P2-NET-05: per player — connection losses so far, time away used (ms), the current absence (start + its end) */
+  private drops = new Map<string, number>();
+  private awayUsed = new Map<string, number>();
+  private away = new Map<string, { since: number; until: number; wait?: ReturnType<Room["allowReconnection"]> }>();
+  /** the turn clock is stopped while the player on turn is away: the time their turn still had */
+  private pausedLeft: number | null = null;
 
   override onCreate(options: MatchOptions): void {
     this.opts = options;
@@ -118,6 +144,7 @@ export class MatchRoom extends Room {
     this.autoDispose = true;
     this.setPrivate(true);
     live.set(options.matchId, this);
+    for (const p of options.players) liveSeats.set(p.userId, { roomId: this.roomId, matchId: options.matchId, game: options.game });
     // opponent never joins → void + refund
     this.joinTimer = setTimeout(() => void this.finish("void", {}, "NO_SHOW"), this.rules.joinSeconds * 1000);
     // longest a match may run: past it, void + refund (the API's sweep would refund it a little later anyway)
@@ -171,6 +198,16 @@ export class MatchRoom extends Room {
       if (userId && !this.finished) void this.leaveVoluntarily(userId);
     });
 
+    // P2-NET-05: the opponent dropped and I don't want to wait — friendly matches only: void, no penalty for anyone
+    this.onMessage("leave-waiting", (client) => {
+      const userId = this.sessions.get(client.sessionId);
+      if (!userId || this.finished) return;
+      if (this.opts.stake > 0) return client.send("rejected", { reason: "STAKED_MUST_WAIT" });
+      if (![...this.away.keys()].some((u) => u !== userId)) return client.send("rejected", { reason: "OPPONENT_CONNECTED" });
+      log.info({ event: "match.left-waiting", matchId: this.opts.matchId, userId }, "left a friendly match while the opponent was away");
+      void this.finish("void", {}, "LEFT_WHILE_WAITING");
+    });
+
     this.onMessage("emote", (client, raw: { emote?: unknown }) => {
       const userId = this.sessions.get(client.sessionId);
       const e = String(raw?.emote ?? "");
@@ -188,7 +225,19 @@ export class MatchRoom extends Room {
       matchId: this.opts.matchId,
       rules: this.rules,
       started: this.moves > 0,
+      /** P2-NET-05: players away right now (ms left to come back) and my own reconnect budget */
+      away: this.awayList().filter((x) => x.userId !== userId),
+      budget: this.budgetFor(userId),
     };
+  }
+
+  private awayList(): { userId: string; ms: number }[] {
+    return [...this.away].map(([userId, a]) => ({ userId, ms: Math.max(0, a.until - Date.now()) }));
+  }
+
+  private budgetFor(userId: string): { dropsLeft: number; msLeft: number } {
+    const b = reconnectBudgetOf(this.rules);
+    return { dropsLeft: Math.max(0, b.maxDrops - (this.drops.get(userId) ?? 0)), msLeft: Math.max(0, b.totalMs - (this.awayUsed.get(userId) ?? 0)) };
   }
 
   override async onAuth(_client: Client, options: { token?: unknown }): Promise<{ userId: string }> {
@@ -216,6 +265,7 @@ export class MatchRoom extends Room {
     this.finished = true;
     this.clearTimers();
     live.delete(this.opts.matchId);
+    this.unseat();
     this.broadcast("result", { ranks: Object.fromEntries(this.opts.players.map((p) => [p.userId, 1])), reason: "void", cause: "STALE_ESCROW", seedReveal: this.seed, commit: this.commit, settlement: { status: "void" } });
     this.clock.setTimeout(() => this.disconnect(), matchConfig.lingerMs);
   }
@@ -229,8 +279,9 @@ export class MatchRoom extends Room {
     const joined = new Set(this.sessions.values());
     if (!this.state_ && !this.finished && this.opts.players.every((p) => joined.has(p.userId))) this.start();
     else if (this.state_) {
-      // a fresh join mid-game (page reload, new tab): the seat is theirs again
-      this.broadcast("presence", { userId: auth.userId, connected: true });
+      // a fresh join mid-game (page reload, new tab, a new device): the seat is theirs again
+      if (this.away.has(auth.userId)) this.back(auth.userId, "rejoin");
+      else this.broadcast("presence", { userId: auth.userId, connected: true });
       this.sendState(client);
       if (this.drawOffer && this.drawOffer.from !== auth.userId) client.send("draw-offer", { from: this.drawOffer.from });
     }
@@ -252,15 +303,76 @@ export class MatchRoom extends Room {
     if (consented) return void this.leaveVoluntarily(userId);
     // not started yet (the other player hasn't opened the match): they may come back; the join timer voids otherwise
     if (!this.state_) return;
+    // P2-NET-05: each drop is counted against the player's reconnect budget (drops and time away per match)
+    const drop = (this.drops.get(userId) ?? 0) + 1;
+    this.drops.set(userId, drop);
+    const b = reconnectBudgetOf(this.rules);
+    const left = b.totalMs - (this.awayUsed.get(userId) ?? 0);
+    const windowMs = Math.min(this.rules.reconnectSeconds * 1000, left);
+    if (drop > b.maxDrops || windowMs <= 0) {
+      log.info({ event: "match.budget-exhausted", matchId: this.opts.matchId, userId, drop, leftMs: Math.max(0, left) }, "reconnect budget used up");
+      this.broadcast("presence", { userId, connected: false, ms: 0, budgetOut: true });
+      return void this.forfeitOrVoid(userId, "DISCONNECT");
+    }
+    const now = Date.now();
+    this.away.set(userId, { since: now, until: now + windowMs });
+    log.info({ event: "match.disconnect", matchId: this.opts.matchId, userId, drop, windowMs }, "player disconnected; seat kept");
+    // the opponent's wait (a countdown); the absent player's turn clock stops (turn games, docs/GAME-EXIT-RULES.md row 5)
+    this.broadcast("presence", { userId, connected: false, ms: windowMs, drop, maxDrops: b.maxDrops });
+    this.pauseClockIfAway();
     try {
-      const re = await this.allowReconnection(client, this.rules.reconnectSeconds); // FR-GS-03; the turn clock keeps running
+      const wait = this.allowReconnection(client, windowMs / 1000); // FR-GS-03
+      const a = this.away.get(userId);
+      if (a) a.wait = wait;
+      const re = await wait;
       this.sessions.set(re.sessionId, userId);
-      this.broadcast("presence", { userId, connected: true });
+      this.back(userId, "token");
       this.sendState(re);
     } catch {
       // they came back through a fresh join (reload) instead of the reconnection token → no forfeit
-      if (!this.finished && !this.connected(userId)) await this.forfeitOrVoid(userId, "DISCONNECT");
+      if (!this.finished && !this.connected(userId)) {
+        log.info({ event: "match.no-return", matchId: this.opts.matchId, userId }, "player did not come back in time");
+        await this.forfeitOrVoid(userId, "DISCONNECT");
+      }
     }
+  }
+
+  /** P2-NET-05: a player is back (reconnection token or a fresh join): charge their budget, restart a stopped clock */
+  private back(userId: string, via: "token" | "rejoin"): void {
+    const a = this.away.get(userId);
+    if (!a) return;
+    this.away.delete(userId);
+    this.awayUsed.set(userId, (this.awayUsed.get(userId) ?? 0) + (Date.now() - a.since));
+    // a reload: the token wait is no longer needed (rejecting it frees the old seat; connected() stops a forfeit)
+    if (via === "rejoin") a.wait?.reject();
+    log.info({ event: "match.reconnect", matchId: this.opts.matchId, userId, via, awayMs: Date.now() - a.since }, "player back");
+    this.broadcast("presence", { userId, connected: true, budget: this.budgetFor(userId) });
+    if (this.finished || !this.state_) return;
+    if (this.pausedLeft !== null && !this.turnAway()) {
+      const ms = Math.max(MIN_TURN_LEFT_MS, this.pausedLeft);
+      this.pausedLeft = null;
+      this.armTurnTimer(Math.min(ms, this.rules.turnSeconds * 1000));
+      for (const c of this.clients) this.sendState(c);
+    }
+  }
+
+  /** the player on turn (first of a simultaneous turn) */
+  private turnUser(): string | null {
+    const turn = this.state_ ? this.mod.currentTurn(this.state_) : null;
+    return (Array.isArray(turn) ? turn[0] : turn) ?? null;
+  }
+  private turnAway(): boolean {
+    const u = this.turnUser();
+    return !!u && this.away.has(u);
+  }
+  /** stop the turn clock while the player on turn is away (they get the rest of their turn back) */
+  private pauseClockIfAway(): void {
+    if (this.finished || !this.state_ || !this.turnAway() || this.pausedLeft !== null) return;
+    if (this.turnTimer) clearTimeout(this.turnTimer);
+    this.turnTimer = null;
+    this.pausedLeft = this.deadline ? Math.max(0, this.deadline - Date.now()) : this.rules.turnSeconds * 1000;
+    this.deadline = 0;
+    for (const c of this.clients) this.sendState(c);
   }
 
   override onDispose(): void {
@@ -268,6 +380,7 @@ export class MatchRoom extends Room {
     this.tracked.clear();
     this.clearTimers();
     live.delete(this.opts.matchId);
+    this.unseat();
     // closed before a result (shutdown, crash recovery): void + refund (idempotent on the API side)
     if (!this.finished) void api.voidMatch(this.opts.matchId, "ROOM_CLOSED").catch(() => undefined);
   }
@@ -297,12 +410,28 @@ export class MatchRoom extends Room {
 
   private sendState(client: Client): void {
     const userId = this.sessions.get(client.sessionId) ?? "spectator";
-    client.send("state", { state: this.mod.viewFor(this.state_, userId), turn: this.mod.currentTurn(this.state_), deadline: this.deadline, hash: this.mod.hash(this.state_), started: this.moves > 0 });
+    client.send("state", {
+      state: this.mod.viewFor(this.state_, userId),
+      turn: this.mod.currentTurn(this.state_),
+      deadline: this.deadline,
+      hash: this.mod.hash(this.state_),
+      started: this.moves > 0,
+      // P2-NET-05: the turn clock is stopped (the player on turn is away); turnLeftMs = what their turn still has
+      ...(this.pausedLeft !== null ? { paused: true, turnLeftMs: this.pausedLeft } : {}),
+    });
   }
 
-  private armTurnTimer(): void {
+  private armTurnTimer(ms0?: number): void {
     if (this.turnTimer) clearTimeout(this.turnTimer);
-    const ms = this.rules.turnSeconds * 1000;
+    this.pausedLeft = null;
+    // P2-NET-05: a new turn for a player who is away waits for them (their wait / budget decides the match)
+    if (this.turnAway()) {
+      this.turnTimer = null;
+      this.deadline = 0;
+      this.pausedLeft = this.rules.turnSeconds * 1000;
+      return;
+    }
+    const ms = ms0 ?? this.rules.turnSeconds * 1000;
     this.deadline = Date.now() + ms;
     this.turnTimer = setTimeout(() => {
       const turn = this.mod.currentTurn(this.state_);
@@ -355,11 +484,20 @@ export class MatchRoom extends Room {
     return { ok: false, error };
   }
 
+  private unseat(): void {
+    for (const p of this.opts.players) if (liveSeats.get(p.userId)?.roomId === this.roomId) liveSeats.delete(p.userId);
+  }
+
   private async finish(reason: Reason, ranks: Record<string, number>, cause?: VoidCause | ForfeitCause, loser?: string): Promise<void> {
     if (this.finished) return;
     this.finished = true;
     this.clearTimers();
     live.delete(this.opts.matchId);
+    this.unseat();
+    for (const a of this.away.values()) a.wait?.reject();
+    this.away.clear();
+    // moderation trail (P2-NET-05): every end with its cause (the API adds an audit row for forfeits)
+    log.info({ event: `match.${reason}`, matchId: this.opts.matchId, game: this.opts.game, cause: cause ?? null, loser: loser ?? null, stake: this.opts.stake }, "match ended");
     const equal = Object.fromEntries(this.opts.players.map((p) => [p.userId, 1]));
     const signed = signResult(
       {

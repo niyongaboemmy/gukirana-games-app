@@ -25,6 +25,8 @@ let n = 0;
 const barred = new Map<string, string>();
 /** uid → the game whose friendly games are used up today */
 const friendlyDone = new Map<string, string>();
+/** uid → the game whose current rules card they haven't accepted (P2-NET-05) */
+const noRules = new Map<string, string>();
 
 interface Person {
   room: Room;
@@ -56,6 +58,7 @@ beforeAll(async () => {
       // the API's per-game rules: a friendly limit per game, and only its allowed stakes
       if (stake === 0 && g && friendlyDone.get(uid) === g) return { ok: false, reason: "FRIENDLY_LIMIT_REACHED", limit: 5 };
       if (stake === 30) return { ok: false, reason: "STAKE_NOT_ALLOWED" };
+      if (g && noRules.get(uid) === g) return { ok: false, reason: "RULES_NOT_ACCEPTED" };
       return stake > 0 && barred.has(uid) ? { ok: false, reason: barred.get(uid)! } : { ok: true };
     },
   });
@@ -171,5 +174,31 @@ describe("per-game rules from the API (P1-GAME-06)", () => {
     expect(refusalFor(e, "u-other", "igisoro")).toEqual({ reason: OPPONENT_CANT_PLAY, game: "igisoro" });
     expect(refusalFor(new ApiError("ALREADY_IN_MATCH", "u-busy"), "u-busy", "pool")).toEqual({ reason: "ALREADY_IN_MATCH", game: "pool" });
     expect(refusalFor(new ApiError("GAME_DISABLED"), "anyone", "pool")).toEqual({ reason: "GAME_DISABLED", game: "pool" });
+  });
+});
+
+describe("rules to accept (P2-NET-05)", () => {
+  it("without the current rules accepted a player is never seated: refused before anyone is asked or queued", async () => {
+    const me = await person();
+    const other = await person();
+    noRules.set(me.uid, "ludo");
+    await wait(150);
+    me.room.send("propose", { to: other.sid, game: "ludo", stake: 0 });
+    me.room.send("quickmatch-join", { game: "ludo", stake: 25 });
+    await wait(300);
+    expect(me.of("proposal-failed")).toEqual([{ reason: "RULES_NOT_ACCEPTED", game: "ludo" }]);
+    expect(me.of("quickmatch")).toEqual([{ status: "error", reason: "RULES_NOT_ACCEPTED", game: "ludo" }]);
+    expect(other.of("proposal")).toEqual([]);
+    // challenged by someone else: the one without the rules can't accept; the challenger hears only a neutral reason
+    other.room.send("propose", { to: me.sid, game: "ludo", stake: 0 });
+    await wait(250);
+    expect(other.of("proposal-failed")).toEqual([{ reason: OPPONENT_CANT_PLAY }]);
+    expect(JSON.stringify(other.inbox)).not.toMatch(/RULES_NOT_ACCEPTED/);
+    // another game's rules were accepted: that one works
+    me.room.send("propose", { to: other.sid, game: "pool", stake: 0 });
+    await wait(250);
+    expect(other.of("proposal")).toHaveLength(1);
+    await me.room.leave();
+    await other.room.leave();
   });
 });

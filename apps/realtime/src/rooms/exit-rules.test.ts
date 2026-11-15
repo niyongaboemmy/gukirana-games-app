@@ -43,7 +43,7 @@ vi.mock("../api-client.js", () => {
   };
 });
 
-const { MatchRoom, matchConfig, heartbeatOnce } = await import("./match-room.js");
+const { MatchRoom, matchConfig, heartbeatOnce, liveSeats } = await import("./match-room.js");
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const A = "00000000-0000-4000-8000-0000000000a1";
@@ -159,7 +159,7 @@ describe("disconnects", () => {
     a.room.connection.close(4010); // network drop, not a Leave
     await wait(250);
     expect(settled).toHaveLength(0); // still inside the window
-    expect(b.last("presence")).toEqual({ userId: A, connected: false });
+    expect(b.last("presence")).toMatchObject({ userId: A, connected: false });
     await wait(500);
     expect(settled.at(-1)).toMatchObject({ reason: "forfeit", ranks: { [A]: 2, [B]: 1 } });
     expect(b.last("result")).toMatchObject({ reason: "forfeit", cause: "DISCONNECT", loser: A });
@@ -301,5 +301,143 @@ describe("safety nets (never a stuck escrow)", () => {
     expect(beats.slice(before).flat()).not.toContain(matchId); // no longer reported
     await a.room.leave(true);
     await b.room.leave(true);
+  });
+});
+
+describe("resume after a reload or a lost connection, waiting for the opponent (P2-NET-05)", () => {
+  const C = "00000000-0000-4000-8000-0000000000c1";
+
+  it("drop and come back with the token inside the wait: same state, the game goes on; the turn clock waited", async () => {
+    const { roomId } = await create({ reconnectSeconds: 2, turnSeconds: 0.5 });
+    const { a, b } = await both(roomId);
+    a.room.send("intent", { pit: 0 });
+    await wait(150);
+    b.room.send("intent", { pit: 0 }); // back to A
+    await wait(150);
+    const before = a.last("state") as { hash: string; turn: string };
+    expect(before.turn).toBe(A);
+    const token = a.room.reconnectionToken;
+    a.room.connection.close(4010);
+    await wait(150);
+    expect(b.last("presence")).toMatchObject({ userId: A, connected: false, ms: 2000, drop: 1, maxDrops: 3 });
+    // A is on turn and away: the clock stopped — no timeout during the wait, even past turnSeconds
+    expect(b.last("state")).toMatchObject({ paused: true, deadline: 0 });
+    await wait(700);
+    expect(b.inbox.filter((m) => m.type === "timeout")).toHaveLength(0);
+    const back = await new Client(url).reconnect(token);
+    const inbox: Seat["inbox"] = [];
+    back.onMessage("*", (type, msg) => inbox.push({ type: String(type), msg: msg as Record<string, unknown> }));
+    back.send("sync");
+    await wait(200);
+    const st = inbox.filter((m) => m.type === "state").at(-1)?.msg as { hash: string; turn: string; deadline: number };
+    expect(st.hash).toBe(before.hash); // authoritative state restored, nothing moved meanwhile
+    expect(st.turn).toBe(A);
+    expect(st.deadline).toBeGreaterThan(Date.now()); // the clock runs again
+    expect(b.last("presence")).toMatchObject({ userId: A, connected: true, budget: { dropsLeft: 2 } });
+    expect(settled).toHaveLength(0);
+    await back.leave(true);
+    await wait(200);
+    await b.room.leave(true);
+  });
+
+  it("the token expired / the storage was lost: a fresh authenticated join re-seats the same player only", async () => {
+    const { roomId, matchId } = await create({ reconnectSeconds: 2 });
+    const { a, b } = await both(roomId);
+    expect(liveSeats.get(A)).toMatchObject({ roomId, matchId });
+    a.room.send("intent", { pit: 0 });
+    await wait(150);
+    a.room.connection.close(4010);
+    await wait(100);
+    await expect(join(roomId, C)).rejects.toThrow(); // never someone else in that seat
+    const a2 = await join(roomId, A); // a new tab / another device: the access token is enough
+    await wait(200);
+    expect(a2.last("init")).toMatchObject({ you: A, started: true, away: [] });
+    expect(a2.last("state")).toMatchObject({ turn: B });
+    expect(b.last("presence")).toMatchObject({ userId: A, connected: true });
+    await wait(2100); // past the old wait: no forfeit, the seat is theirs
+    expect(settled).toHaveLength(0);
+    expect(b.last("result")).toBeUndefined();
+    a2.room.send("resign");
+    await wait(250);
+    expect(settled).toHaveLength(1);
+    expect(liveSeats.has(A)).toBe(false);
+    await b.room.leave(true);
+  });
+
+  it("the opponent never comes back: the staying player wins by forfeit, settled exactly once", async () => {
+    const { roomId } = await create({ reconnectSeconds: 0.4 });
+    const { a, b } = await both(roomId);
+    a.room.send("intent", { pit: 0 });
+    await wait(150);
+    b.room.connection.close(4010);
+    await wait(150);
+    expect(a.last("presence")).toMatchObject({ userId: B, connected: false, ms: 400 });
+    expect(a.last("init")).toMatchObject({ budget: { dropsLeft: 3 } });
+    await wait(600);
+    expect(settled).toHaveLength(1);
+    expect(settled[0]).toMatchObject({ reason: "forfeit", ranks: { [A]: 1, [B]: 2 } });
+    expect(a.last("result")).toMatchObject({ reason: "forfeit", cause: "DISCONNECT", loser: B });
+    await a.room.leave(true);
+  });
+
+  it("reconnect budget: past maxDisconnects the next drop forfeits at once; the total time away is capped too", async () => {
+    const { roomId } = await create({ reconnectSeconds: 3, maxDisconnects: 1 });
+    const { a, b } = await both(roomId);
+    a.room.send("intent", { pit: 0 });
+    await wait(150);
+    a.room.connection.close(4010);
+    await wait(100);
+    const a2 = await join(roomId, A);
+    await wait(150);
+    expect(b.last("presence")).toMatchObject({ userId: A, connected: true, budget: { dropsLeft: 0 } });
+    a2.room.connection.close(4010); // a second drop with none left
+    await wait(250);
+    expect(b.last("presence")).toMatchObject({ userId: A, connected: false, ms: 0, budgetOut: true });
+    expect(b.last("result")).toMatchObject({ reason: "forfeit", cause: "DISCONNECT", loser: A });
+    await b.room.leave(true);
+
+    // total budget: one wait is cut to what is left of the time away
+    const m2 = await create({ reconnectSeconds: 3, reconnectBudgetSeconds: 0.5 });
+    const p = await both(m2.roomId);
+    p.a.room.send("intent", { pit: 0 });
+    await wait(150);
+    p.a.room.connection.close(4010);
+    await wait(100);
+    expect(p.b.last("presence")).toMatchObject({ userId: A, connected: false, ms: 500 });
+    await wait(600);
+    expect(p.b.last("result")).toMatchObject({ reason: "forfeit", cause: "DISCONNECT", loser: A });
+    await p.b.room.leave(true);
+  });
+
+  it("friendly: the staying player may leave without waiting (void, no penalty); staked: they must wait", async () => {
+    const { roomId, matchId } = await create({ reconnectSeconds: 5 }, 0);
+    const { a, b } = await both(roomId);
+    b.room.send("leave-waiting");
+    await wait(100);
+    expect(b.last("rejected")).toEqual({ reason: "OPPONENT_CONNECTED" });
+    a.room.send("intent", { pit: 0 });
+    await wait(150);
+    a.room.connection.close(4010);
+    await wait(100);
+    b.room.send("leave-waiting");
+    await wait(200);
+    expect(settled).toHaveLength(0);
+    expect(voided).toEqual([{ id: matchId, cause: "LEFT_WHILE_WAITING" }]);
+    expect(b.last("result")).toMatchObject({ reason: "void", cause: "LEFT_WHILE_WAITING" });
+    await b.room.leave(true);
+
+    const staked = await create({ reconnectSeconds: 5 }, 25);
+    const s = await both(staked.roomId);
+    s.a.room.send("intent", { pit: 0 });
+    await wait(150);
+    s.a.room.connection.close(4010);
+    await wait(100);
+    s.b.room.send("leave-waiting");
+    await wait(150);
+    expect(s.b.last("rejected")).toEqual({ reason: "STAKED_MUST_WAIT" });
+    expect(s.b.last("result")).toBeUndefined();
+    s.b.room.send("resign"); // a Leave is still a Leave: forfeit by the one who leaves
+    await wait(200);
+    expect(s.b.last("result")).toMatchObject({ reason: "forfeit", cause: "RESIGN", loser: B });
   });
 });
