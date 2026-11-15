@@ -1,0 +1,601 @@
+{
+ "perf": [
+  {
+   "n": "a1-jab-head-1",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "round",
+    "f": [
+     [
+      "jab",
+      7,
+      982,
+      1000,
+      0,
+      0,
+      null
+     ],
+     [
+      "staggered",
+      3,
+      912,
+      847,
+      11,
+      0,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "a1-jab-head-2",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "round",
+    "f": [
+     [
+      "idle",
+      0,
+      1000,
+      1000,
+      0,
+      0,
+      null
+     ],
+     [
+      "idle",
+      0,
+      927,
+      848,
+      11,
+      0,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "a2-cross-head-1",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "round",
+    "f": [
+     [
+      "cross",
+      8,
+      960,
+      1000,
+      0,
+      0,
+      null
+     ],
+     [
+      "blockHit",
+      1,
+      917,
+      899,
+      11,
+      0,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "a2-cross-head-2",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "round",
+    "f": [
+     [
+      "cross",
+      14,
+      960,
+      1000,
+      0,
+      0,
+      null
+     ],
+     [
+      "idle",
+      0,
+      926,
+      902,
+      11,
+      0,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "a3-lead-hook-head-1",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "round",
+    "f": [
+     [
+      "staggered",
+      3,
+      858,
+      930,
+      0,
+      40,
+      null
+     ],
+     [
+      "cross",
+      11,
+      865,
+      906,
+      11,
+      0,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "a3-lead-hook-head-2",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "round",
+    "f": [
+     [
+      "staggered",
+      8,
+      858,
+      930,
+      0,
+      40,
+      null
+     ],
+     [
+      "cross",
+      16,
+      865,
+      909,
+      11,
+      0,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "a4-rear-hook-head-1",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "round",
+    "f": [
+     [
+      "rhook",
+      2,
+      915,
+      951,
+      0,
+      40,
+      null
+     ],
+     [
+      "idle",
+      0,
+      946,
+      907,
+      11,
+      0,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "a4-rear-hook-head-2",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "round",
+    "f": [
+     [
+      "rhook",
+      7,
+      915,
+      953,
+      0,
+      40,
+      null
+     ],
+     [
+      "idle",
+      0,
+      961,
+      909,
+      11,
+      0,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "a5-uppercut-1",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "round",
+    "f": [
+     [
+      "uppercut",
+      2,
+      914,
+      915,
+      0,
+      40,
+      null
+     ],
+     [
+      "cross",
+      13,
+      860,
+      907,
+      11,
+      0,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "a5-uppercut-2",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "round",
+    "f": [
+     [
+      "uppercut",
+      7,
+      914,
+      918,
+      0,
+      40,
+      null
+     ],
+     [
+      "cross",
+      18,
+      860,
+      910,
+      11,
+      0,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "a6-body-shot-stomach-1",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "round",
+    "f": [
+     [
+      "cross",
+      8,
+      910,
+      932,
+      0,
+      40,
+      null
+     ],
+     [
+      "idle",
+      0,
+      913,
+      878,
+      40,
+      15,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "a6-body-shot-stomach-2",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "round",
+    "f": [
+     [
+      "cross",
+      14,
+      910,
+      935,
+      0,
+      40,
+      null
+     ],
+     [
+      "cross",
+      3,
+      879,
+      881,
+      40,
+      15,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "a7-hook-to-the-ribs-1",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "round",
+    "f": [
+     [
+      "staggered",
+      4,
+      861,
+      814,
+      19,
+      59,
+      null
+     ],
+     [
+      "jab",
+      9,
+      897,
+      907,
+      40,
+      15,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "a7-hook-to-the-ribs-2",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "round",
+    "f": [
+     [
+      "idle",
+      0,
+      886,
+      816,
+      19,
+      59,
+      null
+     ],
+     [
+      "stepOut",
+      5,
+      889,
+      910,
+      40,
+      15,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "d1-knockdown",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "round",
+    "f": [
+     [
+      "idle",
+      0,
+      961,
+      779,
+      30,
+      59,
+      null
+     ],
+     [
+      "idle",
+      0,
+      718,
+      39,
+      40,
+      15,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "d2-count",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "round",
+    "f": [
+     [
+      "idle",
+      0,
+      966,
+      811,
+      30,
+      59,
+      null
+     ],
+     [
+      "cross",
+      12,
+      702,
+      77,
+      40,
+      15,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "d3-get-up",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "round",
+    "f": [
+     [
+      "idle",
+      0,
+      971,
+      815,
+      30,
+      59,
+      null
+     ],
+     [
+      "idle",
+      0,
+      712,
+      81,
+      40,
+      15,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "d4-my-get-up-task",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "knockdown",
+    "count": 2,
+    "counted": {
+     "to": 0,
+     "standing": false
+    },
+    "f": [
+     [
+      "down",
+      0,
+      971,
+      0,
+      30,
+      59,
+      {
+       "got": 0,
+       "need": 4
+      }
+     ],
+     [
+      "idle",
+      0,
+      844,
+      104,
+      40,
+      15,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "d5-get-up-progress",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "knockdown",
+    "count": 4,
+    "counted": {
+     "to": 0,
+     "standing": false
+    },
+    "f": [
+     [
+      "down",
+      0,
+      971,
+      0,
+      30,
+      59,
+      {
+       "got": 4,
+       "need": 4
+      }
+     ],
+     [
+      "idle",
+      0,
+      844,
+      104,
+      40,
+      15,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "n": "d6-up-again",
+   "calls": 8,
+   "tris": 94639,
+   "fps": 60,
+   "snap": {
+    "phase": "round",
+    "f": [
+     [
+      "rising",
+      11,
+      971,
+      721,
+      30,
+      59,
+      null
+     ],
+     [
+      "idle",
+      0,
+      909,
+      115,
+      40,
+      15,
+      null
+     ]
+    ]
+   }
+  }
+ ],
+ "logs": []
+}

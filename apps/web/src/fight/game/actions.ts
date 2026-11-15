@@ -141,7 +141,10 @@ export const fightInput = {
     ui.pressed(a, via);
     const snap = mine.snap;
     const me = snap?.fighters[mine.corner === "blue" ? 1 : 0];
-    if (!snap || snap.phase !== "round") {
+    // (fighter life: on the canvas every press is a get-up press)
+    const gettingUp = !!snap?.life && snap.phase === "knockdown" && me?.act === "down";
+    if (gettingUp) ui.confirm("confirmed");
+    else if (!snap || snap.phase !== "round") {
       // presses outside a round are dropped by the engine: say why instead of doing nothing
       ui.confirm("dropped");
       if (snap && (snap.phase === "countdown" || snap.phase === "intro" || snap.phase === "rest")) ui.hint("hud.waitBell");

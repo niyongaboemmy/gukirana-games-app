@@ -121,6 +121,28 @@ See docs/PEOPLE-BEHAVIOUR.md.
   from primitives at runtime.
 - **No new assets for footsteps.** Footsteps are synthesised at runtime from noise; no samples.
 
+## Ring people (boxers, referee, corner staff, judges) — `boxer-m.glb`, `boxer-f.glb` (P3-FGT-13, ~3.3 MB each, lazy)
+
+| File | Source assets | Author | Licence |
+| --- | --- | --- | --- |
+| `boxer-m.glb`, `boxer-f.glb` | MakeHuman 1.x: `makehuman/data/3dobjs/base.obj` (base mesh hm08), `data/targets/macrodetails/*.target` (gender / age / muscle / weight / height / proportions / ethnic macro targets), `data/rigs/default.mhskel` + `default_weights.mhw` (skeleton and skin weights) — https://github.com/makehumancommunity/makehuman at commit `a8bc2d54ff0ac92e78ff71431b1023eda42bf482` | MakeHuman team (Data Collection AB, Joel Palmius, Jonas Hauquier and contributors) | **CC0 1.0** (`LICENSE.ASSETS.md` of that repository; every target / weights file carries the CC0 notice) |
+
+- **What we made from them** (`apps/web/scripts/boxer/build.mjs`, run with `MH_DIR=<checkout>/makehuman/data`):
+  - the body: the base mesh's `body` group plus the eye, eyelash and teeth helpers, morphed with the macro targets to
+    an adult (25–30 y) athletic build per gender (muscle 0.92 / 0.84, weight 0.42 / 0.44); three body-type morph
+    targets (heavy, slim, mature) are stored with the matching joint offsets;
+  - the skeleton: the 163 MakeHuman bones merged into 64 bones named like the Rocketbox `Bip01` rig (so the boxing
+    rig layer drives it), keeping jaw, eyelids, brows and mouth corners for the face; skin weights merged
+    accordingly (top four per vertex);
+  - the garments, generated from the body itself (no third-party clothing): vest with arm holes and neckline,
+    knee-length trunks (from the `helper-tights` group), high boots (a lofted last), socks, hand wraps, laced gloves,
+    padded open-face headgear, the referee's shirt / collar / bow tie / trousers / shoes, the staff polo and a short
+    hair cap;
+  - vertex data for our own shader: material slot, cavity (muscle definition), hit zones, face paint (lips, brows,
+    eye sockets, beard). No textures are shipped.
+- MakeHuman skins (textures), proxies, clothes and hair are **not** used (they are not in the code repository and
+  we did not need them). Nothing from Mixamo or any store.
+
 ## Environment — `apps/web/public/assets/env/` (payload 5.3 MB)
 
 All from Poly Haven (https://polyhaven.com), licence **CC0 1.0** (public domain, no attribution required;

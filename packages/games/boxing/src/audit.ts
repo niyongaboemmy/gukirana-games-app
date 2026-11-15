@@ -38,6 +38,8 @@ export type FightOp =
 export interface FightLog {
   /** the engine the log was recorded with (absent = v1, P3-FGT-06 logs; 2 = engine v2, P3-FGT-10) */
   engine?: 2;
+  /** fighter life rules (P3-FGT-13); absent on logs recorded before them (those replay with the P3-FGT-10 rules) */
+  life?: 1;
   players: [string, string];
   rules: FightRules;
   staked: boolean;
@@ -45,7 +47,7 @@ export interface FightLog {
 }
 
 export function newFightLog(players: [string, string], rules: FightRules, staked: boolean): FightLog {
-  return { engine: 2, players, rules, staked, ops: [] };
+  return { engine: 2, life: 1, players, rules, staked, ops: [] };
 }
 
 /** a fight state from either engine (v1 states have no `v`) */
@@ -73,7 +75,7 @@ export function replayAny(log: FightLog): AnyFightState {
 /** replay a v2 log from scratch (pure) */
 export function replayFight(log: FightLog): FightState {
   if (log.engine !== 2) throw new Error("ENGINE_V1_LOG: use replayAny / v1.replayFight");
-  let s = createFight(log.players, log.rules, { staked: log.staked });
+  let s = createFight(log.players, log.rules, { staked: log.staked, life: log.life === 1 ? 1 : 0 });
   for (const op of log.ops) {
     switch (op.o) {
       case "begin":

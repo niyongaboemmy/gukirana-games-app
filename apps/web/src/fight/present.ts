@@ -25,6 +25,8 @@ export interface PoseCmd {
   reach?: number;
   /** a new instance of the same clip (restart even if the clip name is unchanged) */
   key: string;
+  /** punches: contact IK target (motion.ts fitAim; the renderer fills it from the other fighter's body) */
+  aim?: readonly [number, number, number];
 }
 
 export interface PresentCtx {
@@ -141,15 +143,36 @@ export function presentFighter(f: FighterView, phase: FightPhase, ctx: PresentCt
   return cmd("guardIdle", 0, "guard");
 }
 
-/** a hit reaction on the target of a clean hit (power-scaled); partial uppercut hits through the guard are small */
-export function reactionFor(e: Extract<FightEvent, { k: "hit" }>, composureAfter: number): { clip: BoxingClipName; intensity: number } {
-  const power = e.punch === "jab" ? 0.45 : e.punch === "cross" || e.punch === "hook" ? 0.75 : 1;
+/**
+ * The reaction on the target of a hit (P3-FGT-13, docs/FIGHT-REALISM-V3.md §4): where it lands and which way the punch
+ * travels decide the clip, the punch's weight the size.
+ *  - head: a straight snaps the head straight back; a lead hook (the attacker's lead hand, from the target's right)
+ *    turns it to the target's left, a rear hook to the right; an uppercut snaps the chin up. A heavy straight (a
+ *    counter, or the balance low) rocks the fighter back a step.
+ *  - body: a straight / uppercut folds the torso over the stomach (the guard drops, a breath out); a lead hook lands on
+ *    the right side (the liver) and folds to the right, a rear hook on the left side.
+ *  - partial (through the guard / smothered): the same direction, a third of the size.
+ * Both fighters are orthodox in the motion library (a southpaw mirrors the sides).
+ */
+export function reactionFor(e: Extract<FightEvent, { k: "hit" }>, composureAfter: number, southpawAttacker = false): { clip: BoxingClipName; intensity: number } {
+  const power = e.punch === "jab" ? 0.5 : e.punch === "cross" || e.punch === "hook" ? 0.78 : 1;
   const partial = e.combo === 0;
   const body = !!e.body;
-  const heavy = power >= 0.75 && !partial;
-  const clip: BoxingClipName = body ? (heavy ? "hitBodyHeavy" : "hitBodyLight") : heavy ? "hitHeadHeavy" : "hitHeadLight";
+  const lead = e.punch === "hook" ? !southpawAttacker : e.punch === "rhook" ? southpawAttacker : null;
+  let clip: BoxingClipName;
+  if (body) clip = lead === null ? (power >= 0.78 && !partial ? "hitBodyHeavy" : "hitBodyLight") : lead ? "hitBodyLead" : "hitBodyRear";
+  else if (e.punch === "uppercut") clip = "hitUppercut";
+  else if (lead !== null) clip = lead ? "hitHookFromLead" : "hitHookFromRear";
+  else clip = !partial && (e.counter || composureAfter < 300) && e.punch === "cross" ? "hitHeadHeavy" : "hitStraight";
   const shaky = composureAfter < 350 ? 1.15 : 1;
-  return { clip, intensity: Math.min(1, (partial ? 0.35 : power) * shaky) };
+  const counter = e.counter ? 1.12 : 1;
+  return { clip, intensity: Math.min(1, (partial ? 0.34 : power) * shaky * counter) };
+}
+
+/** the defender's response to a punch landing on the guard: the gloves driven back (head) / the elbows clamped (body) */
+export function blockReaction(e: Extract<FightEvent, { k: "block" }>): { clip: BoxingClipName; intensity: number } {
+  const power = e.punch === "jab" ? 0.45 : e.punch === "cross" || e.punch === "hook" ? 0.75 : 1;
+  return { clip: e.body ? "blockLow" : "blockImpact", intensity: power };
 }
 
 /** face moods on top of the clips' own expressions (0..1 each) */

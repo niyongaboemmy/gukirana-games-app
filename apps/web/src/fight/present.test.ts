@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { TICK_HZ, type FighterView } from "@gukirana/contracts";
 import { BODY_SEP, PUNCH_SPECS } from "@gukirana/boxing";
-import { BOXING_CLIPS } from "@/world/human/boxing/clips";
-import { canvasGapOf, clampInRing, gapOf, hitFeel, layoutOf, moodOf, presentFighter, reactionFor, refereeSpot, ringLayout, shakeFor, TARGET_FWD, warp, windOf } from "./present";
+import { BOXING_CLIPS, sampleClip } from "@/world/human/boxing/clips";
+import { P } from "@/world/human/boxing/pose";
+import { blockReaction, canvasGapOf, clampInRing, gapOf, hitFeel, layoutOf, moodOf, presentFighter, reactionFor, refereeSpot, ringLayout, shakeFor, TARGET_FWD, warp, windOf } from "./present";
 import { hitStopAt, resetRingClock, ringTimeAt } from "./ring-clock";
 
 const f = (p: Partial<FighterView> = {}): FighterView => ({
@@ -59,10 +60,39 @@ describe("engine → motion (present.ts)", () => {
     const jab = reactionFor({ k: "hit", t: 2, by: 1, punch: "jab", points: 1, counter: false, combo: 1 }, 900);
     const hook = reactionFor({ k: "hit", t: 2, by: 1, punch: "hook", points: 3, counter: false, combo: 1 }, 900);
     expect(jab.intensity).toBeLessThan(hook.intensity);
-    expect(jab.clip).toBe("hitHeadLight");
-    expect(hook.clip).toBe("hitHeadHeavy");
     const partial = reactionFor({ k: "hit", t: 2, by: 1, punch: "uppercut", points: 1, counter: false, combo: 0 }, 900);
     expect(partial.intensity).toBeLessThan(0.5);
+  });
+  it("hit reactions follow where the punch lands and which way it travels (P3-FGT-13)", () => {
+    const hit = (punch: "jab" | "cross" | "hook" | "rhook" | "uppercut", o: { body?: boolean; counter?: boolean; combo?: number } = {}) =>
+      reactionFor({ k: "hit", t: 2, by: 1, punch, points: 2, counter: !!o.counter, combo: o.combo ?? 1, ...(o.body ? { body: true } : {}) }, 900);
+    // head: straight → back, lead hook → the head turns to the target's left, rear hook → right, uppercut → up
+    expect(hit("jab").clip).toBe("hitStraight");
+    expect(hit("cross").clip).toBe("hitStraight");
+    expect(hit("cross", { counter: true }).clip).toBe("hitHeadHeavy");
+    expect(hit("hook").clip).toBe("hitHookFromLead");
+    expect(hit("rhook").clip).toBe("hitHookFromRear");
+    expect(hit("uppercut").clip).toBe("hitUppercut");
+    // body: straights fold over the stomach, hooks fold over the side they land on
+    expect(hit("jab", { body: true }).clip).toBe("hitBodyLight");
+    expect(hit("cross", { body: true }).clip).toBe("hitBodyHeavy");
+    expect(hit("hook", { body: true }).clip).toBe("hitBodyLead");
+    expect(hit("rhook", { body: true }).clip).toBe("hitBodyRear");
+    // a southpaw's lead hook comes from the other side
+    expect(reactionFor({ k: "hit", t: 2, by: 1, punch: "hook", points: 2, counter: false, combo: 1 }, 900, true).clip).toBe("hitHookFromRear");
+    // the head really goes the punch's way in the clips: yaw + = to the person's left, pitch − = chin up
+    const peak = (c: "hitHookFromLead" | "hitHookFromRear" | "hitUppercut" | "hitStraight") => sampleClip(c, 0.06);
+    expect(peak("hitHookFromLead")[P.hyaw]!).toBeGreaterThan(0.4);
+    expect(peak("hitHookFromRear")[P.hyaw]!).toBeLessThan(-0.3);
+    expect(peak("hitUppercut")[P.hp]!).toBeLessThan(-0.4);
+    expect(peak("hitStraight")[P.hp]!).toBeLessThan(-0.2);
+    // body shots fold the torso forward and drop a glove
+    const fold = sampleClip("hitBodyLead", 0.08);
+    expect(fold[P.lean]!).toBeGreaterThan(0.35);
+    expect(fold[P.ry]!).toBeLessThan(1.25);
+    // a block drives the gloves back towards the face
+    expect(blockReaction({ k: "block", t: 2, by: 1, punch: "cross" }).clip).toBe("blockImpact");
+    expect(blockReaction({ k: "block", t: 2, by: 1, punch: "cross", body: true }).clip).toBe("blockLow");
   });
   it("moods: wince after a hit, breathing when tired, joy / disappointment at the end", () => {
     expect(moodOf(f(), "round", 0.1, null).wince).toBeGreaterThan(0.5);
