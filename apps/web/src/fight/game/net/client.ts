@@ -212,9 +212,9 @@ const live: LiveFight = {
   },
   practiceStart: (ring) => void roomSend(BoxingHallMsg.practice, { ring }),
   practiceScore: (_ring, round, score) => void roomSend(BoxingHallMsg.practiceScore, { round, score }),
-  press: (a: BoxingAction) => {
+  press: (a: BoxingAction, body?: boolean) => {
     if (!fightRoom) return;
-    fightRoom.send(FightMsg.input, { seq: ++seq, a, g: guardHeld });
+    fightRoom.send(FightMsg.input, { seq: ++seq, a, g: guardHeld, ...(body ? { b: true } : {}) });
     const snap = useFightBridge.getState().mine?.snap;
     setMine({ predicted: { act: a, at: performance.now() }, ...(snap?.phase === "round" ? { begun: true } : {}) });
   },
@@ -222,6 +222,11 @@ const live: LiveFight = {
     if (!fightRoom || g === guardHeld) return;
     guardHeld = g;
     fightRoom.send(FightMsg.input, { seq: ++seq, g });
+  },
+  /** engine v2 footwork: the held direction, sent when it changes (the server keeps it until the next one) */
+  move: (mv: [number, number]) => {
+    if (!fightRoom) return;
+    fightRoom.send(FightMsg.input, { seq: ++seq, g: guardHeld, mv });
   },
 };
 

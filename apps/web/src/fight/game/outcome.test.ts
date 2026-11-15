@@ -48,8 +48,8 @@ describe("round verdict", () => {
 });
 
 describe("practice level goals", () => {
-  it("has a goal per level, from landing punches to a clear win", () => {
-    expect([1, 2, 3, 4, 5].map((l) => levelGoal(l).kind)).toEqual(["land", "land", "winRound", "win", "winClear"]);
+  it("has a goal per level that tests one real skill (P3-FGT-10): land, defend, counter, combinations, a clear win", () => {
+    expect([1, 2, 3, 4, 5].map((l) => levelGoal(l).kind)).toEqual(["land", "defend", "counters", "combos", "winClear"]);
     expect(levelGoal(9).level).toBe(5);
   });
   it("passes / fails a landing goal on the clean punches landed, with stars and tips", () => {
@@ -58,17 +58,27 @@ describe("practice level goals", () => {
     expect(pass.pass).toBe(true);
     expect(pass.progress).toEqual({ have: 10, need: 10 });
     expect(pass.stars).toBe(2); // the goal + accuracy, not the win
-    const fail = judgeGoal(levelGoal(2), outcome({ winner: 1 }), st, 0);
+    const fail = judgeGoal({ level: 1, kind: "land", n: 20 }, outcome({ winner: 1 }), st, 0);
     expect(fail.pass).toBe(false);
     expect(fail.stars).toBe(0);
     expect(fail.progress).toEqual({ have: 12, need: 20 });
+  });
+  it("defence and counter goals count the engine's own defences and counters", () => {
+    const theirs = Array.from({ length: 12 }, (_, k) => ({ k: k % 2 ? "parry" : "evade", t: k, by: 1, punch: "cross", how: "slip" }) as FightEvent);
+    const counters = Array.from({ length: 4 }, (_, k) => ({ k: "hit", t: 50 + k, by: 0, punch: "cross", points: 3, counter: true, combo: 1 }) as FightEvent);
+    const st = tallyStats(newStats(), [...theirs, ...counters]);
+    expect(st.sides[0]).toMatchObject({ defended: 12, counters: 4 });
+    expect(judgeGoal(levelGoal(2), outcome({ winner: 1 }), st, 0).pass).toBe(true);
+    expect(judgeGoal(levelGoal(3), outcome({ winner: 1 }), st, 0).pass).toBe(true);
+    expect(punchVerdict(counters[0]!, 0)).toMatchObject({ outcome: "counter", good: true });
+    expect(punchVerdict(theirs[1]!, 0)).toMatchObject({ outcome: "parried", good: true });
   });
   it("a clear win needs KO / RSC / unanimous; a split decision fails it", () => {
     const st = tallyStats(newStats(), [hit(0)]);
     expect(judgeGoal(levelGoal(5), outcome({ method: "UD" }), st, 0).pass).toBe(true);
     expect(judgeGoal(levelGoal(5), outcome({ method: "SD" }), st, 0).pass).toBe(false);
-    expect(judgeGoal(levelGoal(4), outcome({ method: "SD" }), st, 0).pass).toBe(true);
-    expect(judgeGoal(levelGoal(4), outcome({ winner: 1, method: "KO", decision: "stoppage" }), st, 0).tips[0]).toBe("tip.stamina");
+    expect(judgeGoal({ level: 4, kind: "win", n: 0 }, outcome({ method: "SD" }), st, 0).pass).toBe(true);
+    expect(judgeGoal({ level: 4, kind: "win", n: 0 }, outcome({ winner: 1, method: "KO", decision: "stoppage" }), st, 0).tips[0]).toBe("tip.stamina");
   });
   it("counts rounds won on the cards", () => {
     const o = outcome({

@@ -176,14 +176,24 @@ function Callouts({ snap, me, now }: { snap: BoxingSnapshot; me: 0 | 1; now: num
     const pv = age < 900 ? punchVerdict(e, me) : null;
     if (pv) {
       const why =
-        pv.outcome === "landed"
+        pv.outcome === "landed" || pv.outcome === "counter"
           ? e.k === "hit" && e.combo >= 2
             ? ft("hud.combo", { n: e.combo })
             : e.k === "hit" && e.counter
               ? ft("hud.counter")
               : ft("out.points", { n: pv.points })
           : pv.mine
-            ? ft(pv.outcome === "blocked" ? "hud.onGuard" : pv.outcome === "slipped" ? "hud.theySlipped" : "hud.missedFar")
+            ? ft(
+                pv.outcome === "blocked"
+                  ? "hud.onGuard"
+                  : pv.outcome === "parried"
+                    ? "hud.theyParried"
+                    : pv.outcome === "slipped" || pv.outcome === "ducked"
+                      ? "hud.theySlipped"
+                      : pv.offLine
+                        ? "hud.offLine"
+                        : "hud.missedFar",
+              )
             : "";
       outs.push({ id, word: ft(`out.${pv.outcome}` as FgKey), sub: pv.mine ? why : ft("out.theirs", { punch: ft(actionKey(pv.punch)) }), color: OUTCOME_COLOR[pv.outcome], mine: pv.mine });
     }

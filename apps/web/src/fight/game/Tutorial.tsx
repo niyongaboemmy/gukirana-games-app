@@ -61,7 +61,7 @@ export function Tutorial({ touch }: { touch: boolean }) {
   const finished = idx === -1 || left === 0;
   const vars = useMemo(() => {
     const v: Record<string, string> = {};
-    for (const a of ["guard", "jab", "cross", "hook", "uppercut", "slipL", "slipR", "stepIn", "stepOut"] as BindAction[]) v[a] = keyLabel(boundKey(keys, a));
+    for (const a of ["guard", "jab", "cross", "hook", "rhook", "uppercut", "up", "down", "left", "right", "evade", "body"] as BindAction[]) v[a] = keyLabel(boundKey(keys, a));
     v.key = v.guard!;
     return v;
   }, [keys]);

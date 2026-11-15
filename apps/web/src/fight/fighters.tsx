@@ -9,7 +9,7 @@ import { lookOf, useProfile } from "@/lib/profile-store";
 import { hiddenPeople, SELF_ID } from "@/rooms/hall-hooks";
 import { isOnScreen, useArea } from "@/world/stage";
 import { FightAvatar, newBody, RefereeAvatar, type RingBody } from "./fighter-avatar";
-import { clampInRing, hitFeel, moodOf, presentFighter, reactionFor, refereeSpot, ringLayout, ringSeed } from "./present";
+import { clampInRing, hitFeel, layoutOf, moodOf, presentFighter, reactionFor, refereeSpot, ringSeed } from "./present";
 import { cameraKick, hitStop } from "./ring-clock";
 import { focusNow, ringCulled } from "./focus";
 import { replayFrame } from "./game/replay";
@@ -168,8 +168,20 @@ interface Track {
   hitAt: number;
   /** smoothed ground speed (m/s): drives the shuffle */
   spd: number;
+  /** smoothed ground velocity (m/s, hall axes): which way the feet step (engine v2 footwork) */
+  vx: number;
+  vz: number;
 }
-const newTrack = (): Track => ({ key: "", since: 0, x: 0, z: 0, yaw: 0, init: false, hitAt: -1e9, spd: 0 });
+const newTrack = (): Track => ({ key: "", since: 0, x: 0, z: 0, yaw: 0, init: false, hitAt: -1e9, spd: 0, vx: 0, vz: 0 });
+
+/** the step direction of a boxer moving with (vx, vz) while facing yaw: forward / back / left / right, or planted */
+export function stepDirOf(vx: number, vz: number, yaw: number): "f" | "b" | "l" | "r" | null {
+  const fwd = vx * Math.sin(yaw) + vz * Math.cos(yaw);
+  const lat = vx * -Math.cos(yaw) + vz * Math.sin(yaw);
+  if (Math.hypot(fwd, lat) < 0.18) return null;
+  if (Math.abs(fwd) >= Math.abs(lat)) return fwd > 0 ? "f" : "b";
+  return lat > 0 ? "r" : "l";
+}
 
 function turn(a: number, b: number, k: number) {
   const d = Math.atan2(Math.sin(b - a), Math.cos(b - a));
@@ -274,9 +286,10 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
         cameraKick.v = Math.max(cameraKick.v, feel.kick);
       }
     }
-    // placement (P3-FGT-07 ringLayout): the canvas gap from the engine distance, the pair circling and drifting round
-    // the ring (ropes, corners, centre), presentation only
-    const lay = ringLayout(snap, place.half, ringSeed(slot.ring));
+    // placement: engine v2 snapshots carry the boxers' real places (footwork, solid bodies, the ropes: layoutOf);
+    // the far rings' sparring loops keep the P3-FGT-07 presentation layout
+    const lay = layoutOf(snap, place.half, ringSeed(slot.ring), place.rotY);
+    const v2 = snap.engine === 2;
     const half = lay.half;
     const ax = Math.cos(lay.th);
     const az = Math.sin(lay.th);
@@ -288,7 +301,7 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
     const down = snap.fighters.findIndex((f) => f.act === "down") as 0 | 1 | -1;
     // a clinch: in close, both idle (presentation; the engine's break field, when present, makes it official)
     const breakLeft = (snap as { breakLeft?: number }).breakLeft ?? 0;
-    const close = snap.phase === "round" && snap.dist <= 80 && snap.fighters.every((f) => f.act === "idle");
+    const close = snap.phase === "round" && (v2 ? !!snap.clinch || snap.fighters.every((f) => f.act === "clinch") : snap.dist <= 80 && snap.fighters.every((f) => f.act === "idle"));
     if (close || breakLeft > 0) {
       if (ph.clinchSince < 0) ph.clinchSince = t;
     } else ph.clinchSince = -1;
@@ -319,8 +332,12 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
       const faceYaw = rest || counted ? Math.atan2(-tx, -tz) : Math.atan2(-s * ax, -s * az);
       const px0 = tr.x;
       const pz0 = tr.z;
-      const walking = moveTo(tr, tx, tz, faceYaw, dt, false);
-      tr.spd += ((dt > 0 ? Math.hypot(tr.x - px0, tr.z - pz0) / dt : 0) - tr.spd) * Math.min(1, dt * 8);
+      // engine v2: the boxers are never walked across the ring by the presentation (no walk cycle); they step
+      const walking = moveTo(tr, tx, tz, faceYaw, dt, false) && !(v2 && !rest && !counted);
+      const kv = Math.min(1, dt * 8);
+      tr.spd += ((dt > 0 ? Math.hypot(tr.x - px0, tr.z - pz0) / dt : 0) - tr.spd) * kv;
+      tr.vx += ((dt > 0 ? (tr.x - px0) / dt : 0) - tr.vx) * kv;
+      tr.vz += ((dt > 0 ? (tr.z - pz0) / dt : 0) - tr.vz) * kv;
       grp?.position.set(place.x + tr.x, place.canvasY, place.z + tr.z);
       if (grp) grp.rotation.y = tr.yaw;
       // my own press shows at once (prediction), the next snapshot corrects it
@@ -334,7 +351,8 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
       const won = winner === -1 ? null : winner === i;
       const body = bodies[i]!.current!;
       body.walk = walking;
-      body.cmd = walking ? null : presentFighter(view, phase, { actSince: t - tr.since, phaseSince, clinch, tick, gap: half * 2 }, won);
+      const moveDir = v2 && phase === "round" ? stepDirOf(tr.vx, tr.vz, tr.yaw) : null;
+      body.cmd = walking ? null : presentFighter(view, phase, { actSince: t - tr.since, phaseSince, clinch, tick, gap: half * 2, moveDir, moveSpeed: tr.spd }, won);
       body.mood = moodOf(view, phase, t - tr.hitAt, won);
       // ring life while the round is live: fresher = bouncier; tired late in the round = heavier feet, lower gloves
       const live = (phase === "round" || phase === "countdown") && !walking && view.act !== "down" && !clinch;
@@ -347,12 +365,26 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
       // stay on the far side of the pair from the camera (he walks round when the camera changes sides)
       const camSide = (camera.position.x - place.x) * -az + (camera.position.z - place.z) * ax >= 0 ? 1 : -1;
       if (!ph.refSide || ph.refSide === camSide) ph.refSide = -camSide;
-      const spot = refereeSpot(phase, { dist: snap.dist, down, winner: winner === -1 ? null : (winner as 0 | 1), breaking, half: place.half, t: tick / TICK_HZ });
+      const spot = refereeSpot(phase, { dist: snap.dist, down, winner: winner === -1 ? null : (winner as 0 | 1), breaking, half: place.half, t: tick / TICK_HZ, ...(v2 ? { gap: half * 2 } : {}) });
       const px = -az * ph.refSide;
       const pz = ax * ph.refSide;
       // round the pair's middle (it drifts round the ring), never through the ropes
       const mid = phase === "rest" ? { x: 0, z: 0 } : { x: lay.cx, z: lay.cz };
-      const ra = clampInRing(mid.x + spot.x * ax + spot.z * px, mid.z + spot.x * az + spot.z * pz, place.rotY, inside);
+      let ra = clampInRing(mid.x + spot.x * ax + spot.z * px, mid.z + spot.x * az + spot.z * pz, place.rotY, inside);
+      // the referee is a body too: never inside a boxer (keep 0.75 m from each, then back inside the ropes)
+      for (let k = 0; k < 3; k++) {
+        for (const tb of [trs[0]!, trs[1]!]) {
+          const dx = ra.x - tb.x;
+          const dz = ra.z - tb.z;
+          const d = Math.hypot(dx, dz);
+          if (d < 0.75) {
+            const ux = d > 1e-3 ? dx / d : px;
+            const uz = d > 1e-3 ? dz / d : pz;
+            ra = { x: tb.x + ux * 0.75, z: tb.z + uz * 0.75 };
+          }
+        }
+        ra = clampInRing(ra.x, ra.z, place.rotY, inside);
+      }
       const rx = ra.x;
       const rz = ra.z;
       const tr = trs[2]!;

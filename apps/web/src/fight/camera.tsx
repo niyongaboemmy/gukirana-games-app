@@ -9,7 +9,7 @@ import { RING_BY_ID, type RingPlace } from "./plan";
 import { useFightUi } from "./ui-store";
 import { useFightUi as useGameUi } from "./game/ui-store";
 import { useFightPrefs } from "./game/prefs";
-import { clampInRing, ringLayout, ringSeed, shakeFor } from "./present";
+import { clampInRing, layoutOf, ringSeed, shakeFor } from "./present";
 import { cameraKick } from "./ring-clock";
 import { replaySnap } from "./game/replay";
 
@@ -70,7 +70,7 @@ const _probeL = new THREE.Vector3();
 function shot(ring: RingPlace, snap: BoxingSnapshot | null, me: 0 | 1, side: number, mode: "fight" | "behind", eye: THREE.Vector3, look: THREE.Vector3, aspect: number): void {
   // the pair as the fighters layer places it (P3-FGT-07 ringLayout: circling, drifting round the ring); the shots
   // frame the pair's middle, which moves, so the camera operator follows it (the corner shot stays on the ring)
-  const lay = snap ? ringLayout(snap, ring.half, ringSeed(ring.id)) : { cx: 0, cz: 0, th: 0, half: 0.75 };
+  const lay = snap ? layoutOf(snap, ring.half, ringSeed(ring.id), ring.rotY) : { cx: 0, cz: 0, th: 0, half: 0.75 };
   const ax = Math.cos(lay.th);
   const az = Math.sin(lay.th);
   const px = -az * side;
@@ -180,7 +180,7 @@ export function FightCamera() {
     _fpos.copy(camera.position);
     _flook.copy(camera.position).addScaledVector(_fwd, 5);
     const snap = mine ? (replaySnap() ?? mine.snap) : (b.watched?.snap ?? null);
-    const th = snap ? ringLayout(snap, r.half, ringSeed(r.id)).th : 0;
+    const th = snap ? layoutOf(snap, r.half, ringSeed(r.id), r.rotY).th : 0;
     const ax = Math.cos(th);
     const az = Math.sin(th);
     if (!seeded.current) {

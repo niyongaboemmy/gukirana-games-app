@@ -1,4 +1,5 @@
 "use client";
+import type { Punch } from "@gukirana/contracts";
 import type { BoxingSnapshot, FightEvent } from "@gukirana/contracts";
 import { bell, buzz, crowdReact, outcomeCue, punchSound, say } from "./audio";
 import { punchVerdict } from "./outcome";
@@ -57,19 +58,20 @@ export function eventFx(e: FightEvent, me: 0 | 1, snap?: BoxingSnapshot | null):
       cornerTimer = setTimeout(() => line(cornerLine(snap, me, e.points), "corner"), 3200);
       break;
     case "hit": {
-      punchSound(e.punch, "hit", e.t, true);
+      punchSound(soundOf(e.punch), "hit", e.t, true);
       const big = (e.punch === "hook" || e.punch === "uppercut") && e.points >= 3;
       if (big || e.combo >= 3) crowdReact("roar");
       buzz(mine ? 14 : big ? 45 : 28, mine ? 0.3 : big ? 1 : 0.6);
       break;
     }
     case "block":
-      punchSound(e.punch, "block", e.t, true);
+    case "parry":
+      punchSound(soundOf(e.punch), "block", e.t, true);
       if (!mine) buzz(10, 0.25);
       break;
     case "whiff":
     case "evade":
-      punchSound(e.punch, "whiff", e.t, true);
+      punchSound(soundOf(e.punch), "whiff", e.t, true);
       break;
     case "knockdown":
       crowdReact("ooh");
@@ -100,4 +102,9 @@ export function eventFx(e: FightEvent, me: 0 | 1, snap?: BoxingSnapshot | null):
       if (k === "dq") line("voice.stop", "referee");
       break;
   }
+}
+
+/** the punch sound set has one hook: the rear hook sounds like it (heavier by the engine's points already) */
+function soundOf(p: Punch): Exclude<Punch, "rhook"> {
+  return p === "rhook" ? "hook" : p;
 }

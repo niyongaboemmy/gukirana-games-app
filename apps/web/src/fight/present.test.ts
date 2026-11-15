@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { TICK_HZ, type FighterView } from "@gukirana/contracts";
-import { PUNCH_SPECS } from "@gukirana/boxing";
+import { BODY_SEP, PUNCH_SPECS } from "@gukirana/boxing";
 import { BOXING_CLIPS } from "@/world/human/boxing/clips";
-import { clampInRing, gapOf, hitFeel, moodOf, presentFighter, reactionFor, refereeSpot, ringLayout, shakeFor, TARGET_FWD, warp, windOf } from "./present";
+import { canvasGapOf, clampInRing, gapOf, hitFeel, layoutOf, moodOf, presentFighter, reactionFor, refereeSpot, ringLayout, shakeFor, TARGET_FWD, warp, windOf } from "./present";
 import { hitStopAt, resetRingClock, ringTimeAt } from "./ring-clock";
 
 const f = (p: Partial<FighterView> = {}): FighterView => ({
@@ -85,12 +85,23 @@ describe("engine → motion (present.ts)", () => {
     expect(refereeSpot("round", { dist: 200, down: -1, winner: null, breaking: false, half: 2.45 }).clip).toBe("refIdle");
   });
   it("ring layout: real exchange range, circling, never past the ropes (P3-FGT-07)", () => {
-    expect(gapOf(PUNCH_SPECS.jab.reach)).toBeCloseTo(0.98, 2);
-    expect(gapOf(PUNCH_SPECS.hook.reach)).toBeLessThan(gapOf(PUNCH_SPECS.jab.reach));
+    // v1 snapshots / far-ring loops (cm): the P3-FGT-07 mapping
+    expect(gapOf(190)).toBeCloseTo(0.98, 2);
+    expect(gapOf(130)).toBeLessThan(gapOf(190));
     expect(gapOf(30)).toBe(gapOf(70));
     expect(gapOf(1000)).toBe(gapOf(360));
-    // a jab landing at its reach: the glove fits the target within the reach-fit clamp
-    expect(gapOf(PUNCH_SPECS.jab.reach) - TARGET_FWD).toBeGreaterThan(0.7);
+    // engine v2 (mm): a jab landing at its reach fits the reach-fit clamp; bodies at the body line stay apart
+    expect(canvasGapOf(PUNCH_SPECS.jab.reach)).toBeCloseTo(0.98, 2);
+    expect(canvasGapOf(PUNCH_SPECS.jab.reach) - TARGET_FWD).toBeGreaterThan(0.7);
+    expect(canvasGapOf(BODY_SEP)).toBeGreaterThanOrEqual(0.62);
+    expect(canvasGapOf(PUNCH_SPECS.hook.reach)).toBeLessThan(canvasGapOf(PUNCH_SPECS.cross.reach));
+    // v2 layout = the engine's places (a turned ring is turned)
+    const snap2 = { dist: 100, orbit: 0, tick: 0, engine: 2, fighters: [{ x: -500, z: 0 }, { x: 500, z: 0 }] };
+    const l2 = layoutOf(snap2, 2.45, 7, 0);
+    expect(l2.cx).toBeCloseTo(0);
+    expect(l2.th).toBeCloseTo(0);
+    expect(l2.half * 2).toBeCloseTo(canvasGapOf(1000));
+    expect(layoutOf(snap2, 2.45, 7, Math.PI / 2).th).toBeCloseTo(-Math.PI / 2);
     const a = ringLayout({ dist: 200, orbit: 0, tick: 0 }, 2.45, 7);
     const b = ringLayout({ dist: 200, orbit: 0, tick: 300 }, 2.45, 7);
     expect(a).toEqual(ringLayout({ dist: 200, orbit: 0, tick: 0 }, 2.45, 7));

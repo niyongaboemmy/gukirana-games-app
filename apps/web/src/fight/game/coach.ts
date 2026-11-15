@@ -40,13 +40,13 @@ export function coachTip(i: CoachInput): CoachTip | null {
   // taking shots with the hands down
   if (theirs("hit") >= 3 && !me.guard) return "coach.guardUp";
   // swinging at air
-  if (mine("whiff") >= 2 && myHits === 0) return i.snap.dist > PUNCH_SPECS.jab.reach ? "coach.stepIn" : "coach.timing";
+  if (mine("whiff") >= 2 && myHits === 0) return i.snap.dist * 10 > PUNCH_SPECS.jab.reach ? "coach.stepIn" : "coach.timing";
   // everything lands on the gloves
   if (mine("block") >= 3 && myHits === 0) return "coach.mixUp";
   // they keep slipping
   if (mine("evade") >= 2 && myHits === 0) return "coach.feint";
   // standing still in a live round
-  if (i.now - i.lastPress > IDLE_NUDGE) return i.snap.dist > PUNCH_SPECS.jab.reach ? "coach.stepIn" : "coach.jab";
+  if (i.now - i.lastPress > IDLE_NUDGE) return i.snap.dist * 10 > PUNCH_SPECS.jab.reach ? "coach.stepIn" : "coach.jab";
   // they throw, I never defend: a slip or a guard
   if (theirs("hit") >= 2 && mine("hit") === 0 && theirs("block") === 0 && theirs("evade") === 0) return "coach.defend";
   return null;

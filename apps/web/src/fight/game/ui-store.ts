@@ -38,6 +38,9 @@ export interface FightUi {
   captionSet: (text: string, who: "referee" | "corner") => void;
   /** actions the player has done this session (tutorial steps) */
   done: Partial<Record<BoxingAction | "guard", number>>;
+  /** the footwork direction held right now (HUD key hints light up) */
+  mv: [number, number];
+  setMove: (mv: [number, number]) => void;
   push: (events: FightEvent[]) => void;
   hint: (k: FgKey) => void;
   pressed: (a: BoxingAction | "guard", via: PressFx["via"]) => void;
@@ -57,6 +60,8 @@ export const useFightUi = create<FightUi>()((set) => ({
   hintAt: 0,
   press: null,
   done: {},
+  mv: [0, 0],
+  setMove: (mv) => set((s) => (s.mv[0] === mv[0] && s.mv[1] === mv[1] ? s : { mv })),
   push: (events) =>
     set((s) => {
       const at = clock();
