@@ -94,7 +94,7 @@ function footpath(b: GeoBatch, x0: number, x1: number, z0: number, z1: number, k
   const len = x1 - x0;
   const cx = (x0 + x1) / 2;
   b.box("granite", len, 0.16, z1 - z0, { p: [cx, 0.04, (z0 + z1) / 2], tile: 2.4 });
-  b.box("concrete", len, 0.2, 0.16, { p: [cx, 0.06, kerbZ], tile: 2 });
+  b.box("concrete", len - 0.02, 0.2, 0.17, { p: [cx, 0.06, kerbZ], tile: 2 }); // 1 cm short of the slab ends, 5 mm proud of its edge
 }
 
 function guardBooth(b: GeoBatch, x: number, z: number) {
@@ -111,7 +111,7 @@ function guardBooth(b: GeoBatch, x: number, z: number) {
 /** Barrier arm across a link road (post on the booth side, red-and-white boom down). */
 function barrier(b: GeoBatch, x: number, z: number, dir: number) {
   b.box("steel", 0.3, 1.1, 0.3, { p: [x, 0.55, z] });
-  b.box("white", 0.4, 0.3, 0.3, { p: [x, 1.05, z] });
+  b.box("white", 0.4, 0.3, 0.34, { p: [x, 1.05, z] });
   const len = 6.2;
   b.box("white", len, 0.09, 0.09, { p: [x + dir * (len / 2), 1.0, z] });
   for (let k = 1; k < 6; k += 2) b.box("led-red", 0.5, 0.11, 0.11, { p: [x + dir * (k + 0.3), 1.0, z] });
@@ -228,7 +228,7 @@ export function buildFrontage(tier: Tier): Map<string, THREE.BufferGeometry> {
   {
     const g = SERVICE_GATE;
     b.box("asphaltC", g.hw * 2, 0.02, R.c0 - 73, { p: [g.x, 0.006, (R.c0 + 73) / 2], tile: 4 });
-    for (const s of [-1, 1]) b.box("lava", 0.8, 2.6, 0.8, { p: [g.x + s * (g.hw + 0.4), 1.3, FRONTAGE_Z], tile: 1.2 });
+    for (const s of [-1, 1]) b.box("lava", 0.84, 2.6, 0.84, { p: [g.x + s * (g.hw + 0.4), 1.3, FRONTAGE_Z], tile: 1.2 }); // the wall runs end 2 cm inside
     b.box("steel", g.hw * 2, 0.08, 0.08, { p: [g.x + g.hw * 0.9, 1.9, FRONTAGE_Z - 0.6] });
     b.box("steel", g.hw * 2, 0.08, 0.08, { p: [g.x + g.hw * 0.9, 0.25, FRONTAGE_Z - 0.6] });
     for (let x = 0; x <= g.hw * 2; x += 0.24) b.box("steel", 0.03, 1.65, 0.03, { p: [g.x - g.hw * 0.1 + x, 1.08, FRONTAGE_Z - 0.6] });

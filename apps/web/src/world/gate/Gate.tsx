@@ -67,7 +67,7 @@ export function buildGate(tier: Tier, Z: number = GATE_Z, variant: "arrival" | "
     // perimeter walls with an Imigongo frieze
     const wl = entry ? 7 : 17;
     b.box("lava", wl, 2.2, 0.6, { p: [s * (9.4 + wl / 2), 1.1, Z], tile: 1.2 });
-    b.box("imigongo", wl, 0.5, 0.62, { p: [s * (9.4 + wl / 2), 2.0, Z], uv: [Math.round(wl / 2.1), 1] });
+    b.box("imigongo", wl, 0.5, 0.62, { p: [s * (9.39 + wl / 2), 2.0, Z], uv: [Math.round(wl / 2.1), 1] }); // 1 cm into the pylon, 1 cm short of the wall end (its end faces shared both)
   }
   // turnstile cabinets (status LEDs for the centre lane are dynamic)
   for (const x of [-3.75, -2.25, -0.75, 0.75, 2.25, 3.75]) {

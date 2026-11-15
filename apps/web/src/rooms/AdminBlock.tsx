@@ -148,7 +148,7 @@ function buildStatic(h: number) {
   b.box("trim", OPENING.x1 - OPENING.x0, 0.04, WALL_T + 0.04, { p: [0, h - 0.7, SCREEN_Z] });
   // skirting: shadow-gap base along the outer and corridor walls
   for (const z of [FRONT_Z + WALL_T / 2 + 0.01, SCREEN_Z - WALL_T / 2 - 0.01, SCREEN_Z + WALL_T / 2 + 0.01]) b.box("trim", 36, 0.08, 0.02, { p: [0, 0.04, z] });
-  for (const s of [-1, 1]) b.box("trim", 0.02, 0.08, 28, { p: [s * 17.99, 0.04, 0] });
+  for (const s of [-1, 1]) b.box("trim", 0.02, 0.08, 28, { p: [s * 17.98, 0.04, 0] }); // 1 cm off the wall face (partition ends meet it)
   // recessed linear ceiling lights: lobby grid, corridor line, two per office
   for (const z of [5.2, 8.4, 11.6]) for (const s of [-1, 1]) b.box("light", 13, 0.02, 0.1, { p: [s * 9.5, h - 0.012, z] });
   b.box("light", 34, 0.02, 0.12, { p: [0, h - 0.012, (FRONT_Z + SCREEN_Z) / 2] });
@@ -161,7 +161,7 @@ function buildStatic(h: number) {
   b.box("stoneTop", R.w + 0.1, 0.05, R.d + 0.1, { p: [R.x, R.h - 0.025, R.z + 0.02] });
   b.box("laminate", R.w - 0.2, 0.04, 0.6, { p: [R.x, 0.74, R.z - 0.1] });
   b.box("accent", R.w, 0.025, 0.01, { p: [R.x, 0.86, R.z + R.d / 2 + 0.004] });
-  b.box("trim", R.w, 0.08, 0.06, { p: [R.x, 0.04, R.z + R.d / 2 - 0.08] });
+  b.box("trim", R.w - 0.02, 0.08, 0.06, { p: [R.x, 0.04, R.z + R.d / 2 - 0.08] });
   // counter return (west end) with a low cabinet
   b.box("oak", 0.6, 0.75, 0.9, { p: [R.x - R.w / 2 + 0.3, 0.375, R.z - 0.85] });
   b.box("stoneTop", 0.64, 0.04, 0.94, { p: [R.x - R.w / 2 + 0.3, 0.77, R.z - 0.85] });
@@ -181,10 +181,10 @@ function buildStatic(h: number) {
   b.box("rug", 4.4, 0.008, 5.2, { p: [15.4, 0.004, T.z] });
   // directory board frame, Imigongo triptych frames (behind reception), east-wall pair (lounge)
   b.box("metal", DIRECTORY.w + 0.12, DIRECTORY.h + 0.12, 0.05, { p: [DIRECTORY.x, DIRECTORY.y, SCREEN_Z + WALL_T / 2 + 0.025] });
-  for (const dx of [-1.3, 0, 1.3]) b.box("oakDark", 1.08, 2.08, 0.04, { p: [R.x + dx, 2.05, SCREEN_Z + WALL_T / 2 + 0.02] });
+  for (const dx of [-1.3, 0, 1.3]) b.box("oakDark", 1.08, 2.08, 0.04, { p: [R.x + dx, 2.05, SCREEN_Z + WALL_T / 2 + 0.055] });
   for (const dz of [-0.75, 0.75]) b.box("oakDark", 0.04, 1.78, 1.18, { p: [17.98, 2.15, LOUNGE.sofa.z + dz] });
   // the reception's feature wall: a warm accent band behind the triptych
-  b.box("accentWall", 5.4, h, 0.02, { p: [R.x, h / 2, SCREEN_Z + WALL_T / 2 + 0.01] });
+  b.box("accentWall", 5.4, h, 0.025, { p: [R.x, h / 2, SCREEN_Z + WALL_T / 2 + 0.0175] }); // 5 mm off the wall, 1 cm proud of the skirting
 
   /* ---------- offices ---------- */
   for (const o of OFFICE_PLANS) {
@@ -341,7 +341,7 @@ function OfficeDoors({ lite }: { lite: boolean }) {
             <boxGeometry args={[L - 0.01, DOOR_H - 0.01, 0.045]} />
           </mesh>
           <mesh material={mats.kick} position={[L / 2, 0.12, 0]}>
-            <boxGeometry args={[L - 0.06, 0.18, 0.05]} />
+            <boxGeometry args={[L - 0.06, 0.18, 0.056]} />
           </mesh>
           {/* lever handles on both faces, with their roses */}
           {[-1, 1].map((s) => (
@@ -383,10 +383,10 @@ function DoorSigns() {
     <group userData={{ noMerge: true }}>
       {OFFICE_PLANS.map((o, i) => (
         <group key={o.id}>
-          <mesh material={plates[i]} position={[o.cx + 1.66, 1.52, FRONT_Z + WALL_T / 2 + 0.0135]}>
+          <mesh material={plates[i]} position={[o.cx + 1.66, 1.52, FRONT_Z + WALL_T / 2 + 0.018]}>
             <planeGeometry args={[0.44, 0.165]} />
           </mesh>
-          <mesh material={lamps[i]} position={[o.cx + 1.66, 1.82, FRONT_Z + WALL_T / 2 + 0.021]}>
+          <mesh material={lamps[i]} position={[o.cx + 1.66, 1.82, FRONT_Z + WALL_T / 2 + 0.026]}>
             <circleGeometry args={[0.032, 20]} />
           </mesh>
         </group>
@@ -416,7 +416,7 @@ function DirectoryBoard() {
     }
   }, [st, mat]);
   return (
-    <mesh material={mat} position={[DIRECTORY.x, DIRECTORY.y, SCREEN_Z + WALL_T / 2 + 0.052]}>
+    <mesh material={mat} position={[DIRECTORY.x, DIRECTORY.y, SCREEN_Z + WALL_T / 2 + 0.056]}>
       <planeGeometry args={[DIRECTORY.w, DIRECTORY.w * (600 / 1024)]} />
     </mesh>
   );
@@ -455,18 +455,18 @@ function Graphics({ screens, h }: { screens: ScreenSpot[]; h: number }) {
         </Instanced>
       ))}
       {/* OFFICES over the lobby opening (both faces), RECEPTION over the counter, the block's name over the door */}
-      <mesh geometry={plane} position={[0, h - 0.35, SCREEN_Z + WALL_T / 2 + 0.004]} scale={[3.4, 0.53, 1]}>
+      <mesh geometry={plane} position={[0, h - 0.35, SCREEN_Z + WALL_T / 2 + 0.008]} scale={[3.4, 0.53, 1]}>
         {face(signs.offices)}
       </mesh>
-      <mesh geometry={plane} position={[0, h - 0.35, SCREEN_Z - WALL_T / 2 - 0.004]} rotation={[0, Math.PI, 0]} scale={[3.4, 0.53, 1]}>
+      <mesh geometry={plane} position={[0, h - 0.35, SCREEN_Z - WALL_T / 2 - 0.008]} rotation={[0, Math.PI, 0]} scale={[3.4, 0.53, 1]}>
         {face(signs.exit)}
       </mesh>
-      <mesh geometry={plane} position={[RECEPTION.x, 3.35, SCREEN_Z + WALL_T / 2 + 0.024]} scale={[2.6, 0.46, 1]}>
+      <mesh geometry={plane} position={[RECEPTION.x, 3.35, SCREEN_Z + WALL_T / 2 + 0.036]} scale={[2.6, 0.46, 1]}>
         {face(signs.reception)}
       </mesh>
       {/* Imigongo triptych behind reception, a pair over the lounge sofa */}
       {[-1.3, 0, 1.3].map((dx, i) => (
-        <mesh key={dx} geometry={plane} position={[RECEPTION.x + dx, 2.05, SCREEN_Z + WALL_T / 2 + 0.042]} scale={[1.0, 2.0, 1]}>
+        <mesh key={dx} geometry={plane} position={[RECEPTION.x + dx, 2.05, SCREEN_Z + WALL_T / 2 + 0.081]} scale={[1.0, 2.0, 1]}>
           {face(panels[i % 2]!)}
         </mesh>
       ))}
@@ -486,12 +486,12 @@ function Graphics({ screens, h }: { screens: ScreenSpot[]; h: number }) {
         <meshStandardMaterial color="#000000" emissive="#ffffff" emissiveMap={screenTexture("finance")} emissiveIntensity={0.5} roughness={1} />
       </mesh>
       {[0, 1, 2].map((k) => (
-        <mesh key={k} geometry={plane} position={[rack.x + rack.w / 2 + 0.003, rack.h / 2, rack.z - rack.d / 3 + k * (rack.d / 3)]} rotation={[0, Math.PI / 2, 0]} scale={[rack.d / 3 - 0.04, rack.h - 0.06, 1]}>
+        <mesh key={k} geometry={plane} position={[rack.x + rack.w / 2 + 0.006, rack.h / 2, rack.z - rack.d / 3 + k * (rack.d / 3)]} rotation={[0, Math.PI / 2, 0]} scale={[rack.d / 3 - 0.04, rack.h - 0.06, 1]}>
           <meshStandardMaterial map={rackTexture()} emissive="#ffffff" emissiveMap={rackTexture()} emissiveIntensity={0.35} roughness={0.95} metalness={0} />
         </mesh>
       ))}
       {[0, 1, 2, 3].map((k) => (
-        <mesh key={k} geometry={plane} position={[files.x + files.w / 2 + 0.003, files.h / 2, files.z - (files.d * 3) / 8 + k * (files.d / 4)]} rotation={[0, Math.PI / 2, 0]} scale={[files.d / 4 - 0.04, files.h - 0.02, 1]}>
+        <mesh key={k} geometry={plane} position={[files.x + files.w / 2 + 0.006, files.h / 2, files.z - (files.d * 3) / 8 + k * (files.d / 4)]} rotation={[0, Math.PI / 2, 0]} scale={[files.d / 4 - 0.04, files.h - 0.02, 1]}>
           {face(filesTexture())}
         </mesh>
       ))}

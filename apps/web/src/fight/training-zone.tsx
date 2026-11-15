@@ -193,7 +193,8 @@ function staticGeometry(): THREE.BufferGeometry {
   box(p, 0.3, 0.005, 0.22, tk.x + 0.2, 0.785, tk.z, COL.white);
   // the changing room door (north wall, past the east lockers) and its frame
   const cd = VENUE.changingDoor;
-  box(p, cd.w + 0.16, 2.3, 0.06, cd.x, 1.15, -S + 0.03, COL.frame);
+  // (the frame stands 3 cm proud of the slat band, the leaf 5 mm inside the frame's faces: no shared planes)
+  box(p, cd.w + 0.16, 2.3, 0.08, cd.x, 1.15, -S + 0.05, COL.frame);
   box(p, cd.w, 2.15, 0.07, cd.x, 1.075, -S + 0.05, COL.door);
   box(p, 0.03, 0.18, 0.04, cd.x + cd.w / 2 - 0.12, 1.05, -S + 0.1, COL.chrome);
   // the notice boards' cork frames (their faces are on the board canvas)

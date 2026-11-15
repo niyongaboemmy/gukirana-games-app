@@ -179,8 +179,9 @@ function LobbyShell({ layout }: { layout: HallLayout }) {
           <mesh material={mats.wall} position={[s * (w / 2 + 0.2), h / 2, cz]}>
             <boxGeometry args={[0.4, h, depth]} />
           </mesh>
-          <mesh material={mats.slats} position={[s * (w / 2 - 0.03), 1.5, cz]}>
-            <boxGeometry args={[0.06, 3.0, depth]} />
+          {/* 5 mm off the wall face (the live board's bezel is mounted on the wall itself) */}
+          <mesh material={mats.slats} position={[s * (w / 2 - 0.0325), 1.5, cz]}>
+            <boxGeometry args={[0.055, 3.0, depth]} />
           </mesh>
           <mesh material={s < 0 ? mats.red : mats.blue} position={[s * (w / 2 - 0.05), 3.15, cz]}>
             <boxGeometry args={[0.03, 0.05, depth]} />

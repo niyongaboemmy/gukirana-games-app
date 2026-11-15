@@ -203,12 +203,13 @@ function Shell({ layout, lite }: { layout: HallLayout; lite: boolean }) {
       </mesh>
       <HallGlimpse view="lobby" w={dw} h={3.0} position={[dx, 1.5, d / 2 + 0.4 + 2.18]} rotationY={Math.PI} />
       {/* timber slat band (lower walls) and a red light line above it */}
-      <mesh material={mats.slats} position={[0, 1.6, -d / 2 + 0.03]}>
-        <boxGeometry args={[w, 3.2, 0.06]} />
+      {/* (5 mm off the wall face: what is fixed to the wall, door frames and boards, no longer shares its back plane) */}
+      <mesh material={mats.slats} position={[0, 1.6, -d / 2 + 0.0325]}>
+        <boxGeometry args={[w, 3.2, 0.055]} />
       </mesh>
       {[-1, 1].map((s) => (
-        <mesh key={`s${s}`} material={mats.slats} position={[s * (w / 2 - 0.03), 1.6, 0]}>
-          <boxGeometry args={[0.06, 3.2, d]} />
+        <mesh key={`s${s}`} material={mats.slats} position={[s * (w / 2 - 0.0325), 1.6, 0]}>
+          <boxGeometry args={[0.055, 3.2, d]} />
         </mesh>
       ))}
       <mesh material={mats.line} position={[0, 3.3, -d / 2 + 0.05]}>

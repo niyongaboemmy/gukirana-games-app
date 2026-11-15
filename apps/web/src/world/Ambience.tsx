@@ -334,6 +334,8 @@ function rwandaFlag() {
   return rwanda;
 }
 
+/** 2:3 flags that fit the Block's 1.3 m pole spacing (the arena's 1.8 m flags overlapped each other there) */
+const ADMIN_FLAG_SIZE = { w: 1.05, h: 0.7 };
 /** The Administrative Block's three flags (Rwanda in the middle, the compound's gold either side). */
 function AdminFlags({ tier, map }: { tier: Tier; map?: THREE.Texture }) {
   const p = PORTALS.find((q) => q.id === "admin");
@@ -342,7 +344,7 @@ function AdminFlags({ tier, map }: { tier: Tier; map?: THREE.Texture }) {
   return (
     <group position={[d.x, 0, d.z]} rotation={[0, d.rotY, 0]}>
       {ADMIN_FLAGPOLES.map((x, i) => (
-        <Flag key={x} x={x} y={8.3} z={ADMIN_FLAG_Z} w={ARENA_FLAG.w} h={ARENA_FLAG.h} color={i === 1 ? "#ffffff" : "#C9A96B"} map={i === 1 ? map : undefined} phase={i * 1.3 + 0.4} tier={tier} />
+        <Flag key={x} x={x} y={8.3} z={ADMIN_FLAG_Z} w={ADMIN_FLAG_SIZE.w} h={ADMIN_FLAG_SIZE.h} color={i === 1 ? "#ffffff" : "#C9A96B"} map={i === 1 ? map : undefined} phase={i * 1.3 + 0.4} tier={tier} />
       ))}
     </group>
   );
