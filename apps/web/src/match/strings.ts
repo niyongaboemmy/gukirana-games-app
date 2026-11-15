@@ -33,6 +33,7 @@ export const REASON_WORDS: Record<string, string> = {
   ACCOUNT_INACTIVE: "This account is suspended. Contact support.",
   FRIENDLY_LIMIT_REACHED: "You've played your {limit} friendly games of {game} today — come back tomorrow or play practice vs AI.",
   ALREADY_IN_MATCH: "You're still in another match. Finish or leave it first.",
+  RULES_NOT_ACCEPTED: "Accept the {game} rules first: try again and read the rules card.",
   // about the table (both players may hear these)
   GAME_DISABLED: "Live {game} matches are paused right now. Practice vs AI is open.",
   STAKE_NOT_ALLOWED: "That stake isn't offered for {game}. Pick another one.",

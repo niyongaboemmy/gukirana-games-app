@@ -38,6 +38,7 @@ const en = {
   "exit.forfeitLostTIMEOUTS": "You ran out of time {max} turns in a row, so it counts as a forfeit.",
   "exit.voidNO_SHOW": "Your opponent never joined. Match cancelled: stakes refunded.",
   "exit.voidLEFT_BEFORE_START": "The match was cancelled before the first move. Stakes refunded, nothing counts.",
+  "exit.voidLEFT_WHILE_WAITING": "A player left while the other was disconnected. Friendly match cancelled: nothing counts.",
   "exit.voidNO_FIRST_MOVE": "Nobody made a first move. Match cancelled: stakes refunded.",
   "exit.voidBOTH_DISCONNECTED": "Both players lost the connection. Match voided: stakes refunded.",
   "exit.voidPLAYER_SUSPENDED": "A player was removed by staff. Match voided: stakes refunded.",

@@ -17,6 +17,7 @@ import type { HallLayout } from "@/rooms/layouts";
 import { useFightBridge } from "./bridge";
 import { RingPrompt } from "./RingPrompt";
 import { FightOverlay as GameFightOverlay } from "./game/FightOverlay";
+import { FightNetBanner } from "./game/NetBanner";
 import { F } from "./strings";
 import { useFightFocus } from "./focus";
 import { usePendingRingWalk, useRingGoto } from "./ring-goto";
@@ -164,6 +165,7 @@ export function FightOverlay({ layout }: { layout: HallLayout }) {
       )}
       {boxing && !nearExit && <RingPrompt />}
       {boxing && inRing && <GameFightOverlay />}
+      {boxing && <FightNetBanner />}
     </div>
   );
 }

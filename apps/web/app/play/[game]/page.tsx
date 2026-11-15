@@ -1,8 +1,10 @@
 "use client";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useEffect } from "react";
 import { useParams } from "next/navigation";
 import { UI } from "@/components/strings";
+import { requireRules } from "@/rules/rules-store";
 
 const Loading = () => <div className="fixed inset-0 grid place-items-center bg-ink-950 font-display font-bold text-white">Setting up the table…</div>;
 const GAMES = {
@@ -20,6 +22,10 @@ const GAMES = {
 export default function PlayPage() {
   const { game } = useParams<{ game: string }>();
   const Game = GAMES[game as keyof typeof GAMES];
+  // P2-NET-05: practice shows the game's rules card once per rules version (informational: practice is never blocked)
+  useEffect(() => {
+    if (game === "pool" || game === "ludo" || game === "igisoro") void requireRules(game, "practice");
+  }, [game]);
   if (!Game)
     return (
       <div className="grid min-h-dvh place-items-center bg-ink-950 text-white">

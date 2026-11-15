@@ -26,6 +26,9 @@ import { levelForXp } from "@/lib/profile-store";
 import { returnPath } from "@/lib/return-point";
 import { useMatch } from "@/lib/match-store";
 import { useGameOffer } from "@/lib/games-offer";
+import { clearActive, saveActive } from "@/lib/active-match";
+import { PaperCard } from "@/ui/PaperCard";
+import { mmss, tr } from "@/rules/strings";
 
 interface PlayerInfo {
   userId: string;
@@ -45,6 +48,17 @@ interface Init {
   rules?: { turnSeconds: number; reconnectSeconds: number; maxTimeouts: number };
   /** someone has made a move (before that, leaving cancels the match) */
   started?: boolean;
+  /** P2-NET-05: players away right now (ms left for them to come back) and my own reconnect budget */
+  away?: { userId: string; ms: number }[];
+  budget?: { dropsLeft: number; msLeft: number };
+}
+interface Presence {
+  userId: string;
+  connected: boolean;
+  /** how long the room waits for them (ms) */
+  ms?: number;
+  budget?: { dropsLeft: number; msLeft: number };
+  budgetOut?: boolean;
 }
 interface Result {
   ranks: Record<string, number>;
@@ -150,8 +164,13 @@ export function LiveMatch({ roomId }: { roomId: string }) {
   const resultRef = useRef<Result | null>(null);
   resultRef.current = result;
   const [error, setError] = useState<string | null>(null);
-  const [offline, setOffline] = useState<{ userId: string; since: number } | null>(null);
-  const [reconnecting, setReconnecting] = useState(false);
+  // P2-NET-05: the opponent who dropped and when the room stops waiting for them (local clock)
+  const [offline, setOffline] = useState<{ userId: string; since: number; until: number } | null>(null);
+  const [waitOpen, setWaitOpen] = useState(true);
+  const [reconnecting, setReconnecting] = useState<{ until: number } | null>(null);
+  const [paused, setPaused] = useState(false);
+  const budget = useRef<{ dropsLeft: number; msLeft: number } | null>(null);
+  const reconnectS = useRef(RECONNECT_WINDOW_S);
   const [rolling, setRollingState] = useState(false);
   const rollStart = useRef(0);
   // the die tumbles for at least 600 ms even when the server answers instantly
@@ -177,10 +196,11 @@ export function LiveMatch({ roomId }: { roomId: string }) {
   const [poolBefore, setPoolBefore] = useState<PoolState | null>(null);
 
   useEffect(() => {
-    if (!offline) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
+    if (!offline && !reconnecting) return;
+    const id = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(id);
-  }, [offline]);
+  }, [offline, reconnecting]);
+  useEffect(() => setWaitOpen(true), [offline?.userId, offline?.since]);
 
   const attach = useCallback(
     (r: Room) => {
@@ -192,9 +212,16 @@ export function LiveMatch({ roomId }: { roomId: string }) {
       r.onMessage("init", (m: Init) => {
         setInit(m);
         if (m.started) setStarted(true);
+        if (m.budget) budget.current = m.budget;
+        if (m.rules?.reconnectSeconds) reconnectS.current = m.rules.reconnectSeconds;
+        // remember the match for a reload / a new tab / another device (no secrets; cleared at the end)
+        saveActive({ matchId: m.matchId, roomId, game: m.game, seat: m.players.find((p) => p.userId === m.you)?.seat });
+        const gone = m.away?.find((a) => a.userId !== m.you);
+        setOffline(gone ? { userId: gone.userId, since: Date.now(), until: Date.now() + gone.ms } : null);
       });
-      r.onMessage("state", async (m: { state: unknown; turn: string | null; deadline: number; started?: boolean }) => {
+      r.onMessage("state", async (m: { state: unknown; turn: string | null; deadline: number; started?: boolean; paused?: boolean }) => {
         setTurn(m.turn);
+        setPaused(!!m.paused);
         if (m.started) setStarted(true);
         setDeadline(m.deadline);
         setRolling(false);
@@ -214,7 +241,10 @@ export function LiveMatch({ roomId }: { roomId: string }) {
         setRolling(false);
         setError(`Move rejected: ${m.reason}`);
       });
-      r.onMessage("presence", (m: { userId: string; connected: boolean }) => setOffline((o) => (m.connected ? (o?.userId === m.userId ? null : o) : { userId: m.userId, since: Date.now() })));
+      r.onMessage("presence", (m: Presence) => {
+        if (m.connected && m.budget && m.userId === useSession.getState().me?.id) budget.current = m.budget;
+        setOffline((o) => (m.connected ? (o?.userId === m.userId ? null : o) : { userId: m.userId, since: Date.now(), until: Date.now() + (m.ms ?? reconnectS.current * 1000) }));
+      });
       r.onMessage("timeout", (m: { userId: string; strikes: number; max?: number }) => say(t("exit.timeout", { n: m.strikes, max: m.max ?? MAX_TIMEOUTS }), "bad"));
       r.onMessage("emote", () => undefined);
       r.onMessage("draw-offer", (m: { from: string }) => setDrawIn(m.from));
@@ -226,6 +256,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
       r.onMessage("result", (m: Result) => {
         setResult(m);
         dropToken(roomId);
+        clearActive();
         void loadMe();
         // friendly games left / Stars changed: the next challenge sheet shows the new numbers
         void useGameOffer.getState().load(true);
@@ -233,25 +264,30 @@ export function LiveMatch({ roomId }: { roomId: string }) {
       // a dropped connection (network, sleep): reconnect with the token inside the server's 60 s window
       r.onLeave((code) => {
         if (!alive.current || resultRef.current || code === 1000 || code === 4000) return;
-        setReconnecting(true);
+        // P2-NET-05: the room keeps the seat for min(reconnectSeconds, my budget left); retry with backoff until then
+        const graceMs = Math.min(reconnectS.current * 1000, budget.current?.msLeft ?? Infinity);
+        const until = Date.now() + graceMs;
+        setReconnecting({ until });
         joins.delete(roomId);
         void (async () => {
-          for (let i = 0; i < 12 && alive.current && !resultRef.current; i++) {
-            await new Promise((res) => setTimeout(res, Math.min(3000, 500 * 2 ** i)));
-            // offline: wait for the network to come back (up to the server's 60 s window) without spending a retry
-            for (let w = 0; w < 120 && !navigator.onLine && alive.current; w++) await new Promise((res) => setTimeout(res, 500));
+          // a few seconds past the window: a fresh join still works if the room is waiting (and tells us if not)
+          for (let i = 0; alive.current && !resultRef.current && Date.now() < until + 5000; i++) {
+            await new Promise((res) => setTimeout(res, Math.min(5000, 500 * 2 ** i)));
+            // offline: wait for the network to come back (inside the window) without spending a retry
+            while (!navigator.onLine && alive.current && Date.now() < until) await new Promise((res) => setTimeout(res, 500));
             try {
               const nr = await connect(roomId);
               joins.set(roomId, Promise.resolve(nr));
               attach(nr);
               nr.send("sync");
-              setReconnecting(false);
+              setReconnecting(null);
               return;
             } catch {
               /* retry */
             }
           }
-          setReconnecting(false);
+          setReconnecting(null);
+          clearActive();
           setError(t("exit.gone"));
         })();
       });
@@ -285,6 +321,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
         joins.delete(roomId);
         // never be sent back here again (a stale "match ready" for this room)
         if (useMatch.getState().ready?.roomId === roomId) useMatch.setState({ ready: null });
+        clearActive();
         setError(t("exit.gone"));
       }
     })();
@@ -433,7 +470,8 @@ export function LiveMatch({ roomId }: { roomId: string }) {
   }
 
   const rules = { turnSeconds: init?.rules?.turnSeconds ?? TURN_S, reconnectSeconds: init?.rules?.reconnectSeconds ?? RECONNECT_WINDOW_S, maxTimeouts: init?.rules?.maxTimeouts ?? MAX_TIMEOUTS };
-  const offSecs = offline ? Math.max(0, rules.reconnectSeconds - Math.floor((now - offline.since) / 1000)) : 0;
+  const offSecs = offline ? Math.max(0, (offline.until - now) / 1000) : 0;
+  const reSecs = reconnecting ? Math.max(0, (reconnecting.until - now) / 1000) : 0;
   const oppName = opp[0]?.name ?? "Your opponent";
   // the Leave confirmation states the consequence right now (before the first move: a free cancel)
   const leaveNote = !state || !started ? t("exit.beforeStart") : stake > 0 ? t("exit.forfeitStake", { name: oppName, pot: stake * 2, stake }) : t("exit.forfeitFriendly", { name: oppName });
@@ -442,9 +480,10 @@ export function LiveMatch({ roomId }: { roomId: string }) {
       {!turn && !result && <span className="text-on-glass-muted">{t("game.starting")}</span>}
       {offline && !result && offline.userId !== myId && (
         <span className="flex items-center gap-1 text-danger-soft">
-          <WifiOff size={14} /> {t("game.oppOffline", { name: nameOf(offline.userId), secs: offSecs })}
+          <WifiOff size={14} /> {t("game.oppOffline", { name: nameOf(offline.userId), secs: Math.ceil(offSecs) })}
         </span>
       )}
+      {paused && offline && !result && <span className="text-on-glass-muted">{tr("net.clockPaused", { name: nameOf(offline.userId) })}</span>}
       {error && <span className="text-danger-soft">{error}</span>}
     </div>
   );
@@ -476,6 +515,7 @@ export function LiveMatch({ roomId }: { roomId: string }) {
         void room.current?.leave(true); // explicit resign
         joins.delete(roomId);
         dropToken(roomId);
+        clearActive();
       }}
       menuExtras={(close) => (
         <>
@@ -510,8 +550,33 @@ export function LiveMatch({ roomId }: { roomId: string }) {
       {banner && <TurnBanner key={banner.id} text={banner.text} tone={banner.tone} />}
       {lastCapture && <TurnBanner key={`c${lastCapture.id}`} text={t("igisoro.capture", { n: lastCapture.seeds })} tone="good" />}
       {reconnecting && !result && (
-        <div role="status" className="glass absolute inset-x-0 top-2 z-30 mx-auto flex w-fit items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-warning-soft">
-          <Loader2 size={16} className="animate-spin" /> {t("game.reconnecting")}
+        <div role="status" aria-live="polite" data-testid="reconnecting" className="glass absolute inset-x-0 top-2 z-30 mx-auto flex w-fit max-w-[92vw] items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-warning-soft">
+          <Loader2 size={16} className="shrink-0 animate-spin" /> {Number.isFinite(reSecs) && reSecs > 0 ? tr("net.reconnecting", { secs: Math.ceil(reSecs) }) : tr("net.reconnectingNoTime")}
+        </div>
+      )}
+      {offline && offline.userId !== myId && !result && !reconnecting && waitOpen && (
+        <div className="pointer-events-none absolute inset-x-0 top-2 z-30 flex justify-center px-3" data-testid="opponent-waiting">
+          <div role="status" aria-live="polite" className="pointer-events-auto w-full max-w-sm">
+            <PaperCard title={tr("net.oppWaitTitle")} icon={WifiOff} size="sm">
+              <p className="text-sm">
+                {tr(started ? "net.oppWait" : "net.oppWaitBeforeStart", { name: nameOf(offline.userId), time: mmss(offSecs) })}
+              </p>
+              <p className="num mt-1 text-center font-display text-3xl font-bold" aria-hidden>
+                {mmss(offSecs)}
+              </p>
+              {stake > 0 && <p className="mt-1 text-xs pmuted">{tr("net.stakedWait")}</p>}
+              <div className="mt-2 flex gap-2">
+                <button type="button" className="pbtn pbtn-primary flex-1 min-h-11!" onClick={() => setWaitOpen(false)}>
+                  {tr("net.keepWaiting")}
+                </button>
+                {stake === 0 && (
+                  <button type="button" className="pbtn pbtn-leather flex-1 min-h-11!" title={tr("net.leaveFreeNote")} onClick={() => room.current?.send("leave-waiting")}>
+                    {tr("net.leaveFree")}
+                  </button>
+                )}
+              </div>
+            </PaperCard>
+          </div>
         </div>
       )}
       {drawIn && drawIn !== myId && !result && (
