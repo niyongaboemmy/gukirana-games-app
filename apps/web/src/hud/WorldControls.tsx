@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Loader2, LocateFixed, Lock, Mic, MicOff, Minus, Plus } from "lucide-react";
+import { Eye, Loader2, LocateFixed, Lock, Mic, MicOff, Minus, Plus, Video } from "lucide-react";
 import { useSession } from "@/lib/session";
 import { cameraState } from "@/world/Player";
 import { FOLLOW_MAX, isAerial, stepZoom } from "@/world/aerial";
+import { EYE_KEY, EYE_VIEW_ON, useCamMode, zoomEye } from "@/world/eye-view";
 import { useStage } from "@/world/stage";
 import { CAMPUS } from "@/world/campus-strings";
 import { enableVoice, disableVoice, pttDown, pttUp, toggleOpenMic, useVoice } from "@/voice/voice";
@@ -16,6 +17,13 @@ const btn = "icon-button pointer-events-auto size-12 rounded-card phone:size-9 p
 
 /** + / − : linear steps up close, then on out into the campus aerial view (world/aerial.ts). */
 const zoom = (dir: number) => {
+  // all the way in: one more press enters the eye view; zooming out of it comes back to the follow camera
+  const z = zoomEye(useCamMode.getState().mode, cameraState.distance, dir);
+  if (z) {
+    cameraState.distance = z.distance;
+    useCamMode.getState().set(z.mode);
+    return;
+  }
   // the aerial view is the plaza's (halls keep their own close camera range)
   const d = stepZoom(cameraState.distance, dir);
   cameraState.distance = useStage.getState().view === "plaza" ? d : Math.min(FOLLOW_MAX, d);
@@ -34,7 +42,7 @@ function useAerialView() {
 /**
  * Right-edge controls: push-to-talk voice (FR-COM-03), voice on/off, camera zoom. (Walking pace is in Settings.)
  * Mic button / V: hold to talk, a quick tap locks the mic open (tap again to unlock). "N can hear you" shows who
- * is in range while you talk. Keyboard: V talk · +/- zoom.
+ * is in range while you talk. Keyboard: V talk · +/- zoom · P eye view / follow view (P2-WLD-16).
  */
 export function WorldControls() {
   const authed = useSession((s) => s.status === "authenticated");
@@ -42,6 +50,7 @@ export function WorldControls() {
   const on = status === "on";
   const aerial = useAerialView();
   const goMap = useGoTo((s) => s.map && !!s.dest);
+  const camMode = useCamMode((s) => s.mode);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -49,6 +58,7 @@ export function WorldControls() {
       if (e.code === "KeyV" && !e.repeat) pttDown();
       if (e.key === "+" || e.key === "=") zoom(-1);
       if (e.key === "-") zoom(1);
+      if (EYE_VIEW_ON && e.code === EYE_KEY && !e.repeat) useCamMode.getState().toggle();
     };
     const up = (e: KeyboardEvent) => e.code === "KeyV" && pttUp();
     window.addEventListener("keydown", down);
@@ -125,6 +135,20 @@ export function WorldControls() {
       {aerial && !goMap && (
         <button type="button" onClick={() => (backToMe(), (cameraState.distance = 9))} title={CAMPUS.hint} className="pbtn-primary pointer-events-auto flex items-center gap-1.5 whitespace-nowrap rounded-card px-3 py-2 text-sm font-bold phone:px-2.5 phone:py-1.5 phone:text-xs">
           <LocateFixed size={16} /> {CAMPUS.backToMe}
+        </button>
+      )}
+      {/* eye view / follow view (P2-WLD-16) */}
+      {EYE_VIEW_ON && !aerial && (
+        <button
+          type="button"
+          onClick={() => useCamMode.getState().toggle()}
+          aria-pressed={camMode === "eye"}
+          aria-label={camMode === "eye" ? H.followView : H.eyeView}
+          title={`${camMode === "eye" ? H.followView : H.eyeView} (P)`}
+          className={`${btn} flex! flex-col items-center justify-center gap-0.5`}
+        >
+          {camMode === "eye" ? <Video size={18} strokeWidth={1.9} /> : <Eye size={18} strokeWidth={1.9} />}
+          <span className="label text-[9px] leading-none tracking-[0.14em] text-on-glass-muted phone:hidden">{camMode === "eye" ? H.followShort : H.eyeShort}</span>
         </button>
       )}
       <div className="flex flex-col gap-2 [@media(max-height:430px)]:flex-row phone:gap-1.5">

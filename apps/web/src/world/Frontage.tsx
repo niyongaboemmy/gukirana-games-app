@@ -114,7 +114,7 @@ function barrier(b: GeoBatch, x: number, z: number, dir: number) {
   b.box("white", 0.4, 0.3, 0.3, { p: [x, 1.05, z] });
   const len = 6.2;
   b.box("white", len, 0.09, 0.09, { p: [x + dir * (len / 2), 1.0, z] });
-  for (let k = 1; k < 6; k += 2) b.box("led-red", 0.5, 0.095, 0.095, { p: [x + dir * (k + 0.3), 1.0, z] });
+  for (let k = 1; k < 6; k += 2) b.box("led-red", 0.5, 0.11, 0.11, { p: [x + dir * (k + 0.3), 1.0, z] });
   b.box("steel", 0.08, 0.95, 0.08, { p: [x + dir * (len - 0.1), 0.48, z] });
 }
 

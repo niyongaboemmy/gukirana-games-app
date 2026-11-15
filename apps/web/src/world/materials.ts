@@ -74,7 +74,9 @@ function pavingMaterial(): THREE.MeshStandardMaterial {
       "uniform sampler2D uWear;\nvarying vec2 vGkW;\n" +
       sh.fragmentShader.replace(
         "#include <map_fragment>",
-        `#include <map_fragment>\n  diffuseColor.rgb *= 0.55 + 0.45 * texture2D(uWear, vGkW / ${(WEAR_HALF * 2).toFixed(1)} + 0.5).r * 1.0204;`,
+        // (the wear map covers the plaza only: beyond it — the campus walks, the avenue, the gate — a neutral tone, so
+        // its clamped edge texels never streak out across the campus, P2-WLD-16)
+        `#include <map_fragment>\n  float gkWear = 0.55 + 0.45 * texture2D(uWear, vGkW / ${(WEAR_HALF * 2).toFixed(1)} + 0.5).r * 1.0204;\n  diffuseColor.rgb *= mix(0.97, gkWear, 1.0 - smoothstep(${(WEAR_HALF - 3).toFixed(1)}, ${(WEAR_HALF - 0.5).toFixed(1)}, max(abs(vGkW.x), abs(vGkW.y))));`,
       );
   };
   m.customProgramCacheKey = () => "gk-paving-wear";
