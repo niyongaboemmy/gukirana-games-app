@@ -76,7 +76,9 @@ export function LightPools({ lite }: { lite: boolean }) {
     ref.current!.computeBoundingSphere();
   }, []);
   useEffect(() => () => (geo.dispose(), mat.dispose()), [geo, mat]);
-  return <instancedMesh ref={ref} args={[geo, mat, RINGS.length]} renderOrder={1} userData={{ noMerge: true }} />;
+  // drawn after the platform shadows (renderOrder 1): same object position, so without distinct orders their sort was a
+  // tie decided by object ids (P3-FGT-12)
+  return <instancedMesh ref={ref} args={[geo, mat, RINGS.length]} renderOrder={2} userData={{ noMerge: true }} />;
 }
 const FEATURE_STAGE_TOP = 1.215;
 
@@ -139,7 +141,7 @@ export function FloorMarks() {
     arrow(BOXING_DOOR.x + 1.6, d / 2 - 1.1, 0); // south, to the lobby door
     const geo = mergeGeometries(parts)!;
     parts.forEach((p) => p.dispose());
-    return { geo, mat: new THREE.MeshStandardMaterial({ color: "#d8cdb4", roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -1 }) };
+    return { geo, mat: new THREE.MeshStandardMaterial({ color: "#d8cdb4", roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }) };
   }, []);
   useEffect(() => () => (geo.dispose(), mat.dispose()), [geo, mat]);
   return <mesh geometry={geo} material={mat} receiveShadow />;

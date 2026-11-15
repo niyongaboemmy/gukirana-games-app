@@ -257,6 +257,9 @@ const HALL_SOUTH_LX = -15;
 export const hallLocal = (x: number, z: number) => ({ lx: HALL_SOUTH_LX + BOXING_SIZE.d / 2 - z, lz: HALL_FRONT_LZ - (x + BOXING_SIZE.w / 2) });
 /** lobby ↔ hall through the Boxing door: same x, z shifted by the room offsets */
 export const LOBBY_TO_HALL_DZ = BOXING_SIZE.d / 2 - LOBBY_BACK_Z;
+/** a pose through the lobby's Boxing doorway (one doorway through one wall): x and heading kept, z shifted */
+export const lobbyToBoxing = (x: number, z: number, yaw: number) => ({ x, z: z + LOBBY_TO_HALL_DZ, yaw });
+export const boxingToLobby = (x: number, z: number, yaw: number) => ({ x, z: z - LOBBY_TO_HALL_DZ, yaw });
 export const FIGHT_BUILDING = (() => {
   const hw = BOXING_SIZE.d / 2 + FIGHT_WALL; // the slab's half-width: the hall's width across
   const cx = HALL_SOUTH_LX + BOXING_SIZE.d / 2; // the slab's centre line (lx), off the door axis

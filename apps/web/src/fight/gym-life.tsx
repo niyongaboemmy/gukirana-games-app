@@ -14,7 +14,7 @@ import { isOnScreen, useArea } from "@/world/stage";
 import { BoxingMotion } from "@/world/human/boxing/motion";
 import { boxingLayer } from "@/world/human/boxing/layer";
 import { BOXING_CLIPS, type BoxingClipName } from "@/world/human/boxing/clips";
-import { alongPath, GYM_PROPS, STAFF, type GymProp, type StaffSpot } from "./gym-plan";
+import { alongPath, GYM_DECOR, GYM_PROPS, STAFF, type GymProp, type StaffSpot } from "./gym-plan";
 import { gymTimer, hitBag } from "./training-zone";
 import { F } from "./strings";
 import { softBodies } from "@/rooms/soft-bodies";
@@ -40,6 +40,29 @@ const soundOn = () => useGamePrefs.getState().sound;
 function level(x: number, z: number, range: number) {
   const d = Math.hypot(x - selfPose.x, z - selfPose.z);
   return d > range ? 0 : (1 - d / range) ** 2;
+}
+/** the skipping rope touching the floor: a short, low, filtered noise burst (not a tone) */
+function slap(gain: number) {
+  const ctx = soundOn() ? uiAudio() : null;
+  if (!ctx || gain < 0.01) return;
+  const t = ctx.currentTime;
+  const len = Math.floor(ctx.sampleRate * 0.05);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  let seed = 11;
+  for (let i = 0; i < len; i++) {
+    seed = (seed * 16807) % 2147483647; // cosmetic noise, not game randomness
+    data[i] = ((seed / 2147483647) * 2 - 1) * (1 - i / len);
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const f = ctx.createBiquadFilter();
+  f.type = "lowpass";
+  f.frequency.value = 900;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.035 * gain, t);
+  src.connect(f).connect(g).connect(ctx.destination);
+  src.start(t);
 }
 /** a soft low thump (a bag hit) */
 function thud(gain: number) {
@@ -223,7 +246,12 @@ const phase = (id: string) => {
 };
 const clock = () => performance.now() / 1000;
 
-function StaffNpc({ spot, lite }: { spot: StaffSpot; lite: boolean }) {
+/** a staff member dithers in / out over this long when the draw set changes (they used to pop in and out of view) */
+const STAFF_FADE_S = 0.4;
+
+function StaffNpc({ spot, lite, shown = true }: { spot: StaffSpot; lite: boolean; shown?: boolean }) {
+  const fade = useRef(0);
+  const ropeTurn = useRef<number | null>(null);
   const look = useMemo(() => staffLook(spot), [spot]);
   const g = useRef<THREE.Group>(null);
   const anim = useRef(0);
@@ -249,10 +277,12 @@ function StaffNpc({ spot, lite }: { spot: StaffSpot; lite: boolean }) {
   );
   const neck = useRef<THREE.Object3D | null>(null);
   const hands = useRef<THREE.Object3D[]>([]);
-  useFrame(() => {
+  useFrame((_, dt) => {
+    fade.current = THREE.MathUtils.clamp(fade.current + (shown ? 1 : -1) * (Math.min(dt, 0.05) / STAFF_FADE_S), 0, 1);
     const t = clock() + off;
     const grp = g.current;
     if (!grp) return;
+    if (rope.current) rope.current.visible = fade.current > 0.5;
     let x = spot.x;
     let z = spot.z;
     let yaw = spot.yaw;
@@ -302,7 +332,14 @@ function StaffNpc({ spot, lite }: { spot: StaffSpot; lite: boolean }) {
       const ph = t * Math.PI * 2 * 2.1;
       y = Math.abs(Math.sin(ph)) * 0.07;
       if (rope.current) rope.current.rotation.x = ph;
-      if (Math.cos(ph) > 0.995 && level(x, z, 10) > 0) tick(level(x, z, 10), 2600);
+      // the rope's slap on the floor: exactly once per turn (a frame-rate window on the phase fired twice per turn at
+      // 120 Hz and skipped turns at 30 Hz), and a low soft slap instead of a 2.6 kHz blip — standing near the skipper
+      // used to be a steady electronic beeping (P3-FGT-12)
+      const turn = Math.floor(ph / (Math.PI * 2));
+      if (turn !== ropeTurn.current) {
+        if (ropeTurn.current !== null && level(x, z, 8) > 0) slap(level(x, z, 8));
+        ropeTurn.current = turn;
+      }
     }
     grp.position.set(x, y, z);
     grp.rotation.y = yaw;
@@ -356,6 +393,7 @@ function StaffNpc({ spot, lite }: { spot: StaffSpot; lite: boolean }) {
         quality={lite ? "lite" : "standard"}
         lod
         rigLayer={layer}
+        fadeRef={fade}
         seedId={`gym-${spot.id}`}
       />
       {spot.role === "skipper" && (
@@ -517,13 +555,16 @@ export function GymLife({
   const area = useArea();
   const staff = useMemo(() => STAFF.filter((s) => s.room === room), [room]);
   const [drawn, setDrawn] = useState<string[]>([]);
+  /** staff dropped from the draw set, still fading out (id → when it started) */
+  const gone = useRef(new Map<string, number>());
+  const [fading, setFading] = useState<string[]>([]);
   const acc = useRef(1);
   const bellPhase = useRef<string | null>(null);
   const gl = useThree((s) => s.gl);
   const cap = useRef<number>(MAX_DRAWN[lite ? "lite" : "standard"]);
   useEffect(() => () => useGymUi.setState({ prop: null }), []);
   useFrame(({ camera }, dt) => {
-    if (!isOnScreen(area)) return;
+    if (!isOnScreen(area)) return void (bellPhase.current = null);
     // interaction target with hysteresis (only props not used by the staff)
     if (room === "boxing") {
       const cur = useGymUi.getState().prop;
@@ -539,9 +580,11 @@ export function GymLife({
         if (d < bd) [best, bd] = [p, d];
       }
       if (best !== cur) useGymUi.setState({ prop: best });
-      // the distant bell when the gym timer turns
+      // the distant bell when the gym timer turns: once per real change while you are in the hall, quieter the further
+      // you are from the gym (it rang at full level anywhere, and on arrival for a change that happened while you were
+      // away: the phase is forgotten off screen) (P3-FGT-12)
       const ph = gymTimer(Date.now() / 1000).phase;
-      if (bellPhase.current && ph !== bellPhase.current) bell(0.6);
+      if (bellPhase.current && ph !== bellPhase.current) bell(0.6 * Math.max(0.25, level(GYM_DECOR.skipping.x, GYM_DECOR.skipping.z, 60)));
       bellPhase.current = ph;
     }
     acc.current += dt;
@@ -564,15 +607,22 @@ export function GymLife({
     if (calls > BUDGET_HIGH) cap.current = Math.max(MAX_DRAWN_FAR - 2, Math.min(cap.current, drawn.length) - 1);
     else if (calls < BUDGET_LOW) cap.current = Math.min(MAX_DRAWN[lite ? "lite" : "standard"], cap.current + 1);
     const next = [...keep, ...add].slice(0, Math.max(0, cap.current)).map((s) => s.id);
+    // P3-FGT-12: a staff member leaving the set fades out (kept mounted ~0.5 s) instead of vanishing mid-view
+    const now = performance.now();
+    for (const id of drawn) if (!next.includes(id) && !gone.current.has(id)) gone.current.set(id, now);
+    for (const id of next) gone.current.delete(id);
+    for (const [id, at] of gone.current) if (now - at > STAFF_FADE_S * 1000 + 100) gone.current.delete(id);
+    const out = [...gone.current.keys()];
+    if (out.join() !== fading.join()) setFading(out);
     if (next.join() !== drawn.join()) setDrawn(next);
   });
   return (
     <group visible={!hidden} userData={{ noMerge: true }}>
       <StaffLanyards />
       {staff
-        .filter((s) => drawn.includes(s.id))
+        .filter((s) => drawn.includes(s.id) || fading.includes(s.id))
         .map((s) => (
-          <StaffNpc key={s.id} spot={s} lite={lite} />
+          <StaffNpc key={s.id} spot={s} lite={lite} shown={drawn.includes(s.id)} />
         ))}
     </group>
   );
