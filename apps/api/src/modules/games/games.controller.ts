@@ -1,12 +1,13 @@
 import { Body, Controller, Get, HttpCode, NotFoundException, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { z } from "zod";
 import type { SignedMatchResult } from "@gukirana/signing";
-import { GameIdSchema, MatchHeartbeatSchema, VoidMatchSchema } from "@gukirana/contracts";
+import { AcceptRulesSchema, AttachRoomSchema, GameIdSchema, MatchHeartbeatSchema, VoidMatchSchema } from "@gukirana/contracts";
 import { AuthGuard, CurrentUser, InternalGuard, type AccessClaims } from "../../common/auth.js";
 import { parse } from "../../common/zod.js";
 import { uuidParam } from "../../common/ids.js";
 import { GamesService } from "./games.service.js";
 import { FightRatingService } from "./fight-rating.service.js";
+import { RulesService } from "./rules.service.js";
 
 /** P3-FGT-10 rating UI / leaderboard flag: on unless FF_FIGHT_RATING=0 (dev default on; production sets it) */
 const ratingOn = () => process.env.FF_FIGHT_RATING !== "0";
@@ -50,6 +51,14 @@ export class GamesController {
     return this.games.heartbeat(parse(MatchHeartbeatSchema, body).matchIds);
   }
 
+  /** the game server room now runs this match (P2-NET-05 resume) */
+  @Post(":id/room")
+  @HttpCode(200)
+  room(@Param("id") id: string, @Body() body: unknown) {
+    const b = parse(AttachRoomSchema, body);
+    return this.games.attachRoom(uuidParam(id), b.roomId, b.ring);
+  }
+
   @Post(":id/result")
   @HttpCode(200)
   result(@Param("id") id: string, @Body() body: unknown) {
@@ -82,11 +91,34 @@ export class PlayersInternalController {
 @Controller("games")
 @UseGuards(AuthGuard)
 export class GamesPublicController {
-  constructor(private readonly games: GamesService) {}
+  constructor(
+    private readonly games: GamesService,
+    private readonly rules: RulesService,
+  ) {}
 
   @Get("offer")
   offer(@CurrentUser() u: AccessClaims) {
     return this.games.offer(u.sub);
+  }
+
+  /** P2-NET-05: the live match I'm seated in (resume after a reload / on another device), or null */
+  @Get("active")
+  active(@CurrentUser() u: AccessClaims) {
+    return this.games.active(u.sub);
+  }
+
+  /** P2-NET-05: per game, the current rules version and whether I accepted it */
+  @Get("rules")
+  rulesStatus(@CurrentUser() u: AccessClaims) {
+    return this.rules.status(u.sub);
+  }
+
+  /** P2-NET-05: I accept this game's rules card (current version only; idempotent) */
+  @Post("rules/accept")
+  @HttpCode(200)
+  accept(@CurrentUser() u: AccessClaims, @Body() body: unknown) {
+    const b = parse(AcceptRulesSchema, body);
+    return this.rules.accept(u.sub, b.game, b.version);
   }
 }
 

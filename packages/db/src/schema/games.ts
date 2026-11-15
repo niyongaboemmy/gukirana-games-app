@@ -23,6 +23,9 @@ export const matches = pgTable(
     heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
     /** why it was voided (docs/GAME-EXIT-RULES.md: NO_SHOW, BOTH_DISCONNECTED, STALE_ESCROW, …) */
     voidCause: text("void_cause"),
+    /** P2-NET-05 resume: the game server room running this match (reported once the room exists) + the boxing ring */
+    roomId: text("room_id"),
+    ring: text("ring"),
   },
   (t) => [index("matches_status_idx").on(t.status)],
 );
@@ -128,4 +131,22 @@ export const fightRatingEvents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.matchId, t.userId] }), index("fight_rating_events_user_idx").on(t.userId, t.createdAt)],
+);
+
+/**
+ * Rules cards accepted (P2-NET-05): one row per user, game and rules version (GAME_RULES_VERSION in contracts). A
+ * player is seated in a live match only with a row for that game's current version; a new version asks again. Rows
+ * are never updated or deleted (the acceptance trail).
+ */
+export const rulesAcceptances = pgTable(
+  "rules_acceptances",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    game: text("game").notNull(),
+    version: integer("version").notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.game, t.version] })],
 );

@@ -78,6 +78,8 @@ export const api = {
   /** a player's boxing Glicko-2 rating for matchmaking (P3-FGT-10); null = never rated */
   fightRating: (userId: string) => get<{ rating: number; rd: number } | null>(`/internal/fight/rating/${encodeURIComponent(userId)}`),
   voidMatch: (matchId: string, cause?: VoidCause) => call<{ status: string }>(`/internal/matches/${matchId}/void`, cause ? { cause } : {}),
+  /** P2-NET-05 resume: the room (and boxing ring) now running this match */
+  attachRoom: (matchId: string, roomId: string, ring?: string) => call<{ ok: boolean }>(`/internal/matches/${matchId}/room`, ring ? { roomId, ring } : { roomId }),
   /** the matches this server runs (every ~20 s); the API answers with the ones that are no longer active */
   heartbeat: (matchIds: string[]) => call<{ inactive: string[] }>("/internal/matches/heartbeat", { matchIds }),
   /** may this player be put into a match at this stake (active account, not in a match, break, daily limit, Stars, game rules) */

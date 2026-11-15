@@ -26,6 +26,10 @@ export const GAME_SETTING_BOUNDS = {
   joinSeconds: { min: 15, max: 300 },
   maxTimeouts: { min: 1, max: 10 },
   maxMatchMinutes: { min: 5, max: 240 },
+  /** P2-NET-05: connection losses one player may have in a match (the next one forfeits at once) */
+  maxDisconnects: { min: 1, max: 10 },
+  /** P2-NET-05: all of one player's time away in a match together (abuse guard) */
+  reconnectBudgetSeconds: { min: 15, max: 900 },
 } as const;
 
 const B = GAME_SETTING_BOUNDS;
@@ -41,8 +45,12 @@ export const GameSettingsSchema = z
     stakes: z.array(int(B.stake)).max(B.stakesCount.max, "TOO_MANY_STAKES"),
     /** seconds per turn before a timeout */
     turnSeconds: int(B.turnSeconds),
-    /** seconds a disconnected player has to come back before forfeiting */
+    /** seconds a disconnected player has to come back before forfeiting: the opponent's maximum wait (P2-NET-05) */
     reconnectSeconds: int(B.reconnectSeconds),
+    /** connection losses one player may have per match; one more forfeits (void before the first move). Missing = 3 */
+    maxDisconnects: int(B.maxDisconnects).optional(),
+    /** one player's total time away per match (every drop together). Missing = 2 × reconnectSeconds (boxing: = reconnectSeconds) */
+    reconnectBudgetSeconds: int(B.reconnectBudgetSeconds).optional(),
     /** seconds both players have to open the match before it is voided */
     joinSeconds: int(B.joinSeconds),
     /** timeouts in a row that forfeit the match */
@@ -53,21 +61,24 @@ export const GameSettingsSchema = z
     fight: FightRulesSchema.optional(),
   })
   .refine((s) => new Set(s.stakes).size === s.stakes.length, { message: "DUPLICATE_STAKE", path: ["stakes"] })
-  .refine((s) => s.reconnectSeconds < s.maxMatchMinutes * 60, { message: "RECONNECT_TOO_LONG", path: ["reconnectSeconds"] });
+  .refine((s) => s.reconnectSeconds < s.maxMatchMinutes * 60, { message: "RECONNECT_TOO_LONG", path: ["reconnectSeconds"] })
+  .refine((s) => s.reconnectBudgetSeconds === undefined || s.reconnectBudgetSeconds >= s.reconnectSeconds, { message: "BUDGET_BELOW_WAIT", path: ["reconnectBudgetSeconds"] });
 export type GameSettings = z.infer<typeof GameSettingsSchema>;
 
 /** console / back office edit: the whole settings for one game + why (kept in the audit trail) */
 export const UpdateGameSettingsSchema = z.object({ settings: GameSettingsSchema, reason: ReasonSchema });
 export type UpdateGameSettings = z.infer<typeof UpdateGameSettingsSchema>;
 
-const base = { enabled: true, friendlyPerDay: 20, stakes: [25, 50, 100, 200], turnSeconds: 30, reconnectSeconds: 60, joinSeconds: 60, maxTimeouts: 3 };
+// P2-NET-05 waits: a turn game waits up to 90 s for a dropped player (3 drops, 3 min away in all per match); a fight
+// pauses up to 60 s per drop (90 s of pauses in all per fighter) — a fight cools down, so it waits less
+const base = { enabled: true, friendlyPerDay: 20, stakes: [25, 50, 100, 200], turnSeconds: 30, reconnectSeconds: 90, joinSeconds: 60, maxTimeouts: 3, maxDisconnects: 3, reconnectBudgetSeconds: 180 };
 /** seeded as version 1 of each game (migration-free first run) */
 export const DEFAULT_GAME_SETTINGS: Record<GameId, GameSettings> = {
   igisoro: { ...base, maxMatchMinutes: 45 },
   ludo: { ...base, maxMatchMinutes: 90 },
   pool: { ...base, maxMatchMinutes: 60 },
   // P3-FGT-01: seeded switched OFF — staff open it in the console Games section once the Boxing hall ships
-  boxing: { ...base, enabled: false, maxMatchMinutes: 15, fight: DEFAULT_FIGHT_RULES },
+  boxing: { ...base, enabled: false, reconnectSeconds: 60, reconnectBudgetSeconds: 90, maxMatchMinutes: 15, fight: DEFAULT_FIGHT_RULES },
 };
 
 /** the settings row as the editors list it */
@@ -89,6 +100,10 @@ export interface MatchRules {
   joinSeconds: number;
   maxTimeouts: number;
   maxMatchMinutes: number;
+  /** P2-NET-05: connection losses allowed per player (missing in older matches: 3) */
+  maxDisconnects?: number;
+  /** P2-NET-05: total time away allowed per player, seconds (missing: 2 × reconnectSeconds; boxing: reconnectSeconds) */
+  reconnectBudgetSeconds?: number;
   /** fight games only (copied from the settings' fight block) */
   fight?: FightRules;
 }
@@ -100,6 +115,8 @@ export const rulesOf = (s: GameSettings, version: number): MatchRules => ({
   joinSeconds: s.joinSeconds,
   maxTimeouts: s.maxTimeouts,
   maxMatchMinutes: s.maxMatchMinutes,
+  ...(s.maxDisconnects !== undefined ? { maxDisconnects: s.maxDisconnects } : {}),
+  ...(s.reconnectBudgetSeconds !== undefined ? { reconnectBudgetSeconds: s.reconnectBudgetSeconds } : {}),
 });
 
 /**
@@ -113,6 +130,8 @@ export const PERSONAL_REFUSALS = [
   "INSUFFICIENT_FUNDS",
   "FRIENDLY_LIMIT_REACHED",
   "ALREADY_IN_MATCH",
+  // P2-NET-05: the player hasn't accepted this game's current rules card
+  "RULES_NOT_ACCEPTED",
 ] as const;
 export type PersonalRefusal = (typeof PERSONAL_REFUSALS)[number];
 export const TABLE_REFUSALS = ["GAME_DISABLED", "STAKE_NOT_ALLOWED"] as const;
@@ -160,6 +179,7 @@ export const VOID_CAUSES = [
   "ROOM_CLOSED", // the game server closed the room (restart, shutdown)
   "MATCH_TOO_LONG", // ran past maxMatchMinutes
   "STALE_ESCROW", // reconciliation sweep: no live room and no settlement
+  "LEFT_WHILE_WAITING", // P2-NET-05: friendly only — the player left while their opponent was disconnected
 ] as const;
 export type VoidCause = (typeof VOID_CAUSES)[number];
 export const VoidCauseSchema = z.enum(VOID_CAUSES);
@@ -169,3 +189,31 @@ export type ForfeitCause = (typeof FORFEIT_CAUSES)[number];
 /** realtime → API heartbeat: the matches this game server is running (stale escrow sweep) */
 export const MatchHeartbeatSchema = z.object({ matchIds: z.array(z.string().uuid()).max(5000) });
 export const VoidMatchSchema = z.object({ cause: VoidCauseSchema.optional() }).default({});
+
+/**
+ * Rules to accept before a live match (P2-NET-05, docs/GAME-EXIT-RULES.md "Rules card"). The text lives in one place
+ * per game (web i18n `rules.<game>.*`); this number names its version. Bump a game's version whenever its rules text
+ * changes in substance: every player is asked to accept again before their next live match of that game. Number
+ * changes from the console (turn time, waits) are shown on the card but do not need a new acceptance.
+ */
+export const GAME_RULES_VERSION: Record<GameId, number> = { igisoro: 1, ludo: 1, pool: 1, boxing: 1 };
+export const AcceptRulesSchema = z.object({ game: GameIdSchema, version: z.number().int().min(1).max(10_000) });
+export type AcceptRules = z.infer<typeof AcceptRulesSchema>;
+/** GET /games/rules: per game, the current rules version and whether I accepted it */
+export interface RulesStatus {
+  games: { game: GameId; version: number; accepted: boolean; acceptedAt: string | null }[];
+}
+
+/**
+ * GET /games/active (P2-NET-05 resume): the live match I am seated in, so a reload, a new tab or another device puts
+ * me straight back. `roomId` is the game server room (null until the game server reported it); `ring` for boxing.
+ */
+export interface ActiveMatch {
+  matchId: string;
+  game: GameId;
+  stake: number;
+  roomId: string | null;
+  ring: string | null;
+  createdAt: string;
+}
+export const AttachRoomSchema = z.object({ roomId: z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/), ring: z.string().max(16).regex(/^[A-Za-z0-9_-]*$/).optional() });

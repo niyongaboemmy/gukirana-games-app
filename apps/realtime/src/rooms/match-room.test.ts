@@ -128,11 +128,11 @@ describe("match room", () => {
     await wait(150);
     await a.room.leave(false); // tab closed / reloaded: not consented
     await wait(100);
-    expect(b.last("presence")).toEqual({ userId: A, connected: false });
+    expect(b.last("presence")).toMatchObject({ userId: A, connected: false });
     const a2 = await join(roomId, A); // the reloaded page joins fresh
     await wait(150);
     expect(a2.last("state")).toBeDefined();
-    expect(b.last("presence")).toEqual({ userId: A, connected: true });
+    expect(b.last("presence")).toMatchObject({ userId: A, connected: true });
     expect(settled).toHaveLength(0);
     await a2.room.leave(true);
     await wait(300);
@@ -153,7 +153,7 @@ describe("match room", () => {
     back.room.send("sync");
     await wait(200);
     expect(back.last("state")).toMatchObject({ turn: A });
-    expect(b.last("presence")).toEqual({ userId: A, connected: true });
+    expect(b.last("presence")).toMatchObject({ userId: A, connected: true });
     expect(settled).toHaveLength(0);
     await back.room.leave(true);
     await b.room.leave(true);

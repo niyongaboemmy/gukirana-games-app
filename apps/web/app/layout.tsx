@@ -7,6 +7,7 @@ import { SessionBoot } from "@/auth/SessionBoot";
 import { DoorTransition } from "@/world/doorway";
 import { ConsoleLayer } from "@/console/ConsoleLayer";
 import { SceneHost } from "@/world/SceneHost";
+import { NetLayer } from "@/rules/NetLayer";
 
 // UI type (docs/UI-DESIGN-SYSTEM.md, SIL OFL 1.1, self-hosted by next/font at build time): Chakra Petch for display
 // (titles, chips, buttons, numerals), Inter for body text (chat, menus, descriptions).
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         <DoorTransition />
         <ConsoleLayer />
+        <NetLayer />
       </body>
     </html>
   );

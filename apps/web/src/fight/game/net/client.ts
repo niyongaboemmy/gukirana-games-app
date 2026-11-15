@@ -26,6 +26,7 @@ import { useFightBridge, type MyFight } from "../../bridge";
 import { registerLiveFight, type LiveFight } from "../actions";
 import { useFightUi } from "../ui-store";
 import { denialText, fn } from "./strings";
+import { clearActive, saveActive } from "@/lib/active-match";
 
 /**
  * The live Boxing client (P3-FGT-01, FIGHT-GAMES-PLAN §3, §7): the Boxing hall room's ring messages (through the shared
@@ -41,8 +42,12 @@ export interface BoxingNetState {
   denied: { action: string; reason: string; text: string; ring?: RingId; at: number } | null;
   /** my ring in this hall (assigned by the server), live or practice */
   ring: { id: RingId; corner: Corner } | null;
+  /** P2-NET-05: my fight connection dropped — retrying until `until` (the referee's time-out for me) */
+  reconnecting: { until: number } | null;
+  /** P2-NET-05: my opponent dropped — the referee waits for them until `until` (then I win by forfeit) */
+  oppAway: { until: number; name: string } | null;
 }
-export const useBoxingNet = create<BoxingNetState>()(() => ({ quick: { status: "idle" }, denied: null, ring: null }));
+export const useBoxingNet = create<BoxingNetState>()(() => ({ quick: { status: "idle" }, denied: null, ring: null, reconnecting: null, oppAway: null }));
 
 function realtimeUrl(): string {
   if (process.env.NEXT_PUBLIC_REALTIME_URL) return process.env.NEXT_PUBLIC_REALTIME_URL;
@@ -80,6 +85,9 @@ interface FightResultMsg {
 let fightRoom: Room | null = null;
 let fightRoomId: string | null = null;
 let me: string | null = null;
+let mySeat: 0 | 1 = 0;
+/** the fight's per-drop wait (rules.reconnectSeconds) */
+let waitS = 60;
 let seq = 0;
 let guardHeld = true;
 let pinger: ReturnType<typeof setInterval> | null = null;
@@ -100,6 +108,7 @@ function closeFight(): void {
   fightRoom = null;
   fightRoomId = null;
   void r?.leave(true).catch(() => undefined);
+  useBoxingNet.setState({ reconnecting: null, oppAway: null });
 }
 
 /** Stars I won / lost from the ranks (the API pays the whole pot to the winner; a draw / void returns the stake) */
@@ -132,9 +141,52 @@ async function openFight(m: { ring: RingId; roomId: string; matchId: string; cor
     return;
   }
   if (fightRoomId !== m.roomId) return void room.leave(true).catch(() => undefined);
+  saveActive({ matchId: m.matchId, roomId: m.roomId, game: "boxing" });
+  bindFight(room, m);
+  readyTimer = setTimeout(() => room.send(FightMsg.ready), 1200);
+}
+
+/**
+ * P2-NET-05: the fight connection dropped (network, sleep) — the room calls a referee time-out and keeps my corner
+ * for its wait; retry with backoff: the reconnection token first, then a join with my access token (the room admits
+ * only the two fighters). The server sends the full state again (init + snapshot) on the new connection.
+ */
+function reconnectFight(m: FightReady, token: string): void {
+  const until = Date.now() + waitS * 1000;
+  useBoxingNet.setState({ reconnecting: { until } });
+  void (async () => {
+    for (let i = 0; fightRoomId === m.roomId && !fightRoom && Date.now() < until + 5000; i++) {
+      await new Promise((r) => setTimeout(r, Math.min(4000, 400 * 2 ** i)));
+      while (typeof navigator !== "undefined" && !navigator.onLine && Date.now() < until && fightRoomId === m.roomId) await new Promise((r) => setTimeout(r, 500));
+      if (fightRoomId !== m.roomId) return;
+      const client = new Client(realtimeUrl());
+      try {
+        const room = await client.reconnect(token).catch(() => client.joinById(m.roomId, { token: useSession.getState().accessToken }));
+        if (fightRoomId !== m.roomId) return void room.leave(true).catch(() => undefined);
+        bindFight(room, m);
+        room.send(FightMsg.sync);
+        useBoxingNet.setState({ reconnecting: null });
+        return;
+      } catch {
+        /* retry */
+      }
+    }
+    if (fightRoomId === m.roomId && !fightRoom) {
+      useBoxingNet.setState({ reconnecting: null });
+      clearActive(m.matchId);
+      notify(fn("fight.connectFailed"));
+    }
+  })();
+}
+
+type FightReady = { ring: RingId; roomId: string; matchId: string; corner: Corner; stake: number; rules?: FightRules };
+
+function bindFight(room: Room, m: FightReady): void {
   fightRoom = room;
-  room.onMessage("init", (i: FightInit) => {
+  room.onMessage("init", (i: FightInit & { rules?: { reconnectSeconds?: number } }) => {
     me = i.you;
+    mySeat = i.seat;
+    if (i.rules?.reconnectSeconds) waitS = i.rules.reconnectSeconds;
     const names = [0, 1].map((s) => i.players.find((p) => p.seat === s)?.name ?? "") as [string, string];
     setMine({ corner: i.corner, ring: i.ring, stake: i.stake, rules: i.fight ?? DEFAULT_FIGHT_RULES, names, begun: i.begun });
   });
@@ -165,22 +217,32 @@ async function openFight(m: { ring: RingId; roomId: string; matchId: string; cor
     void useFightRating.getState().loadMe();
     // the result card reads the outcome from the feed: make sure it is there even when no `over` event came
     if (r.outcome && !useFightUi.getState().result) useFightUi.getState().push([{ k: "over", t: cur?.snap?.tick ?? 0, result: r.outcome }]);
+    useBoxingNet.setState({ oppAway: null, reconnecting: null });
+    clearActive(m.matchId);
   });
   room.onMessage(FightEvt.rejected, () => undefined);
   room.onMessage(FightEvt.pong, () => undefined);
-  room.onMessage(FightEvt.pause, () => undefined);
+  // P2-NET-05: a referee time-out for my opponent → the waiting countdown (the server decides the forfeit)
+  room.onMessage(FightEvt.pause, (p: { who: 0 | 1; connected: boolean; ms?: number }) => {
+    if (p.who === mySeat) return;
+    const names = useFightBridge.getState().mine?.names;
+    useBoxingNet.setState({ oppAway: p.connected ? null : { until: Date.now() + (p.ms ?? waitS * 1000), name: names?.[p.who] ?? "" } });
+  });
   room.onMessage("timeout", () => undefined);
   room.onMessage("player-removed", () => undefined);
-  room.onLeave(() => {
-    if (fightRoom === room) {
-      fightRoom = null;
-      if (pinger) clearInterval(pinger);
-      pinger = null;
-    }
+  const token = room.reconnectionToken;
+  room.onLeave((code) => {
+    if (fightRoom !== room) return;
+    fightRoom = null;
+    if (pinger) clearInterval(pinger);
+    pinger = null;
+    // an unexpected drop while the fight runs: get back in (1000 / 4000 = we left / the room closed)
+    const mine = useFightBridge.getState().mine;
+    if (code !== 1000 && code !== 4000 && fightRoomId === m.roomId && mine?.mode === "live" && !mine.settled) reconnectFight(m, token);
   });
-  // keep-alive (the room treats 3 s of silence as a time-out) + gloving up: ready after a short beat
+  // keep-alive (the room treats 3 s of silence as a time-out)
+  if (pinger) clearInterval(pinger);
   pinger = setInterval(() => room.send(FightMsg.ping, { t: Date.now() }), 1000);
-  readyTimer = setTimeout(() => room.send(FightMsg.ready), 1200);
 }
 
 /* ------------------------------------------------------------ the hall room ------------------------------------------------------------ */
@@ -278,7 +340,7 @@ export function startBoxingNet(): () => void {
     registerLiveFight({});
     closeFight();
     useFightBridge.setState({ rings: {}, watched: null, ...(useFightBridge.getState().mine?.mode === "live" ? { mine: null, myEvents: [] } : {}) });
-    useBoxingNet.setState({ quick: { status: "idle" }, denied: null, ring: null });
+    useBoxingNet.setState({ quick: { status: "idle" }, denied: null, ring: null, reconnecting: null, oppAway: null });
   };
 }
 

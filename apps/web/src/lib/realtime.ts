@@ -1,4 +1,5 @@
 "use client";
+import { withRules } from "@/rules/rules-store";
 import { Client, type Room } from "colyseus.js";
 import { useWorld, type RemotePlayer } from "./world-store";
 import { reasonText, useMatch, type IncomingProposal } from "./match-store";
@@ -319,12 +320,18 @@ export async function unblockKey(key: string) {
 }
 export const sitAt = (seat: string) => room?.send("sit", { seat });
 export const standUp = () => room?.send("stand");
-export const propose = (to: string, game: "igisoro" | "ludo" | "pool" | "boxing", stake: number) => room?.send("propose", { to, game, stake });
+// P2-NET-05: challenging, accepting a challenge and Quick Match first ask for the game's rules card (once per version)
+export const propose = (to: string, game: "igisoro" | "ludo" | "pool" | "boxing", stake: number) => withRules(game, () => room?.send("propose", { to, game, stake }));
 export const respondProposal = (id: string, accept: boolean) => {
-  room?.send("proposal-respond", { id, accept });
-  useMatch.setState((s) => ({ incoming: s.incoming.filter((x) => x.id !== id) }));
+  const p = useMatch.getState().incoming.find((x) => x.id === id);
+  const send = () => {
+    room?.send("proposal-respond", { id, accept });
+    useMatch.setState((s) => ({ incoming: s.incoming.filter((x) => x.id !== id) }));
+  };
+  if (accept && p) withRules(p.game, send);
+  else send();
 };
-export const quickMatchJoin = (game: "igisoro" | "ludo" | "pool", stake: number) => room?.send("quickmatch-join", { game, stake });
+export const quickMatchJoin = (game: "igisoro" | "ludo" | "pool", stake: number) => withRules(game, () => room?.send("quickmatch-join", { game, stake }));
 export const quickMatchLeave = () => room?.send("quickmatch-leave");
 export const sendEmote = (emote: number, to?: string) => room?.send("emote", to ? { emote, to } : { emote });
 

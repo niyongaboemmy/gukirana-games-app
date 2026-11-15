@@ -34,10 +34,12 @@ Times in *italics* are the default game settings; admins change them per game (s
 | 2 | **Draw** — by the game, or both accept "Offer a draw" (2-player games) | any time after the start | settled as a draw | each gets their stake back | draw (Elo 0.5) | draw XP | counts | "Draw: stakes returned." |
 | 3 | **Leave before the first move** (menu → Leave, or closing the match with Leave) | no move made yet | **void** | refunded | none | none | not counted | "The match was cancelled before the first move." The Leave dialog says so first. |
 | 4 | **Leave after the first move** (menu → Leave) | any time after the first move | **forfeit** by the leaver | opponent gets the pot | loss for the leaver | 0 for the leaver | counts | Leave dialog: "Leaving counts as a forfeit: *name* wins the *pot* Stars pot. You lose your *stake* Stars stake and rating points, and get no XP." |
-| 5 | **Disconnect** (closed tab, network loss, phone asleep) | after the start | the seat is kept for *60 s* (reconnect window); the **turn clock keeps running** (timeouts below still apply). Back in time (same tab or a reload) → the match goes on. | — | — | — | — | opponent sees "*name* disconnected · *n*s to return"; you see "Reconnecting…" |
-| 6 | **Not back within the reconnect window** | after the first move, opponent still connected | **forfeit** by the disconnected player | opponent gets the pot | loss | 0 | counts | "You didn't come back within 60 s, so it counts as a forfeit." |
+| 5 | **Disconnect** (closed tab, reload, network loss, phone asleep) | after the start | the seat is kept for *90 s* (`reconnectSeconds`, the opponent's **maximum wait**; Boxing *60 s*). While the absent player is **on turn their turn clock is paused** (back on their turn: the rest of it, at least 10 s); the other player's turns run normally. Back in time — same tab, a reload, a new tab or another device (P2-NET-05 resume) — the match goes on from the server's state. | — | — | — | — | opponent: a "Your opponent lost connection" card with an *m:ss* countdown, **Keep waiting** and (friendly only) **Leave without penalty**; you: "Connection lost. Reconnecting… *n* s left" |
+| 5a | **Reconnect budget used up** (P2-NET-05) | a player's *4th* connection loss in one match (`maxDisconnects` 3), or all their time away together past *180 s* (`reconnectBudgetSeconds`; Boxing *90 s*) — each wait is cut to what is left of it | as row 6 / 7: **forfeit** after the first move, **void** before it, void if nobody is left | as 6 / 7 | as 6 / 7 | as 6 / 7 | as 6 / 7 | the waiting countdown ends at once / is shorter |
+| 6 | **Not back within the wait** | after the first move, opponent still connected | **forfeit** by the disconnected player | opponent gets the pot | loss | 0 | counts | the staying player: "Your opponent didn't come back in time. You win."; the absent one: "You didn't come back within 90 s, so it counts as a forfeit." |
 | 7 | **Not back within the window, before the first move** | no move made yet | **void** | refunded | none | none | not counted | "The match was cancelled before the first move." |
 | 8 | **Both players disconnected** | a forfeit would happen but nobody is left connected to win | **void** | refunded | none | none | not counted | "Both players lost the connection. Match voided." |
+| 8a | **Leave while the opponent is away** (P2-NET-05, **friendly only**) | the opponent is disconnected and the staying player presses "Leave without penalty" | **void** (`LEFT_WHILE_WAITING`) | — (stake 0) | none | none | not counted | "A player left while the other was disconnected. Friendly match cancelled: nothing counts." A **staked** match must wait out the countdown (the server refuses `STAKED_MUST_WAIT`); a Leave there is still a forfeit (row 4). |
 | 9 | **Turn timeouts** | a turn runs past *30 s* → an automatic move (or pass) and a strike; *3* timeouts **in a row** → forfeit (a move of your own resets the count) | **forfeit** by the player who timed out | opponent gets the pot | loss | 0 | counts | "Time out (1/3)" banners; then "You ran out of time 3 turns in a row." |
 | 10 | **Inactivity before the first move** | the timeouts of row 9 happen before anyone has made a move | **void** | refunded | none | none | not counted | "Nobody made a first move. Match cancelled." |
 | 11 | **Opponent never joins** | the match was created but a player doesn't open it within *60 s* | **void** | refunded | none | none | not counted | "Your opponent never joined. Match cancelled: stakes refunded." |
@@ -70,6 +72,57 @@ Until somebody has moved, nobody has gained or lost anything: cancelling is the 
 After the first move the position matters, so leaving is a forfeit. The same rule applies whether you press Leave,
 lose the connection or time out — so there is never a reason to idle instead of pressing Leave.
 
+## Resume after a reload or a lost connection (P2-NET-05)
+
+- **The server is the only authority.** A returning player gets the room's full state again (`init` + `state` for
+  turn games: board, dice / turn, scores, the turn deadline or `paused`; `init` + `snap` for Boxing: round, clock,
+  cards). The client never decides a forfeit; the room does when the wait or the budget runs out.
+- **Where the client remembers the match:** `localStorage["gk-active-match"]` = match id, room id, game, seat (no
+  secrets), cleared at the result / Leave / "no longer available". The Colyseus reconnection token stays in
+  `sessionStorage` per tab (`apps/web/src/match/LiveMatch.tsx`, `apps/web/src/fight/game/net/client.ts`).
+- **On every page load** (`apps/web/src/lib/active-match.ts`, mounted in the root layout): `GET /games/active` names my
+  live match (my own seat only; the realtime server reports each match's room with `POST /internal/matches/:id/room`)
+  → a table game opens `/match/<room>`, a fight the Boxing hall (`/room/boxing`, the hall re-sends my fight).
+- **Rejoining:** the reconnection token inside the wait; when it expired, was lost (new tab, another device) or the
+  socket died, a join with the access token — the room's `onAuth` admits only the match's players, so it re-seats the
+  same user and never another. Network loss retries with backoff (0.5 s → 5 s) until the wait ends, pausing while
+  the browser is offline; the banner shows the time left.
+- **Waiting for the opponent:** the staying player sees the countdown card (row 5) and may keep waiting; in a
+  friendly they may leave without penalty (row 8a). Boxing shows "Time-out: *name* lost connection (*m:ss*)" while the
+  fight is paused for both.
+- **Moderation trail:** realtime logs `match.disconnect`, `match.reconnect`, `match.no-return`, `match.budget-exhausted`,
+  `match.left-waiting`, `match.<reason>` (Boxing `fight.disconnect` / `fight.reconnect`) with match and user ids; the
+  API writes an `access_audit` row `match.forfeit` for every settled forfeit and `match.void` for `BOTH_DISCONNECTED`
+  / `LEFT_WHILE_WAITING`.
+- Kill switch: `NEXT_PUBLIC_FF_RESUME=0` (web resume on load; the server-side waits are always on).
+
+## Rules card (P2-NET-05)
+
+Before a **live** match of a game — challenging, accepting a challenge, Quick Match, a ring claim / join / quick
+fight — the player reads that game's rules card and ticks "I have read and accept these rules". The acceptance is
+stored per user, game and **rules version** (`rules_acceptances`, `POST /games/rules/accept`, `GET /games/rules`;
+`GAME_RULES_VERSION` in `packages/contracts/src/games.ts`), so it is asked again only when the version changes.
+**The server refuses to seat** a player without the current acceptance: `RULES_NOT_ACCEPTED`, a personal refusal
+checked with the other validations below (realtime pre-check, then the API at create). Practice vs AI shows the card
+once per game and version (remembered in the browser) and is never blocked by it. Kill switches:
+`FF_RULES_ACCEPT=0` (API) and `NEXT_PUBLIC_FF_RULES_ACCEPT=0` (web).
+
+The card's text lives in one place, `apps/web/src/rules/strings.ts` (i18n keys `rules.*`), with the numbers filled in
+from the game's live settings and fees from the server (`packages/money` via `GET /games/offer`). It says:
+
+| Section | Turn games (Igisoro, Ludo, 8-Ball Pool) | Boxing |
+|---|---|---|
+| How to play / how to win | the game's rules (same as the in-game help) | rounds, 5 judges (10-point must), KO / stoppage, warnings → DQ |
+| Time limits | `turnSeconds` per turn, an automatic move = a strike, `maxTimeouts` in a row = forfeit; longest match `maxMatchMinutes` | idle `idleSeconds` in a round = a strike, `maxTimeouts` in a row = forfeit |
+| Connection | seat kept `reconnectSeconds`, your clock waits while it is your turn, opponent sees a countdown | referee time-out up to `reconnectSeconds`, 3 s countdown on return |
+| Budget | at most `maxDisconnects` losses and `reconnectBudgetSeconds` away per match; then forfeit (void before the first move; void if both are gone) | same |
+| Leaving | rows 3, 4, 8a | rows 3, 4 |
+| Stakes and fees | equal stakes in escrow before the first move, winner takes the pot, the game's stakes, the table fee (none for Stars) | same |
+| Fair play | server-authoritative, provably fair randomness, no bots in live matches, one adult account per person | same |
+
+Changing a game's rules text in substance = bump its `GAME_RULES_VERSION` (everyone accepts again). Changing numbers
+in the console does not need a new acceptance: the card always shows the current numbers.
+
 ## Validations first (before any escrow)
 
 Checked **server-side** by the API when the match is created (both players re-validated at accept time), and before
@@ -86,6 +139,7 @@ shows the same reasons on disabled options (`GET /games/offer`), but the server 
 | Staked: not on a break (self-exclusion) | `ON_A_BREAK` | that player only | "You're on a break, so staked games are paused. Friendly games are still on." |
 | Staked: under their own daily stake limit | `DAILY_LIMIT_REACHED` | that player only | "That stake is over your daily limit. Try a smaller stake or a friendly game." |
 | Friendly: a friendly game of this game is left today | `FRIENDLY_LIMIT_REACHED` | that player only | "You've played your *20* friendly games of *Ludo* today — come back tomorrow or play practice vs AI." |
+| The game's current rules card is accepted (P2-NET-05) | `RULES_NOT_ACCEPTED` | that player only | "Accept the *Ludo* rules first: try again and read the rules card." |
 
 - The other player is never told a personal reason: they hear "They can't play right now." (`OPPONENT_CANT_PLAY`).
 - **No Stars → friendly only:** every staked option is disabled with the reason, Friendly stays available (if
@@ -108,7 +162,9 @@ match keeps the copy it started with (`matches.rules`).
 | `friendlyPerDay` | 20 | 0–200 | Friendly live matches one player may start per Kigali day **in this game**. 0 = no friendly live matches. |
 | `stakes` | 25, 50, 100, 200 | 0–8 values, each 10–10 000 Stars | The stakes players can choose besides Friendly. Empty = friendly only. |
 | `turnSeconds` | 30 | 10–120 | Time per turn before a timeout. |
-| `reconnectSeconds` | 60 | 15–300 | Time a disconnected player has to come back (must be shorter than the longest match). |
+| `reconnectSeconds` | 90 (Boxing 60) | 15–300 | Time a disconnected player has to come back = the opponent's maximum wait (must be shorter than the longest match). |
+| `maxDisconnects` | 3 | 1–10 | Connection losses one player may have per match; the next one forfeits at once (P2-NET-05). Missing = 3. |
+| `reconnectBudgetSeconds` | 180 (Boxing 90) | 15–900, ≥ `reconnectSeconds` | One player's time away per match, every drop together (P2-NET-05). Missing = 2 × `reconnectSeconds` (Boxing: `reconnectSeconds`). |
 | `joinSeconds` | 60 | 15–300 | Time both players have to open the match. |
 | `maxTimeouts` | 3 | 1–10 | Timeouts in a row that forfeit the match. |
 | `maxMatchMinutes` | Igisoro 45, Ludo 90, Pool 60 | 5–240 | Longest a match may run (then void). |
@@ -134,7 +190,11 @@ counted.
 | 2 | api `completed normally > draw…`; realtime `match-room.test.ts > draw by agreement…` |
 | 3 | realtime `exit-rules.test.ts > leaving voluntarily > before the first move…` |
 | 4 | realtime `exit-rules.test.ts > leaving voluntarily > after the first move…`, `match-room.test.ts > resign (after the first move)…`; api `completed normally > forfeit…` |
-| 5 | realtime `match-room.test.ts > a page reload mid-game…`, `> reconnects with the reconnection token…` |
+| 5 | realtime `match-room.test.ts > a page reload mid-game…`, `> reconnects with the reconnection token…`; `exit-rules.test.ts > resume … (P2-NET-05) > drop and come back with the token…` (state intact, clock waited), `> the token expired / the storage was lost…` (re-seat the same player only) |
+| 5a | realtime `exit-rules.test.ts > resume … > reconnect budget…`; `boxing-room.test.ts > P2-NET-05: each time-out lasts at most…` |
+| 6 (P2-NET-05) | realtime `exit-rules.test.ts > resume … > the opponent never comes back…` (settled exactly once); api `P2-NET-05 > … a forfeit settles once with an audit row` |
+| 8a | realtime `exit-rules.test.ts > resume … > friendly: the staying player may leave without waiting…` |
+| rules card | api `P2-NET-05 > rules: stored per user + game + version…`, `> the server refuses to seat a player without the current acceptance…`; realtime `stakes.test.ts > rules to accept (P2-NET-05)` |
 | 6 | realtime `exit-rules.test.ts > disconnects > not back within reconnectSeconds…` |
 | 7 | realtime `exit-rules.test.ts > disconnects > disconnected before the first move and not back: void` |
 | 8 | realtime `exit-rules.test.ts > disconnects > both players gone…`; api `void + refund > refunds every stake exactly once…` |
@@ -159,8 +219,9 @@ live fights; practice vs AI runs in the browser and is never counted (row 18). L
 
 **First move** = the opening bell rang **and** either fighter sent an input after it (engine `hasBegun`).
 **Disconnect** = a **referee time-out**: the fight clock stops for both, the fighters go to neutral; back → a 3 s
-countdown and the round resumes where it stopped. Each fighter has a **pause budget** of `reconnectSeconds` for the
-whole match (all their time-outs together). A connection that sends nothing (no input, no ping) for 3 s during the
+countdown and the round resumes where it stopped. Each time-out lasts at most `reconnectSeconds`; each fighter has a **pause budget** of
+`reconnectBudgetSeconds` (missing: `reconnectSeconds`) for the whole match (all their time-outs together), and at most
+`maxDisconnects` time-outs (P2-NET-05). A connection that sends nothing (no input, no ping) for 3 s during the
 fight counts as gone too.
 
 | Row | Boxing meaning | Outcome |
@@ -170,7 +231,7 @@ fight counts as gone too.
 | 2 | no majority on the cards: a **staked** fight goes to the countback (judges ahead → card sums → knockdowns → fewer warnings → fewer cautions → power punches → clean punches → last round); a friendly, or a level countback, is a **draw** (no draw offers in boxing) | settled; countback winner gets the pot, a draw gives stakes back |
 | 3 | Leave during gloving up / the countdown / before anyone acted | void (`LEFT_BEFORE_START`) |
 | 4 | Leave after the first move (the Leave dialog shows the pot) | forfeit (`RESIGN`) |
-| 5 | disconnect: referee time-out, the clock stops, the budget runs | — |
+| 5 | disconnect: referee time-out, the clock stops for both; each time-out lasts at most `reconnectSeconds` (*60 s*), drawn from the fighter's pause budget `reconnectBudgetSeconds` (*90 s*); at most `maxDisconnects` (*3*) time-outs | — |
 | 6 | budget used up, after the first move, opponent connected | forfeit (`DISCONNECT`) |
 | 7 | budget used up before the first move | void (`LEFT_BEFORE_START`) |
 | 8 | both fighters gone | void (`BOTH_DISCONNECTED`) |

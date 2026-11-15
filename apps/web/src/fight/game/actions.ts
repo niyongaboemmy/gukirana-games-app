@@ -8,6 +8,7 @@ import { ASSIST_MAX_LEVEL, PracticeRunner, PracticeSession } from "./practice";
 import { practiceHz, useFightPrefs } from "./prefs";
 import { useFightUi, type PressFx } from "./ui-store";
 import { useFightRating } from "./rating";
+import { requireRules, withRules } from "@/rules/rules-store";
 
 /**
  * The boxing game side of the ring prompts (FIGHT-GAMES-PLAN §7.2, §12 Do 5). W's prompts call these (through the
@@ -181,13 +182,16 @@ if (typeof window !== "undefined") {
 /* ------------------------------------------------------------ the prompts' actions ------------------------------------------------------------ */
 
 export const gameFightActions: GameFightActions = {
-  claim: (ring, stake) => live.claim?.(ring, stake),
-  join: (ring) => live.join?.(ring),
-  quick: (stake) => live.quick?.(stake),
+  // P2-NET-05: a live fight needs the Boxing rules card accepted (the API refuses RULES_NOT_ACCEPTED otherwise)
+  claim: (ring, stake) => withRules("boxing", () => live.claim?.(ring, stake)),
+  join: (ring) => withRules("boxing", () => live.join?.(ring)),
+  quick: (stake) => withRules("boxing", () => live.quick?.(stake)),
   quickCancel: () => live.quickCancel?.(),
   watch: (ring) => live.watch?.(ring),
   practice: (ring, level) => {
     startPractice(ring, level, useFightBridge.getState().mine?.names?.[0] ?? "");
+    // P2-NET-05: the Boxing rules card once per rules version (informational for practice)
+    void requireRules("boxing", "practice");
   },
   leave: () => {
     const mine = useFightBridge.getState().mine;
