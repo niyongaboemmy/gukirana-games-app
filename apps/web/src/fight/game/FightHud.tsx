@@ -149,6 +149,7 @@ function Callouts({ snap, me, now }: { snap: BoxingSnapshot; me: 0 | 1; now: num
   const hintAt = useFightUi((s) => s.hintAt);
   let card: { title: string; sub?: string; why?: string; tone?: "me" | "them" | "even" } | null = null;
   const pops: { id: number; text: string; good: boolean }[] = [];
+  const phone = typeof window !== "undefined" && window.matchMedia?.("(max-height: 500px) and (pointer: coarse)").matches;
   /** every punch's outcome (P3-FGT-09): my punches big, theirs smaller, one colour per outcome */
   const outs: { id: number; word: string; sub: string; color: string; mine: boolean }[] = [];
   for (const { e, at, id } of feed) {
@@ -218,7 +219,7 @@ function Callouts({ snap, me, now }: { snap: BoxingSnapshot; me: 0 | 1; now: num
       )}
       {outs.length > 0 && snap.phase === "round" && (
         <div className="flex flex-col items-center gap-1" aria-live="polite" data-punch-outcome={outs.at(-1)!.word}>
-          {outs.slice(-2).map((o) => (
+          {outs.slice(phone ? -1 : -2).map((o) => (
             <span
               key={o.id}
               className={`gk-fade-up flex items-baseline gap-2 rounded-full px-4 font-display font-black uppercase tracking-wide text-black/90 ${o.mine ? "py-1 text-2xl phone:text-lg" : "py-0.5 text-base opacity-90 phone:text-sm"}`}

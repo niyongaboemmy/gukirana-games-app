@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, GraduationCap, X } from "lucide-react";
 import { boundKey, keyLabel, type BindAction } from "./input-map";
 import { useFightPrefs } from "./prefs";
@@ -34,18 +34,10 @@ export function Tutorial({ touch }: { touch: boolean }) {
   const done = useFightPrefs((s) => s.tutorialDone);
   const keys = useFightPrefs((s) => s.keys);
   const set = useFightPrefs((s) => s.set);
-  const counts = useFightUi((s) => s.done);
   const lastVia = useFightUi((s) => s.press?.via);
   const stats = useFightUi((s) => s.stats);
-  const feed = useFightUi((s) => s.feed);
   const me = useFightBridge((s) => (s.mine?.corner === "blue" ? 1 : 0)) as 0 | 1;
-  const phase = useFightBridge((s) => s.mine?.snap?.phase);
-  const base = useRef<Partial<Record<string, number>> | null>(null);
-  if (base.current === null) base.current = { ...counts };
-  const combo = useRef(false);
-  if (feed.some((f) => f.e.k === "hit" && f.e.by === me && f.e.combo >= 2)) combo.current = true;
   const [pad, setPad] = useState(false);
-  const started = useRef<number | null>(null);
   const [now, setNow] = useState(0);
   useEffect(() => {
     const id = setInterval(() => {
@@ -54,17 +46,18 @@ export function Tutorial({ touch }: { touch: boolean }) {
     }, 500);
     return () => clearInterval(id);
   }, []);
-  if (phase === "round" && started.current === null && now > 0) started.current = now;
   const via: Via = lastVia === "touch" || (touch && lastVia !== "key" && lastVia !== "pad") ? "touch" : lastVia === "pad" || pad ? "pad" : "key";
+  // everything from this fight's tally (the engine's events): survives a re-mount, resets with the fight
   const got = drillDone({
-    jabs: (counts.jab ?? 0) - (base.current?.jab ?? 0),
+    jabs: stats.sides[me].thrown,
     blocked: stats.sides[1 - me]!.blocked,
     slipped: stats.sides[1 - me]!.slipped,
-    combo: combo.current,
+    combo: stats.sides[me].combos > 0,
   });
   const stepDone = STEPS.map((st) => got[st.id]);
   const idx = stepDone.findIndex((d) => !d);
-  const left = started.current === null ? DRILL_SECONDS : Math.max(0, DRILL_SECONDS - Math.floor((now - started.current) / 1000));
+  const t0 = stats.firstBellAt;
+  const left = t0 === null || now === 0 ? DRILL_SECONDS : Math.max(0, DRILL_SECONDS - Math.floor((now - t0) / 1000));
   const finished = idx === -1 || left === 0;
   const vars = useMemo(() => {
     const v: Record<string, string> = {};
@@ -77,7 +70,7 @@ export function Tutorial({ touch }: { touch: boolean }) {
   const textKey = `tut.${step.text}.${via}` as FgKey;
   const stepVars = step.id === "jab" ? { ...vars, key: vars.jab! } : vars;
   return (
-    <div className="pointer-events-none absolute left-3 top-[17%] w-[min(320px,44vw)] phone:top-auto phone:bottom-[11%] phone:left-1/2 phone:w-[min(360px,44vw)] phone:-translate-x-1/2" role="dialog" aria-label={ft("drill.title")} data-drill={finished ? "done" : step.id}>
+    <div className="pointer-events-none absolute left-3 top-[17%] w-[min(320px,44vw)] phone:left-2 phone:top-[26%] phone:w-[min(250px,30vw)]" role="dialog" aria-label={ft("drill.title")} data-drill={finished ? "done" : step.id}>
       <div className="glass rounded-card flex flex-col gap-2 p-3 phone:gap-1.5 phone:p-2">
         <div className="flex items-center gap-2">
           <GraduationCap size={16} className="text-gold" />
@@ -92,7 +85,7 @@ export function Tutorial({ touch }: { touch: boolean }) {
         {!finished && (
           <>
             <p className="font-display text-base font-black leading-tight phone:text-sm">{ft(`drill.${step.id}` as FgKey)}</p>
-            <p className="text-xs font-semibold leading-snug text-on-glass-muted">{ft(textKey, stepVars)}</p>
+            <p className="text-xs font-semibold leading-snug text-on-glass-muted phone:text-[10px]">{ft(textKey, stepVars)}</p>
           </>
         )}
         {finished && (

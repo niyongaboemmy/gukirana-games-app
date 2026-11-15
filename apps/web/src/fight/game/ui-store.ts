@@ -64,7 +64,7 @@ export const useFightUi = create<FightUi>()((set) => ({
       return {
         feed: [...s.feed, ...events.map((e) => ({ e, at, id: nextId++ }))].slice(-24),
         result: over && over.k === "over" ? over.result : s.result,
-        stats: tallyStats(s.stats, events),
+        stats: tallyStats(s.stats, events, at),
       };
     }),
   hint: (hintKey) => set({ hintKey, hintAt: clock() }),

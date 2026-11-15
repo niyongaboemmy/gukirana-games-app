@@ -51,6 +51,8 @@ export interface Side {
   warnings: number;
   /** points from clean punches */
   points: number;
+  /** clean punches landed as part of a combination (2nd punch or later) */
+  combos: number;
 }
 export interface RoundTally {
   round: number;
@@ -61,15 +63,17 @@ export interface FightStats {
   rounds: RoundTally[];
   /** the round the tally is in (0 before the first bell) */
   round: number;
+  /** local time of the first bell (ms, performance clock; the training drill's 60 s run from it) */
+  firstBellAt: number | null;
 }
 
-const side = (): Side => ({ thrown: 0, landed: 0, powerLanded: 0, blocked: 0, slipped: 0, missed: 0, knockdowns: 0, warnings: 0, points: 0 });
-export const newStats = (): FightStats => ({ sides: [side(), side()], rounds: [], round: 0 });
+const side = (): Side => ({ thrown: 0, landed: 0, powerLanded: 0, blocked: 0, slipped: 0, missed: 0, knockdowns: 0, warnings: 0, points: 0, combos: 0 });
+export const newStats = (): FightStats => ({ sides: [side(), side()], rounds: [], round: 0, firstBellAt: null });
 
-/** fold events into the tally (returns a new object; the input is not changed) */
-export function tallyStats(st: FightStats, events: readonly FightEvent[]): FightStats {
+/** fold events into the tally (returns a new object; the input is not changed); `now` stamps the first bell */
+export function tallyStats(st: FightStats, events: readonly FightEvent[], now = 0): FightStats {
   if (!events.length) return st;
-  const out: FightStats = { sides: [{ ...st.sides[0] }, { ...st.sides[1] }], rounds: st.rounds.map((r) => ({ round: r.round, sides: [{ ...r.sides[0] }, { ...r.sides[1] }] })), round: st.round };
+  const out: FightStats = { sides: [{ ...st.sides[0] }, { ...st.sides[1] }], rounds: st.rounds.map((r) => ({ round: r.round, sides: [{ ...r.sides[0] }, { ...r.sides[1] }] })), round: st.round, firstBellAt: st.firstBellAt };
   const cur = (): RoundTally => {
     let r = out.rounds.find((x) => x.round === out.round);
     if (!r) {
@@ -85,6 +89,7 @@ export function tallyStats(st: FightStats, events: readonly FightEvent[]): Fight
   for (const e of events) {
     if (e.k === "bell") {
       out.round = e.round;
+      if (out.firstBellAt === null) out.firstBellAt = now;
       cur();
       continue;
     }
@@ -96,6 +101,7 @@ export function tallyStats(st: FightStats, events: readonly FightEvent[]): Fight
           s.landed++;
           s.points += e.points;
           if (POWER.has(e.punch)) s.powerLanded++;
+          if (e.combo >= 2) s.combos++;
         } else if (e.k === "block") s.blocked++;
         else if (e.k === "evade") s.slipped++;
         else s.missed++;
