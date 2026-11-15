@@ -11,7 +11,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { jointPos, macroTargets, morph, readObj, readSkeleton } from "./mh.mjs";
+import { jointPos, macroTargets, morph, readObj, readSkeleton, readTarget } from "./mh.mjs";
 import { writeGlb } from "./glb.mjs";
 import { shoulderShare, weightBytes } from "./skin-math.mjs";
 
@@ -1529,6 +1529,66 @@ function buildVariant(key, base, morphParams) {
   return { key, G, meshes, landmarks: { headC, eyeL, eyeR, kit: [Math.abs(thighL[0]), pelvis[1] - 0.07, trunksTop, hemY], torso: G.torso }, morphParams };
 }
 
+/* ------------------------------------------------------------ the player's face on the boxer head (P3-FGT-14) ------------------------------------------------------------ */
+/**
+ * The avatar's face choices (world/face.ts: shape, eyes, nose, lips) as MakeHuman face targets (data/targets/head,
+ * eyes, nose, mouth; CC0). The first option of each list in face.ts that reads as the base mesh has no target (oval,
+ * almond, rounded, medium). Each option is one sparse morph target of the body mesh; the runtime bakes the chosen
+ * ones (boxer-body.ts). Weights are kept moderate: a boxer's face, recognisably the player's choice, never a caricature.
+ */
+const FACE_MORPHS = {
+  "shape:round": [["head/head-round", 0.75], ["head/head-fat-incr", 0.3]],
+  "shape:square": [["head/head-square", 0.85]],
+  "shape:heart": [["head/head-invertedtriangular", 0.8]],
+  "shape:long": [["head/head-scale-vert-incr", 0.55], ["head/head-scale-horiz-decr", 0.25]],
+  "eyes:round": [["eyes/l-eye-height2-incr", 0.6], ["eyes/r-eye-height2-incr", 0.6]],
+  "eyes:hooded": [["eyes/l-eye-eyefold-down", 0.7], ["eyes/r-eye-eyefold-down", 0.7]],
+  "eyes:narrow": [["eyes/l-eye-height2-decr", 0.55], ["eyes/r-eye-height2-decr", 0.55]],
+  "eyes:deep": [["eyes/l-eye-eyefold-concave", 0.7], ["eyes/r-eye-eyefold-concave", 0.7]],
+  "nose:broad": [["nose/nose-scale-horiz-incr", 0.55], ["nose/nose-flaring-incr", 0.45]],
+  "nose:straight": [["nose/nose-greek-incr", 0.5], ["nose/nose-hump-decr", 0.4]],
+  "nose:narrow": [["nose/nose-scale-horiz-decr", 0.55], ["nose/nose-point-width-decr", 0.4]],
+  "nose:wide": [["nose/nose-nostrils-width-incr", 0.7], ["nose/nose-flaring-incr", 0.4]],
+  "lips:full": [["mouth/mouth-upperlip-volume-incr", 0.6], ["mouth/mouth-lowerlip-volume-incr", 0.6]],
+  "lips:thin": [["mouth/mouth-upperlip-volume-decr", 0.6], ["mouth/mouth-lowerlip-volume-decr", 0.6]],
+  "lips:wide": [["mouth/mouth-scale-horiz-incr", 0.6]],
+  "lips:bow": [["mouth/mouth-cupidsbow-incr", 0.8]],
+};
+/** per face option: MakeHuman vertex → delta (m) */
+const FACE_DELTAS = Object.fromEntries(
+  Object.entries(FACE_MORPHS).map(([name, list]) => {
+    const d = new Map();
+    for (const [file, w] of list) {
+      const t = readTarget(join(MH, "targets", `${file}.target`));
+      for (let i = 0; i < t.length; i += 4) {
+        const k = t[i];
+        const cur = d.get(k) ?? [0, 0, 0];
+        cur[0] += t[i + 1] * w * DM;
+        cur[1] += t[i + 2] * w * DM;
+        cur[2] += t[i + 3] * w * DM;
+        d.set(k, cur);
+      }
+    }
+    return [name, d];
+  }),
+);
+/** the body mesh's face targets: its vertices that come from a moved MakeHuman vertex */
+function faceMorphs(mb) {
+  return Object.entries(FACE_DELTAS).map(([name, d]) => {
+    const indices = [];
+    const values = [];
+    for (let k = 0; k < mb.count; k++) {
+      const src = mb.src[k];
+      if (typeof src !== "number" || src < 0) continue;
+      const v = d.get(src);
+      if (!v || Math.hypot(v[0], v[1], v[2]) < 2e-5) continue;
+      indices.push(k);
+      values.push(v[0], v[1], v[2]);
+    }
+    return { name, indices, values: Float32Array.from(values) };
+  });
+}
+
 /* ------------------------------------------------------------ variants: body types as morph targets ------------------------------------------------------------ */
 const ETH = { african: 1 / 3, asian: 1 / 3, caucasian: 1 / 3 };
 const GENDERS = {
@@ -1583,6 +1643,8 @@ for (const [key, spec] of Object.entries(GENDERS)) {
       }
       return d;
     });
+    // the player's face shape (P3-FGT-14): sparse targets on the body's head vertices (MakeHuman CC0 face targets)
+    if (mb.name === "body") built.sparseMorphs = faceMorphs(mb);
     return built;
   });
   // shell vertices that were not tracked (hem strips) inherit nothing: fine (they are tiny); rigid pieces use the bone
@@ -1593,6 +1655,7 @@ for (const [key, spec] of Object.entries(GENDERS)) {
     boxerBody: 1,
     source: "MakeHuman 1.x (CC0 1.0): base.obj, macrodetails targets, default.mhskel, default_weights.mhw",
     morphs: morphNames,
+    faceMorphs: Object.keys(FACE_MORPHS),
     boneMorph,
     torsoMorph,
     landmarks: base.landmarks,

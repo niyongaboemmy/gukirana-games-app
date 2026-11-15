@@ -194,6 +194,37 @@ describe.runIf(process.env.BOXER_REPORT === "1")("report", () => {
   });
 });
 
+describe.each(["m", "f"] as const)("boxer-%s: the player's face shape on the boxer head", (g) => {
+  it("every face choice that is not the base has a target; it moves the head only, by millimetres", async () => {
+    const { loadBodyNode } = await import("../boxing/load-glb.dev");
+    const { makeBoxer, facePickOf } = await import("./boxer-body");
+    const scene = await loadBodyNode(asset(`boxer-${g}`));
+    const mk = (pick: string[]) =>
+      makeBoxer(scene, scene.userData as never, { outfit: "boxer", colors: { skin: "#7a4a2a", hair: "#111111", iris: "#333333", kit: "#c0262d" }, build: { heavy: 0, slim: 0, mature: 0 }, face: { beard: 0, brow: 0.8 }, facePick: pick, bare: true });
+    const base = mk([]).mesh.geometry.getAttribute("position");
+    const names = (scene.userData as { faceMorphs: string[] }).faceMorphs;
+    expect(names).toHaveLength(16);
+    expect(facePickOf({ shape: "round", eyes: "almond", nose: "broad", lips: "medium" })).toEqual(["shape:round", "eyes:almond", "nose:broad", "lips:medium"]);
+    const headY = (scene.userData as { landmarks: { eyeL: number[] } }).landmarks.eyeL[1]! - 0.2;
+    for (const n of names) {
+      const p = mk([n]).mesh.geometry.getAttribute("position");
+      let moved = 0,
+        max = 0,
+        low = 0;
+      for (let i = 0; i < p.count; i++) {
+        const d = Math.hypot(p.getX(i) - base.getX(i), p.getY(i) - base.getY(i), p.getZ(i) - base.getZ(i));
+        if (d < 1e-5) continue;
+        moved++;
+        max = Math.max(max, d);
+        if (base.getY(i) < headY && d > 5e-4) low++;
+      }
+      expect(moved, n).toBeGreaterThan(10);
+      expect(max, n).toBeLessThan(0.025);
+      expect(low, `${n}: moves the body below the head`).toBe(0);
+    }
+  });
+});
+
 describe.each(["m", "f"] as const)("boxer-%s posed with the boxing rig (CPU skinning)", (g) => {
   const ACTIONS: BoxingClipName[] = ["guard", "jab", "cross", "leadHook", "rearHook", "leadUppercut", "rearUppercut", "leadBody", "rearBody", "blockHigh", "blockLow", "parry", "slipLeft", "duck", "clinch", "hitHeadHeavy", "hitBodyHeavy", "knockdown", "getUp", "cornerSit"];
   it("guard: both elbows down under the shoulders, gloves in front of the face (no flared elbow, no arm in the chest)", async () => {

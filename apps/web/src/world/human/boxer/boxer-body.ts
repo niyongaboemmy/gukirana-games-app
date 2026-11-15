@@ -41,6 +41,8 @@ export interface BoxerSpec {
   /** dithered fade in / out (staff popping in and out of the draw set): the material uses alpha hashing */
   fadeable?: boolean;
   face: { beard: number; brow: number };
+  /** P3-FGT-14: the player's face shape as face targets ("shape:round", "nose:broad", …; facePickOf) */
+  facePick?: string[];
   /** cast shadows */
   shadows?: boolean;
   /** the body alone, nothing covered (the lab's skinning view) */
@@ -97,8 +99,12 @@ export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: Boxer
     const g = m.geometry.clone();
     const pos = g.getAttribute("position") as THREE.BufferAttribute;
     const morphs = g.morphAttributes.position ?? [];
+    // targets by name (the body mesh also carries the face-shape targets after the body types)
+    const dict = m.morphTargetDictionary ?? {};
+    const byIndex: number[] = [];
+    for (const [n, k] of Object.entries(dict)) byIndex[k] = names.includes(n) ? (w[names.indexOf(n)] ?? 0) : (spec.facePick?.includes(n) ? FACE_WEIGHT : 0);
     for (let k = 0; k < morphs.length; k++) {
-      const wk = w[k] ?? 0;
+      const wk = Object.keys(dict).length ? (byIndex[k] ?? 0) : (w[k] ?? 0);
       if (wk < 1e-3) continue;
       const d = morphs[k]!;
       for (let i = 0; i < pos.count; i++) pos.setXYZ(i, pos.getX(i) + d.getX(i) * wk, pos.getY(i) + d.getY(i) * wk, pos.getZ(i) + d.getZ(i) * wk);
@@ -214,6 +220,15 @@ export function torsoOf(extras: Pick<Extras, "landmarks" | "torsoMorph">, names:
     });
     return r;
   });
+}
+
+/** how much of a face target the boxer head takes (the targets are already moderate: build.mjs FACE_MORPHS) */
+const FACE_WEIGHT = 1;
+
+/** the face-shape targets of an avatar face (world/face.ts): shape, eyes, nose, lips (the base options have none) */
+export function facePickOf(face: { shape?: string; eyes?: string; nose?: string; lips?: string } | undefined): string[] {
+  if (!face) return [];
+  return [`shape:${face.shape}`, `eyes:${face.eyes}`, `nose:${face.nose}`, `lips:${face.lips}`];
 }
 
 function boneOf(sk: THREE.Skeleton, name: string): THREE.Bone | null {

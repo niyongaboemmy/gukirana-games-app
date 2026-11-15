@@ -7,7 +7,7 @@ import type { AvatarLook } from "@/world/outfits";
 import { BoxingRig } from "../boxing/rig";
 import type { BoxingMotion } from "../boxing/motion";
 import { P } from "../boxing/pose";
-import { BOXER_URL, buildOf, makeBoxer, type BoxerGender, type BoxerInstance, type BoxerOutfit } from "./boxer-body";
+import { BOXER_URL, buildOf, facePickOf, makeBoxer, type BoxerGender, type BoxerInstance, type BoxerOutfit } from "./boxer-body";
 import { BoxerFace } from "./boxer-face";
 import { driveHelpers, fingerRig, helperRig, signFingers } from "./helpers";
 import type { CountSign } from "../boxing/count-signs";
@@ -83,6 +83,7 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
       noGloves,
       fadeable,
       face: { beard: facial, brow: BROW[look.face?.brows ?? "natural"] ?? 0.85 },
+      facePick: facePickOf(look.face),
       shadows: !lite,
       bare,
     });
