@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { ArmBones } from "../procedural";
+import type { TorsoSlices } from "../boxing/rig";
 import { boxerMaterial, type BoxerColors, type BoxerUniforms } from "./boxer-material";
 
 /**
@@ -42,6 +43,8 @@ export interface BoxerSpec {
   face: { beard: number; brow: number };
   /** cast shadows */
   shadows?: boolean;
+  /** the body alone, nothing covered (the lab's skinning view) */
+  bare?: boolean;
 }
 
 export interface BoxerInstance {
@@ -50,6 +53,8 @@ export interface BoxerInstance {
   material: THREE.MeshStandardMaterial & { userData: { u: BoxerUniforms } };
   uniforms: BoxerUniforms;
   arms: ArmBones[];
+  /** the torso slices of this body type (rig keep-out; build.mjs torsoSlices) */
+  torso: TorsoSlices | null;
   bone(name: string): THREE.Bone | null;
   dispose(): void;
 }
@@ -58,17 +63,18 @@ interface Extras {
   boxerBody?: number;
   morphs: string[];
   boneMorph: Record<string, number[][]>;
-  landmarks: { headC: number[]; eyeL: number[]; eyeR: number[]; kit?: number[] };
+  torsoMorph?: Record<string, number[][]>;
+  landmarks: { headC: number[]; eyeL: number[]; eyeR: number[]; kit?: number[]; torso?: number[][] };
 }
 
 /** Build one person from the loaded GLB scene (the GLTF stays shared and untouched). */
 export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: BoxerSpec): BoxerInstance {
   const scene = cloneSkinned(gltfScene) as THREE.Object3D;
   const plan = OUTFIT_MESHES[spec.outfit];
-  const wanted = plan.meshes.filter((n) => !(spec.noHeadgear && n === "kit_headgear") && !(spec.noGloves && n === "kit_gloves"));
-  let cover = plan.cover;
+  const wanted = spec.bare ? ["body"] : plan.meshes.filter((n) => !(spec.noHeadgear && n === "kit_headgear") && !(spec.noGloves && n === "kit_gloves"));
+  let cover = spec.bare ? 0 : plan.cover;
   if (spec.noGloves) cover &= ~COVER.gloves;
-  if (spec.noHeadgear && plan.headgear) {
+  if (spec.noHeadgear && plan.headgear && !spec.bare) {
     // no headgear: the hair shows (the short hair cap over the scalp)
     cover = (cover & ~COVER.headgear) | COVER.hair;
     wanted.push("hair_cap");
@@ -186,12 +192,28 @@ export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: Boxer
     material,
     uniforms: material.userData.u,
     arms,
+    torso: torsoOf(extras, names, w),
     bone,
     dispose() {
       merged.dispose();
       material.dispose();
     },
   };
+}
+
+/** the torso slices for these body-type weights: base + Σ w · morph delta (null on a GLB without them) */
+export function torsoOf(extras: Pick<Extras, "landmarks" | "torsoMorph">, names: string[], w: number[]): TorsoSlices | null {
+  const base = extras.landmarks.torso;
+  if (!base?.length) return null;
+  return base.map((row, i) => {
+    const r = row.slice() as [number, number, number, number];
+    names.forEach((n, k) => {
+      const d = extras.torsoMorph?.[n]?.[i];
+      const wk = w[k] ?? 0;
+      if (d && wk > 1e-3) for (let a = 0; a < 4; a++) r[a] = r[a]! + (d[a] ?? 0) * wk;
+    });
+    return r;
+  });
 }
 
 function boneOf(sk: THREE.Skeleton, name: string): THREE.Bone | null {
