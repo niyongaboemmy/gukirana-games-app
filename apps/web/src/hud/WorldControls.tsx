@@ -8,7 +8,7 @@ import { useStage } from "@/world/stage";
 import { CAMPUS } from "@/world/campus-strings";
 import { enableVoice, disableVoice, pttDown, pttUp, toggleOpenMic, useVoice } from "@/voice/voice";
 import { H } from "./strings";
-import { backToMe, GOTO_ON } from "@/world/goto";
+import { backToMe, GOTO_ON, useGoTo } from "@/world/goto";
 import { GoToButton, GoToCard, GoToModal } from "./GoToModal";
 
 
@@ -41,6 +41,7 @@ export function WorldControls() {
   const { status, transmitting, openMic, selfTalking, connected, hearers } = useVoice();
   const on = status === "on";
   const aerial = useAerialView();
+  const goMap = useGoTo((s) => s.map && !!s.dest);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -120,7 +121,8 @@ export function WorldControls() {
       {/* zoom (pace lives in Settings); in the campus aerial view, one tap brings the camera back down to you */}
       {/* Go To (P2-WLD-13): every hall and place, the way there on the ground, walk there / show on the map */}
       {GOTO_ON && <GoToButton className={btn} />}
-      {aerial && (
+      {/* (Go To's "Show on map" card has its own Back to me) */}
+      {aerial && !goMap && (
         <button type="button" onClick={() => (backToMe(), (cameraState.distance = 9))} title={CAMPUS.hint} className="pbtn-primary pointer-events-auto flex items-center gap-1.5 whitespace-nowrap rounded-card px-3 py-2 text-sm font-bold phone:px-2.5 phone:py-1.5 phone:text-xs">
           <LocateFixed size={16} /> {CAMPUS.backToMe}
         </button>

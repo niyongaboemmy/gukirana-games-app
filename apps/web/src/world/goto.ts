@@ -83,8 +83,12 @@ export function showOnMap(id: DestId) {
   const f = d.focus ?? d.stop;
   aerialFocus.x = f.x;
   aerialFocus.z = f.z;
-  cameraState.distance = 170;
-  cameraState.pitch = Math.max(cameraState.pitch, 0.9);
+  // seen from your side (the camera between you and the place, looking on to it): its door and the way there in view
+  const dx = selfPose.x - f.x;
+  const dz = selfPose.z - f.z;
+  if (Math.hypot(dx, dz) > 15) cameraState.yaw = Math.atan2(dx, dz);
+  cameraState.distance = 210;
+  cameraState.pitch = Math.max(cameraState.pitch, 0.95);
   useGoTo.setState({ map: true, open: false });
 }
 
@@ -112,7 +116,8 @@ export function tickGuide() {
   const dist = Math.hypot(selfPose.x - d.stop.x, selfPose.z - d.stop.z);
   if (s.walking && !nav.target && !nav.queue) useGoTo.setState({ walking: false });
   if (!s.arrivedAt && dist < 2.2) useGoTo.setState({ arrivedAt: performance.now(), walking: false });
-  if (s.arrivedAt && performance.now() - s.arrivedAt > 6000) endGuide();
+  // (not while the map is up: "Back to me" ends it)
+  if (s.arrivedAt && !s.map && performance.now() - s.arrivedAt > 6000) endGuide();
 }
 
 /* ---------------------------------------------------------------- first visit ---------------------------------------------------------------- */

@@ -76,9 +76,11 @@ function BoxingWay() {
   useEffect(() => () => (parts.geo.dispose(), parts.mat.dispose()), [parts]);
   const marks = useMemo(() => {
     const bx = SUBHALL_DOOR_X.boxing;
+    // straight ahead from the door (in view as you walk in), left along the middle of the foyer, into the doorway
     const pts = [
-      { x: 0, z: LOBBY_SIZE.d / 2 - 1.6 },
-      { x: bx, z: 0.9 },
+      { x: 0, z: LOBBY_SIZE.d / 2 - 1.4 },
+      { x: 0, z: 1.3 },
+      { x: bx, z: 1.3 },
       { x: bx, z: LOBBY_BACK_Z + 0.5 },
     ];
     const out: { x: number; z: number; rot: number }[] = [];

@@ -61,7 +61,10 @@ export function GoToModal() {
     const key = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || e.repeat) return;
-      if (e.code === "KeyM") useGoTo.setState((s) => ({ open: !s.open }));
+      if (e.code !== "KeyM" || e.metaKey || e.ctrlKey || e.altKey) return;
+      // (no "m" typed into the search field that takes the focus)
+      e.preventDefault();
+      useGoTo.setState((s) => ({ open: !s.open }));
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
@@ -263,13 +266,13 @@ export function GoToCard() {
   const dismiss = () => endGuide();
   // (on <body>: the HUD columns are transformed, which would pin a fixed card to them)
   return createPortal(
-    <div role="status" aria-live="polite" className="pointer-events-auto fixed left-1/2 top-16 z-30 w-[min(400px,92vw)] -translate-x-1/2 phone:top-[46px] phone:w-[min(380px,48vw)]" data-goto-card={d.id}>
+    <div role="status" aria-live="polite" className="pointer-events-auto fixed left-1/2 top-16 z-30 w-[min(400px,92vw)] -translate-x-1/2 phone:top-auto phone:bottom-[max(10px,env(safe-area-inset-bottom))] phone:w-[min(340px,40vw)] phone:[&_.pcard-body]:p-2.5 phone:[&_p]:text-xs" data-goto-card={d.id}>
       <PaperCard title={firstVisit && !arrivedAt ? GO.firstTitle : name} icon={iconOf(d)} size="sm" onClose={dismiss} closeLabel={firstVisit ? GO.notNow : GO.endGuide}>
         <div className="flex flex-col gap-2">
           {body}
-          {!arrivedAt && (
+          {(!arrivedAt || map) && (
             <div className="flex gap-2">
-              {walking ? (
+              {arrivedAt ? null : walking ? (
                 <button type="button" onClick={dismiss} className="pbtn pbtn-primary min-h-10 flex-1 text-sm" data-goto-stop>
                   <X size={16} /> {GO.stop}
                 </button>

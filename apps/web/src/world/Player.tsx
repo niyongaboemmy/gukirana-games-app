@@ -335,7 +335,9 @@ export function LocalPlayer({
         facing: facing.current,
         x: pos.current.x,
         z: pos.current.z,
-        walkSpeed: WALK_SPEEDS[w.speed] ?? WALK_SPEEDS.slow,
+        // jogging a long route (tap-to-walk, Go To "Walk there"): at least the normal pace's jog, whatever the pace
+        // setting (P2-WLD-13: the slow default made the far halls feel twice as far)
+        walkSpeed: autoRun.current ? Math.max(WALK_SPEEDS[w.speed] ?? WALK_SPEEDS.slow, WALK_SPEEDS.normal) : (WALK_SPEEDS[w.speed] ?? WALK_SPEEDS.slow),
         run,
         dt,
       });

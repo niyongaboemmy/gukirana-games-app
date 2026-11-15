@@ -154,7 +154,10 @@ Fight Games is the main reason most people visit, so it has to be the easiest pl
 | Igisoro / Administrative Block (±88°) | 50 m · 23 s | unchanged |
 | Pool / Ludo (±44°) | 65 m · 30 s | unchanged |
 | Tournament Arena (0°) | 70 m · 32 s | unchanged |
-| **Fight Games** (80°, r 108) | **144 m · 65 s** (86 m · 39 s from the plaza exit) | **131 m · 59 s** (73 m · 33 s from the plaza exit; ≈ 35 s on Go To's auto-jog) |
+| **Fight Games** (80°, r 108) | **144 m · 65 s** (86 m · 39 s from the plaza exit) | **131 m · 59 s** (73 m · 33 s from the plaza exit) |
+
+Go To "Walk there" from the spawn to inside the Fight lobby (`hall:fight`), including the door transition, measured
+in Chrome: **40.4 s and 40.9 s** in two runs. Before the auto-jog pace fix it took 58.7 s.
 
 ### 7.2 Why the Fight hall felt hard to reach
 
@@ -178,9 +181,29 @@ Fight Games is the main reason most people visit, so it has to be the easiest pl
 - **Lit walk:** low warm bollards every 4.5 m, staggered along both kerbs (`FIGHT_WALK_LIGHTS`).
 - **Wayfinding:** a totem at the fork. The totems at the plaza exit and the fork list Fight Games first. The
   fountain-court signs give the walking distance over the walks.
-- **Go To** (HUD, `hud/GoToModal.tsx`, data in `world/destinations.ts`): Fight Games is featured at the top, with
-  one-tap "Walk there". There is also a first-visit guide: "Fight Games is this way", with the route line on the
-  ground. It is dismissible and remembered per user.
+- **Auto-jog pace:** the default walking pace setting is "slow" (1.4 m/s), so a long tap-to-walk route used to jog at
+  only 2.5 m/s. Long routes now jog at least at the normal pace's jog (3.96 m/s).
+- **Go To** (HUD button "Go To", key M; `hud/GoToModal.tsx`, state in `world/goto.ts`, kill switch
+  `NEXT_PUBLIC_FF_GOTO=0`). Pure client navigation, nothing goes to the server.
+  - **The window:** a PaperCard with a search field. Fight Games comes first under "Most popular", with one-tap
+    "Walk there" and "Show on map". Below it are Halls (every plaza-ring hall and pavilion, with open / closed /
+    opening-soon status from the buildings API) and Places (plaza and fountain, main gate, help desk and café, the
+    five districts). Every row shows metres and walking time.
+  - **Accessibility:** Esc closes, Tab is trapped in the window, and focus goes back to the button.
+  - **Picking a place:** the person and the camera turn towards it. Gold chevrons run along the route on the
+    ground, drifting towards the place, and a light beacon stands over it (`world/GoToGuide.tsx`). A guide card shows
+    the live distance and two actions:
+    - **Walk there** follows the walks (jogging while the route is long) to the doorstep, then through the door if
+      it opens for you. A closed hall stops at its doorstep, where the door notice explains why.
+    - **Show on map** goes up into the aerial view, framing the place from your side, until "Back to me".
+  - **Inside a hall:** the window explains that you have to walk out through the door first, and the items are
+    disabled. That is the simplest robust choice: halls have their own exits and seats.
+- **First-visit guide:** about 2.5 s after the plaza first appears, a card reads "Fight Games is this way", with the
+  route line on the ground and Walk there / Not now. It is shown once per user per device (localStorage).
+- **One data source:** `world/destinations.ts` holds `DESTINATIONS`, `FEATURED` and `FIRST_VISIT_DEST`. Change what
+  players are guided to there.
+- **Fight lobby:** lit red floor chevrons run from the plaza door, straight ahead, then left to the Boxing doorway.
+  Within the Boxing hall, finding a ring stays with the hall's own ring finder; its interior belongs to another task.
 
 ### 7.4 Moving the Fight hall closer: evaluated, not done
 
