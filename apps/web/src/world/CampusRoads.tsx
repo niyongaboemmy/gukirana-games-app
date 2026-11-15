@@ -13,6 +13,8 @@ import { EXPANSION_PLOTS, EXPANSION_RING, PORTALS, ringPoint } from "./layout";
 import {
   CAMPUS_LOOP,
   DISTRICT_WALKS,
+  FIGHT_GATEWAY,
+  FIGHT_WALK_LIGHTS,
   FORECOURT,
   LOOP,
   LOOP_ARC_DEG,
@@ -219,6 +221,25 @@ export function buildCampusRoads(): Map<string, THREE.BufferGeometry> {
       b.box("screenFrame", 0.9, 1.9, 0.172, { p: [0, 1.45, 0] });
       b.box("led-warm", 0.92, 0.02, 0.17, { p: [0, 2.58, 0] });
     });
+
+  /* ---------- the Fight Games walk (P2-WLD-13): gateway arch at the plaza exit, lit bollards along both kerbs ---------- */
+  {
+    const g = FIGHT_GATEWAY;
+    const W = 2 * g.span + 0.7;
+    b.frame([g.x, 0, g.z], g.rotY, () => {
+      for (const s of [-1, 1]) {
+        b.box("lava", 0.7, g.h, 0.7, { p: [s * g.span, g.h / 2, 0], tile: 1.2 });
+        b.box("led-fight", 0.06, g.h - 1.6, 0.08, { p: [s * (g.span - 0.36), (g.h - 1.6) / 2 + 0.4, 0.2] });
+      }
+      b.box("screenFrame", W, 1.25, 0.5, { p: [0, g.h - 0.2, 0] });
+      b.box("led-fight", W - 0.2, 0.06, 0.06, { p: [0, g.h - 0.86, 0.24] });
+      b.box("led-fight", W - 0.2, 0.06, 0.06, { p: [0, g.h - 0.86, -0.24] });
+    });
+  }
+  for (const q of FIGHT_WALK_LIGHTS) {
+    b.cyl("steel", 0.09, 0.11, 0.85, 8, { p: [q.x, 0.425, q.z] });
+    b.cyl("led-warm", 0.095, 0.095, 0.12, 8, { p: [q.x, 0.8, q.z] });
+  }
   return foldPaint(b.build());
 }
 
@@ -264,6 +285,14 @@ export function CampusRoads({ tier }: { tier: Tier }) {
           ))}
         </NearOnly>
       ))}
+      {/* the gateway's lettering, facing the plaza: readable from the fountain and the entry promenade (one Text, the
+          arch's front only, drawn within 75 m) */}
+      <NearOnly max={75} position={[FIGHT_GATEWAY.x, 0, FIGHT_GATEWAY.z]} rotation={[0, FIGHT_GATEWAY.rotY, 0]}>
+        <Text font={FONT} fontSize={0.46} lineHeight={1.05} position={[0, FIGHT_GATEWAY.h - 0.2, 0.26]} anchorX="center" anchorY="middle" textAlign="center" maxWidth={2 * FIGHT_GATEWAY.span + 0.4}>
+          {`${SITE.fightGateway}\n${SITE.fightGatewaySub(FIGHT_GATEWAY.m, FIGHT_GATEWAY.s)}`}
+          <meshBasicMaterial color="#ffffff" toneMapped={false} />
+        </Text>
+      </NearOnly>
     </group>
   );
 }

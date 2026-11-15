@@ -24,6 +24,7 @@ import { W } from "./strings";
 import { arenaGate } from "@/arena/flags";
 import { FightFacadeBoard } from "@/fight/FacadeBoard";
 import { NearOnly, StaticMerge } from "./static-merge";
+import { campusWalkLength } from "./campus";
 
 const FONT = "/fonts/Baloo2.ttf";
 
@@ -508,7 +509,7 @@ function Totems() {
 
 /** Wayfinding sign lettering (District.ts draws the posts, panels and colour bars): one Text per face. */
 function Wayfinding() {
-  const signs = useMemo(() => WAYFINDING.map((w) => ({ w, text: wayfindingRows(w).map((r) => `${r.name}   ${r.m} m`).join("\n") })), []);
+  const signs = useMemo(() => WAYFINDING.map((w) => ({ w, text: wayfindingRows(w, campusWalkLength).map((r) => `${r.name}   ${r.m} m`).join("\n") })), []);
   return (
     <>
       {signs.map(({ w, text }) => (

@@ -140,3 +140,62 @@ plots south of bearing ±115° are removed, because they would sit beside or beh
 - Hall interiors (including the Boxing hall).
 - New halls on the plots.
 - Night lighting changes beyond the new street lights.
+
+## 7. P2-WLD-13 access review (2026-11-15)
+
+Fight Games is the main reason most people visit, so it has to be the easiest place on campus to reach.
+
+### 7.1 Measured walks (from the arrival spawn, normal pace 2.2 m/s)
+
+| Door | Before | After |
+|---|---|---|
+| Cards / Esports pavilions (±144°) | 22 m · 10 s | unchanged |
+| Draughts (−122°) | 34 m · 15 s | unchanged |
+| Igisoro / Administrative Block (±88°) | 50 m · 23 s | unchanged |
+| Pool / Ludo (±44°) | 65 m · 30 s | unchanged |
+| Tournament Arena (0°) | 70 m · 32 s | unchanged |
+| **Fight Games** (80°, r 108) | **144 m · 65 s** (86 m · 39 s from the plaza exit) | **131 m · 59 s** (73 m · 33 s from the plaza exit; ≈ 35 s on Go To's auto-jog) |
+
+### 7.2 Why the Fight hall felt hard to reach
+
+1. **Hidden.** The Administrative Block (88°, 37 m wide, 43 m deep) stands exactly between the plaza and the Fight
+   door. From the plaza, nothing of the Fight hall is visible, and its door sits on the line of the Block's north wall.
+2. **No signed way in.** The only exit towards it is a 3 m gap between the Ludo Lounge and the Block. It was marked by a
+   totem that named the district, not the hall.
+3. **A detour.** The walk went north-east to 63° (towards the north-east plot), then doubled back along the promenade
+   from 76° to 80°. That made it 20 % longer than the straight line.
+4. **Wrong numbers.** The fountain-court signs gave the straight-line distance (≈ 105 m), not the walk.
+
+### 7.3 What changed
+
+- **The Fight Games walk** (`layout.ts FIGHT_WALK`, `campus.ts DISTRICT_WALKS` id `fight`): the campus's main walk,
+  4 m of paving (the other district walks are 3 m). It leaves the plaza at 68°, goes between the hall corners, runs
+  straight east along the Block's north side (`FIGHT_WALK_TURN`), then onto the hall's forecourt at 80°. The door
+  faces the walk (24° off its axis). It is now only 3 % longer than the straight line. The north-east walk forks off
+  it behind the halls.
+- **Gateway arch** (`FIGHT_GATEWAY`) just past the plaza's perimeter wall: lava-stone posts, red LED strips, and a lit
+  lintel that reads "FIGHT GAMES · 75 m · 35 s walk", facing the plaza and readable from the fountain.
+- **Lit walk:** low warm bollards every 4.5 m, staggered along both kerbs (`FIGHT_WALK_LIGHTS`).
+- **Wayfinding:** a totem at the fork. The totems at the plaza exit and the fork list Fight Games first. The
+  fountain-court signs give the walking distance over the walks.
+- **Go To** (HUD, `hud/GoToModal.tsx`, data in `world/destinations.ts`): Fight Games is featured at the top, with
+  one-tap "Walk there". There is also a first-visit guide: "Fight Games is this way", with the route line on the
+  ground. It is dismissible and remembered per user.
+
+### 7.4 Moving the Fight hall closer: evaluated, not done
+
+The hall is 94 m wide and 42 m deep (93 × 30 m Boxing hall). It can't take an inner-ring slot: the widest gap on the
+door ring is about 10° (6–7 m), and the inner halls stay unchanged under principle 3. The only open ground closer to
+the plaza is east and south-east of it (bearings 100–150°, r 60–100). There the building's south end would reach past
+z = 57, beside the arrival gate, which breaks principle 1 and is the reason it moved off 140° in P2-WLD-12. The
+straight-line distance from the spawn to the present door is 116 m, and the new walk is only 3 % longer than that.
+So the remaining time is the plaza crossing, and moving the hall wouldn't clearly beat the straightened, signed walk.
+
+### 7.5 Invariants (campus.test.ts "easy access to every hall")
+
+- The Fight door is ≤ 45 s at 2.2 m/s from its plaza exit, and ≤ 5 % longer than the straight line.
+- It is ≤ 135 m from the spawn.
+- The Fight walk is the widest district walk.
+- Every inner hall is ≤ 75 m from the spawn.
+- The arch and the bollards are clear of every building.
+- The exit and fork totems list Fight Games first.

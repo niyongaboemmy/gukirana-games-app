@@ -160,17 +160,21 @@ export interface WayRow {
   m: number;
   deg: number;
 }
-export function wayfindingRows(w: { x: number; z: number; deg: number }): WayRow[] {
+/**
+ * `walkLen`: walking distance over the campus walks (world/campus.ts campusWalkLength) for the doors beyond the plaza
+ * (the Fight hall: the straight line would hide the walk round the Administrative Block, P2-WLD-13).
+ */
+export function wayfindingRows(w: { x: number; z: number; deg: number }, walkLen?: (a: { x: number; z: number }, b: { x: number; z: number }) => number): WayRow[] {
   const help = ringPoint(SERVICE_ANGLE, DOOR_RING - 2.4);
   const plots = [
     ...PORTALS.map((p) => {
       const t = portalTransform(p);
-      return { deg: p.angleDeg, led: p.kind === "soon" ? "led-soon" : `led-${p.kind}`, name: p.href || p.kind === "arena" ? p.label : `${p.sub} (soon)`, x: t.entryX, z: t.entryZ };
+      return { deg: p.angleDeg, led: p.kind === "soon" ? "led-soon" : `led-${p.kind}`, name: p.href || p.kind === "arena" ? p.label : `${p.sub} (soon)`, x: t.entryX, z: t.entryZ, outer: ringOf(p) !== DOOR_RING };
     }),
-    { deg: SERVICE_ANGLE, led: "led-sky", name: "Help desk, Cafe", x: help.x, z: help.z },
+    { deg: SERVICE_ANGLE, led: "led-sky", name: "Help desk, Cafe", x: help.x, z: help.z, outer: false },
   ];
   return plots
-    .map((p) => ({ name: p.name, led: p.led, deg: p.deg, gap: Math.abs(((p.deg - w.deg + 540) % 360) - 180), m: Math.round(Math.hypot(p.x - w.x, p.z - w.z) / 5) * 5 }))
+    .map((p) => ({ name: p.name, led: p.led, deg: p.deg, gap: Math.abs(((p.deg - w.deg + 540) % 360) - 180), m: Math.round((p.outer && walkLen ? walkLen(w, p) : Math.hypot(p.x - w.x, p.z - w.z)) / 5) * 5 }))
     .sort((a, b) => a.gap - b.gap)
     .slice(0, 4)
     .sort((a, b) => a.deg - b.deg)
@@ -225,14 +229,21 @@ export function doorWorld(p: PortalDef, lx: number, lz: number) {
 
 /* ---------------- the Fight walk (P3-FGT-01, P2-WLD-12): plaza → north-east walk → east fork → Fight hall door ---------------- */
 
-/** bearing of the Fight hall door (east district), and of the north-east walk's plaza exit */
+/** bearing of the Fight hall door (east district), and of the Fight Games walk's plaza exit */
 export const FIGHT_ANGLE = 80;
 export const FIGHT_WALK_DEG = 68;
 /**
- * The way to the Fight hall over the campus walks (world/campus.ts CAMPUS_WALKS, which builds its north-east walk and
- * east fork from these corners): out of the plaza at 68° between the Ludo Lounge and the Administrative Block, past
- * the halls' corners, the fork to the outer promenade at 76°, along it to 80°, then up to the door.
- * Legs are straight segments with their half-width (m).
+ * The Fight Games walk's corner past the Administrative Block's north-east corner (P2-WLD-13): the walk runs straight
+ * east along the Block's north side, then turns onto the Fight hall's forecourt.
+ */
+export const FIGHT_WALK_TURN = { x: 85, z: -21.8 } as const;
+/**
+ * The Fight Games walk (P3-FGT-01, P2-WLD-12; straightened and widened by the access review P2-WLD-13,
+ * docs/CAMPUS-MASTER-PLAN.md §7): the signed main walk from the plaza to the Fight hall, part of world/campus.ts
+ * CAMPUS_WALKS. Out of the plaza at 68° between the Ludo Lounge and the Administrative Block (under the gateway
+ * arch), between the halls' corners, straight east along the Block's north side, onto the outer promenade at the
+ * hall's forecourt (80°), then up to the door, which faces the walk. The north-east walk forks off at the second
+ * corner. Legs are straight segments with their half-width (m): 4 m of paving, the spur onto the forecourt 4.6 m.
  */
 export const FIGHT_WALK: { a: { x: number; z: number }; b: { x: number; z: number }; hw: number }[] = (() => {
   const pr = (OUTER_PROMENADE.r0 + OUTER_PROMENADE.r1) / 2;
@@ -240,8 +251,8 @@ export const FIGHT_WALK: { a: { x: number; z: number }; b: { x: number; z: numbe
     const q = ringPoint(deg, r);
     return { x: q.x, z: q.z };
   };
-  const p = [pt(FIGHT_WALK_DEG, PLAZA_RADIUS - 1.5), pt(68, 56), pt(63, 80), pt(76, pr), pt(FIGHT_ANGLE, pr), pt(FIGHT_ANGLE, EXPANSION_RING - 0.6)];
-  const hw = [1.5, 1.5, 1.5, 2.5, 2.3];
+  const p = [pt(FIGHT_WALK_DEG, PLAZA_RADIUS - 1.5), pt(68, 56), { ...FIGHT_WALK_TURN }, pt(FIGHT_ANGLE, pr), pt(FIGHT_ANGLE, EXPANSION_RING - 0.6)];
+  const hw = [2, 2, 2, 2.3];
   return hw.map((w, i) => ({ a: p[i]!, b: p[i + 1]!, hw: w }));
 })();
 /** the walk's corner points in walking order (plaza → door), for scripted walks / routes */

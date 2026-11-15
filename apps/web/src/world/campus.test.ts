@@ -13,7 +13,10 @@ import {
   compoundR,
   COMPOUND,
   DISTRICT_WALKS,
+  FIGHT_GATEWAY,
   FIGHT_SITE_DEG,
+  FIGHT_WALK_LIGHTS,
+  WALK_TOTEMS,
   FORECOURT,
   FRONTAGE_Z,
   GATE_LINE_Z,
@@ -203,5 +206,50 @@ describe("campus master plan (P2-WLD-12)", () => {
     expect(campusOutside(0, -COMPOUND.growR + 1)).toBeLessThan(0);
     expect(campusOutside(0, -COMPOUND.growR - 5)).toBeGreaterThan(0);
     expect(campusOutside(ringPoint(135, COMPOUND.r + 5).x, ringPoint(135, COMPOUND.r + 5).z)).toBeGreaterThan(0);
+  });
+});
+
+describe("easy access to every hall (P2-WLD-13 access review)", () => {
+  const doorOf = (id: string): P => {
+    const t = portalTransform(PORTALS.find((p) => p.id === id)!);
+    return { x: t.entryX, z: t.entryZ };
+  };
+  const fightExit = CAMPUS_WALKS.nodes[CAMPUS_WALKS.exits[DISTRICT_WALKS.filter((w) => w.exit).findIndex((w) => w.id === "fight")]!]!;
+
+  it("the Fight Games door is ≤ 45 s at the normal pace (2.2 m/s) from its plaza exit, on a direct walk", () => {
+    const door = doorOf("fight");
+    const len = campusWalkLength(fightExit, door);
+    expect(len / 2.2).toBeLessThanOrEqual(45);
+    // no detour: at most 5 % longer than the straight line from the plaza exit
+    expect(len).toBeLessThan(1.05 * Math.hypot(door.x - fightExit.x, door.z - fightExit.z));
+    // from the arrival spawn, across the plaza and along the walk: ≤ 135 m (≈ 35 s on the Go To auto-jog)
+    expect(campusWalkLength(SPAWN, door)).toBeLessThanOrEqual(135);
+    // the Fight walk is the campus's main walk: the widest district walk
+    const fight = DISTRICT_WALKS.find((w) => w.id === "fight")!;
+    for (const w of DISTRICT_WALKS) expect(fight.hw).toBeGreaterThanOrEqual(w.hw);
+  });
+
+  it("every inner hall door is ≤ 75 m from the spawn (≤ 35 s at the normal pace)", () => {
+    for (const p of PORTALS.filter((q) => !q.ring)) expect(Math.hypot(doorOf(p.id).x - SPAWN.x, doorOf(p.id).z - SPAWN.z), p.id).toBeLessThanOrEqual(75);
+  });
+
+  it("the gateway arch and the walk lights stand beside the Fight walk, clear of every building", () => {
+    const g = FIGHT_GATEWAY;
+    expect(walkDepth(g.x, g.z).depth).toBeGreaterThan(1.5);
+    expect(Math.hypot(g.x, g.z)).toBeGreaterThan(PERIMETER_R);
+    for (const s of [-1, 1]) {
+      const x = g.x + Math.cos(g.rotY) * s * g.span;
+      const z = g.z - Math.sin(g.rotY) * s * g.span;
+      expect(inBuilding(x, z, 0.5), `arch post ${s}`).toBe(false);
+      expect(walkDepth(x, z).depth).toBeLessThan(0);
+    }
+    expect(FIGHT_WALK_LIGHTS.length).toBeGreaterThan(10);
+    for (const q of FIGHT_WALK_LIGHTS) expect(inBuilding(q.x, q.z, 0.3)).toBe(false);
+  });
+
+  it("the totems at the Fight walk's plaza exit and fork list the Fight Games hall first", () => {
+    const near = WALK_TOTEMS.filter((t) => Math.hypot(t.x - fightExit.x, t.z - fightExit.z) < 30);
+    expect(near.length).toBeGreaterThanOrEqual(2);
+    for (const t of near) expect(t.rows[0]!.id).toBe("fight");
   });
 });
