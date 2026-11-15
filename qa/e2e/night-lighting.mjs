@@ -37,8 +37,8 @@ const VIEWS = [
   { name: "fight", ...front(88) },
   { name: "cafe", ...front(122, 27) },
   { name: "soon", ...front(-122, 27) },
-  { name: "admin", ...front(62, 90, 0.12, 9) },
-  { name: "gate-in", x: 0, z: 50, yaw: Math.PI, pitch: 0.14, distance: 6 },
+  { name: "admin", ...front(62, 97, 0.14, 7) },
+  { name: "gate-in", x: 0, z: 46, yaw: Math.PI, pitch: 0.14, distance: 4 },
   { name: "gate-out", x: 0, z: 72, yaw: 0, pitch: 0.12, distance: 8 },
   { name: "walk", ...ring(-40, 102.5), yaw: yawTo(Math.cos(rad(-40)), Math.sin(rad(-40))), pitch: 0.12, distance: 7 },
   { name: "road", x: 60, z: 70, yaw: yawTo(-1, 0), pitch: 0.18, distance: 9 },
@@ -77,7 +77,16 @@ async function toWorld(p) {
     await p.goto(`${BASE}/world${q}`, { waitUntil: "domcontentloaded", timeout: 180000 });
     const t0 = Date.now();
     while (Date.now() - t0 < 150000) {
-      const ok = await p.evaluate(() => window.__gkProbe?.ready && window.__gkProbe?.view === "plaza").catch(() => false);
+      // (a new account sometimes lands at the arrival gate: walk through it to the plaza)
+      const ok = await p
+        .evaluate(() => {
+          if (window.__gkProbe?.view === "gate" && window.__gkNav) {
+            window.__gkNav.goal = null;
+            window.__gkNav.target = { x: 0, z: 30 };
+          }
+          return window.__gkProbe?.ready && window.__gkProbe?.view === "plaza";
+        })
+        .catch(() => false);
       if (ok) {
         await sleep(6000);
         return true;
@@ -149,7 +158,7 @@ if (what === "all" || what === "strip") {
   await toWorld(p);
   await closeCards(p);
   await setTime(p, 21 * 60, true);
-  await place(p, { ...front(0, 14, 0.2, 10) });
+  await place(p, { x: 0, z: -12, yaw: 0, pitch: 0.06, distance: 10 });
   await sleep(3000);
   for (let i = 0; i < 12; i++) {
     await shot(p, `${TAG}-arena-show-${String(i).padStart(2, "0")}${sfx}`);
@@ -167,8 +176,14 @@ if (what === "all" || what === "transition") {
   await closeCards(p);
   await place(p, VIEWS.find((v) => v.name === "plaza") ?? { x: 0, z: 30, yaw: 0, pitch: 0.2, distance: 9 });
   await setTime(p, 17 * 60 + 30, true);
-  await sleep(2500);
-  const before = await p.evaluate(() => window.__gkProbe?.programs);
+  // wait until the program count has settled (deferred content finishing its first compiles): ≥ 8 s unchanged
+  let before = await p.evaluate(() => window.__gkProbe?.programs);
+  for (let still = 0, t0 = Date.now(); still < 8 && Date.now() - t0 < 90000; ) {
+    await sleep(1000);
+    const n = await p.evaluate(() => window.__gkProbe?.programs);
+    still = n === before ? still + 1 : 0;
+    before = n;
+  }
   for (let m = 17 * 60 + 40, i = 0; m <= 18 * 60 + 40; m += 6, i++) {
     await setTime(p, m, true);
     await sleep(500);

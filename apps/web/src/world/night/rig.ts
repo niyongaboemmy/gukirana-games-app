@@ -127,7 +127,7 @@ export function buildRig(tier: Tier): Rig {
   if (tier !== "lite") for (const p of RING_PLANTERS) pools.push({ x: p.x, z: p.z, r: p.r + 0.9, k: 0.32, col: K2700, group: "accents" });
   for (const t of TOTEMS) {
     // the screen's own glow on the paving in front of it
-    pools.push({ x: t.x + Math.sin(t.rotY) * 0.9, z: t.z + Math.cos(t.rotY) * 0.9, r: 1.8, k: 0.35, col: "#9fb4ff", group: "signs" });
+    pools.push({ x: t.x + Math.sin(t.rotY) * 0.9, z: t.z + Math.cos(t.rotY) * 0.9, r: 1.8, k: 0.35, col: "#e8b67e", group: "signs" });
   }
   {
     const nb = NOTICE_BOARD;

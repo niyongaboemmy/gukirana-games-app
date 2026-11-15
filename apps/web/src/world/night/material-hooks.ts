@@ -141,18 +141,24 @@ export function agasekeNight(m: THREE.MeshStandardMaterial): THREE.MeshStandardM
       vec3 L = f - vGkW;
       float d = length(L);
       L /= d;
-      // beam: aimed up, a 35° cone round the vertical (the light runs up the body above the fixture)
-      float cone = smoothstep(0.55, 0.92, dot(-L, vec3(0.0, 1.0, 0.0)) + 0.18) ;
+      // beam: aimed up, a wide cone round the vertical (the light runs up the body above the fixture)
+      float cone = smoothstep(0.15, 0.75, dot(-L, vec3(0.0, 1.0, 0.0)) + 0.18);
       vec3 Lv = normalize((viewMatrix * vec4(L, 0.0)).xyz);
       float lam = clamp(dot(normal, Lv) * 0.6 + 0.4, 0.0, 1.0);
-      gkAcc += vec3(1.0, 0.7, 0.42) * cone * lam * lam / (1.0 + 0.3 * d * d);
+      // each fixture lights its own side of the basket (scallops round the body, darker between them)
+      float side = max(dot(normalize(vGkW.xz + 1e-4), normalize(f.xz)), 0.0);
+      gkAcc += vec3(1.0, 0.7, 0.42) * cone * lam * lam * side * side * side / (1.0 + 0.55 * d * d);
+    }
+    {
+      // grazing: the beams spread and fade before the lid (the lid reads by its own soft light, not as a lamp)
+      gkAcc *= 0.12 + 0.88 * (1.0 - smoothstep(1.4, 2.5, gkH));
     }
     // the lid: the beams reach it softly; a warm glint round the knot (the halo above it is NightLights)
     float gkLid = smoothstep(2.0, 2.4, gkH);
-    gkAcc += vec3(1.0, 0.8, 0.58) * gkLid * 0.25 + vec3(1.0, 0.85, 0.6) * smoothstep(3.3, 3.75, gkH) * 0.6;
+    gkAcc += vec3(1.0, 0.8, 0.58) * gkLid * 0.08 + vec3(1.0, 0.85, 0.6) * smoothstep(3.3, 3.75, gkH) * 0.5;
     // the lit water's cool bounce on the lower body
     gkAcc += vec3(0.35, 0.55, 0.6) * (1.0 - smoothstep(0.0, 1.2, gkH)) * 0.35;
-    totalEmissiveRadiance += diffuseColor.rgb * gkAcc * uGkNight * 0.95;
+    totalEmissiveRadiance += diffuseColor.rgb * gkAcc * uGkNight * 1.6;
   }`,
     );
   });
