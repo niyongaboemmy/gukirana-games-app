@@ -266,9 +266,9 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
   const zc = z0 - depth / 2;
   const cols = foyer ? [-3.6, 0, 3.6] : [0];
   const cast = !lite;
-  // the floor surface: 24 mm, clear of the plaza's lava edge band (16 mm) that runs under the inner-ring lobbies; the
-  // foyer stands on the district's basalt slab (top at 4 cm)
-  const fy = foyer ? 0.04 : 0.024;
+  // the floor surface: 30 mm, clear of the plaza's lava edge band (16 mm) under the inner-ring lobbies and the
+  // Administrative Block's granite forecourt (22 mm); the foyer stands on the district's basalt slab (top at 4 cm)
+  const fy = foyer ? 0.04 : 0.03;
   // the inner doors: a pair in the middle of the back wall
   const DW = foyer ? 2.8 : 2.6;
   const DH = 2.9;
@@ -296,14 +296,14 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
           <planeGeometry args={[w, depth + 0.12]} />
         </mesh>
       )}
-      {/* side walls (running 12 cm past the back wall's face, covering its ends) and their skirting */}
+      {/* side walls (running 12 cm past the back wall's face, covering its ends) and their skirting (from 30 cm in: clear of the door surround) */}
       {[-1, 1].map((sd) => (
         <group key={sd}>
           <mesh material={mats.wall} position={[sd * (w / 2 + 0.05), h / 2, zc - 0.06]} castShadow={cast} receiveShadow={cast}>
             <boxGeometry args={[0.1, h, depth + 0.12]} />
           </mesh>
-          <mesh material={mats.frame} position={[sd * (w / 2 - 0.012), 0.07, zc]}>
-            <boxGeometry args={[0.04, 0.12, depth - 0.02]} />
+          <mesh material={mats.frame} position={[sd * (w / 2 - 0.012), 0.07, zc - 0.15]}>
+            <boxGeometry args={[0.04, 0.12, depth - 0.32]} />
           </mesh>
         </group>
       ))}
