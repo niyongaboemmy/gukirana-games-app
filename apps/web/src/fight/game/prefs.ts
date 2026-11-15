@@ -26,6 +26,8 @@ export interface FightPrefsData {
   tutorialDone: boolean;
   /** referee / corner voice lines (spoken, with captions) */
   voice: boolean;
+  /** in-fight coach tips (idle, missing, hitting the guard, out of breath; P3-FGT-07) */
+  coach: boolean;
   /** the crowd ambience */
   crowd: boolean;
 }
@@ -44,6 +46,7 @@ export const DEFAULT_FIGHT_PREFS: FightPrefsData = {
   tutorialDone: false,
   voice: true,
   crowd: true,
+  coach: true,
 };
 
 export const useFightPrefs = create<FightPrefs>()(
@@ -62,6 +65,7 @@ export const useFightPrefs = create<FightPrefs>()(
       tutorialDone: s.tutorialDone,
       voice: s.voice,
       crowd: s.crowd,
+      coach: s.coach,
     }),
   }),
 );
