@@ -61,7 +61,7 @@ window.__zscanWalls = function (opts = {}) {
   const faces = [];
   const v = [0, 0, 0].map(() => ({ x: 0, y: 0, z: 0 }));
   root.traverse((o) => {
-    if (!o.isMesh || o.isSkinnedMesh || o.isInstancedMesh || !shown(o) || (o.layers.mask & 1) === 0) return;
+    if (!o.isMesh || o.isSkinnedMesh || o.isInstancedMesh || typeof o.text === "string" || !shown(o) || (o.layers.mask & 1) === 0) return; // (text glyphs over their own backing are not walls)
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     if (mats.some((m) => m.polygonOffset || (m.transparent && m.opacity < 0.5))) return;
     const g = o.geometry, pos = g.attributes.position; if (!pos) return;
