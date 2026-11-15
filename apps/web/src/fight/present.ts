@@ -1,5 +1,5 @@
 import { TICK_HZ, type FightEvent, type FightPhase, type FighterView, type Punch } from "@gukirana/contracts";
-import { GUARD_WINDUP, MOVE, PUNCH_SPECS, TIRED_STAMINA, TIRED_WINDUP } from "@gukirana/boxing";
+import { BODY, EXHAUSTED_STAMINA, GUARD_WINDUP, MOVE, PUNCH_SPECS, TIRED_STAMINA, TIRED_WINDUP } from "@gukirana/boxing";
 import { BOXING_CLIPS, type BoxingClipName } from "@/world/human/boxing/clips";
 
 /**
@@ -37,16 +37,24 @@ export interface PresentCtx {
   gap?: number;
   /** the snapshot tick (instance keys) */
   tick: number;
+  /** engine v2 footwork: the way this boxer is moving relative to where he faces (null = planted) and how fast (m/s) */
+  moveDir?: "f" | "b" | "l" | "r" | null;
+  moveSpeed?: number;
 }
 
-const punchClip = (p: Punch, tick: number): BoxingClipName =>
-  p === "jab" ? "jab" : p === "cross" ? "cross" : p === "hook" ? ((tick >> 4) % 3 === 2 ? "rearHook" : "leadHook") : (tick >> 4) % 3 === 2 ? "leadUppercut" : "rearUppercut";
+/** engine v2 names the hand: hook = lead hook, rhook = rear hook, uppercut = rear uppercut; body shots dig low */
+const punchClip = (p: Punch, _tick: number, body = false): BoxingClipName => {
+  void _tick;
+  if (body) return p === "jab" ? "jab" : p === "hook" ? "leadBody" : p === "uppercut" ? "rearUppercut" : "rearBody";
+  return p === "jab" ? "jab" : p === "cross" ? "cross" : p === "hook" ? "leadHook" : p === "rhook" ? "rearHook" : "rearUppercut";
+};
 
 /** the windup (ticks) the engine gave this punch (same formula as the engine's startAct) */
-export const windOf = (f: Pick<FighterView, "act" | "guard" | "stamina">, guardAtStart = f.guard): number => {
+export const windOf = (f: Pick<FighterView, "act" | "guard" | "stamina" | "body">, guardAtStart = f.guard): number => {
   const spec = PUNCH_SPECS[f.act as Punch];
   if (!spec) return 0;
-  return spec.windup + (guardAtStart ? GUARD_WINDUP : 0) + (f.stamina < TIRED_STAMINA ? TIRED_WINDUP : 0);
+  const tired = f.stamina < EXHAUSTED_STAMINA ? 2 * TIRED_WINDUP : f.stamina < TIRED_STAMINA ? TIRED_WINDUP : 0;
+  return spec.windup + (guardAtStart ? GUARD_WINDUP : 0) + tired + (f.body ? BODY.windup : 0);
 };
 
 /** clip speed so that the clip's impact lands at engine tick `atTick` (or its whole length fits `ticks`) */
@@ -83,7 +91,7 @@ export function presentFighter(f: FighterView, phase: FightPhase, ctx: PresentCt
   if (f.act === "rising") return cmd("getUp", engineT, inst, { speed: warp("getUp", MOVE.rising, false) });
   const p = f.act as Punch;
   if (PUNCH_SPECS[p]) {
-    const clip = punchClip(p, ctx.tick - f.actT);
+    const clip = punchClip(p, ctx.tick - f.actT, !!f.body);
     const tired = f.stamina < TIRED_STAMINA;
     return cmd(clip, engineT, inst, { speed: warp(clip, windOf(f), true), intensity: tired ? 0.7 : 1, reach: ctx.gap ? ctx.gap - TARGET_FWD : undefined });
   }
@@ -100,6 +108,18 @@ export function presentFighter(f: FighterView, phase: FightPhase, ctx: PresentCt
     }
     case "blockHit":
       return cmd("blockHigh", engineT, inst, { speed: 1.4 });
+    case "parry":
+      // a short, sharp hand-off of the straight
+      return cmd("blockHigh", engineT, inst, { speed: 2.2, intensity: 0.85 });
+    case "duck":
+      return cmd("duck", engineT, inst, { speed: warp("duck", MOVE.duck.ticks, false) });
+    case "pivotL":
+    case "pivotR": {
+      const clip = f.act === "pivotL" ? "stepLeft" : "stepRight";
+      return cmd(clip, engineT, inst, { speed: warp(clip, MOVE.pivot.ticks, false) });
+    }
+    case "clinch":
+      return cmd("clinch", ctx.actSince, "clinch");
     case "staggered":
       // the hit reaction itself is layered from the hit event (reactionFor); the body stays in a loose guard
       return f.composure < 300 ? cmd("stagger", engineT, inst, { intensity: 0.9 }) : cmd("guard", 0, "guardLow");
@@ -107,6 +127,14 @@ export function presentFighter(f: FighterView, phase: FightPhase, ctx: PresentCt
       break;
   }
   if (ctx.clinch && phase === "round") return cmd("clinch", ctx.actSince, "clinch");
+  // footwork (engine v2): real steps in the direction of travel — the lead foot leads, the rear foot follows
+  if (ctx.moveDir && (ctx.moveSpeed ?? 0) > 0.22) {
+    const clip: BoxingClipName = ctx.moveDir === "f" ? "stepForward" : ctx.moveDir === "b" ? "stepBack" : ctx.moveDir === "l" ? "stepLeft" : "stepRight";
+    const len = BOXING_CLIPS[clip].duration;
+    // one step cycle per ~0.32 m travelled at a boxer's shuffle
+    const speed = Math.min(2.2, Math.max(0.7, ((ctx.moveSpeed ?? 0) / 0.32) * len));
+    return cmd(clip, ctx.actSince % Math.max(0.1, len / speed), `${clip}:walk`, { speed, intensity: f.guard ? 0.9 : 1 });
+  }
   // idle: a tight high guard while the guard is held, the bouncing stance otherwise (gloves lower when exhausted)
   if (f.guard) return cmd("blockHigh", 0.3, "guardHeld", { hold: 600 });
   if (f.stamina < 200) return cmd("guard", 0, "guardTired");
@@ -115,9 +143,9 @@ export function presentFighter(f: FighterView, phase: FightPhase, ctx: PresentCt
 
 /** a hit reaction on the target of a clean hit (power-scaled); partial uppercut hits through the guard are small */
 export function reactionFor(e: Extract<FightEvent, { k: "hit" }>, composureAfter: number): { clip: BoxingClipName; intensity: number } {
-  const power = e.punch === "jab" ? 0.45 : e.punch === "cross" ? 0.75 : 1;
-  const partial = e.points <= 1 && e.punch === "uppercut";
-  const body = e.punch === "hook" && (e.t & 1) === 1;
+  const power = e.punch === "jab" ? 0.45 : e.punch === "cross" || e.punch === "hook" ? 0.75 : 1;
+  const partial = e.combo === 0;
+  const body = !!e.body;
   const heavy = power >= 0.75 && !partial;
   const clip: BoxingClipName = body ? (heavy ? "hitBodyHeavy" : "hitBodyLight") : heavy ? "hitHeadHeavy" : "hitHeadLight";
   const shaky = composureAfter < 350 ? 1.15 : 1;
@@ -158,7 +186,7 @@ export function moodOf(f: FighterView, phase: FightPhase, sinceHit: number, won:
 /** camera trauma a fight event adds (big moments only) */
 export function shakeFor(e: FightEvent): number {
   if (e.k === "knockdown") return 0.9;
-  if (e.k === "hit" && (e.punch === "hook" || e.punch === "uppercut") && e.points >= 3) return 0.5;
+  if (e.k === "hit" && (e.punch === "hook" || e.punch === "rhook" || e.punch === "uppercut") && e.points >= 3) return 0.5;
   if (e.k === "hit" && e.punch === "cross" && e.counter) return 0.3;
   return 0;
 }
@@ -173,7 +201,7 @@ export function hitFeel(e: FightEvent, mine: boolean): { stop: number; kick: num
   if (e.k === "block") return { stop: 0.025, kick: 0 };
   if (e.k !== "hit") return { stop: 0, kick: 0 };
   const w = e.punch === "jab" ? 0.4 : e.punch === "cross" ? 0.7 : 1;
-  const partial = e.points <= 1 && e.punch === "uppercut" ? 0.4 : 1;
+  const partial = e.combo === 0 ? 0.4 : 1;
   const k = w * partial * (e.counter ? 1.2 : 1);
   return { stop: 0.035 + 0.05 * k, kick: (mine ? 0.05 : 0.03) * k };
 }
@@ -188,9 +216,9 @@ export function hitFeel(e: FightEvent, mine: boolean): { stop: number; kick: num
  */
 const GAP_KEYS: readonly (readonly [number, number])[] = [
   [70, 0.66],
-  [PUNCH_SPECS.uppercut.reach, 0.76],
-  [PUNCH_SPECS.hook.reach, 0.82],
-  [PUNCH_SPECS.jab.reach, 0.98],
+  [110, 0.76], // v1 reaches (cm): uppercut 110, hook 130, jab 190
+  [130, 0.82],
+  [190, 0.98],
   [260, 1.42],
   [360, 2.1],
 ];
@@ -236,6 +264,53 @@ export function ringLayout(snap: { dist: number; orbit: number; tick: number }, 
   return { cx, cz, th, half };
 }
 
+/** engine v2 mm → canvas metres (the engine's ring is 4.3 m inside the ropes; its reaches match a real arm + step) */
+export const CANVAS_SCALE = 0.9 / 1000;
+/**
+ * Engine v2 centre-to-centre gap (mm) → the gap on the canvas (m, root to root), piecewise linear through the body line
+ * and the punch reaches: bodies at BODY_SEP stand chest to chest without the torsos or guards passing into each other,
+ * a punch that lands in the engine reaches its target with the motion reach fit, out of range they stand apart.
+ */
+const GAP_V2: readonly (readonly [number, number])[] = [
+  [640, 0.64],
+  [PUNCH_SPECS.uppercut.reach, 0.74],
+  [PUNCH_SPECS.hook.reach, 0.8],
+  [PUNCH_SPECS.jab.reach, 0.98],
+  [1800, 1.55],
+  [3600, 3.2],
+];
+export function canvasGapOf(mm: number): number {
+  if (mm <= GAP_V2[0]![0]) return GAP_V2[0]![1];
+  for (let i = 1; i < GAP_V2.length; i++) {
+    const [d1, g1] = GAP_V2[i]!;
+    const [d0, g0] = GAP_V2[i - 1]!;
+    if (mm <= d1) return g0 + ((g1 - g0) * (mm - d0)) / (d1 - d0);
+  }
+  return GAP_V2.at(-1)![1];
+}
+/** ring-local engine axes → hall-local axes of a ring turned by rotY (inverse of clampInRing's rotation) */
+export function ringToHall(x: number, z: number, rotY: number): { x: number; z: number } {
+  const c = Math.cos(rotY);
+  const sn = Math.sin(rotY);
+  return { x: x * c + z * sn, z: -x * sn + z * c };
+}
+/**
+ * Where the pair stands: engine v2 snapshots carry each boxer's real place on the canvas (free footwork, solid bodies,
+ * the ropes) — the layout is exactly that. Older (v1) snapshots and the sparring loops of far rings use ringLayout.
+ */
+export function layoutOf(snap: { dist: number; orbit: number; tick: number; engine?: number; fighters: readonly { x?: number; z?: number }[] }, ringHalf: number, seed: number, rotY = 0): RingLayout {
+  const [a0, b0] = snap.fighters;
+  if (snap.engine === 2 && a0?.x !== undefined && b0?.x !== undefined) {
+    const a = ringToHall(a0.x * CANVAS_SCALE, (a0.z ?? 0) * CANVAS_SCALE, rotY);
+    const b = ringToHall(b0.x * CANVAS_SCALE, (b0.z ?? 0) * CANVAS_SCALE, rotY);
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const mm = Math.hypot(b0.x - a0.x, (b0.z ?? 0) - (a0.z ?? 0));
+    return { cx: (a.x + b.x) / 2, cz: (a.z + b.z) / 2, th: Math.atan2(dz, dx), half: canvasGapOf(mm) / 2 };
+  }
+  return ringLayout(snap, ringHalf, seed);
+}
+
 /** a ring's presentation seed (FNV-1a of its id): the same on every screen */
 export function ringSeed(id: string): number {
   let h = 2166136261;
@@ -253,8 +328,8 @@ export function clampInRing(x: number, z: number, rotY: number, lim: number): { 
 }
 
 /** where the referee stands (ring-local metres; +x along the pair axis, +z its perpendicular) */
-export function refereeSpot(phase: FightPhase, ctx: { dist: number; down: 0 | 1 | -1; winner: 0 | 1 | null; breaking: boolean; half: number; t?: number }): { x: number; z: number; clip: BoxingClipName; face: number } {
-  const half = Math.min(gapOf(ctx.dist) / 2, ctx.half - 0.8);
+export function refereeSpot(phase: FightPhase, ctx: { dist: number; down: 0 | 1 | -1; winner: 0 | 1 | null; breaking: boolean; half: number; t?: number; gap?: number }): { x: number; z: number; clip: BoxingClipName; face: number } {
+  const half = ctx.gap !== undefined ? ctx.gap / 2 : Math.min(gapOf(ctx.dist) / 2, ctx.half - 0.8);
   if (phase === "knockdown" && ctx.down !== -1) {
     const s = ctx.down === 0 ? -1 : 1;
     return { x: s * (half - 0.7), z: 0.75, clip: "refCount", face: s };

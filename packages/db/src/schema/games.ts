@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { doublePrecision, index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { users } from "./identity.js";
 
 export const matches = pgTable(
@@ -78,4 +78,54 @@ export const friendlyPlays = pgTable(
     count: integer("count").notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.userId, t.game, t.day] })],
+);
+
+/**
+ * Fight skill rating (P3-FGT-10, docs/FIGHT-GAME-V2.md §7): Glicko-2 per player and fight game (boxing today).
+ * Written ONLY by GamesService.settle for a settled, non-void live match (never practice, never a client); one
+ * `fight_rating_events` row per (match, player) makes the update idempotent and keeps the before → after history and
+ * the signed skill line of every rated fight (the "own average" of the skill report).
+ */
+export const fightRatings = pgTable(
+  "fight_ratings",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    game: text("game").notNull(),
+    rating: doublePrecision("rating").notNull().default(1500),
+    rd: doublePrecision("rd").notNull().default(350),
+    vol: doublePrecision("vol").notNull().default(0.06),
+    games: integer("games").notNull().default(0),
+    wins: integer("wins").notNull().default(0),
+    losses: integer("losses").notNull().default(0),
+    draws: integer("draws").notNull().default(0),
+    peak: doublePrecision("peak").notNull().default(1500),
+    lastAt: timestamp("last_at", { withTimezone: true }),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.game] }), index("fight_ratings_game_idx").on(t.game, t.rating)],
+);
+
+export const fightRatingEvents = pgTable(
+  "fight_rating_events",
+  {
+    matchId: uuid("match_id")
+      .notNull()
+      .references(() => matches.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    game: text("game").notNull(),
+    opponentId: uuid("opponent_id").notNull(),
+    /** 1 win, 0.5 draw, 0 loss */
+    score: doublePrecision("score").notNull(),
+    ratingBefore: doublePrecision("rating_before").notNull(),
+    ratingAfter: doublePrecision("rating_after").notNull(),
+    rdBefore: doublePrecision("rd_before").notNull(),
+    rdAfter: doublePrecision("rd_after").notNull(),
+    /** the signed skill line of this fight (FightStatLine) */
+    stats: jsonb("stats"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.matchId, t.userId] }), index("fight_rating_events_user_idx").on(t.userId, t.createdAt)],
 );

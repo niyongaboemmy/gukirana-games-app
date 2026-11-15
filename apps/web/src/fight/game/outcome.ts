@@ -9,7 +9,8 @@ import type { BoxingOutcome, FightEvent, Punch } from "@gukirana/contracts";
  *  - practice level goals, judged PASS / FAIL with 0–3 stars and what to improve.
  */
 
-export type PunchOutcome = "landed" | "blocked" | "slipped" | "missed";
+/** engine v2 adds the parry, the duck / roll and the counter (a landed counter reads COUNTER) */
+export type PunchOutcome = "landed" | "counter" | "blocked" | "parried" | "slipped" | "ducked" | "missed";
 export interface PunchVerdict {
   outcome: PunchOutcome;
   /** my punch (true) or one thrown at me */
@@ -18,26 +19,55 @@ export interface PunchVerdict {
   good: boolean;
   punch: Punch;
   points: number;
+  /** a miss because the target moved off the punch's line (footwork), not out of reach */
+  offLine?: boolean;
 }
 
 /** the outcome of a punch event, from fighter `me`'s side (null: not a punch outcome) */
 export function punchVerdict(e: FightEvent, me: 0 | 1): PunchVerdict | null {
-  const kind: PunchOutcome | null = e.k === "hit" ? "landed" : e.k === "block" ? "blocked" : e.k === "evade" ? "slipped" : e.k === "whiff" ? "missed" : null;
+  const kind: PunchOutcome | null =
+    e.k === "hit"
+      ? e.counter
+        ? "counter"
+        : "landed"
+      : e.k === "block"
+        ? "blocked"
+        : e.k === "parry"
+          ? "parried"
+          : e.k === "evade"
+            ? e.how === "duck"
+              ? "ducked"
+              : e.how === "step"
+                ? "missed"
+                : "slipped"
+            : e.k === "whiff"
+              ? "missed"
+              : null;
   if (!kind || !("by" in e) || typeof e.by !== "number") return null;
   const mine = e.by === me;
-  const landed = kind === "landed";
-  return { outcome: kind, mine, good: mine ? landed : !landed, punch: (e as { punch: Punch }).punch, points: e.k === "hit" ? e.points : 0 };
+  const landed = kind === "landed" || kind === "counter";
+  return {
+    outcome: kind,
+    mine,
+    good: mine ? landed : !landed,
+    punch: (e as { punch: Punch }).punch,
+    points: e.k === "hit" ? e.points : 0,
+    ...(e.k === "evade" && e.how === "step" ? { offLine: true } : {}),
+  };
 }
 
 /** the colour of each outcome (consistent everywhere: pops, flash, stats); tone of the sound in fx */
 export const OUTCOME_COLOR: Record<PunchOutcome, string> = {
   landed: "#22c55e",
+  counter: "#16a34a",
   blocked: "#f59e0b",
+  parried: "#f59e0b",
   slipped: "#e2d3c1",
+  ducked: "#e2d3c1",
   missed: "#ef4444",
 };
 
-const POWER: ReadonlySet<Punch> = new Set<Punch>(["cross", "hook", "uppercut"]);
+const POWER: ReadonlySet<Punch> = new Set<Punch>(["cross", "hook", "rhook", "uppercut"]);
 
 export interface Side {
   thrown: number;
@@ -53,6 +83,10 @@ export interface Side {
   points: number;
   /** clean punches landed as part of a combination (2nd punch or later) */
   combos: number;
+  /** clean counters landed */
+  counters: number;
+  /** the opponent's punches this fighter blocked / parried / slipped / ducked / stepped out of */
+  defended: number;
 }
 export interface RoundTally {
   round: number;
@@ -67,7 +101,7 @@ export interface FightStats {
   firstBellAt: number | null;
 }
 
-const side = (): Side => ({ thrown: 0, landed: 0, powerLanded: 0, blocked: 0, slipped: 0, missed: 0, knockdowns: 0, warnings: 0, points: 0, combos: 0 });
+const side = (): Side => ({ thrown: 0, landed: 0, powerLanded: 0, blocked: 0, slipped: 0, missed: 0, knockdowns: 0, warnings: 0, points: 0, combos: 0, counters: 0, defended: 0 });
 export const newStats = (): FightStats => ({ sides: [side(), side()], rounds: [], round: 0, firstBellAt: null });
 
 /** fold events into the tally (returns a new object; the input is not changed); `now` stamps the first bell */
@@ -93,7 +127,7 @@ export function tallyStats(st: FightStats, events: readonly FightEvent[], now = 
       cur();
       continue;
     }
-    if (e.k === "hit" || e.k === "block" || e.k === "evade" || e.k === "whiff") {
+    if (e.k === "hit" || e.k === "block" || e.k === "evade" || e.k === "whiff" || e.k === "parry") {
       const by = e.by;
       bump(by, (s) => {
         s.thrown++;
@@ -102,10 +136,12 @@ export function tallyStats(st: FightStats, events: readonly FightEvent[], now = 
           s.points += e.points;
           if (POWER.has(e.punch)) s.powerLanded++;
           if (e.combo >= 2) s.combos++;
-        } else if (e.k === "block") s.blocked++;
+          if (e.counter) s.counters++;
+        } else if (e.k === "block" || e.k === "parry") s.blocked++;
         else if (e.k === "evade") s.slipped++;
         else s.missed++;
       });
+      if (e.k !== "hit" && e.k !== "whiff") bump((1 - by) as 0 | 1, (s) => s.defended++);
     } else if (e.k === "knockdown") bump((1 - e.to) as 0 | 1, (s) => s.knockdowns++);
     else if (e.k === "warning" && e.penalty > 0) bump(e.to, (s) => s.warnings++);
   }
@@ -175,7 +211,8 @@ export function liveRound(st: FightStats, me: 0 | 1): { round: number; mine: num
 
 /* ------------------------------------------------------------ practice goals ------------------------------------------------------------ */
 
-export type GoalKind = "land" | "winRound" | "win" | "winClear";
+/** the practice ladder (P3-FGT-10): each level tests one real skill — landing, defence, counters, combinations, winning */
+export type GoalKind = "land" | "defend" | "counters" | "combos" | "winRound" | "win" | "winClear";
 export interface LevelGoal {
   level: number;
   kind: GoalKind;
@@ -186,9 +223,9 @@ export interface LevelGoal {
 export function levelGoal(level: number): LevelGoal {
   const l = Math.min(5, Math.max(1, Math.round(level)));
   if (l === 1) return { level: l, kind: "land", n: 10 };
-  if (l === 2) return { level: l, kind: "land", n: 20 };
-  if (l === 3) return { level: l, kind: "winRound", n: 0 };
-  if (l === 4) return { level: l, kind: "win", n: 0 };
+  if (l === 2) return { level: l, kind: "defend", n: 12 };
+  if (l === 3) return { level: l, kind: "counters", n: 4 };
+  if (l === 4) return { level: l, kind: "combos", n: 5 };
   return { level: l, kind: "winClear", n: 0 };
 }
 
@@ -234,6 +271,19 @@ export function judgeGoal(goal: LevelGoal, outcome: BoxingOutcome, stats: FightS
     case "land":
       pass = m.landed >= goal.n;
       progress = { have: Math.min(m.landed, goal.n), need: goal.n };
+      break;
+    case "defend":
+      pass = m.defended >= goal.n;
+      progress = { have: Math.min(m.defended, goal.n), need: goal.n };
+      break;
+    case "counters":
+      pass = m.counters >= goal.n;
+      progress = { have: Math.min(m.counters, goal.n), need: goal.n };
+      break;
+    case "combos":
+      // combinations that land, and the round they win (pressure that scores)
+      pass = m.combos >= goal.n && (rw >= 1 || won);
+      progress = { have: Math.min(m.combos, goal.n), need: goal.n };
       break;
     case "winRound":
       pass = rw >= 1 || won;

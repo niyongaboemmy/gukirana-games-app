@@ -6,6 +6,7 @@ import { useFightControls } from "./controls";
 import { FightHud } from "./FightHud";
 import { useFightPrefs } from "./prefs";
 import { TouchPads } from "./TouchPads";
+import { KeyHints } from "./KeyHints";
 import { Tutorial } from "./Tutorial";
 
 /**
@@ -38,6 +39,7 @@ export function FightOverlay() {
     <div className="gk-fight-overlay pointer-events-none fixed inset-0 z-30 select-none" data-fight-surface-overlay="1">
       <FightHud />
       {touch && fighting && <TouchPads />}
+      {!touch && fighting && <KeyHints />}
       {fighting && mine.snap.phase !== "knockdown" && <Tutorial touch={touch} />}
     </div>
   );

@@ -75,6 +75,9 @@ importers:
       '@fastify/cookie':
         specifier: ^11.1.5
         version: 11.1.5
+      '@gukirana/boxing':
+        specifier: workspace:*
+        version: link:../../packages/games/boxing
       '@gukirana/config':
         specifier: workspace:*
         version: link:../../packages/config

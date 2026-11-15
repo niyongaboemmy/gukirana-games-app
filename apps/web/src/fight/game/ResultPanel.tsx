@@ -7,6 +7,8 @@ import { accuracy, judgeGoal, levelGoal, type FightStats, type GoalResult, type 
 import { ft, methodKey, type FgKey } from "./strings";
 import { foulText, fst, methodText, tiebreakText } from "./scoring-strings";
 import { playHighlights, stopReplay, useReplay } from "./replay";
+import { Leaderboard, RatingBlock, SkillReport } from "./SkillReport";
+import { RATING_ON, useFightRating, type SkillPair } from "./rating";
 
 /**
  * The end of a fight, unmistakable (P3-FGT-09): a big WIN / LOSS / DRAW / NO CONTEST banner with the method, for
@@ -231,6 +233,8 @@ export function ResultPanel({
   record,
   settledLine,
   actions,
+  skill,
+  live,
 }: {
   result: BoxingOutcome;
   /** my side, or null for a spectator */
@@ -241,7 +245,13 @@ export function ResultPanel({
   record: { id: string; hash: string | null; kind: "match" | "practice" } | null;
   settledLine?: React.ReactNode;
   actions?: ResultActions;
+  /** P3-FGT-10: the skill report (mine vs theirs) and whether this was a rated live fight */
+  skill?: SkillPair | null;
+  live?: boolean;
 }) {
+  const change = useFightRating((s) => s.change);
+  const avg = useFightRating((s) => s.me?.avg ?? null);
+  const openBoard = useFightRating((s) => s.setOpen);
   const goal = practiceLevel !== undefined && me !== null && stats ? levelGoal(practiceLevel) : null;
   const res = goal && stats && me !== null ? judgeGoal(goal, result, stats, me) : null;
   const side = me ?? 0;
@@ -255,6 +265,7 @@ export function ResultPanel({
               <Banner r={result} me={me} names={names} />
               {goal && res && <GoalBlock goal={goal} res={res} />}
               {settledLine}
+              {me !== null && <RatingBlock change={live ? change : null} practice={!live} />}
               {actions && (
                 <div className="flex flex-wrap gap-2">
                   {actions.retry && (
@@ -273,6 +284,11 @@ export function ResultPanel({
                     </button>
                   )}
                   <ReplayButton />
+                  {RATING_ON && (
+                    <button type="button" className="pbtn pbtn-secondary flex-1" onClick={() => openBoard(true)}>
+                      <Trophy size={18} /> {ft("lb.open")}
+                    </button>
+                  )}
                   <button type="button" className="pbtn pbtn-secondary flex-1" onClick={actions.leave}>
                     <DoorOpen size={18} /> {ft(actions.leaveKey ?? "result.leave")}
                   </button>
@@ -280,6 +296,7 @@ export function ResultPanel({
               )}
             </div>
             <div className="flex flex-col gap-2">
+              {skill && me !== null && <SkillReport pair={skill} avg={live ? avg : null} />}
               {stats && me !== null && <StatsTable stats={stats} me={side} r={result} />}
               <JudgesTable r={result} me={side} />
               <RecordBlock record={record} />
@@ -287,6 +304,7 @@ export function ResultPanel({
           </div>
         </PaperCard>
       </div>
+      <Leaderboard />
     </div>
   );
 }

@@ -5,7 +5,7 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { BOXING_RING_COUNT, BoxingHallEvt, RING_WATCHERS_MAX, type RingId, type RingState } from "@gukirana/contracts";
-import { BoxingHall, boxingHallConfig, type BoxingDeps, type StartFightInput } from "./boxing-hall.js";
+import { BoxingHall, boxingHallConfig, matchWindow, type BoxingDeps, type StartFightInput } from "./boxing-hall.js";
 import { RING_SPOTS } from "./boxing-rings.js";
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -17,7 +17,7 @@ interface Who {
   x: number;
   z: number;
 }
-function setup(opts: { refuse?: Record<string, string>; startError?: Error & { userId?: string } } = {}) {
+function setup(opts: { refuse?: Record<string, string>; startError?: Error & { userId?: string }; ratings?: Record<string, number> } = {}) {
   const people = new Map<string, Who>();
   const inbox = new Map<string, { type: string; msg: Record<string, unknown> }[]>();
   const all: { type: string; msg: unknown }[] = [];
@@ -33,6 +33,7 @@ function setup(opts: { refuse?: Record<string, string>; startError?: Error & { u
       return { roomId: `room${++n}`, matchId: `m${n}`, rules: { settingsVersion: 1, turnSeconds: 30, reconnectSeconds: 60, joinSeconds: 60, maxTimeouts: 3, maxMatchMinutes: 15, fight: { rounds: 3, roundSeconds: 60, restSeconds: 15, idleSeconds: 20 } } };
     },
     leaveFight: (roomId, uid) => void left.push([roomId, uid]),
+    rating: async (uid) => (opts.ratings?.[uid] !== undefined ? { rating: opts.ratings[uid]!, rd: 80 } : null),
   };
   const hall = new BoxingHall(
     {
@@ -141,6 +142,29 @@ describe("claim + join", () => {
     t.add("a", "ua");
     for (let i = 0; i < boxingHallConfig.actionMax + 1; i++) t.hall.onWatch("a", { ring: i % 2 ? "R3" : "R4" });
     expect(t.denied("a")).toBe("RATE_LIMITED");
+  });
+});
+
+describe("quick fight by rating (P3-FGT-10)", () => {
+  it("the window starts narrow and widens with the wait", () => {
+    expect(matchWindow(0)).toBe(150);
+    expect(matchWindow(5_000)).toBe(250);
+    expect(matchWindow(60_000)).toBe(Infinity);
+  });
+  it("pairs the closest rating in the window; a far rating waits until the window has widened", async () => {
+    const t = setup({ ratings: { ua: 1500, ub: 1900, uc: 1560, ud: 2000 } });
+    for (const [sid, uid] of [["a", "ua"], ["b", "ub"], ["c", "uc"], ["d", "ud"]] as const) t.add(sid, uid);
+    await t.hall.onQuick("a", { stake: 10 });
+    await t.hall.onQuick("b", { stake: 10 });
+    // 400 apart: not yet
+    expect(t.started).toHaveLength(0);
+    expect(t.hall.queued(10)).toBe(2);
+    // c (1560) is 60 from a and 340 from b: paired with a
+    await t.hall.onQuick("c", { stake: 10 });
+    expect(t.started[0]).toMatchObject({ red: { userId: "ua" }, blue: { userId: "uc" } });
+    // d (2000) is 100 from b: paired with b
+    await t.hall.onQuick("d", { stake: 10 });
+    expect(t.started[1]).toMatchObject({ red: { userId: "ub" }, blue: { userId: "ud" } });
   });
 });
 

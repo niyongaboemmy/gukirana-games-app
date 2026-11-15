@@ -11,9 +11,9 @@ import {
 import {
   auditFight,
   beginFight,
-  BREAK_DIST,
+  BREAK_GAP,
   cardFor,
-  CLINCH_TICKS,
+  CLOSE_TICKS,
   createFight,
   decideCards,
   DUCKING_SLIPS,
@@ -50,14 +50,17 @@ const side = (p: Partial<SideTally> = {}): SideTally => ({ ...emptyTally()[0], .
 const tally = (a: Partial<SideTally>, b: Partial<SideTally>): RoundTally => [side(a), side(b)];
 const J1 = JUDGE_PROFILES[0]!;
 
+/** engine v2: the pair `dist` cm apart (centre to centre) along the x axis */
+const at = (s: FightState, dist: number): FightState => ({
+  ...s,
+  dist,
+  fighters: s.fighters.map((f, i) => ({ ...f, x: (i === 0 ? -1 : 1) * dist * 5, z: 0, vx: 0, vz: 0 })) as [FighterState, FighterState],
+});
 function inRound(dist = 150, guards: [boolean, boolean] = [false, false], rules?: FightRules): FightState {
   let s = beginFight(createFight(["a", "b"], rules));
   while (s.phase !== "round") s = stepFight(s, NONE);
-  return {
-    ...s,
-    dist,
-    fighters: s.fighters.map((f, i) => ({ ...f, guard: guards[i]! })) as [FighterState, FighterState],
-  };
+  s = at(s, dist);
+  return { ...s, fighters: s.fighters.map((f, i) => ({ ...f, guard: guards[i]! })) as [FighterState, FighterState] };
 }
 /** play ticks; `press(k)` gives the presses at tick offset k; the guards are re-sent every tick (not idle) */
 function play(
@@ -266,8 +269,8 @@ describe("fouls and the referee ladder", () => {
   });
 
   it("HOLDING: close range without punching → Break! (free the first time), then a foul; the pair is separated", () => {
-    const r = play(inRound(80), CLINCH_TICKS * 2 + 30, (k) => [
-      k === 0 || k === CLINCH_TICKS + 5 ? "stepIn" : null,
+    const r = play(inRound(70), CLOSE_TICKS * 2 + 30, (k) => [
+      k === 0 || k === CLOSE_TICKS + 5 ? "stepIn" : null,
       null,
     ]);
     const breaks = r.events.filter((e) => e.k === "break");
@@ -276,15 +279,15 @@ describe("fouls and the referee ladder", () => {
     // keep crowding after the break: the second break in the round is a HOLDING caution
     let s = r.s;
     expect(breaks[0]).toMatchObject({ by: [0, 1] });
-    s = { ...s, dist: 80 };
-    const r2 = play(s, CLINCH_TICKS + 2);
+    s = at(s, 70);
+    const r2 = play(s, CLOSE_TICKS + 2);
     const holding = r2.events.filter((e) => e.k === "warning" && e.foul === "HOLDING");
     expect(holding.map((e) => (e.k === "warning" ? e.level : ""))).toEqual(["caution", "caution"]);
-    expect(r2.s.dist).toBe(BREAK_DIST);
+    expect(r2.s.dist).toBe(BREAK_GAP / 10);
   });
 
   it("HIT_ON_BREAK: during Break! punches are cancelled; stepping in to punch is the foul (once); waiting is fine", () => {
-    let s = play(inRound(80), CLINCH_TICKS).s;
+    let s = play(inRound(70), CLOSE_TICKS).s;
     expect(s.breakLeft).toBeGreaterThan(0);
     // a press from where the referee put them: cancelled, no foul (button mashing is never punished)
     const mash = play(s, 3, (k) => [k === 0 ? "jab" : null, null]);
@@ -330,7 +333,7 @@ describe("fouls and the referee ladder", () => {
   });
 
   it("KO: knocked down with no stamina left → the count runs to 10 and the fight ends", () => {
-    let s = inRound(150);
+    let s = inRound(100);
     s.fighters[1] = { ...s.fighters[1], composure: 30, stamina: 50 };
     s = play(s, 15, (k) => [k === 0 ? "jab" : null, null]).s;
     expect(s.phase).toBe("knockdown");
@@ -355,6 +358,7 @@ const lcg = (seed: number) => {
     },
   };
 };
+/** engine v2: every action (the first four are the punches the "crowd" style throws; rhook is a punch too) */
 const ACTIONS: readonly BoxingAction[] = [
   "jab",
   "cross",
@@ -364,6 +368,13 @@ const ACTIONS: readonly BoxingAction[] = [
   "slipR",
   "stepIn",
   "stepOut",
+  "rhook",
+  "parry",
+  "duck",
+  "clinch",
+  "feint",
+  "pivotL",
+  "pivotR",
 ];
 
 /** a seeded input script independent of the state (so it can be mirrored), with styles that make fouls happen */
@@ -386,15 +397,17 @@ function script(seed: number, length: number): [FightInput | null, FightInput | 
               ? v % 2
                 ? "slipL"
                 : "slipR"
-              : ACTIONS[r.int(0, 7)]
+              : ACTIONS[r.int(0, ACTIONS.length - 1)]
             : st === 3
               ? v < 97
                 ? undefined
                 : "jab"
               : v < 95
-                ? ACTIONS[r.int(0, 7)]
+                ? ACTIONS[r.int(0, ACTIONS.length - 1)]
                 : undefined;
-      return { seq: t, g: r.int(0, 1) === 1, ...(a ? { a } : {}) };
+      // footwork too (v2): the crowd style walks in, the others move about; body shots now and then
+      const mv: [number, number] = st === 1 ? [0, 1] : [r.int(-1, 1), r.int(-1, 1)];
+      return { seq: t, g: r.int(0, 1) === 1, mv, ...(a ? { a } : {}), ...(a && r.int(0, 4) === 0 ? { b: true } : {}) };
     };
     rows.push([one(0), one(1)]);
   }
@@ -426,7 +439,7 @@ function fight(seed: number, rules: FightRules, swap: boolean, staked: boolean) 
 }
 
 describe("scoring — properties (10k seeded fights)", () => {
-  it("valid cards, deductions once, totals = sums, decision matches the cards, DQ only after the ladder", () => {
+  it("valid cards, deductions once, totals = sums, decision matches the cards, DQ only after the ladder", async () => {
     const rules: FightRules = {
       rounds: 2,
       roundSeconds: 30,
@@ -438,6 +451,8 @@ describe("scoring — properties (10k seeded fights)", () => {
     const sr = scoringRulesOf(rules);
     const seen = new Set<string>();
     for (let seed = 1; seed <= 10_000; seed++) {
+      // long loop: yield now and then so the test worker stays responsive under load (vitest RPC timeout)
+      if (seed % 250 === 0) await new Promise((r) => setTimeout(r, 0));
       const { s } = fight(seed, { ...rules, judges: seed % 2 ? 5 : 3 }, false, seed % 3 === 0);
       const o = s.outcome!;
       const j = seed % 2 ? 5 : 3;
@@ -471,7 +486,9 @@ describe("scoring — properties (10k seeded fights)", () => {
       else expect(ranks[["a", "b"][o.winner]!]).toBe(1);
     }
     // every way to end a fight on the engine shows up in 10k fights
-    expect([...seen].sort()).toEqual(expect.arrayContaining(["DQ", "MD", "RSC", "SD", "UD"]));
+    // (engine v2: random scripts stop fights by KO before a third knockdown in a round; RSC has its own test)
+    expect([...seen].sort()).toEqual(expect.arrayContaining(["DQ", "MD", "SD", "UD"]));
+    expect(seen.has("KO") || seen.has("RSC")).toBe(true);
   }, 300_000);
 
   it("determinism: replaying the fight log gives identical cards and hash", () => {

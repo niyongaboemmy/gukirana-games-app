@@ -6,6 +6,7 @@ import {
   BoxingRingMsgSchema,
   BoxingWatchSchema,
   FEATURE_RINGS,
+  FIGHT_MATCH_WINDOW,
   MAX_FIGHT_PING_MS,
   PERSONAL_REFUSALS,
   RING_IDS,
@@ -61,6 +62,20 @@ export interface BoxingDeps {
   start(input: StartFightInput): Promise<StartedFight>;
   /** a fighter pressed Leave in the hall while their fight runs: the fight room applies the exit rules */
   leaveFight(roomId: string, userId: string): void;
+  /** the player's boxing rating for matchmaking (P3-FGT-10; fail-open: null = unrated) */
+  rating?(userId: string): Promise<{ rating: number; rd: number } | null>;
+}
+
+/**
+ * Quick-fight rating window (P3-FGT-10, docs/FIGHT-GAME-V2.md §7.4): a waiting player accepts opponents within
+ * `start` rating points, widening by `step` every `stepSeconds` up to `max`; after that anyone at the stake.
+ * Two players match when the gap fits the wider of their two windows; the closest rating wins, then the longest wait.
+ */
+export function matchWindow(waitedMs: number): number {
+  const w = FIGHT_MATCH_WINDOW;
+  const steps = Math.floor(waitedMs / (w.stepSeconds * 1000));
+  const win = w.start + w.step * steps;
+  return win > w.max ? Infinity : win;
 }
 
 /** knobs tests shorten */
@@ -100,8 +115,9 @@ export class BoxingHall {
   private holding = new Map<string, RingId>();
   private watching = new Map<string, RingId>();
   private watchers = new Map<RingId, Set<string>>();
-  /** quick fight: stake → sessions waiting, in arrival order */
+  /** quick fight: stake → sessions waiting, in arrival order; their rating and when they joined the queue */
   private queue = new Map<number, string[]>();
+  private qInfo = new Map<string, { rating: number; at: number }>();
   private rate = new RateLimiter();
   private rtt = new Map<string, number[]>();
   private pings = new Map<string, { n: number; at: number }>();
@@ -342,23 +358,75 @@ export class BoxingHall {
     if (again) return this.deny(sid, "quick", again);
     this.unqueue(sid);
     const me = this.host.uidOf(sid);
+    // the rating, for a fair pairing (no rating yet / API down: the 1500 starting point)
+    const rated = me && this.deps.rating ? await this.deps.rating(me).catch(() => null) : null;
+    if (!this.host.has(sid)) return;
+    const mine = rated?.rating ?? 1500;
     const q = this.queue.get(stake) ?? [];
-    const otherIdx = q.findIndex((o) => o !== sid && this.host.has(o) && this.host.uidOf(o) !== me && !this.holdsRing(o));
+    const now = Date.now();
+    let otherIdx = -1;
+    let best = Infinity;
+    q.forEach((o, i) => {
+      if (o === sid || !this.host.has(o) || this.host.uidOf(o) === me || this.holdsRing(o)) return;
+      const info = this.qInfo.get(o) ?? { rating: 1500, at: now };
+      const gap = Math.abs(info.rating - mine);
+      if (gap > Math.max(matchWindow(0), matchWindow(now - info.at)) || gap >= best) return;
+      best = gap;
+      otherIdx = i;
+    });
     const free = this.freeRing();
     if (otherIdx < 0 || !free) {
       q.push(sid);
       this.queue.set(stake, q);
+      this.qInfo.set(sid, { rating: mine, at: now });
+      // the window widens while they wait: look again at every step
+      this.host.later(() => this.rematch(stake), FIGHT_MATCH_WINDOW.stepSeconds * 1000 + 50);
       return this.host.send(sid, BoxingHallEvt.quick, { status: "waiting", stake });
     }
     const [other] = q.splice(otherIdx, 1);
     this.queue.set(stake, q);
-    this.host.send(other!, BoxingHallEvt.quick, { status: "idle" });
+    this.qInfo.delete(other!);
+    await this.pairQuick(other!, sid, stake, free);
+  }
+
+  /** waiting players whose windows now overlap are paired (closest ratings first) */
+  private async rematch(stake: number): Promise<void> {
+    const q = (this.queue.get(stake) ?? []).filter((s) => this.host.has(s) && !this.holdsRing(s));
+    const now = Date.now();
+    let pair: [number, number] | null = null;
+    let best = Infinity;
+    for (let i = 0; i < q.length; i++)
+      for (let j = i + 1; j < q.length; j++) {
+        const a = this.qInfo.get(q[i]!);
+        const b = this.qInfo.get(q[j]!);
+        if (!a || !b || this.host.uidOf(q[i]!) === this.host.uidOf(q[j]!)) continue;
+        const gap = Math.abs(a.rating - b.rating);
+        if (gap <= Math.max(matchWindow(now - a.at), matchWindow(now - b.at)) && gap < best) {
+          best = gap;
+          pair = [i, j];
+        }
+      }
+    const free = this.freeRing();
+    if (!pair || !free) {
+      if (q.length >= 2) this.host.later(() => this.rematch(stake), FIGHT_MATCH_WINDOW.stepSeconds * 1000);
+      return;
+    }
+    const red = q[pair[0]]!;
+    const blue = q[pair[1]]!;
+    this.unqueue(red);
+    this.unqueue(blue);
+    await this.pairQuick(red, blue, stake, free);
+    void this.rematch(stake);
+  }
+
+  private async pairQuick(other: string, sid: string, stake: number, free: RingState): Promise<void> {
+    this.host.send(other, BoxingHallEvt.quick, { status: "idle" });
     this.host.send(sid, BoxingHallEvt.quick, { status: "idle" });
-    Object.assign(free, { red: this.fighter(other!, "red"), blue: this.fighter(sid, "blue"), stake });
+    Object.assign(free, { red: this.fighter(other, "red"), blue: this.fighter(sid, "blue"), stake });
     this.clearFight(free);
-    this.holding.set(other!, free.id);
+    this.holding.set(other, free.id);
     this.holding.set(sid, free.id);
-    this.host.send(other!, BoxingHallEvt.assigned, { ring: free.id, corner: "red" });
+    this.host.send(other, BoxingHallEvt.assigned, { ring: free.id, corner: "red" });
     this.host.send(sid, BoxingHallEvt.assigned, { ring: free.id, corner: "blue" });
     await this.startFight(free, "quick");
   }
@@ -605,6 +673,7 @@ export class BoxingHall {
 
   private unqueue(sid: string): void {
     for (const [k, q] of this.queue) if (q.includes(sid)) this.queue.set(k, q.filter((x) => x !== sid));
+    this.qInfo.delete(sid);
   }
 
   private unwatch(sid: string): void {

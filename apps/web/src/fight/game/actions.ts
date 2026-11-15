@@ -4,9 +4,10 @@ import { api } from "@/lib/session";
 import { createFairRng, newSeed } from "@gukirana/fairness";
 import type { BotLevel } from "@gukirana/boxing";
 import { useFightBridge } from "../bridge";
-import { PracticeRunner, PracticeSession } from "./practice";
+import { ASSIST_MAX_LEVEL, PracticeRunner, PracticeSession } from "./practice";
 import { practiceHz, useFightPrefs } from "./prefs";
 import { useFightUi, type PressFx } from "./ui-store";
+import { useFightRating } from "./rating";
 
 /**
  * The boxing game side of the ring prompts (FIGHT-GAMES-PLAN §7.2, §12 Do 5). W's prompts call these (through the
@@ -40,9 +41,10 @@ export interface LiveFight {
   practiceStart?(ring: RingId): void;
   /** hall room: practice summary for spectators (`boxing-practice-score`) */
   practiceScore?(ring: RingId, round: number, score: [number, number]): void;
-  /** live fight controls (`in` messages): one press, guard held state */
-  press?(a: BoxingAction): void;
+  /** live fight controls (`in` messages): one press (to the body?), guard held state, footwork held direction */
+  press?(a: BoxingAction, body?: boolean): void;
   guard?(g: boolean): void;
+  move?(mv: [number, number]): void;
 }
 let live: LiveFight = {};
 /** G2: register the live client (call again with {} to unregister) */
@@ -75,12 +77,12 @@ export function startPractice(ring: RingId, level: number, name = "", rules?: Fi
     onRoundEnd: (round, score) => live.practiceScore?.(ring, round, score),
   });
   runner = new PracticeRunner(session, practiceHz(useFightPrefs.getState().speed));
-  // Easy mode: practice only (the live client has no assist path at all)
-  session.assist = useFightPrefs.getState().assist;
+  // Easy mode: practice only (the live client has no assist path at all), and only against levels 1-2 (P3-FGT-10)
+  session.assist = useFightPrefs.getState().assist && session.level <= ASSIST_MAX_LEVEL;
   runner.run();
   unsubSpeed = useFightPrefs.subscribe((p) => {
     runner?.setHz(practiceHz(p.speed));
-    if (session) session.assist = p.assist;
+    if (session) session.assist = p.assist && session.level <= ASSIST_MAX_LEVEL;
   });
   live.practiceStart?.(ring);
   return session;
@@ -101,7 +103,7 @@ export function stopPractice(clear = true): void {
 }
 export const practiceSession = (): PracticeSession | null => session;
 // dev QA handle: script practice states (knockdowns, endings) for screenshots
-if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") Object.assign(window as unknown as Record<string, unknown>, { __gkPractice: { session: () => session, input: () => fightInput } });
+if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") Object.assign(window as unknown as Record<string, unknown>, { __gkPractice: { session: () => session, input: () => fightInput, stores: { bridge: useFightBridge, ui: useFightUi, rating: useFightRating } } });
 
 /* ------------------------------------------------------------ the corner refresh (P3-FGT-09) ------------------------------------------------------------ */
 
@@ -131,7 +133,7 @@ export async function buyCornerRefresh(): Promise<{ ok: true; stamina: number } 
 
 /** every control (touch, keys, mouse, pad) ends here: the same presses for every device (plan §2.8) */
 export const fightInput = {
-  press(a: BoxingAction, via: PressFx["via"] = "key"): void {
+  press(a: BoxingAction, via: PressFx["via"] = "key", body = false): void {
     const mine = useFightBridge.getState().mine;
     if (!mine) return;
     const ui = useFightUi.getState();
@@ -143,8 +145,17 @@ export const fightInput = {
       ui.confirm("dropped");
       if (snap && (snap.phase === "countdown" || snap.phase === "intro" || snap.phase === "rest")) ui.hint("hud.waitBell");
     } else if (me && me.act !== "idle") ui.confirm("buffered");
-    if (mine.mode === "practice") session?.pressAction(a);
-    else live.press?.(a);
+    if (mine.mode === "practice") session?.pressAction(a, performance.now(), body);
+    else live.press?.(a, body);
+  },
+  /** the held footwork direction [lateral +1 right, forward +1 towards the opponent] (every device) */
+  move(mv: [number, number], _via: PressFx["via"] = "key"): void {
+    void _via;
+    const mine = useFightBridge.getState().mine;
+    if (!mine) return;
+    useFightUi.getState().setMove(mv);
+    if (mine.mode === "practice") session?.setMove(mv);
+    else live.move?.(mv);
   },
   guard(g: boolean, via: PressFx["via"] = "key"): void {
     const mine = useFightBridge.getState().mine;

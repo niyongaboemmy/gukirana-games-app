@@ -304,6 +304,7 @@ export class WorldRoom extends Room {
           eligibility: (uid, stake) => eligibilityOf(uid, stake, BOXING_GAME_ID),
           start: startBoxing,
           leaveFight: (roomId, uid) => boxingRoomOf(roomId)?.leaveFrom(uid),
+          rating: (uid) => api.fightRating(uid),
         },
       ));
       this.onMessage(BoxingHallMsg.claim, (client, raw: unknown) => void boxing.onClaim(client.sessionId, raw));

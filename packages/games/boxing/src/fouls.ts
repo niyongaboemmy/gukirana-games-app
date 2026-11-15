@@ -1,5 +1,4 @@
 import type { FightEvent, FoulLevel, RefereeFoul, ScoringRules } from "@gukirana/contracts";
-import { TICK_HZ } from "@gukirana/contracts";
 
 /**
  * Boxing fouls and the referee's escalation ladder (P3-FGT-06, docs/BOXING-SCORING.md §4).
@@ -8,18 +7,15 @@ import { TICK_HZ } from "@gukirana/contracts";
  * can claim, and every one is avoidable by skill (each rule has a plain "how to avoid it" line in the HUD tutorial
  * data, apps/web/src/fight/game/scoring-strings.ts). Impossible by construction (no such input or state): hitting
  * after the bell (acts reset at the bell, presses outside a round are dropped), hitting a downed opponent (both are
- * frozen during the count), head-butts, kicks, the open glove, pivot blows. LOW_BLOW is reserved for when the engine
- * gets body / head target zones.
+ * frozen during the count), head-butts, kicks, the open glove, pivot blows, low blows (engine v2's body shots land on
+ * the legal body target by construction; LOW_BLOW stays reserved). Engine v2 adds the clinch: a clinch the referee has
+ * to break counts as a "Break!" call (HOLDING after FREE_BREAKS), and ducks count with slips for DUCKING.
  */
 
-/** in this close range (cm) a fighter who doesn't punch is holding / smothering */
-export const CLINCH_DIST = 90;
-/** close range without a punch this long → the referee calls "Break!" */
-export const CLINCH_TICKS = 3 * TICK_HZ;
-/** after "Break!" the pair stands at this distance (beyond every punch's reach) */
-export const BREAK_DIST = 200;
-/** "Break!" lasts this long: punches pressed meanwhile are cancelled; stepping back in to punch is HIT_ON_BREAK */
-export const BREAK_TICKS = TICK_HZ;
+/*
+ * The distances / times of the referee's "Break!" are engine geometry: engine v2 (engine.ts CLOSE_MM, CLOSE_TICKS,
+ * CLINCH_TICKS, BREAK_GAP, BREAK_TICKS); v1 keeps its own frozen copy (v1/fouls.ts).
+ */
 /** "Break!" calls on the same fighter in one round before it is a HOLDING foul (the first is free) */
 export const FREE_BREAKS = 1;
 /** slips in a row without a punch → DUCKING */

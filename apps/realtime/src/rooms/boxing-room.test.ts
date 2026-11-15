@@ -505,3 +505,37 @@ describe("scoring + validation (P3-FGT-06, docs/BOXING-SCORING.md §6)", () => {
     await a.room.leave(true);
   }, 15_000);
 });
+
+describe("engine v2 in the room (P3-FGT-10)", () => {
+  const pub = keyFromSeed(loadEnv().RESULT_SIGNING_SEED).publicKey;
+  it("footwork inputs move the fighter on the canvas; the signed result carries the server's skill lines; the log is engine 2", async () => {
+    const { roomId, matchId } = await create({}, { roundSeconds: 3 });
+    const { a, b } = await bell(roomId);
+    type Snap = { engine?: number; fighters: { x?: number; z?: number }[] };
+    const x0 = (a.last("snap") as Snap).fighters[0]!.x!;
+    let k = 0;
+    // A walks in and throws (keys W + J), B circles (D)
+    const stop = a.every(60, () => a.room.send("in", { seq: 5000 + ++k, g: false, mv: [0, 1], ...(k % 5 === 0 ? { a: "jab" } : {}) }));
+    const stopB = b.every(80, () => b.room.send("in", { seq: 7000 + ++k, g: true, mv: [1, 0] }));
+    await until(() => ((a.last("snap") as Snap).fighters[0]!.x ?? x0) > x0 + 300, 4_000);
+    const snap = a.last("snap") as Snap;
+    expect(snap.engine).toBe(2);
+    expect(Math.abs(snap.fighters[1]!.z ?? 0)).toBeGreaterThan(0);
+    await until(() => !!result(a), 12_000);
+    stop();
+    stopB();
+    const room = boxingRoomOf(roomId)!;
+    const log = room.fightLog();
+    expect(log.engine).toBe(2);
+    expect(log.ops.some((o) => o.o === "step" && !!o.i[0]?.mv)).toBe(true);
+    const signed = settled.find((r) => r.matchId === matchId)!;
+    expect(verifyResult(signed, pub)).toBe(true);
+    expect(signed.stats?.[A]).toMatchObject({ thrown: expect.any(Number), accuracy: expect.any(Number), defencePct: expect.any(Number) });
+    expect(signed.stats?.[A]!.thrown).toBeGreaterThan(0);
+    // tampering with the skill lines breaks the signature like any other field
+    expect(verifyResult({ ...signed, stats: { ...signed.stats, [A]: { ...signed.stats![A]!, landed: 999 } } }, pub)).toBe(false);
+    expect((result(a) as { stats?: Record<string, unknown> }).stats?.[B]).toBeDefined();
+    await a.room.leave(true);
+    await b.room.leave(true);
+  }, 20_000);
+});
