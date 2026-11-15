@@ -58,7 +58,7 @@ export function paintRwandaFlag(g: CanvasRenderingContext2D, s: FlagSpec = rwand
     g.fillRect(0, y0, s.w, y1 - y0);
   }
   g.fillStyle = RWANDA.sun;
-  for (const r of s.rays) {
+  for (const r of s.sun.rays) {
     g.beginPath();
     g.moveTo(r[0]![0], r[0]![1]);
     g.lineTo(r[1]![0], r[1]![1]);

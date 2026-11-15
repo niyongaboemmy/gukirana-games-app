@@ -72,7 +72,8 @@ import { V } from "@/arena/strings";
 
 /**
  * Tournament Arena interior (P2-ARN-03 / P2-ARN-04) — a modern indoor arena (original design; ideas only from great
- * venues such as Kigali's): deep charcoal concrete and warm timber, the arena purple as an accent, gold highlights.
+ * venues such as Kigali's): warm charcoal concrete and timber, dark chocolate seating, bronze details, warm amber
+ * light as the one accent (P2-WLD-17: was purple), gold highlights.
  *   lobby (timber slat walls, ticket & info kiosk, live event board, concession frontage with menu screens, restrooms)
  *   → back-lit entry portal → concourse ring (polished concrete, glass balustrade, wayfinding totems, photo spot)
  *   → lower bowl A–L / upper tier U1–U8 (glass balustrade over an LED fascia) / VIP boxes V1–V4 (glass fronts)
@@ -666,22 +667,22 @@ function useMats() {
     acc.repeat.set(60, 1);
     const m = (color: string, extra: THREE.MeshStandardMaterialParameters = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.92, metalness: 0, envMapIntensity: 0.1, ...extra });
     return {
-      concrete: m("#55504c", { side: THREE.DoubleSide }),
+      concrete: m("#57504a", { side: THREE.DoubleSide }),
       floorC: m("#ffffff", { map: conc, roughness: 0.86, side: THREE.DoubleSide }),
       finish: m("#b4ab9f", { side: THREE.DoubleSide }),
       timber: m("#ffffff", { map: slat, roughness: 0.9 }),
-      dark: m("#232127", { side: THREE.DoubleSide, roughness: 1 }),
+      dark: m("#241b16", { side: THREE.DoubleSide, roughness: 1 }),
       // frosted, low-reflection glass (rough, no environment reflections, low opacity, sorted after opaques)
       // (light frosting: a person behind it reads as a whole, softened figure; the glass ends at posts)
       glass: new THREE.MeshStandardMaterial({ color: "#d6dde2", roughness: 1, metalness: 0, envMapIntensity: 0, transparent: true, opacity: 0.15, depthWrite: false, side: THREE.DoubleSide }),
       // VIP interiors: front faces only (a box's side wall faces into it; the neighbour's faces the other way)
       warm: m("#7a5a40"),
       accent: m("#ffffff", { map: acc, roughness: 0.95 }),
-      rail: m("#2b2a30", { roughness: 0.85 }),
+      rail: m("#3a2619", { roughness: 0.7, metalness: 0.3 }),
       // LED-lit stair nosings: soft warm strips (emissive below the bloom threshold)
       nosing: m("#3a2e1c", { emissive: "#ffb45c", emissiveIntensity: 0.32, roughness: 0.95 }),
       seat: m("#ffffff", { roughness: 0.88, vertexColors: true }),
-      frame: m("#2a282f", { roughness: 0.9 }),
+      frame: m("#2b1d14", { roughness: 0.85 }),
       stone: m("#cfc6b8", { roughness: 0.9 }),
       wood: m("#8a6648", { roughness: 0.88 }),
       plate: new THREE.MeshStandardMaterial({ map: plateAtlas(), roughness: 0.9, metalness: 0 }),
@@ -705,7 +706,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
   const area = useArea();
 
   useLayoutEffect(() => {
-    if (!scene.background) scene.background = new THREE.Color("#141218");
+    if (!scene.background) scene.background = new THREE.Color("#15100c");
   }, [scene]);
   useEffect(() => {
     bindArenaRealtime();
@@ -734,7 +735,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
       q.setFromAxisAngle(_up, s.yaw);
       m.compose(new THREE.Vector3(s.x, s.y, s.z), q, vip ? new THREE.Vector3(1.22, 1.04, 1.12) : new THREE.Vector3(1, 1, 1));
       im.setMatrixAt(i, m);
-      c.set(vip ? "#8a5d3b" : s.table.startsWith("U") ? "#4a4a63" : "#5a3f78").offsetHSL(0, 0, hash(i) * 0.04 - 0.02);
+      c.set(vip ? "#8a5d3b" : s.table.startsWith("U") ? "#3e2a1f" : "#5a3422").offsetHSL(0, 0, hash(i) * 0.04 - 0.02);
       im.setColorAt(i, c);
     });
     im.instanceMatrix.needsUpdate = true;
@@ -783,7 +784,8 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
       const y = (FLOOR_Y * (k + 1)) / TUNNEL_STEPS;
       if (y - FLOOR_Y > 1e-3) steps.push({ p: [0, (y + FLOOR_Y) / 2, z0], s: [PLAYERS_TUNNEL_HW * 2, y - FLOOR_Y, (CONCOURSE.r0 - FLOOR_R) / TUNNEL_STEPS + 0.01] });
     }
-    const portal: Xform[] = [-1, 1].map((s) => ({ p: [s * (PORTAL_HW + 0.5), PORTAL_H / 2, (CONCOURSE.r1 + OUTER_R) / 2 + 0.2], s: [1.0, PORTAL_H, OUTER_R - CONCOURSE.r1 + 0.6] }));
+    // (6 mm under the portal soffit: their tops never share its plane, P2-WLD-17 zscan)
+    const portal: Xform[] = [-1, 1].map((s) => ({ p: [s * (PORTAL_HW + 0.5), (PORTAL_H - 0.006) / 2, (CONCOURSE.r1 + OUTER_R) / 2 + 0.2], s: [1.0, PORTAL_H - 0.006, OUTER_R - CONCOURSE.r1 + 0.6] }));
     nosings.push(...bowl.nosings);
     return { nosings, steps, portal };
   }, [bowl]);
@@ -844,10 +846,10 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
   const status = useArena((s) => s.status);
   const announceText = useArena((s) => s.announce?.text ?? null);
   const ribbons = useMemo(() => {
-    const words = ["TOURNAMENT ARENA", "PLAY · MEET · WIN", "GUKIRANA PLAYGROUND", "MUSANZE", "POOL · LUDO · IGISORO", "FAIR PLAY"];
+    const words = [...V.ribbon.idle];
     const lower = ribbonTexture(words);
     const upper = ribbonTexture([...words].reverse());
-    const high = ribbonTexture(words.map(() => ""), "#241d33");
+    const high = ribbonTexture(words.map(() => ""), "#2a1d15");
     lower.repeat.set(4, 1);
     upper.repeat.set(5, 1);
     high.repeat.set(6, 1);
@@ -857,7 +859,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
     // the event's name runs on the fascia ribbons
     const t = status?.current?.title ?? status?.next?.title;
     if (!t) return;
-    const words = [t.toUpperCase(), "TOURNAMENT ARENA", status?.current ? "LIVE · FAIR PLAY" : "NEXT EVENT", "POOL · LUDO · IGISORO", t.toUpperCase(), "GUKIRANA PLAYGROUND"];
+    const words = [t.toUpperCase(), V.ribbon.arena, status?.current ? V.ribbon.live : V.ribbon.next, V.ribbon.games, t.toUpperCase(), V.ribbon.playground];
     for (const [r, w] of [
       [ribbons.lower, words],
       [ribbons.upper, [...words].reverse()],
@@ -991,7 +993,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
     [],
   );
   const signAtlas = useMemo(() => {
-    const atlas = labelAtlas(signs.map((x) => ({ text: x.id, px: Math.round((x.size / 0.66) * 160) })), { ink: "#2e2834" });
+    const atlas = labelAtlas(signs.map((x) => ({ text: x.id, px: Math.round((x.size / 0.66) * 160) })), { ink: "#2e2118" });
     const geos = signs.map((x, i) => (x.id.length > 1 ? atlasPlane(1.05, 0.66, atlas.uv(i)) : atlasPlane(0.78, 0.66, atlas.uv(i, 0.78 / 1.05))));
     const material = new THREE.MeshStandardMaterial({ map: atlas.texture, emissiveMap: atlas.texture, color: "#e9dfcd", emissive: "#f3e7d2", emissiveIntensity: 0.42, roughness: 1, metalness: 0 });
     return { geos, material, texture: atlas.texture };
@@ -1017,10 +1019,10 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
       {!lite && (
         <Environment resolution={32} frames={1} environmentIntensity={0.3}>
           <Lightformer intensity={1.0} position={[0, CEIL_Y, 0]} rotation-x={Math.PI / 2} scale={[40, 40, 1]} color="#f6eee4" />
-          <Lightformer intensity={0.35} position={[0, 1, 0]} rotation-x={-Math.PI / 2} scale={[40, 40, 1]} color="#5e5660" />
+          <Lightformer intensity={0.35} position={[0, 1, 0]} rotation-x={-Math.PI / 2} scale={[40, 40, 1]} color="#5e5048" />
         </Environment>
       )}
-      <hemisphereLight ref={hemi} args={["#f6eee6", "#4a4248", lite ? 1.45 : 1.1]} />
+      <hemisphereLight ref={hemi} args={["#f6eee6", "#4a3e36", lite ? 1.45 : 1.1]} />
       <ambientLight intensity={lite ? 0.32 : 0.2} />
       <directionalLight
         ref={key}
@@ -1068,13 +1070,13 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
 
       {/* LED fascia ribbons: the floor ring, the upper-tier fascia, a slim ring under the ceiling (calm motion) */}
       <mesh geometry={ribbonGeo.lower}>
-        <meshBasicMaterial map={ribbons.lower} color="#bdb3cc" />
+        <meshBasicMaterial map={ribbons.lower} color="#d6cbbf" />
       </mesh>
       <mesh geometry={ribbonGeo.upper}>
-        <meshBasicMaterial map={ribbons.upper} color="#bdb3cc" />
+        <meshBasicMaterial map={ribbons.upper} color="#d6cbbf" />
       </mesh>
       <mesh geometry={ribbonGeo.high}>
-        <meshBasicMaterial map={ribbons.high} color="#a493c4" />
+        <meshBasicMaterial map={ribbons.high} color="#c9ad8c" />
       </mesh>
 
       {/* -------- concourse: soft downlight pools, back-lit section signs, wayfinding totems, photo spot -------- */}
@@ -1092,7 +1094,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
           </mesh>
           <mesh position={[0, 1.18, 0.125]}>
             <planeGeometry args={[0.46, 0.92]} />
-            <meshBasicMaterial map={t.tex} color="#c8c2d0" />
+            <meshBasicMaterial map={t.tex} color="#d6ccc0" />
           </mesh>
           <mesh position={[0, 2.12, 0]} material={M.wood}>
             <boxGeometry args={[0.58, 0.06, 0.26]} />
@@ -1105,7 +1107,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
           <meshBasicMaterial color="#d8b45a" transparent opacity={0.7} depthWrite={false} />
         </mesh>
         <Text font={FONT} fontSize={0.12} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0.68]} anchorX="center" anchorY="middle" letterSpacing={0.12}>
-          PHOTO SPOT
+          {V.sign.photo}
           <meshBasicMaterial color="#d8b45a" />
         </Text>
       </group>
@@ -1115,16 +1117,16 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
         <meshStandardMaterial color="#0c5a2f" emissive="#18a050" emissiveIntensity={0.7} roughness={1} />
       </mesh>
       <Text font={FONT} fontSize={0.19} position={[0, PORTAL_H + 0.5, CONCOURSE.r1 - 0.09]} rotation={[0, Math.PI, 0]} anchorX="center" anchorY="middle" letterSpacing={0.08}>
-        EXIT · PLAZA
+        {V.sign.exit}
         <meshBasicMaterial color="#e8f5ec" />
       </Text>
       {/* back-lit portal frame (warm light strip round the opening) */}
       <Instanced
         geometry={box}
         items={[
-          { p: [-PORTAL_HW + 0.02, PORTAL_H / 2, CONCOURSE.r1 + 0.02], s: [0.05, PORTAL_H, 0.05] },
-          { p: [PORTAL_HW - 0.02, PORTAL_H / 2, CONCOURSE.r1 + 0.02], s: [0.05, PORTAL_H, 0.05] },
-          { p: [0, PORTAL_H - 0.03, CONCOURSE.r1 + 0.02], s: [PORTAL_HW * 2, 0.05, 0.05] },
+          { p: [-PORTAL_HW + 0.02, (PORTAL_H - 0.006) / 2, CONCOURSE.r1 + 0.02], s: [0.05, PORTAL_H - 0.006, 0.05] },
+          { p: [PORTAL_HW - 0.02, (PORTAL_H - 0.006) / 2, CONCOURSE.r1 + 0.02], s: [0.05, PORTAL_H - 0.006, 0.05] },
+          { p: [0, PORTAL_H - 0.035, CONCOURSE.r1 + 0.02], s: [PORTAL_HW * 2, 0.05, 0.05] },
         ]}
         receiveShadow={false}
       >
@@ -1138,7 +1140,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
       </mesh>
       <mesh ref={addPick(6)} position={[0, FLOOR_Y + STAGE.h / 2, STAGE.z]} castShadow={!lite} receiveShadow={!lite}>
         <boxGeometry args={[STAGE.hw * 2, STAGE.h, STAGE.hd * 2]} />
-        <meshStandardMaterial color="#211e25" roughness={0.95} metalness={0} envMapIntensity={0.1} />
+        <meshStandardMaterial color="#231914" roughness={0.95} metalness={0} envMapIntensity={0.1} />
       </mesh>
       {[
         [0, STAGE.z + STAGE.hd + 0.005, STAGE.hw * 2, 0],
@@ -1146,7 +1148,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
       ].map(([x, z, w, ry], i) => (
         <mesh key={i} position={[x!, FLOOR_Y + STAGE.h / 2, z!]} rotation={[0, ry!, 0]}>
           <planeGeometry args={[w!, STAGE.h * 0.4]} />
-          <meshBasicMaterial color="#56427e" />
+          <meshStandardMaterial color="#9b6a48" roughness={0.45} metalness={0.6} />
         </mesh>
       ))}
       {/* the soft stage wash on the deck (baked; it brightens when live) */}
@@ -1161,7 +1163,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
       </group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, FLOOR_Y + 0.006, (-FLOOR_R + (STAGE.z - STAGE.hd)) / 2]}>
         <planeGeometry args={[1.8, FLOOR_R + (STAGE.z - STAGE.hd)]} />
-        <meshStandardMaterial color="#3e2d60" roughness={1} metalness={0} envMapIntensity={0.05} />
+        <meshStandardMaterial color="#4a2c1c" roughness={1} metalness={0} envMapIntensity={0.05} />
       </mesh>
       <Instanced
         geometry={box}
@@ -1179,12 +1181,12 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
       {/* "players only" marked on the concourse floor at the tunnel mouth (it used to float in mid-air over the tunnel,
           with no backing, in front of everything — P2-HAL-11) */}
       <Text font={FONT} fontSize={0.22} position={[0, 0.012, -(CONCOURSE.r0 + 0.32)]} rotation={[-Math.PI / 2, 0, Math.PI]} anchorX="center" anchorY="middle" letterSpacing={0.12}>
-        PLAYERS ONLY
+        {V.sign.playersOnly}
         <meshBasicMaterial color="#cdbf9f" polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} />
       </Text>
       <Text font={FONT} fontSize={0.26} position={[0, GANTRY.y + 1.4, -(CONCOURSE.r1 + 0.1)]} anchorX="center" anchorY="middle" letterSpacing={0.12}>
-        MEDIA GANTRY
-        <meshStandardMaterial color="#cfc6dd" roughness={0.9} metalness={0} />
+        {V.sign.gantry}
+        <meshStandardMaterial color="#e2d6c6" roughness={0.9} metalness={0} />
       </Text>
       <group position={[COMMENTATORS.x, FLOOR_Y, COMMENTATORS.z]}>
         <mesh position={[0, 0.5, 0]} material={M.wood} castShadow={!lite}>
@@ -1196,7 +1198,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
         {[-1, 0, 1].map((k2) => (
           <mesh key={k2} position={[k2 * 0.95, 1.22, -0.2]} rotation={[-0.15, 0, 0]}>
             <boxGeometry args={[0.5, 0.32, 0.03]} />
-            <meshStandardMaterial color="#1a1a1e" emissive="#3c4a66" emissiveIntensity={0.3} roughness={0.9} />
+            <meshStandardMaterial color="#1c1612" emissive="#6a4e36" emissiveIntensity={0.3} roughness={0.9} />
           </mesh>
         ))}
         {/* ON AIR light (lit while a staff commentator is on air) */}
@@ -1209,7 +1211,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
           <meshBasicMaterial color="#f3d6d2" />
         </Text>
         <Text font={FONT} fontSize={0.2} position={[0, 0.62, COMMENTATORS.d / 2 + 0.01]} anchorX="center" anchorY="middle" letterSpacing={0.14}>
-          COMMENTARY
+          {V.sign.commentary}
           <meshStandardMaterial color="#efe6d6" roughness={0.9} metalness={0} />
         </Text>
       </group>
@@ -1222,7 +1224,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
         {[0, 1, 2, 3].map((q) => (
           <mesh key={q}>
             <cylinderGeometry args={[4.0, 4.0, 2.9, 24, 1, true, (q * 90 - 41) * D2R, 82 * D2R]} />
-            <meshBasicMaterial map={board.texture} color="#cfc8d8" />
+            <meshBasicMaterial map={board.texture} color="#d9cfc4" />
           </mesh>
         ))}
         {[-1, 1].map((s) => (
@@ -1232,7 +1234,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
         ))}
         <mesh position={[0, -2.0, 0]}>
           <cylinderGeometry args={[2.7, 2.7, 0.62, 48, 1, true]} />
-          <meshBasicMaterial map={ribbons.lower} color="#b5abc6" />
+          <meshBasicMaterial map={ribbons.lower} color="#d0c4b6" />
         </mesh>
         <mesh position={[0, -2.33, 0]} material={M.frame}>
           <cylinderGeometry args={[2.72, 2.72, 0.05, 48]} />
@@ -1255,15 +1257,15 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
       {coveRing(17.6, 0.1, CEIL_Y - 0.03)}
       {coveRing(OUTER_R - 0.3, 0.14, CEIL_Y - 0.03)}
       <MatrixInstances geometry={cyl} matrices={roof.top}>
-        <meshStandardMaterial color="#3a3940" roughness={0.9} metalness={0} envMapIntensity={0.05} />
+        <meshStandardMaterial color="#3a2c22" roughness={0.9} metalness={0} envMapIntensity={0.05} />
       </MatrixInstances>
       <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, ROOF_Y + 1.7, 0]}>
         <circleGeometry args={[LANTERN_R + 0.4, 64]} />
-        <meshStandardMaterial color="#1a181e" roughness={1} metalness={0} envMapIntensity={0} />
+        <meshStandardMaterial color="#1b140f" roughness={1} metalness={0} envMapIntensity={0} />
       </mesh>
       <mesh position={[0, (CEIL_Y + ROOF_Y + 1.7) / 2, 0]}>
         <cylinderGeometry args={[LANTERN_R + 0.02, LANTERN_R + 0.02, ROOF_Y + 1.7 - CEIL_Y, 64, 1, true]} />
-        <meshStandardMaterial color="#25232a" roughness={1} metalness={0} side={THREE.BackSide} />
+        <meshStandardMaterial color="#261c15" roughness={1} metalness={0} side={THREE.BackSide} />
       </mesh>
 
       {/* -------- lobby: polished concrete, timber slat walls, cove-lit ceiling -------- */}
@@ -1327,7 +1329,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
               </mesh>
             </group>
             <Text font={FONT} fontSize={0.2} position={[s * (LOBBY.hw - 0.03), 2.5, RESTROOM.doorZ]} rotation={[0, -s * (Math.PI / 2), 0]} anchorX="center" anchorY="middle" letterSpacing={0.12}>
-              RESTROOMS
+              {V.sign.restrooms}
               <meshStandardMaterial color="#f1e9dc" roughness={0.9} metalness={0} />
             </Text>
           </group>
@@ -1341,8 +1343,8 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
         <meshStandardMaterial color="#e9dfcd" emissive="#f3e7d2" emissiveIntensity={0.4} roughness={1} metalness={0} />
       </mesh>
       <Text font={FONT} fontSize={0.32} position={[0, PORTAL_H + 0.55, OUTER_R + 0.1]} anchorX="center" anchorY="middle" letterSpacing={0.1}>
-        BOWL · LOWER A–L · UPPER U1–U8 · VIP V1–V4
-        <meshStandardMaterial color="#2a2430" roughness={0.9} metalness={0} />
+        {V.sign.directory}
+        <meshStandardMaterial color="#2e2118" roughness={0.9} metalness={0} />
       </Text>
       {/* ticket & info kiosk: timber front, stone top, an Imigongo accent strip, screen and sign */}
       <group position={[KIOSK.x, 0, KIOSK.z]}>
@@ -1359,7 +1361,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
           <boxGeometry args={[KIOSK.w, 0.7, 0.08]} />
         </mesh>
         <Text font={FONT} fontSize={0.3} position={[0, 2.4, -0.35]} anchorX="center" anchorY="middle" letterSpacing={0.12}>
-          TICKETS · INFO
+          {V.sign.tickets}
           <meshStandardMaterial color="#efe9dc" roughness={0.9} metalness={0} />
         </Text>
         {[-1, 1].map((s) => (
@@ -1375,7 +1377,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
         </mesh>
         <mesh position={[0, 1.95, 0.065]}>
           <planeGeometry args={[3.2, 1.8]} />
-          <meshBasicMaterial map={lobbyBoard.texture} color="#cfc8d8" />
+          <meshBasicMaterial map={lobbyBoard.texture} color="#d9cfc4" />
         </mesh>
         {[-1, 1].map((s) => (
           <mesh key={s} position={[s * 1.4, 0.5, 0]} material={M.rail}>
@@ -1401,7 +1403,7 @@ export function TournamentArena({ layout, lite }: { layout: HallLayout; lite: bo
                 </mesh>
                 <mesh position={[0, 0, 0.025]}>
                   <planeGeometry args={[2.2, 1.1]} />
-                  <meshBasicMaterial map={menus[i]} color="#cbc4d4" />
+                  <meshBasicMaterial map={menus[i]} color="#d6ccc0" />
                 </mesh>
               </group>
             ))}

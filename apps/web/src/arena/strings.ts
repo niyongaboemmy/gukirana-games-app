@@ -179,4 +179,24 @@ export const V = {
   standCheer: "Stand & cheer",
   sitBack: "Sit back down",
   vipVoice: (box: string) => `VIP box ${box} · private voice`,
+  /** signs and lettering in the 3D venue (P2-WLD-17: no hard-coded scene text) */
+  sign: {
+    directory: "BOWL · LOWER A–L · UPPER U1–U8 · VIP V1–V4",
+    exit: "EXIT · PLAZA",
+    restrooms: "RESTROOMS",
+    playersOnly: "PLAYERS ONLY",
+    gantry: "MEDIA GANTRY",
+    commentary: "COMMENTARY",
+    tickets: "TICKETS · INFO",
+    photo: "PHOTO SPOT",
+  },
+  /** the words on the LED ribbons (the event's name joins them while one is on) */
+  ribbon: {
+    idle: ["TOURNAMENT ARENA", "PLAY · MEET · WIN", "GUKIRANA PLAYGROUND", "MUSANZE", "POOL · LUDO · IGISORO", "FAIR PLAY"],
+    arena: "TOURNAMENT ARENA",
+    live: "LIVE · FAIR PLAY",
+    next: "NEXT EVENT",
+    games: "POOL · LUDO · IGISORO",
+    playground: "GUKIRANA PLAYGROUND",
+  },
 } as const;

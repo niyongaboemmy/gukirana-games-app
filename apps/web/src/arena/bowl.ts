@@ -19,7 +19,8 @@ import { ARENA_BOWL } from "@gukirana/contracts";
 
 export const ARENA_SIZE = { w: 56, d: 68.8, h: 18 } as const;
 export const ARENA_DOOR_Z = ARENA_SIZE.d / 2;
-export const ARENA_COLOR = "#9B51E0";
+/** the arena's accent (warm amber, the app's chocolate primary-400; P2-WLD-17, was neon purple) */
+export const ARENA_COLOR = "#D6A06C";
 
 export const FLOOR_Y = -3.2;
 /** competition floor (inside the front barrier) */

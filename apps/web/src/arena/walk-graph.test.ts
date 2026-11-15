@@ -114,7 +114,7 @@ describe("arena walking graph (P2-WLD-17)", () => {
         [-STEP, 0],
         [0, STEP],
         [0, -STEP],
-      ])
+      ] as [number, number][])
         if (seen[g.cell(x + dx, z + dz)]) return true;
       return false;
     };

@@ -196,7 +196,7 @@ export function LudoTables({ tables, status, lite }: { tables: Table[]; status: 
       feet.push({ p: [t.x, 0.012, t.z], s: [0.3, 0.024, 0.3] });
       const rot = Math.PI / 2 + 0.03 * (n(ti) - 0.5);
       trays.push({ p: [t.x, h + 0.006, t.z], r: rot, s: [BOARD + 0.01, 0.012, BOARD + 0.01] });
-      boards.push({ p: [t.x, h + 0.014, t.z], r: rot, s: [BOARD, 1, BOARD] }); // 2 mm over the tray top (h + 0.012): 0.5 mm z-fought
+      boards.push({ p: [t.x, h + 0.018, t.z], r: rot, s: [BOARD, 1, BOARD] }); // 6 mm over the tray top (h + 0.012): closer z-fights (P2-WLD-17 zscan: ≥ 5 mm)
       dices.push({ p: [t.x - t.w / 2 + 0.1, h + 0.01, t.z + 0.12 * (n(ti * 7) - 0.5)], r: n(ti * 5) * 6 });
       cubes.push({ p: [t.x + t.w / 2 - 0.1, h + 0.0425, t.z], s: 0.085 });
     });
@@ -225,7 +225,7 @@ export function LudoTables({ tables, status, lite }: { tables: Table[]; status: 
           used.set(key, stack + 1);
           const lx = -BOARD / 2 + BOARD * FRAME + (col + 0.5) * cell + stack * 0.008;
           const lz = -BOARD / 2 + BOARD * FRAME + (row + 0.5) * cell + stack * 0.008;
-          items.push({ p: [t.x + lx * c + lz * s, h + 0.013, t.z - lx * s + lz * c] });
+          items.push({ p: [t.x + lx * c + lz * s, h + 0.018, t.z - lx * s + lz * c] });
           cols.push(LUDO_TABLE_COLORS[seat]!);
         }
     });

@@ -15,6 +15,10 @@ export const W = {
   /** desktop control hints: the full line for the first minute, then the short one */
   hintFull: "W/S walk · A/D turn · click to walk · click a person for options · drag to look · Shift run · E interact · T chat · V talk",
   hintShort: "E interact · T chat · G emotes · V talk",
+  /** Tournament Arena exterior (P2-WLD-17): the crown lettering over the big screen, the ticket window, the screen */
+  arenaCrown: "GUKIRANA PLAYGROUND",
+  arenaTickets: "TICKETS",
+  arenaScreen: ["TOURNAMENT ARENA", "MURAKAZA NEZA", "GUKIRANA PLAYGROUND", "PLAY · MEET · WIN"] as [string, string, string, string],
 } as const;
 
 /** Plaza activities (P2-WLD-09), i18n keys `plaza.activity.*` (English catalogue). */

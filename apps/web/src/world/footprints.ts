@@ -66,9 +66,9 @@ export const ARENA = (() => {
  * out to z0, soffit at y), its four slender bronze columns, and the four flagpoles flying Rwanda's flag either side of
  * it (outside the canopy and the walking line). Columns and poles are solid plaza obstacles (world/obstacles.ts).
  */
-export const ARENA_CANOPY = { hw: 12, z0: 2.4, z1: -7.2, y: 7.0, t: 0.62 } as const;
+export const ARENA_CANOPY = { hw: 12, z0: 2.4, z1: -9.0, y: 7.0, t: 0.62 } as const;
 export const ARENA_COLUMNS = [-9.4, -4.8, 4.8, 9.4].map((x) => ({ x, z: 1.35, r: 0.22 }));
-export const ARENA_FLAGPOLES = [-14.8, -13.4, 13.4, 14.8] as const;
+export const ARENA_FLAGPOLES = [-15.4, -13.0, 13.0, 15.4] as const;
 /** flag cloth 2:3 (1.8 × 1.2 m), centre height `y`, on 11 m poles at z */
 export const ARENA_FLAG = { z: 0.8, y: 10.15, w: 1.8, h: 1.2, pole: 11 } as const;
 
@@ -93,7 +93,7 @@ export const FOOTPRINTS = {
   arena: [
     { x0: -12, x1: 12, z0: 3, z1: -6 },
     // the flagpole pairs either side of the canopy (P2-WLD-17)
-    ...[-1, 1].map((sd): Rect => ({ x0: sd < 0 ? -15.2 : 13.0, x1: sd < 0 ? -13.0 : 15.2, z0: ARENA_FLAG.z + 0.4, z1: ARENA_FLAG.z - 0.4 })),
+    ...[-1, 1].map((sd): Rect => ({ x0: sd < 0 ? -15.7 : 12.7, x1: sd < 0 ? -12.7 : 15.7, z0: ARENA_FLAG.z + 0.4, z1: ARENA_FLAG.z - 0.4 })),
     ...Array.from({ length: 8 }, (_, i): Rect => {
       const R = { x: ARENA.rx + 0.8, z: ARENA.rz + 0.8 };
       const za = ARENA.cz + R.z - (2 * R.z * i) / 8;

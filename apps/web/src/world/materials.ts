@@ -8,7 +8,9 @@ import {
   curtainWallTextures,
   grassTexture,
   hoardingTexture,
+  arenaPerforatedTexture,
   imigongoDiamondTexture,
+  standingSeamTexture,
   imigongoTexture,
   lavaStoneTexture,
   pavingTexture,
@@ -27,7 +29,8 @@ export const GAME_COLORS = {
   pool: "#2F80ED",
   ludo: "#FF8A1F",
   igisoro: "#27AE60",
-  arena: "#9B51E0",
+  // the arena's accent: warm amber light (the app's chocolate primary-400; P2-WLD-17, was neon purple)
+  arena: "#D6A06C",
   admin: "#C9A96B",
   fight: "#C8322A",
   soon: "#8A94A6",
@@ -132,6 +135,11 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     white: std({ color: "#f3f1ec", roughness: 0.45, metalness: 0.05 }),
     imigongo: std({ map: imigongoTexture(1), roughness: 0.75 }),
     diamond: std({ map: imigongoDiamondTexture(), roughness: 0.6, metalness: 0.2, side: THREE.DoubleSide }),
+    // Tournament Arena (P2-WLD-17): dark chocolate (crown, canopy, fascias, mullions, columns, inner drum) with a soft
+    // metallic sheen; the perforated bronze screen panels; the standing-seam dome
+    choco: std({ color: "#3b2416", roughness: 0.5, metalness: 0.35 }),
+    arenaScreen: std({ map: arenaPerforatedTexture(), roughness: 0.42, metalness: 0.55, side: THREE.DoubleSide }),
+    arenaRoof: std({ map: standingSeamTexture(), roughness: 0.48, metalness: 0.5 }),
     diamondDark: std({ map: imigongoDiamondTexture("#14161c", "#7a3a22", "#2c2f37"), roughness: 0.5, metalness: 0.6 }),
     grass: std({ map: grassTexture(), roughness: 1, color: "#d8f0c8" }),
     hedge: std({ color: "#2f6b33", roughness: 0.95 }),

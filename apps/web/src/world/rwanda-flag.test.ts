@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RWANDA, rwandaFlagSpec } from "./rwanda-flag";
-import { ARENA_FLAGPOLES, ARENA_FLAG } from "./footprints";
+import { ARENA_CANOPY, ARENA_FLAGPOLES, ARENA_FLAG } from "./footprints";
 
 describe("Rwanda's flag (P2-WLD-17)", () => {
   const s = rwandaFlagSpec(768);
@@ -51,5 +51,9 @@ describe("Rwanda's flag (P2-WLD-17)", () => {
     expect(ARENA_FLAG.h / ARENA_FLAG.w).toBeCloseTo(2 / 3, 10);
     // the cloth hangs under the pole top and above the canopy
     expect(ARENA_FLAG.y + ARENA_FLAG.h / 2).toBeLessThan(ARENA_FLAG.pole);
+    // neighbouring cloths never overlap (each flies 1.8 m out from its pole), and they fly above the canopy
+    const xs = [...ARENA_FLAGPOLES].sort((a, b) => a - b);
+    for (let i = 1; i < xs.length; i++) expect(xs[i]! - xs[i - 1]!).toBeGreaterThan(ARENA_FLAG.w + 0.3);
+    expect(ARENA_FLAG.y - ARENA_FLAG.h / 2).toBeGreaterThan(ARENA_CANOPY.y + ARENA_CANOPY.t + 1);
   });
 });
