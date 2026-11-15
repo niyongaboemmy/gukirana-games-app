@@ -206,6 +206,11 @@ function LobbyShell({ layout }: { layout: HallLayout }) {
       <mesh rotation-x={-Math.PI / 2} position={[bx, 0.002, back - 0.4 - LOBBY_PASSAGE.d / 2]} material={mats.floor}>
         <planeGeometry args={[pw, LOBBY_PASSAGE.d]} />
       </mesh>
+      {/* dark gray threshold through the doorway (the wall's 40 cm had no floor: the backdrop showed through) */}
+      <mesh rotation-x={-Math.PI / 2} position={[bx, 0.003, back - 0.2]}>
+        <planeGeometry args={[pw + 0.2, 0.46]} />
+        <meshStandardMaterial color="#3a3a3c" roughness={0.85} />
+      </mesh>
       <HallGlimpse w={pw} h={3.0} position={[bx, 1.5, back - 0.4 - LOBBY_PASSAGE.d + 0.02]} />
       {/* ceiling light panels */}
       {[-9, -3, 3, 9].map((x) => (

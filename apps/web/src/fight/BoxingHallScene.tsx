@@ -197,6 +197,10 @@ function Shell({ layout, lite }: { layout: HallLayout; lite: boolean }) {
       <mesh rotation-x={-Math.PI / 2} position={[dx, 0.002, d / 2 + 0.4 + 1.1]} material={mats.floor}>
         <planeGeometry args={[dw, 2.2]} />
       </mesh>
+      <mesh rotation-x={-Math.PI / 2} position={[dx, 0.003, d / 2 + 0.2]}>
+        <planeGeometry args={[dw, 0.46]} />
+        <meshStandardMaterial color="#3a3a3c" roughness={0.85} />
+      </mesh>
       <HallGlimpse view="lobby" w={dw} h={3.0} position={[dx, 1.5, d / 2 + 0.4 + 2.18]} rotationY={Math.PI} />
       {/* timber slat band (lower walls) and a red light line above it */}
       <mesh material={mats.slats} position={[0, 1.6, -d / 2 + 0.03]}>
