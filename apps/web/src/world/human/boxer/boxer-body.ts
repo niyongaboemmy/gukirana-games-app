@@ -47,12 +47,15 @@ export interface BoxerSpec {
   shadows?: boolean;
   /** the body alone, nothing covered (the lab's skinning view) */
   bare?: boolean;
+  /** P3-FGT-15: which skin texture (the gender's), 1K textures on phones / Lite */
+  gender?: "m" | "f";
+  lite?: boolean;
 }
 
 export interface BoxerInstance {
   root: THREE.Group;
   mesh: THREE.SkinnedMesh;
-  material: THREE.MeshStandardMaterial & { userData: { u: BoxerUniforms } };
+  material: THREE.MeshPhysicalMaterial & { userData: { u: BoxerUniforms } };
   uniforms: BoxerUniforms;
   arms: ArmBones[];
   /** the torso slices of this body type (rig keep-out; build.mjs torsoSlices) */
@@ -167,6 +170,7 @@ export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: Boxer
     { L: new THREE.Vector3().fromArray(extras.landmarks.eyeL).add(deltas[index.get(boneOf(skeleton, "Bip01_L_Eye")!) ?? 0]!), R: new THREE.Vector3().fromArray(extras.landmarks.eyeR).add(deltas[index.get(boneOf(skeleton, "Bip01_R_Eye")!) ?? 0]!) },
     spec.face,
     extras.landmarks.kit,
+    { gender: spec.gender, lite: spec.lite },
   );
   if (spec.fadeable) material.alphaHash = true;
   const mesh = new THREE.SkinnedMesh(merged, material);

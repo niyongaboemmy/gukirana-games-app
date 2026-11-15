@@ -66,6 +66,7 @@ const BROW: Record<string, number> = { thin: 0.55, natural: 0.85, arched: 0.85, 
 const _v = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const FWD = new THREE.Vector3(0, 0, 1);
+const COARSE = typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches;
 
 export function BoxerAvatar(props: BoxerAvatarProps) {
   const gender: BoxerGender = props.look.bodyType === "feminine" ? "f" : "m";
@@ -86,6 +87,8 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
       facePick: facePickOf(look.face),
       shadows: !lite,
       bare,
+      gender,
+      lite: lite || COARSE,
     });
   }, [gltf, gender, look, outfit, kit, polo, seed, klass, lite, noHeadgear, noGloves, fadeable, bare]);
   useEffect(() => () => inst.dispose(), [inst]);
