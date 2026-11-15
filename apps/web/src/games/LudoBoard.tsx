@@ -14,7 +14,8 @@ import { t } from "./i18n";
 /** Who the game hand belongs to for a player id: the side it comes from and what it looks like (P2-GAME-07). */
 export type LudoHandOf = (playerId: string) => { side: number; look: HandLook; me: boolean } | null;
 /** Fist width as a share of the board width. */
-const HAND_SIZE = 0.27;
+/** the dice hand, as a fraction of the board (smaller: it used to cover a quarter of the board) */
+const HAND_SIZE = 0.19;
 
 /** Paper fibre grain for the printed board (feTurbulence, no image download). */
 const CARDBOARD_GRAIN = `url("data:image/svg+xml;utf8,${encodeURIComponent(
@@ -284,19 +285,9 @@ export function LudoBoard({ state, movable, onMove, myId, handOf }: { state: Lud
       land();
       return;
     }
-    // another player's move: their hand pinches the token and carries it square by square (P2-GAME-07)
-    const ho = ev.player !== myId && handMode() !== "svg" ? handOfRef.current?.(ev.player) : null;
-    const el = board.current;
-    const handAt = (kind: "pickup" | "sow", progress: number) => {
-      if (!ho || !el) return;
-      const b = el.getBoundingClientRect();
-      const [r, c] = tokenCell(mover.seat, progress, ev.token);
-      hands.sowStep({ board: el, side: ho.side, look: ho.look, size: 0.22 }, { kind, x: b.left + ((c + 0.5) / 15) * b.width, y: b.top + ((r + 0.5) / 15) * b.height, seeds: 0, stepMs: STEP_MS * scale });
-    };
-    handAt("pickup", ev.from === -1 ? -1 : ev.from);
+    // a move hops the token square by square on its own: no hand carries an opponent's token (it hid the board)
     let i = 0;
     setAnim({ player: ev.player, token: ev.token, progress: path[0]!, captured });
-    handAt("sow", path[0]!);
     sfx.step();
     hop.current = setInterval(() => {
       i += 1;
@@ -304,13 +295,11 @@ export function LudoBoard({ state, movable, onMove, myId, handOf }: { state: Lud
         if (hop.current) clearInterval(hop.current);
         hop.current = null;
         setAnim(null);
-        if (ho) hands.sowEnd();
         land();
         return;
       }
       sfx.step();
       setAnim({ player: ev.player, token: ev.token, progress: path[i]!, captured });
-      handAt("sow", path[i]!);
     }, STEP_MS * scale);
   }, [state.lastEvent]);
 
