@@ -1,7 +1,10 @@
 "use client";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { RingStatus } from "@gukirana/contracts";
+import { useFightBridge } from "./bridge";
+import { useFightUi } from "./ui-store";
 import { STATUS_LAMP } from "./assets-shim";
 import { RINGS, type RingPlace } from "./plan";
 import { useRingStatuses } from "./rings";
@@ -13,12 +16,18 @@ import { F } from "./strings";
  * The look follows the feature-ring screens: a near-black glass panel, the number large in white, "RING" small above,
  * and the status as a coloured pill WITH its word (colour is never the only signal). All 50 signs are one merged quad
  * batch on one canvas atlas (one draw call); a cell is redrawn only when its ring's status changes.
+ *
+ * Stability (P3-FGT-04): the signs turn with the VIEW (all parallel to the screen, upright), not towards the camera
+ * position: a position-facing billboard spun half a turn whenever the camera passed under or beside a sign (the fight
+ * and watch cameras orbit close to their ring) and signs near the edges of the view fanned out at odd angles. The sign
+ * over the ring you fight in, or watch with a ring camera, is folded away (it hung right in that camera's view).
  */
 
 const COLS = 8;
 const CELL_W = 256;
 const CELL_H = 128;
 const ROWS = Math.ceil(RINGS.length / COLS);
+const RING_INDEX: Record<string, number> = Object.fromEntries(RINGS.map((r, i) => [r.id, i]));
 /** world size of a sign (m) */
 const SIGN = { std: [1.5, 0.75], feature: [2.3, 1.15] } as const;
 /** sign heights: over the heads of people on the canvas, under the ring light panels */
@@ -94,6 +103,7 @@ export function RingSigns() {
     const pos = new Float32Array(n * 4 * 3);
     const ctr = new Float32Array(n * 4 * 3);
     const uv = new Float32Array(n * 4 * 2);
+    const ring = new Float32Array(n * 4);
     const idx: number[] = [];
     RINGS.forEach((r, i) => {
       const [w, h] = r.feature ? SIGN.feature : SIGN.std;
@@ -111,6 +121,7 @@ export function RingSigns() {
         pos.set([x!, y!, 0], (i * 4 + k) * 3);
         ctr.set([r.x, signY(r), r.z], (i * 4 + k) * 3);
         uv.set([u!, v!], (i * 4 + k) * 2);
+        ring[i * 4 + k] = i;
       });
       const b = i * 4;
       idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
@@ -119,24 +130,32 @@ export function RingSigns() {
     geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     geo.setAttribute("aCenter", new THREE.BufferAttribute(ctr, 3));
     geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+    geo.setAttribute("aRing", new THREE.BufferAttribute(ring, 1));
     geo.setIndex(idx);
     const mat = new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5, toneMapped: false, side: THREE.DoubleSide });
     mat.customProgramCacheKey = () => "gk-ring-sign";
+    const hide = { value: -1 };
     mat.onBeforeCompile = (sh) => {
-      // a vertical (cylindrical) billboard: the panel turns about +y towards the camera, stays upright
-      sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nattribute vec3 aCenter;").replace(
+      sh.uniforms.uHide = hide;
+      // an upright, view-aligned billboard: every panel lies parallel to the screen (the camera's right vector flattened
+      // onto the floor plane), so no sign ever spins or flips as the camera moves round it
+      sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nattribute vec3 aCenter;\nattribute float aRing;\nuniform float uHide;").replace(
         "#include <project_vertex>",
-        `vec3 camW = cameraPosition;
-vec3 toCam = camW - aCenter; toCam.y = 0.0;
-vec3 fwd = length(toCam) > 1e-4 ? normalize(toCam) : vec3(0.0, 0.0, 1.0);
-vec3 right = vec3(fwd.z, 0.0, -fwd.x);
-vec3 wp = aCenter + right * transformed.x + vec3(0.0, transformed.y, 0.0);
+        `vec3 right = vec3(viewMatrix[0][0], 0.0, viewMatrix[2][0]);
+right = length(right) > 1e-4 ? normalize(right) : vec3(1.0, 0.0, 0.0);
+float keep = abs(aRing - uHide) < 0.5 ? 0.0 : 1.0;
+vec3 wp = aCenter + (right * transformed.x + vec3(0.0, transformed.y, 0.0)) * keep;
 vec4 mvPosition = viewMatrix * vec4(wp, 1.0);
 gl_Position = projectionMatrix * mvPosition;`,
       );
     };
-    return { cv, tex, geo, mat, g: cv.getContext("2d")! };
+    return { cv, tex, geo, mat, hide, g: cv.getContext("2d")! };
   }, []);
+  useFrame(() => {
+    const b = useFightBridge.getState();
+    const id = b.mine?.ring ?? (useFightUi.getState().watchCam ? b.watched?.ring : null) ?? null;
+    parts.hide.value = id ? (RING_INDEX[id] ?? -1) : -1;
+  });
   useLayoutEffect(() => {
     let changed = false;
     RINGS.forEach((r, i) => {
