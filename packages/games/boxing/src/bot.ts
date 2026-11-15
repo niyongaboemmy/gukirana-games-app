@@ -44,6 +44,8 @@ export const BOT_PROFILES: Record<BotLevel, BotProfile> = {
 
 const roll = (rng: GameRng, pct: number): boolean => pct > 0 && rng.int(0, 99) < pct;
 const DEFENCES: readonly BoxingAction[] = ["slipL", "slipR", "stepOut"];
+/** the punch that follows in a combination (jab → cross → hook → uppercut) */
+const COMBO_NEXT: Partial<Record<Punch, Punch>> = { jab: "cross", cross: "hook", hook: "uppercut" };
 
 /** the right answer to an incoming punch (plan §2.3): slip straights / uppercuts, step out of hooks */
 function bestDefence(p: Punch, rng: GameRng): BoxingAction {
@@ -91,6 +93,13 @@ export function boxingBotInput(s: FightState, me: 0 | 1, level: BotLevel, rng: G
       return send(d, wantGuard);
     }
   }
+  // 1b. combinations (P3-FGT-07): late in its own punch the bot presses the next one (the engine buffers it, so the
+  // punches chain without a gap): 1-2, 1-2-3, 2-3, hook-uppercut — more often the better the level
+  if (isPunch(f.act) && stageOf(f) === "recovery" && f.actT === f.wind + PUNCH_SPECS[f.act].active + 1 && !f.buf) {
+    const next = COMBO_NEXT[f.act];
+    if (next && s.dist <= PUNCH_SPECS[next].reach + 20 && f.stamina >= Math.max(p.reserve, TIRED_STAMINA) && roll(rng, Math.round(p.combo * 0.6) + 8))
+      return send(next, false);
+  }
   if (isBusy(f)) return null;
 
   // 2. punish a whiff / an opponent in recovery
@@ -110,12 +119,18 @@ export function boxingBotInput(s: FightState, me: 0 | 1, level: BotLevel, rng: G
     const k = choosePunch(f, s.dist, p, rng);
     if (k) return send(k, false);
   }
-  // 4. range management + attack
-  if (roll(rng, p.attack)) {
+  // 4. range management + attack: pressure a tired / shaken opponent, ease off when tired yourself
+  const pressure = o.stamina < TIRED_STAMINA || o.composure < 350 ? 2 : 0;
+  const tiredSelf = f.stamina < TIRED_STAMINA ? -2 : 0;
+  if (roll(rng, Math.max(1, p.attack + pressure + tiredSelf))) {
     if (s.dist > PUNCH_SPECS.cross.reach) return send("stepIn", wantGuard);
     if (f.stamina < p.reserve && s.dist < PUNCH_SPECS.cross.reach && roll(rng, 30))
       return send("stepOut", wantGuard);
-    const k = choosePunch(f, s.dist, p, rng);
+    // work inside now and then (hooks / uppercuts to the body and head), then get back out to the long range
+    if (s.dist > PUNCH_SPECS.hook.reach && f.stamina >= Math.max(p.reserve, TIRED_STAMINA) && roll(rng, 18)) return send("stepIn", wantGuard);
+    if (s.dist <= PUNCH_SPECS.hook.reach && roll(rng, 22)) return send("stepOut", wantGuard);
+    // at long range the jab measures / sets up (a 1-2 follows through the combo chain)
+    const k = s.dist > PUNCH_SPECS.hook.reach && roll(rng, 45) ? "jab" : choosePunch(f, s.dist, p, rng);
     if (k) return send(k, wantGuard && level < 3);
     return send("stepIn", wantGuard);
   }
