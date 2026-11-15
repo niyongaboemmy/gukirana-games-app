@@ -229,7 +229,7 @@ export class GamesService implements OnModuleInit, OnModuleDestroy {
       .update(matches)
       .set({ roomId, ...(ring ? { ring } : {}) })
       .where(and(eq(matches.id, matchId), eq(matches.status, "active")))
-      .returning({ id: matches.id });
+      .returning();
     return { ok: rows.length > 0 };
   }
 
