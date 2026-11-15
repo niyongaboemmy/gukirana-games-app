@@ -133,6 +133,10 @@ may change; the structure may not.
 
 ### 2.6 Judging (clear and live)
 
+> **Superseded by docs/BOXING-SCORING.md (P3-FGT-06):** virtual judges score every round on the 10-point must
+> (open scoring), and the decision is KO / RSC / DQ / unanimous / split / majority / countback / draw. Fouls go up a
+> caution → warning → DQ ladder. The text below is the original P3-FGT-01 design.
+
 - **Points are the score.** Every clean hit, counter, combo bonus and knockdown adds points; a warning past the first
   subtracts. Both totals are on screen all fight, per round on the scorecard.
 - **Decision order:** stoppage → more points → more knockdowns scored → more clean power punches (cross / hook /
