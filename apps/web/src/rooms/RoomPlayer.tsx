@@ -17,7 +17,7 @@ import type { HallLayout, Seat } from "./layouts";
 import { freeChair, tableAt } from "./table-status";
 import { SEAT_BACK, seatProfileFor, type SeatProfile } from "@/world/human/seat-profiles";
 import { hallHooks, hiddenPeople, SELF_ID, walkQueue, type HallHooks } from "./hall-hooks";
-import { softBodies } from "./soft-bodies";
+import { bodyDetour, softBodies } from "./soft-bodies";
 import { seatActivities, type SeatActivity } from "@/world/human/activity";
 import { seatActivity } from "./seat-activity";
 import { CAM_RATE, damp, PROMPT, stickyNearest, stickyZone } from "./stability";
@@ -552,6 +552,15 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
         nav.target = walkQueue.legs.shift()!;
         nav.goal = null;
         nav.progress = { best: Infinity, since: performance.now(), detours: 0 };
+      }
+      // a staff member standing on the walking line: step round them before bumping (rooms/soft-bodies)
+      if (nav.target && !nav.goal && softBodies.size) {
+        const around = bodyDetour(pos.current, nav.target, softBodies.values(), 0.32, hooks?.walkable);
+        if (around) {
+          nav.goal = nav.target;
+          nav.target = around;
+          nav.progress = { best: Infinity, since: performance.now(), detours: 0 };
+        }
       }
       const s = steer({ keys, joyX: frozen ? 0 : W.input.x, joyY: frozen ? 0 : W.input.y, camYaw: cameraState.yaw, facing: facing.current, x: pos.current.x, z: pos.current.z, walkSpeed: WALK_SPEEDS[W.speed] ?? WALK_SPEEDS.slow, run, dt });
       pos.current.x += s.dx;

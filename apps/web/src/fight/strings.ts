@@ -24,6 +24,8 @@ export const F = {
   fightsOn: (n: number) => (n === 1 ? "1 fight on now" : `${n} fights on now`),
   ringsFree: (n: number) => (n === 1 ? "1 ring free" : `${n} rings free`),
   statusBoard: "Ring status",
+  boardHint: "Tap a ring to walk there",
+  boardMain: "MAIN",
   posterTitle: "Boxing",
   posterSub: "3 rounds · points · respect",
   posterRules: "Gloves up · fair play · touch gloves",

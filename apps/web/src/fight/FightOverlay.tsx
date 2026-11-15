@@ -19,6 +19,7 @@ import { RingPrompt } from "./RingPrompt";
 import { FightOverlay as GameFightOverlay } from "./game/FightOverlay";
 import { F } from "./strings";
 import { useFightFocus } from "./focus";
+import { usePendingRingWalk, useRingGoto } from "./ring-goto";
 
 const glass = "glass rounded-card";
 
@@ -44,8 +45,13 @@ function FindRing({ phone }: { phone: boolean }) {
   const { free } = useRingCounts();
   const [going, setGoing] = useState<string | null>(null);
   const near = useFightUi((s) => s.near);
+  const boardGoing = useRingGoto((s) => s.going);
+  useEffect(() => {
+    if (boardGoing) setGoing(boardGoing);
+  }, [boardGoing]);
   useEffect(() => {
     if (!going) return;
+    if (near === going) useRingGoto.setState({ going: null });
     if (near === going) return void setGoing(null);
     // stopped or steered away (manual input clears the walk): drop the "walking to" label after a while
     const t = setTimeout(() => setGoing(null), 15000);
@@ -103,6 +109,8 @@ export function FightOverlay({ layout }: { layout: HallLayout }) {
     return () => clearTimeout(t);
   }, []);
   const boxing = layout.game === "boxing";
+  // a ring picked on the lobby's status board: the walk continues once the Boxing hall has taken over
+  usePendingRingWalk(boxing);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === "INPUT" || e.code !== "KeyE") return;
