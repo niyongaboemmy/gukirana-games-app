@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clearance, hallAisles, ringObstacles } from "./aisles";
-import { RINGS } from "./plan";
+import { BOXING_SIZE, RINGS } from "./plan";
 
 describe("Boxing hall aisle clearance (P3-FGT-11)", () => {
   it("measures the free width between obstacle boxes, station by station", () => {
@@ -23,10 +23,26 @@ describe("Boxing hall aisle clearance (P3-FGT-11)", () => {
     expect(ringObstacles(r)).toHaveLength(1 + 2 * 6);
   });
 
-  it("reports every aisle", () => {
+  it("every walking aisle lets two adults pass: ≥ 2.4 m clear and straight, main and front cross aisles ≥ 3 m", () => {
     const a = hallAisles();
-    console.info(a.map((x) => `${x.id}: clear ${x.clear} band ${x.band}`).join("\n"));
-    expect(a.some((x) => x.kind === "column")).toBe(true);
-    expect(a.some((x) => x.kind === "row")).toBe(true);
+    // 2 blocks × (4 column + 2 row aisles), 2 main, front cross, back, 2 end strips
+    expect(a).toHaveLength(2 * (4 + 2) + 2 + 1 + 1 + 2);
+    for (const x of a) {
+      const min = x.kind === "main" || x.kind === "cross" ? 3 : 2.4;
+      expect(x.clear, `${x.id} clear`).toBeGreaterThanOrEqual(min);
+      expect(x.band, `${x.id} straight band`).toBeGreaterThanOrEqual(min);
+    }
+  });
+
+  it("no two rings' obstacles touch (rails, steps, kit), and none reaches a wall", () => {
+    const rings = RINGS.filter((r) => !r.feature);
+    const all = rings.map(ringObstacles);
+    for (let i = 0; i < all.length; i++)
+      for (let j = i + 1; j < all.length; j++)
+        for (const p of all[i]!) for (const q of all[j]!) expect(p.x1 <= q.x0 || q.x1 <= p.x0 || p.z1 <= q.z0 || q.z1 <= p.z0, `${rings[i]!.id} ↔ ${rings[j]!.id}`).toBe(true);
+    for (const b of all.flat()) {
+      expect(Math.max(-b.x0, b.x1)).toBeLessThan(BOXING_SIZE.w / 2 - 2.4);
+      expect(Math.max(-b.z0, b.z1)).toBeLessThan(BOXING_SIZE.d / 2 - 2.4);
+    }
   });
 });

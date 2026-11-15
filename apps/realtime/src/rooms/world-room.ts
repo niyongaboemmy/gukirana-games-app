@@ -282,7 +282,7 @@ export class WorldRoom extends Room {
       this.clock.setInterval(() => arena.report(), arenaConfig.reportMs);
     }
 
-    // ---- Boxing sub-hall (hall "boxing"): 50 rings, claim / join / quick / practice / watch (rooms/boxing-hall.ts)
+    // ---- Boxing sub-hall (hall "boxing"): 32 rings, claim / join / quick / practice / watch (rooms/boxing-hall.ts)
     if (this.hallGame === "boxing") {
       this.maxClients = BOXING_HALL_CAPACITY;
       const boxing = (this.boxing = new BoxingHall(

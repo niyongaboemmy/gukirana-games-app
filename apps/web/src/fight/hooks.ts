@@ -7,7 +7,7 @@ import { bagActive } from "./bag-work";
 import { fixtureBlocks } from "./hall-colliders";
 import { onStepsFootprint, stepHeight } from "@/rooms/fight/ring-kit-core";
 import { kitSpec, ringBase } from "./climb";
-import { BOXING_AISLES, BOXING_SIZE, FEATURE_RING, FEATURE_STAGE, inFeatureStage, RING_BY_ID, ringAt, RINGS } from "./plan";
+import { BOXING_AISLES, CROSS_Z, FEATURE_RING, FEATURE_STAGE, inFeatureStage, RING_BY_ID, ringAt, RINGS } from "./plan";
 
 const FEATURE_STAGE_Y = FEATURE_RING.stage;
 
@@ -68,8 +68,8 @@ export function boxingWalkable(x: number, z: number): boolean {
   return true;
 }
 
-/** the front cross aisle's walking line (between row A and the south-wall benches) */
-const CROSS_Z = BOXING_SIZE.d / 2 - 1.75;
+/** the front cross aisle's walking line (plan CROSS_Z: between row A's steps and the south-wall strip) */
+
 /** the straight line a → b is open floor for a walker (sampled every 0.3 m, the end points' own rings allowed) */
 function clear(a: P, b: P): boolean {
   const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.3));
@@ -97,7 +97,7 @@ export function boxingRoute(from: P, to: P): P[] {
 /** a follow camera over a ring rises to this height (m): above the ropes and the fighters' heads */
 const CAM_OVER_RING_Y = 4.0;
 /**
- * The follow camera behind you in a 1.3–1.5 m aisle often lands over the next ring, right among its ropes and fighters
+ * The follow camera behind you in an aisle (2.4–3 m) often lands over the next ring, right among its ropes and fighters
  * (P3-FGT-04). Over a ring (its rail + 0.3 m, or the feature stage) it rises smoothly towards CAM_OVER_RING_Y — a
  * continuous lift by how deep it is inside, so crossing a ring's edge never bumps the view.
  */

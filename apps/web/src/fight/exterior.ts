@@ -20,7 +20,15 @@ export function fightHall(b: GeoBatch) {
     b.box(key, len, h, t, { p: [(ax + cx) / 2, y0 + h / 2, (az + cz) / 2], r: [0, -Math.atan2(cz - az, cx - ax), 0], tile });
   };
 
-  /* ---- Boxing hall volume ---- */
+  /* ---- Boxing hall volume (P3-FGT-11: centred on its own line f.cx, off the door axis) ---- */
+  b.frame([f.cx, 0, 0], 0, () => hallVolume(b, seg));
+  lobbyWing(b);
+}
+
+type Seg = (key: string, ax: number, az: number, cx: number, cz: number, h: number, y0?: number, tile?: number) => void;
+function hallVolume(b: GeoBatch, seg: Seg) {
+  const f = FIGHT_BUILDING;
+  const t = 0.4;
   const H = f.H;
   const pts: [number, number][] = [
     [-f.hw, f.front],
@@ -45,13 +53,12 @@ export function fightHall(b: GeoBatch) {
     b.box("led-fight", 0.04, 0.05, roofD - 2, { p: [x + s * 0.03, H - 0.45, f.front - roofD / 2] });
     b.box("led-corner-blue", 0.04, 0.05, roofD - 2, { p: [x + s * 0.03, H - 2.35, f.front - roofD / 2] });
   }
-  // (the front either side of the lobby wing: none since P2-WLD-14, the hall's body is as wide as the pavilion)
-  if (f.hw - f.lobbyHw > 1.5)
-    for (const s of [-1, 1]) {
-      const x0 = s * (f.lobbyHw + 0.6);
-      const x1 = s * (f.hw - 0.6);
-      b.box("woodDark", Math.abs(x1 - x0), 1.6, 0.06, { p: [(x0 + x1) / 2, H - 1.4, f.front + 0.03], tile: 1 });
-    }
+  // the front beside the lobby wing, where the hall's body is wider than the pavilion (P3-FGT-11: on the +x side)
+  for (const s of [-1, 1]) {
+    const x0 = s * f.lobbyHw - f.cx + s * 0.6; // the pavilion's side wall, in this frame
+    const x1 = s * (f.hw - 0.6);
+    if (s * (x1 - x0) > 0.9) b.box("woodDark", Math.abs(x1 - x0), 1.6, 0.06, { p: [(x0 + x1) / 2, H - 1.4, f.front + 0.03], tile: 1 });
+  }
   b.box("led-fight", f.hw * 2 - 1.2, 0.05, 0.04, { p: [0, H - 0.45, f.front + 0.06] });
   b.box("led-corner-blue", f.hw * 2 - 1.2, 0.05, 0.04, { p: [0, H - 2.35, f.front + 0.06] });
   // rooftop plant, roof lights along the long hall
@@ -62,6 +69,11 @@ export function fightHall(b: GeoBatch) {
   for (const s of [-1, 1])
     for (let z = f.front - 6; z > f.back + 6; z -= 12) b.box("led-fight", 0.05, H - 4.4, 0.12, { p: [s * (f.hw + 0.05), (H - 4.4) / 2 + 1.1, z] });
 
+}
+
+function lobbyWing(b: GeoBatch) {
+  const f = FIGHT_BUILDING;
+  const t = 0.4;
   /* ---- lobby wing (P3-FGT-03: a modern entrance, same footprint) ---- */
   const LH = f.lobbyH;
   const fz = FIGHT_DOOR_INSET + t / 2; // front wall centre (its inside face is the door line)

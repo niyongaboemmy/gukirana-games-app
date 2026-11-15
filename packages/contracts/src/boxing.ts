@@ -6,7 +6,7 @@ import { z } from "zod";
  *
  * Shape of the feature:
  *  - The Fight hall ("fight") is a lobby with one door per sub-hall. Boxing is open; the others say "coming soon".
- *  - The Boxing sub-hall ("boxing") is its own hall area + hall room. It holds BOXING_RING_COUNT rings (R1..R50;
+ *  - The Boxing sub-hall ("boxing") is its own hall area + hall room. It holds BOXING_RING_COUNT rings (R1..R32, P3-FGT-11: 50 until the aisles were widened;
  *    R1/R2 are the feature rings under the big screen). The hall room keeps the ring registry (who is in which ring,
  *    status) and relays spectator frames; a fight itself runs in its own authoritative "boxing" room at TICK_HZ.
  *  - Inside a ring a fighter wears the boxing kit of their corner (red / blue). The kit is DERIVED by every client from
@@ -39,7 +39,7 @@ export const CORNER_COLORS: Record<Corner, string> = { red: "#B3261E", blue: "#1
 
 /* --------------------------------------------------------------- rings --------------------------------------------------------------- */
 
-export const BOXING_RING_COUNT = 50;
+export const BOXING_RING_COUNT = 32;
 /** the two raised feature rings under the big screen (bigger spectator rail, shown on the screen) */
 export const FEATURE_RINGS = ["R1", "R2"] as const;
 export type RingId = `R${number}`;
@@ -572,7 +572,7 @@ export type FightInputRejection = (typeof FIGHT_INPUT_REJECTIONS)[number];
 
 /* ------------------------------------------------------------ capacity ------------------------------------------------------------ */
 
-/** one Boxing sub-hall room instance: 50 rings × 2 fighters + spectators; a full instance opens "Boxing Hall 2" */
+/** one Boxing sub-hall room instance: 32 rings × 2 fighters + spectators; a full instance opens "Boxing Hall 2" */
 export const BOXING_HALL_CAPACITY = 160;
 /** world-move area of interest in the Boxing sub-hall (m): moves further away are not sent */
 export const BOXING_AOI_RADIUS = 24;

@@ -62,7 +62,7 @@ export const HALL_SEATING = {
   admin: { tables: 0, chairs: 0 }, // Administrative Block: offices, no game tables (P2-ADM-03)
   arena: { tables: 0, chairs: 0 }, // Tournament Arena: bowl seats use their own ids (arena.ts isValidArenaSeat) (P2-ARN-01)
   fight: { tables: 0, chairs: 0 }, // Fight hall lobby: sub-hall doors, no game tables (P3-FGT-01, boxing.ts)
-  boxing: { tables: 0, chairs: 0 }, // Boxing sub-hall: 50 rings (boxing.ts RING_IDS), spectators stand at the rails (P3-FGT-01)
+  boxing: { tables: 0, chairs: 0 }, // Boxing sub-hall: 32 rings (boxing.ts RING_IDS), spectators stand at the rails (P3-FGT-01)
 } as const;
 export type HallId = keyof typeof HALL_SEATING;
 export const isHallId = (g: unknown): g is HallId => typeof g === "string" && Object.hasOwn(HALL_SEATING, g);

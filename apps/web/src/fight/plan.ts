@@ -1,4 +1,4 @@
-import { ringSteps as kitSteps } from "@/rooms/fight/ring-kit-core";
+import { ringSteps as kitSteps, stepsReach, TRAINING_RING } from "@/rooms/fight/ring-kit-core";
 import { FEATURE_RINGS, FIGHT_SUBHALLS, RING_IDS, type FightSubHallId, type RingId } from "@gukirana/contracts";
 
 /**
@@ -56,41 +56,62 @@ export const BOXING_DOOR_LINE_Z = LOBBY_BACK_Z;
 /* ---------------------------------------------------------------- Boxing hall (hall:boxing) ---------------------------------------------------------------- */
 
 /**
- * The Boxing hall: 93 × 30 m, 11 m high (plan §4.3, ring pitch 6.2 m across so the hall fits the site: §4.1 allows
- * it before dropping rings). Two blocks of 6 columns × 4 rows of standard rings either side of the feature zone
- * (R1 front, R2 back on a raised 1.2 m stage under the four-sided screen); main aisles either side of it; a 2.6 m
- * cross aisle along the front. The door from the lobby opens into the west main aisle.
+ * The Boxing hall (P3-FGT-11): 96.4 × 32.4 m, 11 m high. Two blocks of 5 columns × 3 rows of standard rings either
+ * side of the feature zone (R1 front, R2 back on a raised 1.2 m stage under the four-sided screen); main aisles either
+ * side of it; a cross aisle along the front, a back aisle along the lockers. The door from the lobby opens into the
+ * front cross aisle at the west main aisle.
+ *
+ * Every walking aisle is at least 2.4 m clear (two adults passing) between the outermost things on the floor — the
+ * rings' barrier rails, corner steps with their hand rails and corner kit (fight/aisles.ts measures them, aisles.test
+ * holds the line): column aisles 2.45 m, row aisles 2.52 m straight (3.08 m beside a set of steps), main aisles ≥ 3 m,
+ * the front cross aisle ≥ 3 m to the training wall's users. Until P3-FGT-11 the hall was 93 × 30 m with 6 × 4 rings
+ * per block (50 rings) on a 6.2 × 6.4 m pitch: 0.85 m column and 0.48 m row aisles. 50 rings at the new pitch need
+ * ≈ 120 × 38 m, which the site cannot take (the loop road behind, the north-east walk and the Ludo Lounge beside);
+ * the hall grew what the plot allows and keeps 32 rings (BOXING_RING_COUNT).
  */
-export const BOXING_SIZE = { w: 93, d: 30, h: 11 };
+export const BOXING_SIZE = { w: 96.4, d: 32.4, h: 11 };
 export const BOXING_DOOR = { x: SUBHALL_DOOR_X.boxing, w: 2.6 };
 /** standard ring: platform incl. apron (square), canvas height, rope zone half-size */
 export const RING = { platform: 4.9, canvasY: 0.8, inside: 4.3 };
 /** feature rings: the assets ring kit's mid-size pro ring (rooms/fight/ring-kit-core RING: 6.9 m platform, 0.8 m deck,
  *  9.8 m spectator-rail square) on the raised 1.2 m stage */
 export const FEATURE_RING = { platform: 6.9, canvasY: 1.2 + 0.8, inside: 5.9, stage: 1.2, rail: 4.9 };
-export const RING_PITCH = { x: 6.2, z: 6.4 };
+/**
+ * Column pitch: two barrier rails (±2.675 m incl. the tube) + a 2.45 m aisle. Row pitch: two sets of corner steps
+ * (2.45 + 0.79 m each side, staggered: never face to face) + a 2.52 m straight lane.
+ */
+export const RING_PITCH = { x: 7.8, z: 9.0 };
 /**
  * Standard rings stand turned a quarter (P3-FGT-04): their corner steps (red on the south side, blue on the north side)
- * open into the 1.5 m row aisles and the front cross aisle, never towards the side walls (at rotY 0 the outer columns'
- * steps ended 3 cm from the west / east wall) nor into the narrower 1.3 m column aisles, which stay clear for walking.
- * The centres are unchanged (apps/realtime boxing-rings.ts mirrors them).
+ * open into the row aisles, the front cross aisle and the back aisle, never towards the end walls or the column aisles.
  */
 export const STANDARD_ROT_Y = Math.PI / 2;
-/** wall margin, main aisle width (m) */
-const MARGIN = 1.0;
-const MAIN_AISLE = 2.0;
-/** row centres (A front … D back) */
-export const ROW_Z = [9.5, 3.1, -3.3, -9.7];
-const BLOCK_X0 = -BOXING_SIZE.w / 2 + MARGIN + RING.platform / 2; // west-most column centre
+/** columns per block and the inner column's centre (|x|): its rail 3.08 m clear of the feature stage's rail */
+const BLOCK_COLS = 5;
+const INNER_X = 11.9;
+/** row centres (A front … C back) */
+export const ROW_Z = [8.3, -0.7, -9.7];
 export const BLOCK_COLS_X = {
-  west: Array.from({ length: 6 }, (_, c) => BLOCK_X0 + c * RING_PITCH.x),
-  east: Array.from({ length: 6 }, (_, c) => -BLOCK_X0 - (5 - c) * RING_PITCH.x),
+  west: Array.from({ length: BLOCK_COLS }, (_, c) => -INNER_X - (BLOCK_COLS - 1 - c) * RING_PITCH.x),
+  east: Array.from({ length: BLOCK_COLS }, (_, c) => INNER_X + c * RING_PITCH.x),
 };
-/** the feature zone between the main aisles (|x| < FEATURE_ZONE_HW) */
-export const FEATURE_ZONE_HW = BLOCK_COLS_X.east[0]! - RING.platform / 2 - MAIN_AISLE;
 export const FEATURE_Z: Record<(typeof FEATURE_RINGS)[number], number> = { R1: 4.6, R2: -5.4 };
-/** the raised feature stage under R1 and R2 (x half-width, z range) */
+/** the raised feature stage under R1 and R2 (x half-width, z range); its spectator rail stands STAGE_RAIL_OUT outside */
 export const FEATURE_STAGE = { hw: FEATURE_RING.rail + 0.3, z0: FEATURE_Z.R1 + FEATURE_RING.rail + 0.3, z1: FEATURE_Z.R2 - FEATURE_RING.rail - 0.3 };
+export const STAGE_RAIL_OUT = 0.9;
+/** the feature zone between the main aisles (|x| < FEATURE_ZONE_HW): the stage with its spectator rail */
+export const FEATURE_ZONE_HW = FEATURE_STAGE.hw + STAGE_RAIL_OUT;
+/** a standard ring's reach into the aisles: its barrier rail (tube incl.) and the tip of its corner steps (hand rails) */
+const RAIL_OUT = TRAINING_RING.rail + 0.025;
+const STEP_TIP = TRAINING_RING.half + stepsReach(TRAINING_RING);
+/** the main aisles' walking line (|x|): mid-way between the stage rail and the inner columns' rails */
+export const MAIN_AISLE_X = (FEATURE_ZONE_HW + INNER_X - RAIL_OUT) / 2;
+/** the strip along the south wall kept for the benches and the people training at the wall (m) */
+const SOUTH_STRIP = 1.6;
+/** the front cross aisle's walking line (z): mid-way between row A's steps and the south-wall strip */
+export const CROSS_Z = (ROW_Z[0]! + STEP_TIP + BOXING_SIZE.d / 2 - SOUTH_STRIP) / 2;
+/** the back aisle's walking line (z): mid-way between the lockers (0.65 m deep) and the back row's steps */
+export const BACK_Z = (ROW_Z[ROW_Z.length - 1]! - STEP_TIP - BOXING_SIZE.d / 2 + 0.65) / 2;
 /** the four-sided screen over the feature zone */
 export const BIG_SCREEN = { x: 0, z: (FEATURE_Z.R1 + FEATURE_Z.R2) / 2, y: 8.2, w: 5.2, h: 2.9 };
 
@@ -104,19 +125,19 @@ export interface RingPlace {
   /** half the platform size and the canvas height */
   half: number;
   canvasY: number;
-  /** row letter (A front … D back) for standard rings; "F" for the feature rings */
-  row: "A" | "B" | "C" | "D" | "F";
+  /** row letter (A front … C back) for standard rings; "F" for the feature rings */
+  row: "A" | "B" | "C" | "F";
 }
 
 /**
- * Every ring of the hall: R1 / R2 in the feature zone, then R3–R50 row by row from the west side (row A = R3–R14:
- * the west block's six columns, then the east block's), exactly `RING_IDS`.
+ * Every ring of the hall: R1 / R2 in the feature zone, then R3–R32 row by row from the west side (row A = R3–R12:
+ * the west block's five columns, then the east block's), exactly `RING_IDS`.
  */
 export const RINGS: RingPlace[] = (() => {
   const out: RingPlace[] = [];
   for (const id of FEATURE_RINGS)
     out.push({ id, x: 0, z: FEATURE_Z[id], rotY: 0, feature: true, half: FEATURE_RING.platform / 2, canvasY: FEATURE_RING.canvasY, row: "F" });
-  const rows = ["A", "B", "C", "D"] as const;
+  const rows = ["A", "B", "C"] as const;
   let n = 3;
   rows.forEach((row, r) => {
     for (const x of [...BLOCK_COLS_X.west, ...BLOCK_COLS_X.east])
@@ -203,14 +224,12 @@ export const BOXING_COLLIDERS: R[] = [
   { x: 30, z: -BOXING_SIZE.d / 2 + 0.35, w: 22, d: 0.6 },
   ...BOXING_BENCHES,
 ];
-export const BOXING_AISLES: number[] = [
-  -BOXING_SIZE.w / 2 + MARGIN / 2 + 0.05,
-  ...BLOCK_COLS_X.west.slice(0, 5).map((x) => x + RING_PITCH.x / 2),
-  -(FEATURE_ZONE_HW + MAIN_AISLE / 2),
-  FEATURE_ZONE_HW + MAIN_AISLE / 2,
-  ...BLOCK_COLS_X.east.slice(0, 5).map((x) => x + RING_PITCH.x / 2),
-  BOXING_SIZE.w / 2 - MARGIN / 2 - 0.05,
-];
+/** north–south walking lines (x): the end aisles, the column aisles, the main aisles (route / Leave / dressing) */
+export const BOXING_AISLES: number[] = (() => {
+  const endX = (BOXING_SIZE.w / 2 + INNER_X + (BLOCK_COLS - 1) * RING_PITCH.x + RAIL_OUT) / 2;
+  const cols = BLOCK_COLS_X.west.slice(0, -1).map((x) => x + RING_PITCH.x / 2);
+  return [-endX, ...cols, -MAIN_AISLE_X, MAIN_AISLE_X, ...cols.map((x) => -x).reverse(), endX];
+})();
 
 /* ---------------------------------------------------------------- the building (local door frame) ---------------------------------------------------------------- */
 
@@ -218,10 +237,13 @@ export const BOXING_AISLES: number[] = [
  * The building in its plaza door frame (door centre at the origin, +z towards the plaza). Since P2-WLD-14 (Fight
  * Games on the plaza, docs/CAMPUS-MASTER-PLAN.md §8) the door is on the plaza's own door ring at 88°: the lobby is
  * the entrance pavilion on the ring, and the Boxing hall's body runs straight back from it, away from the plaza
- * (a 30.8 m wide, 94 m long slab, its back corners chamfered). The exterior hall is the interior turned a quarter
- * (hall x → depth behind the pavilion, hall z → across): the 94 m hall would not fit across the inner ring between
- * the Ludo Lounge and the service pavilion. Inside nothing changes (the scenes and the rings are hall-local; nobody
- * sees the inside and the outside at once). `lz(z)` maps a room's z to the door frame's local z.
+ * (since P3-FGT-11 a 33.2 m wide, 97.2 m long slab, its back corners chamfered). The exterior hall is the interior
+ * turned a quarter (hall x → depth behind the pavilion, hall z → across): the long hall would not fit across the
+ * inner ring between the Ludo Lounge and the service pavilion. Inside nothing changes (the scenes and the rings are
+ * hall-local; nobody sees the inside and the outside at once). `lz(z)` maps a room's z to the door frame's local z.
+ *
+ * The slab is not centred on the door axis (P3-FGT-11): its south wall (hall z = +d/2, door-frame −lx) stays where
+ * it was, beside the north-east walk between it and the Ludo Lounge; the 2.4 m it grew went to the free +lx side.
  */
 export const FIGHT_DOOR_INSET = -0.8;
 export const FIGHT_WALL = 0.4;
@@ -229,14 +251,17 @@ export const FIGHT_WALL = 0.4;
 export const lobbyLz = (z: number) => z - LOBBY_SIZE.d / 2 + FIGHT_DOOR_INSET;
 /** the hall's front (plaza side) wall is the lobby's back wall (one wall thickness further in) */
 export const HALL_FRONT_LZ = lobbyLz(LOBBY_BACK_Z) - FIGHT_WALL;
-/** a Boxing hall point (x along its 93 m, z across its 30 m) → door-frame local point of the exterior volume */
-export const hallLocal = (x: number, z: number) => ({ lx: -z, lz: HALL_FRONT_LZ - (x + BOXING_SIZE.w / 2) });
+/** the hall's south wall (inside face) in the door frame (lx), fixed by the north-east walk beside it */
+const HALL_SOUTH_LX = -15;
+/** a Boxing hall point (x along its length, z across) → door-frame local point of the exterior volume */
+export const hallLocal = (x: number, z: number) => ({ lx: HALL_SOUTH_LX + BOXING_SIZE.d / 2 - z, lz: HALL_FRONT_LZ - (x + BOXING_SIZE.w / 2) });
 /** lobby ↔ hall through the Boxing door: same x, z shifted by the room offsets */
 export const LOBBY_TO_HALL_DZ = BOXING_SIZE.d / 2 - LOBBY_BACK_Z;
 export const FIGHT_BUILDING = (() => {
-  const hw = BOXING_SIZE.d / 2 + FIGHT_WALL; // the slab's half-width: the hall's 30 m across (= the lobby's 30 m)
+  const hw = BOXING_SIZE.d / 2 + FIGHT_WALL; // the slab's half-width: the hall's width across
+  const cx = HALL_SOUTH_LX + BOXING_SIZE.d / 2; // the slab's centre line (lx), off the door axis
   const front = HALL_FRONT_LZ + FIGHT_WALL; // outside face of the hall's front wall (over the lobby roof)
-  const back = HALL_FRONT_LZ - BOXING_SIZE.w - FIGHT_WALL; // outside face of the back wall, 94 m further out
+  const back = HALL_FRONT_LZ - BOXING_SIZE.w - FIGHT_WALL; // outside face of the back wall
   const lobbyHw = LOBBY_SIZE.w / 2 + FIGHT_WALL;
-  return { hw, front, back, lobbyHw, lobbyFront: 0.4, chamfer: 3.6, H: BOXING_SIZE.h + 1.2, lobbyH: 6.4 };
+  return { hw, cx, front, back, lobbyHw, lobbyFront: 0.4, chamfer: 3.6, H: BOXING_SIZE.h + 1.2, lobbyH: 6.4 };
 })();

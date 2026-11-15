@@ -4,7 +4,7 @@
  * status + spectator relay from the fight room, the result → free cycle and the world-move area of interest.
  */
 import { beforeEach, describe, expect, it } from "vitest";
-import { BoxingHallEvt, RING_WATCHERS_MAX, type RingId, type RingState } from "@gukirana/contracts";
+import { BOXING_RING_COUNT, BoxingHallEvt, RING_WATCHERS_MAX, type RingId, type RingState } from "@gukirana/contracts";
 import { BoxingHall, boxingHallConfig, type BoxingDeps, type StartFightInput } from "./boxing-hall.js";
 import { RING_SPOTS } from "./boxing-rings.js";
 
@@ -68,7 +68,7 @@ describe("claim + join", () => {
     const t = setup();
     t.add("a", "ua");
     t.add("b", "ub");
-    expect((t.last("a", BoxingHallEvt.rings) as unknown as RingState[]).length).toBe(50);
+    expect((t.last("a", BoxingHallEvt.rings) as unknown as RingState[]).length).toBe(BOXING_RING_COUNT);
     await t.hall.onClaim("a", { ring: "R3", stake: 25 });
     expect(t.hall.ring("R3")).toMatchObject({ status: "waiting", stake: 25, red: { sid: "a", userId: "ua" } });
     expect(t.last("a", BoxingHallEvt.assigned)).toEqual({ ring: "R3", corner: "red" });
@@ -96,11 +96,11 @@ describe("claim + join", () => {
     t.add("a", "ua");
     t.add("p", "upoor");
     t.add("c", "uc");
-    await t.hall.onClaim("a", { ring: "R99", stake: 0 });
+    await t.hall.onClaim("a", { ring: "R33", stake: 0 }); // P3-FGT-11: 32 rings
     expect(t.denied("a")).toBe("UNKNOWN_RING");
     await t.hall.onClaim("g", { ring: "R3", stake: 0 });
     expect(t.denied("g")).toBe("SIGN_IN_REQUIRED");
-    await t.hall.onClaim("a", { ring: "R50", stake: 0 });
+    await t.hall.onClaim("a", { ring: "R32", stake: 0 });
     expect(t.denied("a")).toBe("TOO_FAR");
     await t.hall.onClaim("p", { ring: "R3", stake: 25 });
     expect(t.denied("p")).toBe("INSUFFICIENT_FUNDS");

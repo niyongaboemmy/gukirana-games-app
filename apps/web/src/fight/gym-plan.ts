@@ -1,20 +1,20 @@
-import { BOXING_SIZE, FEATURE_STAGE, LOBBY_SIZE, RINGS, ringSteps } from "./plan";
+import { BACK_Z, BOXING_SIZE, CROSS_Z, FEATURE_STAGE, LOBBY_SIZE, MAIN_AISLE_X, RINGS, ringSteps } from "./plan";
 
 /**
  * Gym life (P3-FGT-04): where the training wall, the venue props, the staff and the lobby reception stand. Pure data
  * (no three.js), shared by the scenes (training-zone, gym-life, lobby-venue), the hall colliders and the tests.
  *
- * The training wall runs along the east half of the Boxing hall's south wall (x 12 … 45, z ≥ 13.85): rubber floor, a
+ * The training wall runs along the east half of the Boxing hall's south wall (x 12 … 45, 1.15 m deep): rubber floor, a
  * mirror, heavy bags, a speed bag, a double-end bag, skipping space, a pads corner, a weight bench + rack, a water
- * station and a towel cart. It keeps clear of the front cross aisle's walking line (z 13.25) and of the foot of every
+ * station and a towel cart. It keeps clear of the front cross aisle's walking line (plan CROSS_Z) and of the foot of every
  * ring's steps; no ring is touched. Staff never stand in a ring.
  */
 
-const S = BOXING_SIZE.d / 2; // the south wall (z = +15)
+const S = BOXING_SIZE.d / 2; // the south wall
 /** the rubber floor of the training wall */
-export const TRAINING_FLOOR = { x0: 12, x1: 45, z0: 13.85, z1: S };
+export const TRAINING_FLOOR = { x0: 12, x1: 45, z0: S - 1.15, z1: S };
 /** the line people stand on to use a prop (just in front of the rubber) */
-const STAND_Z = 13.65;
+const STAND_Z = S - 1.35;
 /** the strip people training at the wall take (the stand line less a body radius → the wall), for the aisle check */
 export const TRAINING_USE = { x0: TRAINING_FLOOR.x0, x1: TRAINING_FLOOR.x1, z0: STAND_Z - 0.25, z1: S };
 
@@ -63,8 +63,8 @@ export const GYM_DECOR = {
 };
 /** venue props at the feature stage: the announcer's stand and the timekeeper's table, in front of the stage rail */
 export const VENUE = {
-  announcer: { x: -4.6, z: FEATURE_STAGE.z0 + 1.6 },
-  timekeeper: { x: 4.6, z: FEATURE_STAGE.z0 + 1.6, w: 1.5, d: 0.6 },
+  announcer: { x: -4.6, z: FEATURE_STAGE.z0 + 1.35 },
+  timekeeper: { x: 4.6, z: FEATURE_STAGE.z0 + 1.35, w: 1.5, d: 0.6 },
   notices: [
     { x: -13.4, kind: "rules" as const },
     { x: -15.6, kind: "etiquette" as const },
@@ -107,7 +107,7 @@ export interface StaffSpot {
 const face = (x: number, z: number, tx: number, tz: number) => Math.atan2(tx - x, tz - z);
 const P = GYM_DECOR;
 /** the referee's rounds: up the west main aisle, along the back of the stage, down the east main aisle, the front */
-const AISLE = 8.6;
+const AISLE = MAIN_AISLE_X;
 export const STAFF: StaffSpot[] = [
   { id: "shadow", role: "shadow", room: "boxing", x: 16.1, z: S - 1.05, yaw: 0 },
   { id: "trainee", role: "trainee", room: "boxing", x: 19.0, z: S - 1.25, yaw: 0 },
@@ -141,14 +141,14 @@ export const STAFF: StaffSpot[] = [
     role: "referee",
     room: "boxing",
     x: -AISLE,
-    z: 11.5,
+    z: CROSS_Z,
     yaw: Math.PI,
     speed: 0.9,
     path: [
-      { x: -AISLE, z: 11.5 },
-      { x: -AISLE, z: -12.4 },
-      { x: AISLE, z: -12.4 },
-      { x: AISLE, z: 11.5 },
+      { x: -AISLE, z: CROSS_Z },
+      { x: -AISLE, z: BACK_Z },
+      { x: AISLE, z: BACK_Z },
+      { x: AISLE, z: CROSS_Z },
     ],
   },
   {
@@ -156,12 +156,12 @@ export const STAFF: StaffSpot[] = [
     role: "cleaner",
     room: "boxing",
     x: -40,
-    z: 13.25,
+    z: CROSS_Z,
     yaw: Math.PI / 2,
     speed: 0.55,
     path: [
-      { x: -40, z: 13.25 },
-      { x: -12, z: 13.25 },
+      { x: -40, z: CROSS_Z },
+      { x: -12, z: CROSS_Z },
     ],
   },
   { id: "reception", role: "reception", room: "fight", x: -12.55, z: 4.9, yaw: Math.PI / 2 },

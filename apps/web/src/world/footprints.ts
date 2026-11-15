@@ -91,20 +91,20 @@ export const FOOTPRINTS = {
     }),
   ],
   // Fight Games (P3-FGT-01, on the plaza since P2-WLD-14): the lobby pavilion behind the door + the Boxing hall's
-  // 94 m body running straight back from it (fight/plan.ts FIGHT_BUILDING), its back corners chamfered
+  // 97 m body running straight back from it (fight/plan.ts FIGHT_BUILDING, off the door axis by cx), its back corners chamfered
   // (approximated by narrowing bands)
   fight: (() => {
     const f = FIGHT_BUILDING;
     const out: Rect[] = [
       { x0: -f.lobbyHw - 0.2, x1: f.lobbyHw + 0.2, z0: f.lobbyFront + 1.2, z1: f.front },
-      { x0: -f.hw - 0.2, x1: f.hw + 0.2, z0: f.front, z1: f.back + f.chamfer },
+      { x0: f.cx - f.hw - 0.2, x1: f.cx + f.hw + 0.2, z0: f.front, z1: f.back + f.chamfer },
     ];
     const n = 4;
     for (let i = 0; i < n; i++) {
       const za = f.back + f.chamfer - (f.chamfer * i) / n;
       const zb = i === n - 1 ? f.back - 0.2 : f.back + f.chamfer - (f.chamfer * (i + 1)) / n;
       const hw = f.hw - (f.chamfer * i) / n + 0.2;
-      out.push({ x0: -hw, x1: hw, z0: za, z1: zb });
+      out.push({ x0: f.cx - hw, x1: f.cx + hw, z0: za, z1: zb });
     }
     return out;
   })(),

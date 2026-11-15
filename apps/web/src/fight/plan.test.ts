@@ -6,6 +6,8 @@ import { DOOR_RING, EXPANSION_PLOTS, PLAZA_RADIUS, PORTALS, portalTransform, RIN
 import { GATE_LINE_Z } from "@/world/campus";
 import { BOXING_AISLES, BOXING_SIZE, FEATURE_STAGE, FIGHT_BUILDING, hallLocal, LOBBY_TO_HALL_DZ, LOBBY_BACK_Z, ringAt, ringPromptDist, RINGS, ringSteps, SUBHALL_DOOR_X } from "./plan";
 import { boxingRoute, boxingWalkable } from "./hooks";
+import { fixtureBlocks } from "./hall-colliders";
+import { RING_SPOTS } from "../../../realtime/src/rooms/boxing-rings";
 
 /** world point of a door-frame local point of the Fight hall */
 const fightPortal = PORTALS.find((p) => p.id === "fight")!;
@@ -34,14 +36,15 @@ describe("Fight Games site (P3-FGT-01 §4.1, on the plaza since P2-WLD-14)", () 
       [f.hw, f.back + f.chamfer],
       [f.hw, f.front],
     ];
-    for (const [lx, lz] of outline) {
+    for (const [x, lz] of outline) {
+      const lx = x + f.cx;
       const p = world(lx, lz);
       expect(Math.hypot(p.x, p.z)).toBeLessThan(RING_ROAD.r0 - 8);
       expect(p.z).toBeLessThan(GATE_LINE_Z - 30);
     }
   });
 
-  it("the hall interior (rings) sits inside the chamfered shell, turned a quarter (its 93 m running out from the plaza)", () => {
+  it("the hall interior (rings) sits inside the chamfered shell, turned a quarter (its length running out from the plaza)", () => {
     const f = FIGHT_BUILDING;
     expect(f.hw).toBeGreaterThanOrEqual(BOXING_SIZE.d / 2 + 0.4);
     expect(f.front - f.back).toBeGreaterThanOrEqual(BOXING_SIZE.w + 0.8);
@@ -53,10 +56,10 @@ describe("Fight Games site (P3-FGT-01 §4.1, on the plaza since P2-WLD-14)", () 
         [1, 1],
       ]) {
         const { lx, lz } = hallLocal(r.x + sx * r.half, r.z + sz * r.half);
-        expect(Math.abs(lx)).toBeLessThan(f.hw - 0.4);
+        expect(Math.abs(lx - f.cx)).toBeLessThan(f.hw - 0.4);
         expect(lz).toBeLessThan(f.front - 0.4);
         // inside the chamfer line |x| + |z − back| ≥ chamfer (less the wall)
-        expect(f.hw - Math.abs(lx) + (lz - f.back)).toBeGreaterThan(f.chamfer + 0.4);
+        expect(f.hw - Math.abs(lx - f.cx) + (lz - f.back)).toBeGreaterThan(f.chamfer + 0.4);
       }
   });
 
@@ -74,31 +77,41 @@ describe("Fight Games site (P3-FGT-01 §4.1, on the plaza since P2-WLD-14)", () 
 });
 
 describe("Boxing hall plan (§4.3)", () => {
-  it("has exactly 50 rings with the contract ids, R1 / R2 the feature rings", () => {
+  it("has exactly BOXING_RING_COUNT (32) rings with the contract ids, R1 / R2 the feature rings", () => {
     expect(RINGS.length).toBe(BOXING_RING_COUNT);
     expect(RINGS.map((r) => r.id)).toEqual([...RING_IDS]);
     expect(RINGS.filter((r) => r.feature).map((r) => r.id)).toEqual([...FEATURE_RINGS]);
   });
 
-  it("numbers rows A → D from the front, west block first, west → east", () => {
-    const row = (from: number) => RINGS.slice(from - 1, from + 11);
+  it("numbers rows A → C from the front, west block first, west → east", () => {
+    const row = (from: number) => RINGS.slice(from - 1, from + 9);
     for (const [first, letter] of [
       [3, "A"],
-      [15, "B"],
-      [27, "C"],
-      [39, "D"],
+      [13, "B"],
+      [23, "C"],
     ] as const) {
       const r = row(first);
       expect(r.every((x) => x.row === letter)).toBe(true);
-      for (let i = 1; i < 12; i++) expect(r[i]!.x).toBeGreaterThan(r[i - 1]!.x);
-      expect(r[5]!.x).toBeLessThan(0);
-      expect(r[6]!.x).toBeGreaterThan(0);
+      for (let i = 1; i < 10; i++) expect(r[i]!.x).toBeGreaterThan(r[i - 1]!.x);
+      expect(r[4]!.x).toBeLessThan(0);
+      expect(r[5]!.x).toBeGreaterThan(0);
     }
+    expect(RINGS[RINGS.length - 1]!.id).toBe("R32");
     // row A is the front (towards the door, +z)
-    expect(RINGS[2]!.z).toBeGreaterThan(RINGS[14]!.z);
+    expect(RINGS[2]!.z).toBeGreaterThan(RINGS[12]!.z);
   });
 
-  it("rings never overlap, keep ≥ 1.2 m aisles and stay inside the walls", () => {
+  it("the realtime server's ring spots (apps/realtime boxing-rings.ts) match the plan ring by ring", () => {
+    expect(Object.keys(RING_SPOTS)).toEqual(RINGS.map((r) => r.id));
+    for (const r of RINGS) {
+      const s = RING_SPOTS[r.id]!;
+      expect(s.x, r.id).toBeCloseTo(r.x, 6);
+      expect(s.z, r.id).toBeCloseTo(r.z, 6);
+      expect(s.half, r.id).toBeCloseTo(r.half, 6);
+    }
+  });
+
+  it("rings never overlap, keep ≥ 2.4 m between platforms and stay inside the walls", () => {
     for (let i = 0; i < RINGS.length; i++) {
       const a = RINGS[i]!;
       expect(Math.abs(a.x) + a.half).toBeLessThan(BOXING_SIZE.w / 2 - 0.5);
@@ -106,7 +119,7 @@ describe("Boxing hall plan (§4.3)", () => {
       for (let j = i + 1; j < RINGS.length; j++) {
         const b = RINGS[j]!;
         const gap = Math.max(Math.abs(a.x - b.x) - a.half - b.half, Math.abs(a.z - b.z) - a.half - b.half);
-        expect(gap, `${a.id} ↔ ${b.id}`).toBeGreaterThanOrEqual(1.2);
+        expect(gap, `${a.id} ↔ ${b.id}`).toBeGreaterThanOrEqual(2.4);
       }
     }
   });
@@ -156,7 +169,7 @@ describe("Boxing hall plan (§4.3)", () => {
     });
   });
 
-  it("routes from the door to every standard ring's steps over open floor (P3-FGT-04)", () => {
+  it("routes from the door to every standard ring's red steps over open floor: no platform, rail, steps or corner kit (P3-FGT-04, P3-FGT-11)", () => {
     const door = { x: HALLS.boxing.door.x, z: BOXING_SIZE.d / 2 - 1.2 };
     for (const r of RINGS) {
       if (r.feature) continue;
@@ -166,7 +179,13 @@ describe("Boxing hall plan (§4.3)", () => {
       for (let i = 1; i < legs.length; i++) {
         const a = legs[i - 1]!;
         const b = legs[i]!;
-        for (let k = 0; k <= 20; k++) expect(boxingWalkable(a.x + ((b.x - a.x) * k) / 20, a.z + ((b.z - a.z) * k) / 20), `${r.id} leg ${i}`).toBe(true);
+        const n = Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.1);
+        for (let k = 0; k <= n; k++) {
+          const x = a.x + ((b.x - a.x) * k) / n;
+          const z = a.z + ((b.z - a.z) * k) / n;
+          expect(boxingWalkable(x, z), `${r.id} leg ${i} walkable @ ${x.toFixed(2)},${z.toFixed(2)}`).toBe(true);
+          expect(fixtureBlocks(x, z), `${r.id} leg ${i} fixture @ ${x.toFixed(2)},${z.toFixed(2)}`).toBe(false);
+        }
       }
     }
   });

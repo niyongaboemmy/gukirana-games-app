@@ -3,6 +3,7 @@ import { Text } from "@react-three/drei";
 import { PORTALS, portalTransform } from "@/world/layout";
 import { useFightBridge } from "./bridge";
 import { LIVE_BOARD, ROOF_SIGN, SIGN } from "./exterior";
+import { BOXING_RING_COUNT } from "@gukirana/contracts";
 import { FIGHT_BUILDING } from "./plan";
 import { ringCounts } from "./rings";
 import { F } from "./strings";
@@ -54,7 +55,7 @@ export function FightFacadeBoard() {
           <meshBasicMaterial color={[2.2, 0.6, 0.5]} toneMapped={false} />
         </Text>
         <Text font={FONT} fontSize={0.36} position={[0, -B.h / 2 + 0.42, 0.01]} anchorX="center" anchorY="middle" maxWidth={B.w - 0.3}>
-          {free == null ? F.ringsFree(50) : F.ringsFree(free)}
+          {F.ringsFree(free ?? BOXING_RING_COUNT)}
           <meshBasicMaterial color={[0.5, 1.6, 0.8]} toneMapped={false} />
         </Text>
       </group>

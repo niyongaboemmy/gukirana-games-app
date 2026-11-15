@@ -89,7 +89,7 @@ export const boxingHallOf = (roomId: string): BoxingHall | undefined => halls.ge
 
 /**
  * The Boxing sub-hall (hall room with game "boxing", P3-FGT-01, docs/FIGHT-GAMES-PLAN.md §4.3, §7.1): the registry of
- * the 50 rings of this instance, every ring action with its server checks, the quick-fight queue per stake, fight
+ * the rings of this instance (BOXING_RING_COUNT), every ring action with its server checks, the quick-fight queue per stake, fight
  * assignment (escrow happens in the API through `deps.start`), spectator relay and the world-move area of interest.
  * The fight itself runs in its own `boxing` room; it reports back here (`fightStatus`, `fightFrame`, `fightOver`).
  * No bots: practice runs in the player's browser; the hall only marks the ring and relays its score.

@@ -3,6 +3,7 @@ import { ADMIN_COLLIDERS, ADMIN_COLOR, ADMIN_SEATS, ADMIN_SIZE, ADMIN_WALLS } fr
 import { ARENA_COLLIDERS, ARENA_COLOR, ARENA_SIZE, BOWL_SEATS } from "@/arena/bowl";
 import { BOXING_AISLES, BOXING_COLLIDERS, BOXING_DOOR, BOXING_SIZE, LOBBY_BENCHES, LOBBY_SIZE, LOBBY_WALLS } from "@/fight/plan";
 import { GYM_COLLIDERS, LOBBY_VENUE_COLLIDERS } from "@/fight/gym-plan";
+import { BOXING_RING_COUNT } from "@gukirana/contracts";
 
 export type HallGame = "pool" | "ludo" | "igisoro" | "admin" | "arena" | "fight" | "boxing";
 
@@ -297,11 +298,11 @@ export const HALLS: Record<HallGame, HallLayout> = {
     aisles: [0],
     walls: LOBBY_WALLS,
   },
-  // Boxing sub-hall (P3-FGT-01): 50 rings; walking round the platforms and climbing in come from its hall hooks
+  // Boxing sub-hall (P3-FGT-01; 32 rings since P3-FGT-11): walking round the platforms and climbing in come from its hall hooks
   boxing: {
     game: "boxing",
     title: "Boxing Hall",
-    subtitle: "50 rings · live fights and practice",
+    subtitle: `${BOXING_RING_COUNT} rings · live fights and practice`,
     color: "#C8322A",
     size: { ...BOXING_SIZE },
     door: { ...BOXING_DOOR },

@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { woodTexture } from "@/world/textures";
-import { BOXING_AISLES, BOXING_BENCHES, BOXING_SIZE, FEATURE_ZONE_HW, RINGS, ROW_Z } from "./plan";
+import { BOXING_AISLES, BOXING_BENCHES, BOXING_SIZE, CROSS_Z, FEATURE_ZONE_HW, MAIN_AISLE_X, RINGS } from "./plan";
 import { F } from "./strings";
 import type { RingStatus } from "@gukirana/contracts";
 import { useRingStatuses } from "./rings";
@@ -112,13 +112,13 @@ export function FloorMarks() {
     const { w, d } = BOXING_SIZE;
     // main aisles either side of the feature zone: two edge lines each
     for (const s of [-1, 1]) {
-      const cx = s * (FEATURE_ZONE_HW + 1);
+      const cx = s * MAIN_AISLE_X;
       for (const e of [-0.85, 0.85]) line(cx + e, -1, 0.08, d - 4);
     }
     // the front cross aisle (in front of row A) and a dashed centre line along it
-    const zA = ROW_Z[0]! + 2.45 + 0.35;
+    const zA = CROSS_Z - 1.3; // the cross aisle's north edge, clear of row A's steps
     line(0, zA, w - 2, 0.08);
-    for (let x = -w / 2 + 2; x < w / 2 - 2; x += 2.4) line(x + 0.6, (zA + d / 2) / 2, 1.2, 0.06);
+    for (let x = -w / 2 + 2; x < w / 2 - 2; x += 2.4) line(x + 0.6, CROSS_Z, 1.2, 0.06);
     // block aisles between the ring columns: a dashed guide line
     for (const x of BOXING_AISLES.slice(1, -1)) if (Math.abs(x) > FEATURE_ZONE_HW + 1.5) for (let z = -d / 2 + 2; z < zA - 0.5; z += 2.0) line(x, z + 0.5, 0.06, 1.0);
     // safety squares round the standard rings (0.55 m out from the platform)
@@ -133,7 +133,7 @@ export function FloorMarks() {
     // painted wayfinding arrows (P3-FGT-08): from the lobby door up the west main aisle to the rings, along the cross
     // aisle east to the training gym, and back to the exit; each a chevron head on a short shaft
     const arrow = (x: number, z: number, yaw: number) => parts.push(floorArrow(x, z, yaw));
-    const westAisle = -(FEATURE_ZONE_HW + 1);
+    const westAisle = -MAIN_AISLE_X;
     for (const z of [8, 2, -4]) arrow(westAisle, z, Math.PI); // north, into the hall
     for (const x of [0, 6, 12]) arrow(x, zA + 0.75, Math.PI / 2); // east along the cross aisle, towards the gym
     arrow(BOXING_DOOR.x + 1.6, d / 2 - 1.1, 0); // south, to the lobby door
@@ -271,10 +271,10 @@ function bannerAtlas() {
 /** where the signs hang: x, y, z, rotY of the front face, sign index */
 function signSpots(): [number, number, number, number, number][] {
   const { d } = BOXING_SIZE;
-  const zA = ROW_Z[0]! + 2.45 + 0.35;
+  const zA = CROSS_Z - 1.3;
   return [
     [BOXING_DOOR.x, 3.5, d / 2 - 0.12, Math.PI, 0],
-    [-(FEATURE_ZONE_HW + 1), 3.7, 11.4, 0, 1],
+    [-MAIN_AISLE_X, 3.7, CROSS_Z - 1.6, 0, 1],
     [9.0, 3.7, zA + 0.75, -Math.PI / 2, 2],
     [0, 4.9, FEATURE_STAGE.z0 + 0.9, 0, 3],
   ];

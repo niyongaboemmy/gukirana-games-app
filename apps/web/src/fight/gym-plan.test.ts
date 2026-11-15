@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { alongPath, GYM_COLLIDERS, GYM_PROPS, LOBBY_VENUE_COLLIDERS, STAFF, STEP_FEET } from "./gym-plan";
 import { gymTimer } from "./training-zone";
-import { BOXING_SIZE, inFeatureStage, LOBBY_SIZE, ringAt, SUBHALL_DOOR_X } from "./plan";
+import { BOXING_SIZE, CROSS_Z, inFeatureStage, LOBBY_SIZE, ringAt, SUBHALL_DOOR_X } from "./plan";
 import { boxingWalkable } from "./hooks";
 
 const inBox = (r: { x: number; z: number; w: number; d: number }, x: number, z: number, m = 0) => Math.abs(x - r.x) < r.w / 2 + m && Math.abs(z - r.z) < r.d / 2 + m;
@@ -22,8 +22,8 @@ describe("gym life (P3-FGT-04)", () => {
   it("training-wall props keep the cross aisle, the ring steps and the walking routes clear", () => {
     for (const c of GYM_COLLIDERS) {
       for (const f of STEP_FEET) expect(inBox(c, f.x, f.z, 0.4), `collider at ${c.x},${c.z} vs step foot`).toBe(false);
-      // the front cross aisle's walking line (fight/hooks CROSS_Z = 13.25) and the door
-      for (let x = -BOXING_SIZE.w / 2 + 1; x < BOXING_SIZE.w / 2 - 1; x += 0.5) expect(inBox(c, x, 13.25, 0.25)).toBe(false);
+      // the front cross aisle's walking line (plan CROSS_Z) and the door
+      for (let x = -BOXING_SIZE.w / 2 + 1; x < BOXING_SIZE.w / 2 - 1; x += 0.5) expect(inBox(c, x, CROSS_Z, 0.25)).toBe(false);
       expect(ringAt(c.x, c.z, 0.3)).toBeNull();
     }
   });
