@@ -22,8 +22,8 @@ export interface SowPreview {
 /** What the hand is doing on the current animation step. */
 export type HandStep = { id: number; kind: "pickup" | "sow" | "capture"; owner: Side; cell: Cell } | null;
 
-/** Base time per sown seed at Normal speed (scaled by the speed setting; 0 = skip). */
-export const SOW_MS = 170;
+/** Base time per sown seed at Normal speed (scaled by the speed setting; 0 = skip): slow enough to follow each seed. */
+export const SOW_MS = 280;
 
 /** Rows from the viewer's side: opponent outer, opponent inner, my inner, my outer (engine facing rules). */
 export function rowsFor(me: Side): Cell[][] {
@@ -129,8 +129,8 @@ export function useSowAnimation() {
         const pits: [number[], number[]] = [[...from.pits[0]], [...from.pits[1]]];
         let i = 0;
         let inHand = 0;
-        // long relay chains (a hundred+ steps) speed up so a move never plays for more than ~6 s at Normal
-        const pace = Math.min(1, 55 / Math.max(1, steps.length));
+        // long relay chains (a hundred+ steps) speed up so a move never plays for more than ~9 s at Normal
+        const pace = Math.min(1, 32 / Math.max(1, steps.length));
         const tick = () => {
           const st = steps[i];
           const id = ++i;
