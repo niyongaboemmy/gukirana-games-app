@@ -175,8 +175,8 @@ export function buildCampusRoads(): Map<string, THREE.BufferGeometry> {
   // gully grates along the kerbs, manholes on the crown
   for (let s = 12; s < total; s += 30) {
     const p = slice(pts, cum, s, s + 0.8);
-    ribbon(b, "steel", p, H - 0.6, H - 0.2, 0.021, 1);
-    if (Math.floor(s / 30) % 3 === 0) ribbon(b, "steel", slice(pts, cum, s + 9, s + 9.7), -1.6, -0.9, 0.021, 1);
+    ribbon(b, "steel", p, H - 0.6, H - 0.2, 0.027, 1);
+    if (Math.floor(s / 30) % 3 === 0) ribbon(b, "steel", slice(pts, cum, s + 9, s + 9.7), -1.6, -0.9, 0.027, 1);
   }
 
   /* ---------- service spurs to the halls' yards ---------- */
@@ -185,7 +185,7 @@ export function buildCampusRoads(): Map<string, THREE.BufferGeometry> {
     const m = ringPoint(q.deg, (sp.r0 + sp.r1) / 2);
     b.box("asphaltC", sp.hw * 2, 0.02, sp.r1 - sp.r0, { p: [m.x, 0.01, m.z], r: [0, m.rotY, 0], tile: 4 });
     const y = ringPoint(q.deg, (sp.r0 + sp.yardR1) / 2);
-    b.box("concrete", sp.yardHw * 2, 0.05, sp.yardR1 - sp.r0, { p: [y.x, 0.015, y.z], r: [0, y.rotY, 0], tile: 2 });
+    b.box("concrete", sp.yardHw * 2, 0.05, sp.yardR1 - sp.r0, { p: [y.x, 0.022, y.z], r: [0, y.rotY, 0], tile: 2 });
     // bollards marking the yard, a "no entry" bar at the loop
     for (const s of [-1, 1]) {
       const k = ringPoint(q.deg, sp.yardR1 + 0.3);

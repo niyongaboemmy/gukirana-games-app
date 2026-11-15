@@ -361,10 +361,10 @@ export function buildWalkSurface(opts: { cell?: number; y?: number } = {}): Walk
     if (Math.abs(plazaClip(a.x, a.z)) < 0.05 && Math.abs(plazaClip(b.x, b.z)) < 0.05) continue;
     const na = nAt(a.x, a.z);
     const nb = nAt(b.x, b.z);
-    quadUp(edge, a, b, { x: b.x + nb.x * EDGING_W, z: b.z + nb.z * EDGING_W }, { x: a.x + na.x * EDGING_W, z: a.z + na.z * EDGING_W }, Y + 0.004);
+    quadUp(edge, a, b, { x: b.x + nb.x * EDGING_W, z: b.z + nb.z * EDGING_W }, { x: a.x + na.x * EDGING_W, z: a.z + na.z * EDGING_W }, Y + 0.016);
     // outer face (both triangles facing out: the lawn side)
     const y0 = -0.07;
-    const y1 = Y + 0.004;
+    const y1 = Y + 0.016;
     const out = { x: -(na.x + nb.x) / 2, z: -(na.z + nb.z) / 2 };
     const t = [a.x, y0, a.z, b.x, y0, b.z, b.x, y1, b.z, a.x, y0, a.z, b.x, y1, b.z, a.x, y1, a.z];
     // the first triangle's normal is ∝ (−(b − a).z, 0, (b − a).x): keep the winding when that faces the lawn

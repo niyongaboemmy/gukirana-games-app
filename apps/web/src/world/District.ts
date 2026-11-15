@@ -603,7 +603,7 @@ function servicePavilion(b: GeoBatch) {
   for (const x of [-0.8, 0.2, 1.2]) {
     b.cyl("steel", 0.025, 0.025, 0.72, 6, { p: [x, 0.36, -3.7] });
     b.cyl("woodDark", 0.18, 0.18, 0.05, 12, { p: [x, 0.74, -3.7] });
-    b.cyl("steel", 0.2, 0.2, 0.02, 12, { p: [x, 0.01, -3.7] });
+    b.cyl("steel", 0.2, 0.2, 0.02, 12, { p: [x, 0.05, -3.7] }); // on the café floor (top 40 mm)
   }
   for (const x of [-2.7, 2.6]) {
     b.cyl("white", 0.35, 0.35, 0.03, 16, { p: [x, 0.74, -2.4] });
