@@ -3,19 +3,21 @@ import { useEffect, useMemo } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { DOOR_RING, FOUNTAIN_RADIUS, PAVING_R, ringPoint } from "@/world/layout";
+import { DOOR_RING, FOUNTAIN_RADIUS, OUTER_PROMENADE, PAVING_R, ringPoint } from "@/world/layout";
+import { PROMENADE_DEG, PROMENADE_EAST_DEG } from "@/world/campus";
 import { RING_PLANTERS } from "@/world/beds";
 import { ARENA } from "@/world/District";
-import { PLOTS, type Plot } from "@/world/footprints";
 import { agasekeTexture, pavingTexture } from "@/world/textures";
 import { hallFrame } from "./OutdoorView";
+import { impostorBlocks } from "./plaza-impostor";
 import type { HallLayout } from "./layouts";
 
 /**
  * The plaza as seen through the hall's open entrance: the real plaza layout (paving disc, fountain basin with the
- * Agaseke sculpture, ring planters, the arena drum and the neighbouring halls) rebuilt as a low-poly impostor in
- * the hall's own frame, so every landmark sits at its true bearing and distance from this door (the halls stand
- * on the door ring facing the fountain). Everything is merged into one mesh per material (~6 draw calls), never
+ * Agaseke sculpture, ring planters, the arena drum and every other building on the campus with its real height and
+ * facade material: plaza-impostor.ts) rebuilt as a low-poly impostor in the hall's own frame, so every landmark sits
+ * at its true bearing and distance from this door (P2-WLD-15: also from the Administrative Block out on the
+ * expansion ring, which looks back over the outer promenade towards the plaza, not onto the fountain). Everything is merged into one mesh per material (~6 draw calls), never
  * casts shadows, and is only on screen when you look back through the door.
  *
  * Lighting is baked in: outdoor surfaces carry a daylight emissive term so they read sunlit regardless of the
@@ -23,6 +25,22 @@ import type { HallLayout } from "./layouts";
  */
 
 type Part = { geo: THREE.BufferGeometry; m: THREE.Matrix4 };
+
+/** facade colours of the campus buildings (world/materials.ts), the roofs and the warm lit shopfronts */
+const BLOCK_COLORS: Record<string, string> = {
+  concreteDark: "#6f6c68",
+  brick: "#9a5a42",
+  limestone: "#d8d0bf",
+  charcoal: "#5c5c62",
+  wood: "#a07a52",
+  hoarding: "#262b38",
+  // lava-stone base course, and the Imigongo frieze band under the Igisoro eaves
+  lava: "#3a3634",
+  roof: "#9ea3a8",
+  thatch: "#a08560",
+  // shopfront glass: dark, with the warm interior showing through
+  glass: "#5a4632",
+};
 
 export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boolean }) {
   const { d } = layout.size;
@@ -37,7 +55,7 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
       const dz = wz - frame.centre.z;
       return [dx * c + dz * s + layout.door.x, -dx * s + dz * c];
     };
-    const parts: Record<string, Part[]> = { paving: [], lawn: [], stone: [], white: [], glass: [], water: [], agaseke: [], green: [], roof: [], thatch: [], arenaStone: [], arenaGlass: [], arenaWhite: [], arenaRoof: [] };
+    const parts: Record<string, Part[]> = { paving: [], lawn: [], granite: [], stone: [], white: [], glass: [], water: [], agaseke: [], green: [], roof: [], thatch: [], concreteDark: [], brick: [], limestone: [], charcoal: [], wood: [], hoarding: [], lava: [], arenaStone: [], arenaGlass: [], arenaWhite: [], arenaRoof: [] };
     const q = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
     const add = (mat: string, geo: THREE.BufferGeometry, wx: number, y: number, wz: number, rotY = 0, scale: [number, number, number] = [1, 1, 1]) => {
@@ -82,37 +100,29 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
     add("arenaRoof", new THREE.SphereGeometry(1, seg, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0, ARENA.wall + 0.2, az, 0, [ARENA.rx + 0.45, 5.5, ARENA.rz + 0.45]);
     }
 
-    // neighbouring buildings on the door ring, from the plaza's own footprints (local frame: door at the origin,
-    // facade towards the fountain = +z, volume towards -z); this hall itself is where you stand
-    const HEIGHT: Record<string, number> = { pool: 7.5, ludo: 5.6, igisoro: 4.8, soon: 3.2, site: 2.6, service: 4.4 };
-    const building = (p: Plot) => {
-      const r = ringPoint(p.angleDeg, DOOR_RING);
-      const cr = Math.cos(r.rotY);
-      const sr = Math.sin(r.rotY);
-      const h = HEIGHT[p.type] ?? 4;
-      for (const f of p.rects) {
-        const lx = (f.x0 + f.x1) / 2;
-        const lz = (f.z0 + f.z1) / 2;
-        const fw = Math.abs(f.x1 - f.x0);
-        const fd = Math.abs(f.z0 - f.z1);
-        const wx = r.x + lx * cr + lz * sr;
-        const wz = r.z - lx * sr + lz * cr;
-        add(p.type === "soon" || p.type === "site" ? "white" : "stone", new THREE.BoxGeometry(fw, h, fd), wx, h / 2, wz, r.rotY);
-        if (p.type === "site") continue;
-        if (p.type === "igisoro") {
-          // hipped thatch: a four-sided pyramid stretched over the rectangle
-          add("thatch", new THREE.ConeGeometry(Math.SQRT1_2, 1, 4, 1).rotateY(Math.PI / 4), wx, h + 2.6, wz, r.rotY, [fw + 1.6, 5.2, fd + 1.6]);
-        } else add("roof", new THREE.BoxGeometry(fw + 0.6, 0.5, fd + 0.6), wx, h + 0.25, wz, r.rotY);
+    // every other building on the campus at its true place, height and facade material (rooms/plaza-impostor.ts: the
+    // door ring and the expansion ring, the Boxing hall's long body, the reserved sites behind their hoarding); the
+    // plaza side of each wing carries its lit shopfront
+    for (const k of impostorBlocks(layout.game)) {
+      add(k.mat, new THREE.BoxGeometry(k.w, k.h, k.d), k.x, k.h / 2, k.z, k.rotY);
+      if (k.mat !== "hoarding") add("lava", new THREE.BoxGeometry(k.w + 0.12, 0.9, k.d + 0.12), k.x, 0.45, k.z, k.rotY);
+      if (k.roof === "thatch") add("lava", new THREE.BoxGeometry(k.w + 0.1, 0.9, k.d + 0.1), k.x, k.h - 0.8, k.z, k.rotY);
+      if (k.roof === "thatch") add("thatch", new THREE.ConeGeometry(Math.SQRT1_2, 1, 4, 1).rotateY(Math.PI / 4), k.x, k.h + 2.6, k.z, k.rotY, [k.w + 1.6, 5.2, k.d + 1.6]);
+      else if (k.roof === "slab") add("roof", new THREE.BoxGeometry(k.w + 0.4, 0.4, k.d + 0.4), k.x, k.h + 0.2, k.z, k.rotY);
+      if (k.glass) {
+        // on the block's plaza face (+z of its frame), sill at the paving
+        const c = Math.cos(k.rotY);
+        const sn = Math.sin(k.rotY);
+        const off = k.d / 2 + 0.03;
+        add("glass", new THREE.PlaneGeometry(k.glass.w, k.glass.h), k.x + off * sn, k.glass.h / 2, k.z + off * c, k.rotY);
       }
-      // glazed shopfront facing the fountain (on the front footprint)
-      if (p.type === "site") return;
-      const front = p.rects[0]!;
-      const fx = (front.x0 + front.x1) / 2;
-      const gx = r.x + fx * cr + (front.z0 + 0.05) * sr;
-      const gz = r.z - fx * sr + (front.z0 + 0.05) * cr;
-      add("glass", new THREE.PlaneGeometry(Math.abs(front.x1 - front.x0) - 1.2, h * 0.72), gx, h * 0.38, gz, r.rotY);
-    };
-    for (const p of PLOTS) if (p.ring === DOOR_RING && p.id !== layout.game && p.type !== "arena") building(p);
+    }
+    // the outer promenade's granite arc (seen from the Administrative Block across its forecourt)
+    {
+      const t0 = ((90 - PROMENADE_EAST_DEG) * Math.PI) / 180;
+      const tl = ((PROMENADE_DEG + PROMENADE_EAST_DEG) * Math.PI) / 180;
+      add("granite", new THREE.RingGeometry(OUTER_PROMENADE.r0, OUTER_PROMENADE.r1, 96, 1, t0, tl).rotateX(-Math.PI / 2), 0, -0.006, 0);
+    }
 
     const merged: Record<string, THREE.BufferGeometry> = {};
     for (const [k, list] of Object.entries(parts)) {
@@ -124,6 +134,32 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
       });
       merged[k] = mergeGeometries(geos)!;
       geos.forEach((g) => g.dispose());
+    }
+    // the buildings in ONE draw call: their facade colours (and a baked sun / sky shade per face) as vertex colours
+    const sun = frame.sun.clone().normalize();
+    const shaded: THREE.BufferGeometry[] = [];
+    for (const [k, hex] of Object.entries(BLOCK_COLORS)) {
+      const g = merged[k];
+      if (!g) continue;
+      delete merged[k];
+      const base = new THREE.Color(hex);
+      const n = g.getAttribute("normal") as THREE.BufferAttribute;
+      const col = new Float32Array(n.count * 3);
+      const v = new THREE.Vector3();
+      for (let i = 0; i < n.count; i++) {
+        v.fromBufferAttribute(n, i);
+        const lit = k === "glass" ? 1 : 0.62 + 0.18 * Math.max(0, v.y) + 0.38 * Math.max(0, v.dot(sun));
+        col[i * 3] = base.r * lit;
+        col[i * 3 + 1] = base.g * lit;
+        col[i * 3 + 2] = base.b * lit;
+      }
+      g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+      if (g.getAttribute("uv")) g.deleteAttribute("uv");
+      shaded.push(g);
+    }
+    if (shaded.length) {
+      merged.blocks = mergeGeometries(shaded)!;
+      shaded.forEach((g) => g.dispose());
     }
     return merged;
   }, [frame, layout.door.x, layout.game, lite, d]);
@@ -152,12 +188,14 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
       stone: day("#5d5a55", 0.5),
       white: day("#e4dfd5", 0.55),
       glass: day("#2a3842", 0.45),
+      granite: day("#a8a196", 0.55),
+      // every building (vertex-coloured facades, baked daylight: unlit, so the hall's own lights never shade it)
+      blocks: new THREE.MeshBasicMaterial({ vertexColors: true, clippingPlanes: clip }),
       water: day("#3c6168", 0.55),
       agaseke: day("#ffffff", 0.6, { map: agaseke, emissiveMap: agaseke }),
       green: day("#557c3a", 0.5),
       roof: day("#9ea3a8", 0.55),
-      thatch: day("#a08560", 0.5),
-    } as Record<string, THREE.MeshLambertMaterial>;
+    } as Record<string, THREE.MeshLambertMaterial | THREE.MeshBasicMaterial>;
     // the arena drum stands right beside some halls: only draw it from 8 m outside the door, so it never hangs over
     // the doorway like a canopy (the real hall exteriors are smaller than these interiors)
     const far = [new THREE.Plane(new THREE.Vector3(0, 0, 1), -(d / 2 + 8))];

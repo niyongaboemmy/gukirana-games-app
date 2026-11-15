@@ -5,9 +5,11 @@ import { Environment, Lightformer, Sky } from "@react-three/drei";
 import * as THREE from "three";
 import { Landscape } from "@/world/Landscape";
 import { FOG_COLOR, SUN_DIR } from "@/world/Lighting";
-import { DOOR_RING, PORTALS, ringPoint } from "@/world/layout";
+import { ringPoint } from "@/world/layout";
 import { LAWN_BEDS } from "@/world/beds";
 import type { HallLayout } from "./layouts";
+import { hallDoor, impostorBlocks, type ImpostorMat } from "./plaza-impostor";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 /**
  * The real outdoors behind the hall windows. The plaza's own procedural Northern-Rwanda landscape
@@ -20,10 +22,10 @@ import type { HallLayout } from "./layouts";
  * runtime cost is one textured cube (the landscape geometry is disposed after the capture).
  */
 export function hallFrame(layout: HallLayout) {
-  const portal = PORTALS.find((p) => p.id === layout.game);
-  const deg = portal?.angleDeg ?? 0;
-  // building centre: the door sits on the door ring; the room extends outward by its depth
-  const centre = ringPoint(deg, DOOR_RING + layout.size.d / 2);
+  // building centre: the door sits on its ring (the plaza's door ring, or the expansion ring for the Administrative
+  // Block since P2-WLD-14); the room extends outward by its depth
+  const { deg, ring } = hallDoor(layout.game);
+  const centre = ringPoint(deg, ring + layout.size.d / 2);
   const yaw = (deg * Math.PI) / 180; // world → room rotation about +y
   const sun = SUN_DIR.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
   return { centre, yaw, sun };
@@ -181,6 +183,8 @@ export function OutdoorView({
             <circleGeometry args={[95, 48]} />
             <meshStandardMaterial color="#6f9a4f" roughness={1} />
           </mesh>
+          {/* the neighbouring buildings seen through the side windows (P2-WLD-15), at their real places */}
+          <CampusBlocks layout={layout} centre={frame.centre} />
           {/* the lawn beds seen through the windows stand on a raked-gravel apron with a steel edge, not bare lawn */}
           {LAWN_BEDS.map((b, i) => (
             <group key={i} position={[b.x, 0, b.z]} rotation={[0, b.rot, 0]}>
@@ -198,5 +202,52 @@ export function OutdoorView({
       </group>
     </>,
     outdoor,
+  );
+}
+
+const BLOCK_COLOR: Record<ImpostorMat, string> = {
+  concreteDark: "#6f6c68",
+  brick: "#9a5a42",
+  limestone: "#d8d0bf",
+  white: "#eeebe4",
+  charcoal: "#5c5c62",
+  wood: "#a07a52",
+  hoarding: "#262b38",
+};
+
+/**
+ * The other campus buildings as plain lit volumes (their real footprints, heights and facade colours) for the window
+ * capture: through a hall's side windows you see its neighbours where they really stand, not open countryside.
+ * Blocks that would reach into this room's own volume (the halls are larger inside than outside) are left out.
+ */
+function CampusBlocks({ layout, centre }: { layout: HallLayout; centre: { x: number; z: number } }) {
+  const geos = useMemo(() => {
+    const clear = Math.hypot(layout.size.w, layout.size.d) / 2 + 1;
+    const by = new Map<ImpostorMat, THREE.BufferGeometry[]>();
+    for (const k of impostorBlocks(layout.game)) {
+      if (Math.hypot(k.x - centre.x, k.z - centre.z) - Math.hypot(k.w, k.d) / 2 < clear) continue;
+      const g = new THREE.BoxGeometry(k.w, k.h, k.d).toNonIndexed();
+      g.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(k.x, k.h / 2, k.z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), k.rotY), new THREE.Vector3(1, 1, 1)));
+      const list = by.get(k.mat) ?? [];
+      list.push(g);
+      by.set(k.mat, list);
+    }
+    const out: [ImpostorMat, THREE.BufferGeometry][] = [];
+    for (const [m, list] of by) {
+      const merged = mergeGeometries(list);
+      list.forEach((g) => g.dispose());
+      if (merged) out.push([m, merged]);
+    }
+    return out;
+  }, [layout, centre]);
+  useEffect(() => () => geos.forEach(([, g]) => g.dispose()), [geos]);
+  return (
+    <>
+      {geos.map(([m, g]) => (
+        <mesh key={m} geometry={g}>
+          <meshStandardMaterial color={BLOCK_COLOR[m]} roughness={0.9} />
+        </mesh>
+      ))}
+    </>
   );
 }
