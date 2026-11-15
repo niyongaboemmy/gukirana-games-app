@@ -189,7 +189,7 @@ function Callouts({ snap, me, now }: { snap: BoxingSnapshot; me: 0 | 1; now: num
         </div>
       )}
       <div className="flex flex-wrap justify-center gap-2" aria-live="polite">
-        {pops.slice(-3).map((p) => (
+        {pops.filter((p, i) => !pops.slice(i + 1).some((q) => q.text === p.text)).slice(-3).map((p) => (
           <span
             key={p.id}
             className={`gk-fade-up rounded-full px-3 py-1 text-sm font-black text-white ${p.good ? "bg-success/85" : "bg-danger/85"}`}

@@ -273,5 +273,7 @@ export function refereeSpot(phase: FightPhase, ctx: { dist: number; down: 0 | 1 
   // the apex of the V: well off the pair line (seen in the gap between them, never hidden behind a boxer), drifting
   // from one side to the other now and then
   const side = Math.tanh(3 * Math.sin(0.07 * t + 0.6));
-  return { x: 0.35 * side + 0.12 * Math.sin(0.71 * t + 1), z: (1.4 + 0.15 * Math.sin(0.31 * t + 0.4)) * close, clip: "refIdle", face: 0 };
+  // ~2 m off the pair line (inside the ropes) so his body never reads as touching a boxer from the oblique cameras
+  const off = Math.min((1.95 + 0.15 * Math.sin(0.31 * t + 0.4)) * close, ctx.half - 0.6);
+  return { x: 0.55 * side + 0.12 * Math.sin(0.71 * t + 1), z: off, clip: "refIdle", face: 0 };
 }
