@@ -77,7 +77,9 @@ const COL = {
   cover: "#2a2d33",
   spacer: "#2c2f35",
   steps: "#2b2e34",
-  tread: "#4a4e56",
+  tread: "#9aa0a8",
+  nosing: "#1b1c1f",
+  stringer: "#45484f",
   rail: "#3a3d43",
   bucket: "#c9ccd1",
   bottle: "#d8e4ef",
@@ -206,16 +208,34 @@ function steps(p: Parts, K: RingDims, near: boolean) {
     const rise = K.deck / n,
       run = K.stepRun;
     if (!near) {
-      // two blocks (a stepped silhouette)
-      p.box(run * n, rise * 1.5, 0.8, x0 + sx * ((run * n) / 2), rise * 0.75, z, COL.steps);
-      p.box(run * 1.5, rise * 1.5, 0.8, x0 + sx * ((run * 1.5) / 2), rise * 2.25, z, COL.steps);
+      // far: the three treads and the stringers as thin boxes (still open: no solid block at a distance)
+      for (let k = 0; k < n; k++) p.box(run, 0.04, 0.78, x0 + sx * (run * (n - k) - run / 2), rise * (k + 1) - 0.02, z, COL.tread);
+      for (const dz of [-0.38, 0.38]) p.box(run * n, 0.04, 0.04, x0 + sx * ((run * n) / 2), K.deck / 2, z + dz, COL.stringer);
       continue;
     }
+    // open steps (P3-FGT-08): two steel stringers on the slope, three aluminium treads with dark rubber nosing,
+    // open risers, a back frame against the skirt — legs and feet on the treads read clearly from every side
+    const xFoot = x0 + sx * run * n;
+    for (const dz of [-0.38, 0.38]) {
+      // the stringer: a flat bar from the floor at the foot up to the apron, under the treads' ends
+      // its centre line runs through the treads' centres (treads bolted between the stringers)
+      const a = v(xFoot, rise * 0.5, z + dz),
+        b = v(x0 + sx * run * 0.5, K.deck, z + dz);
+      const len = a.distanceTo(b);
+      const ang = Math.atan2(b.y - a.y, Math.abs(b.x - a.x));
+      const m = new THREE.Matrix4().compose(a.clone().add(b).multiplyScalar(0.5), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, sx > 0 ? -ang : ang)), new THREE.Vector3(1, 1, 1));
+      p.add(new THREE.BoxGeometry(len, 0.16, 0.035), COL.stringer, m);
+      // a rubber foot at the bottom, back legs down to the floor under the top tread, a cross bar between them
+      p.box(0.09, 0.06, 0.05, xFoot - sx * 0.05, 0.03, z + dz, COL.nosing);
+      p.box(0.04, K.deck - 0.04, 0.04, x0 + sx * 0.05, (K.deck - 0.04) / 2, z + dz, COL.stringer);
+    }
+    p.box(0.035, 0.035, 0.76, x0 + sx * 0.05, 0.12, z, COL.stringer);
     for (let k = 0; k < n; k++) {
       const h = rise * (k + 1);
       const xc = x0 + sx * (run * (n - k) - run / 2);
-      p.box(run, h, 0.8, xc, h / 2, z, COL.steps);
-      p.box(run - 0.02, 0.012, 0.76, xc, h + 0.006, z, COL.tread);
+      p.box(run + 0.02, 0.035, 0.76, xc, h - 0.0175, z, COL.tread);
+      // nosing strip on the leading edge (where the foot lands)
+      p.box(0.05, 0.04, 0.765, xc + sx * (run / 2 - 0.015), h - 0.015, z, COL.nosing);
     }
     // hand rails both sides
     for (const dz of [-0.42, 0.42]) {

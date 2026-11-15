@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cornerPost, fightSpots, LOD_BY_TIER, RING, ringDrawCalls, ringSteps, selectLods, stepHeight, stoolSpot, toHall, TRAINING_RING, type RingLod, type RingSpec } from "./ring-kit-core";
+import { cornerPost, fightSpots, onStepsFootprint, LOD_BY_TIER, RING, ringDrawCalls, ringSteps, selectLods, stepHeight, stoolSpot, toHall, TRAINING_RING, type RingLod, type RingSpec } from "./ring-kit-core";
 import { farRingGeometry, nearRingGeometry, stoolGeometry, triangles } from "./ring-kit-geometry";
 
 /** a 50-ring hall field: 10 × 5 rings on a 12 m grid */
@@ -139,6 +139,23 @@ describe("training ring size (P3-FGT-03)", () => {
       expect(last).toBeCloseTo(TRAINING_RING.deck, 6);
     }
     expect(stepHeight(t, t.x, t.z)).toBeNull();
+  });
+
+  it("the steps' footprint covers every tread (a body radius beyond with a pad) and leaves the foot spot free (P3-FGT-08)", () => {
+    for (const c of ["red", "blue"] as const) {
+      const s = ringSteps(t, c);
+      // every point with a tread height is on the footprint (so a walker kept off it never stands inside a tread)
+      for (let k = 0; k <= 20; k++) {
+        const x = s.foot.x + ((s.top.x - s.foot.x) * k) / 20;
+        for (const dz of [-0.4, 0, 0.4]) if (stepHeight(t, x, s.foot.z + dz) != null) expect(onStepsFootprint(t, x, s.foot.z + dz)).toBe(true);
+      }
+      // the foot of the steps (where the prompt is used) stays walkable even with the body-radius pad
+      expect(onStepsFootprint(t, s.foot.x, s.foot.z, 0.22)).toBe(false);
+      // just off the bottom tread: free without a pad, blocked with it
+      const off = s.foot.x + (s.top.x - s.foot.x) * 0.2;
+      expect(onStepsFootprint(t, off, s.foot.z, 0.22)).toBe(true);
+    }
+    expect(onStepsFootprint(t, t.x + 8, t.z, 0.22)).toBe(false);
   });
 
   it("training geometry is lighter than the pro kit; the field stays in budget", () => {

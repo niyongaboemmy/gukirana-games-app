@@ -3,7 +3,7 @@ import { kitFor, type RingId } from "@gukirana/contracts";
 import { selfPose, useWorld } from "@/lib/world-store";
 import { hallHooks, type P } from "@/rooms/hall-hooks";
 import { useFightBridge } from "./bridge";
-import { stepHeight } from "@/rooms/fight/ring-kit-core";
+import { onStepsFootprint, stepHeight } from "@/rooms/fight/ring-kit-core";
 import { kitSpec, ringBase } from "./climb";
 import { BOXING_AISLES, BOXING_SIZE, FEATURE_RING, FEATURE_STAGE, inFeatureStage, RING_BY_ID, ringAt, RINGS } from "./plan";
 
@@ -27,7 +27,16 @@ export function iHold(id: RingId): boolean {
 /** the ring kit's barrier rail round a training ring stands this far off the platform (keep people outside it) */
 const RAIL_PAD = 0.26;
 
-/** walking-surface height: canvas inside a held ring, the stage under R1 / R2, the treads of a held ring's steps */
+/** a walker who may not climb a ring is kept this far (body radius) off its corner steps */
+export const STEPS_PAD = 0.22;
+
+/**
+ * Walking-surface height (P3-FGT-08): the canvas inside a held ring, the stage under R1 / R2, and the treads of ANY
+ * ring's corner steps — for everyone, not only for the ring's fighter. This hook is also the ground of the other
+ * people in the hall (social/RemotePlayers), whose rings `iHold` knows nothing about: a fighter climbing their steps
+ * on my screen used to stand at floor height inside the treads (legs cut off at the knee). Non-fighters never reach
+ * the steps (boxingWalkable keeps them a body radius off), so this only ever lifts people who really climb.
+ */
 export function boxingGround(x: number, z: number): number {
   const r = ringAt(x, z);
   if (r && iHold(r.id)) return r.canvasY;
@@ -35,16 +44,19 @@ export function boxingGround(x: number, z: number): number {
   for (const q of RINGS) {
     if (Math.abs(x - q.x) > q.half + 1.2 || Math.abs(z - q.z) > q.half + 1.2) continue;
     const h = stepHeight(kitSpec(q), x, z);
-    if (h != null && iHold(q.id)) return ringBase(q) + h;
+    if (h != null) return ringBase(q) + h;
   }
   return base;
 }
 
 /** on a set of corner steps of a ring I hold (the way in) */
 const onMySteps = (x: number, z: number) => RINGS.some((q) => Math.abs(x - q.x) < q.half + 1.2 && Math.abs(z - q.z) < q.half + 1.2 && stepHeight(kitSpec(q), x, z) != null && iHold(q.id));
+/** within a body radius of some ring's corner steps that I do not hold (solid for me: you walk round them) */
+const nearOtherSteps = (x: number, z: number) => RINGS.some((q) => Math.abs(x - q.x) < q.half + 1.4 && Math.abs(z - q.z) < q.half + 1.4 && onStepsFootprint(kitSpec(q), x, z, STEPS_PAD) && !iHold(q.id));
 
 export function boxingWalkable(x: number, z: number): boolean {
   if (onMySteps(x, z)) return true;
+  if (nearOtherSteps(x, z)) return false;
   const r = ringAt(x, z, 0.08);
   if (r) return iHold(r.id);
   const railed = ringAt(x, z, RAIL_PAD);
