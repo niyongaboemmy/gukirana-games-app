@@ -449,6 +449,7 @@ pnpm build:wasm  # build crates/pool-physics → packages/games/pool/wasm
 - [ ] 🔴 **P1-GAME-01** Common game screen (DS §11.1): player panels, timer rings, POT banner (Stars), fair badge, leave confirmation · *est 4d*
 - [ ] **P1-GAME-02** Result screen: summary, rating change, XP, rematch, share card image · *est 3d* · refs: FR-GS-10
 - [ ] **P1-GAME-03** Reconnection UX + rules (60 s window, forfeit / void) · *est 3d* · refs: FR-GS-03/04
+- [x] **P2-NET-05** Resume after a reload / connection loss (all live games incl. Boxing), opponent wait with an m:ss countdown + per-player reconnect budget (max wait 90 s turn games / 60 s Boxing, 3 drops, 180 / 90 s away), forfeit / void through the existing settlement, rules card to accept per game and rules version (server-enforced `RULES_NOT_ACCEPTED`) · refs: FR-GS-03/04, docs/GAME-EXIT-RULES.md (rows 5, 5a, 8a, "Resume", "Rules card")
 - [ ] **P1-GAME-04** Replays: event log to object storage, replay viewer · *est 4d* · refs: FR-GS-07
 - [ ] **P1-GAME-05** Fairness verification page (seed commit / reveal, recompute rolls client-side) · *est 2d* · refs: FR-PF-01
 - [ ] **P1-GAME-06** Spectator mode with delay · *est 3d* · refs: FR-GS-08
