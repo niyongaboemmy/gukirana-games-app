@@ -12,7 +12,8 @@ import type { HallLayout } from "@/rooms/layouts";
 import { STATUS_LAMP } from "./assets-shim";
 import { useFightBridge } from "./bridge";
 import { BOXING_DOOR_LINE_Z, LOBBY_BACK_Z, LOBBY_BENCHES, LOBBY_BOARD, LOBBY_PASSAGE, LOBBY_SIZE, RINGS, SUBHALL_DOOR_W, SUBHALL_DOOR_X } from "./plan";
-import { ringCounts } from "./rings";
+import { ringCounts, shownStatus } from "./rings";
+import { clock as holdClock, pfill } from "@/lib/place-strings";
 import { F } from "./strings";
 import { FIGHT_ON } from "./flags";
 import { startFightMock } from "./mock";
@@ -594,7 +595,7 @@ function drawBoard(c: HTMLCanvasElement, hover = -1) {
   g.textAlign = "center";
   RINGS.forEach((r, i) => {
     const e = rings[r.id];
-    const st = e?.status ?? "free";
+    const st = shownStatus(e); // P2-NET-06: a ring kept for a fighter who lost their connection reads "Held 0:42"
     const x = GRID.x0 + (i % GRID.cols) * GRID.cw + 6;
     const y = GRID.y0 + Math.floor(i / GRID.cols) * (GRID.ch + GRID.gap);
     const w = GRID.cw - 12;
@@ -614,12 +615,12 @@ function drawBoard(c: HTMLCanvasElement, hover = -1) {
       g.stroke();
     }
     g.globalAlpha = 1;
-    const dark = st === "practice" || st === "waiting";
+    const dark = st === "practice" || st === "waiting" || st === "held";
     g.fillStyle = dark ? "#121212" : "#ffffff";
     g.font = "800 40px system-ui, sans-serif";
     g.fillText(r.id.slice(1), x + w / 2, y + h * 0.34);
     g.font = "600 20px system-ui, sans-serif";
-    const live = e?.score && (st === "fighting" || st === "result") ? `${e.score.red} – ${e.score.blue}` : F.status[st];
+    const live = e?.score && (st === "fighting" || st === "result") ? `${e.score.red} – ${e.score.blue}` : st === "held" && e?.held?.until ? pfill("place.heldShort", { t: holdClock(e.held.until - Date.now()) }) : F.status[st];
     g.fillText(live, x + w / 2, y + h * 0.7);
     if (r.feature) {
       g.font = "800 13px system-ui, sans-serif";
@@ -631,7 +632,7 @@ function drawBoard(c: HTMLCanvasElement, hover = -1) {
   g.textAlign = "left";
   g.font = "600 24px system-ui, sans-serif";
   let lx = 44;
-  for (const st of ["free", "waiting", "fighting", "practice"] as const) {
+  for (const st of ["free", "waiting", "fighting", "practice", "held"] as const) {
     g.fillStyle = STATUS_LAMP[st];
     rr(g, lx, ly - 12, 24, 24, 6);
     g.fill();

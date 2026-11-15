@@ -18,6 +18,7 @@ import { isGameHall, type HallLayout } from "./layouts";
 import { TablePicker } from "./TablePicker";
 import { PaperCard } from "@/ui/PaperCard";
 import { R } from "./strings";
+import { useTablePlaceSync } from "./place-restore";
 
 const glass = "glass rounded-card";
 
@@ -36,6 +37,8 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
   const seatTaken = useWorld((s) => s.seatTaken);
   const others = useWorld((s) => Object.keys(s.players).length);
   const quick = useMatch((s) => s.quick);
+  // P2-NET-06: remember my chair (and whether I wait for an opponent) so a reload puts me back on it
+  useTablePlaceSync(layout);
   const authed = useSession((s) => s.status === "authenticated");
   const [stake, setStake] = useState(25);
   const players = useWorld((s) => s.players);

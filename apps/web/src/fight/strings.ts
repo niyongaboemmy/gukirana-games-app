@@ -56,7 +56,8 @@ export const F = {
     result: "Result",
     practice: "Practice",
     closed: "Closed",
-  } as Record<RingStatus, string>,
+    held: "Held",
+  } as Record<RingStatus | "held", string>,
   friendly: "Friendly",
   stars: (n: number) => `${n} Stars`,
   vs: "vs",
@@ -126,5 +127,6 @@ export const F = {
     HALL_FULL: "This hall is full. Try Boxing Hall 2.",
     RATE_LIMITED: "Too fast. Try again in a moment.",
     SUBHALL_CLOSED: "This hall is closed right now.",
+    RING_HELD: "That ring is kept for a fighter who lost their connection. Pick another one.",
   } as Record<BoxingDenial, string>,
 };

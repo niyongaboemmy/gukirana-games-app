@@ -17,7 +17,7 @@ export interface IncomingProposal {
 interface MatchState {
   incoming: IncomingProposal[];
   outgoing: { id: string; to?: string; game: GameId; stake: number; expires: number } | null;
-  quick: { status: "idle" | "waiting" | "error"; game?: GameId; stake?: number; reason?: string };
+  quick: { status: "idle" | "waiting" | "error"; game?: GameId; stake?: number; reason?: string; waitedMs?: number };
   ready: { roomId: string; matchId: string; game: GameId; stake: number; ring?: string } | null;
   notice: string | null;
 }

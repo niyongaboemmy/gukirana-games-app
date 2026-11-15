@@ -105,6 +105,11 @@ export interface RingState {
   watchers: number;
   /** server time (ms) of the last status change */
   since: number;
+  /**
+   * P2-NET-06: the waiting / practising fighter lost their connection; the ring is kept for them for `ms` more (time
+   * left when the message was sent). Nobody may take a held ring; it frees when the hold runs out.
+   */
+  held?: { ms: number; /** set by the client on receipt: when the hold ends on this device's clock */ until?: number };
 }
 
 /* ------------------------------------------------------------ the kit ------------------------------------------------------------ */
@@ -526,6 +531,8 @@ export const BoxingHallMsg = {
   practiceScore: "boxing-practice-score",
   /** answer to `boxing-ping`: { n } (the hall measures the round trip for the HIGH_LATENCY check, plan §3.4) */
   pong: "boxing-pong",
+  /** P2-NET-06: the live client is listening now: send me the ring registry and my ring again (a reload joins the hall before the Boxing client mounts) */
+  sync: "boxing-sync",
 } as const;
 /** Boxing sub-hall room → clients */
 export const BoxingHallEvt = {
@@ -611,6 +618,7 @@ export const BOXING_DENIALS = [
   "HALL_FULL",
   "RATE_LIMITED",
   "SUBHALL_CLOSED",
+  "RING_HELD", // P2-NET-06: kept for a fighter who lost their connection (frees when the hold runs out)
 ] as const;
 export type BoxingDenial = (typeof BOXING_DENIALS)[number];
 /** fight room `rejected` reasons for an input */

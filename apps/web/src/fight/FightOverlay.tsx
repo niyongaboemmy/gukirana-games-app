@@ -21,6 +21,7 @@ import { FightNetBanner } from "./game/NetBanner";
 import { F } from "./strings";
 import { useFightFocus } from "./focus";
 import { usePendingRingWalk, useRingGoto } from "./ring-goto";
+import { useRingPlaceSync } from "./place-sync";
 
 const glass = "glass rounded-card";
 
@@ -115,6 +116,8 @@ export function FightOverlay({ layout }: { layout: HallLayout }) {
   const boxing = layout.game === "boxing";
   // a ring picked on the lobby's status board: the walk continues once the Boxing hall has taken over
   usePendingRingWalk(boxing);
+  // P2-NET-06: remember the ring I wait / practise in, so a reload puts me back at its steps
+  useRingPlaceSync(boxing);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === "INPUT" || e.code !== "KeyE") return;

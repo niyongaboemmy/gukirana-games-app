@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import type { BoxingClip, Corner, RingId, RingStatus } from "@gukirana/contracts";
+import type { BoxingClip, Corner, RingId } from "@gukirana/contracts";
 import { Avatar } from "@/world/Avatar";
 import type { AvatarLook } from "@/world/outfits";
 import { boxingKitOverride, KitSwap } from "@/world/human/boxing/kit";
@@ -10,6 +10,7 @@ import { BoxingMotion } from "@/world/human/boxing/motion";
 import type { BoxingClipName } from "@/world/human/boxing/clips";
 import { RingKit } from "@/rooms/fight/ring-kit";
 import type { RingSize, RingSpec, RingStatus as KitStatus } from "@/rooms/fight/ring-kit-core";
+import type { ShownStatus } from "./rings";
 
 /**
  * The world's adapter onto the Boxing assets (P3-FGT-02, merged): the ONE place fight/** touches
@@ -21,7 +22,7 @@ import type { RingSize, RingSpec, RingStatus as KitStatus } from "@/rooms/fight/
 /* ------------------------------------------------------------ rings ------------------------------------------------------------ */
 
 /** status → lamp colour for the hall's own status signs (colour is never the only signal: the boxes say it in words) */
-export const STATUS_LAMP: Record<RingStatus, string> = {
+export const STATUS_LAMP: Record<ShownStatus, string> = {
   free: "#2E9D57",
   waiting: "#E3A21A",
   starting: "#C8322A",
@@ -29,16 +30,18 @@ export const STATUS_LAMP: Record<RingStatus, string> = {
   result: "#C8322A",
   practice: "#EDEDE8",
   closed: "#3a3a3c",
+  // P2-NET-06: kept for a fighter who lost their connection (warm grey-amber: taken, nobody to fight right now)
+  held: "#A8916C",
 };
-/** the ring kit knows four lamp states */
-export const kitStatus = (s: RingStatus): KitStatus => (s === "free" || s === "waiting" || s === "closed" ? s : "fighting");
+/** the ring kit knows four lamp states (a held ring reads as a waiting one; its lamp colour says held) */
+export const kitStatus = (s: ShownStatus): KitStatus => (s === "held" ? "waiting" : s === "free" || s === "waiting" || s === "closed" ? s : "fighting");
 
 export interface HallRing {
   id: RingId;
   x: number;
   z: number;
   rotY: number;
-  status: RingStatus;
+  status: ShownStatus;
   number: number;
   rest?: boolean;
 }

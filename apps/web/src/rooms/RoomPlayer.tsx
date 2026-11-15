@@ -10,6 +10,7 @@ import { sendMove, sitAt, standUp } from "@/lib/realtime";
 import { useRoom } from "./room-store";
 import { clearHallPose, saveHallPose, takeHallPose, takeReturnFor } from "@/lib/return-point";
 import { arrival } from "./arrival";
+import { placeReturn } from "./place-restore";
 import { autoFollow, nav, onReleaseInput, pointerNav, steer, TargetMarker } from "@/world/navigation";
 import { useDoorway } from "@/world/doorway";
 import { useWalletSheet } from "@/wallet/WalletSheet";
@@ -72,7 +73,8 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
   // back from a game → same spot / same chair; otherwise appear in the open doorway and walk in automatically
   // read once on mount (a useRef(initial) argument is evaluated on EVERY render: a re-render just after "Practice vs
   // AI" wrote the return point consumed it, so the game said "Back to the plaza" and you were not re-seated)
-  const [backOnce] = useState(() => (typeof window !== "undefined" ? takeReturnFor(`/room/${layout.game}`) : null));
+  // P2-NET-06: a reload while the server holds my chair / ring is a "restore" onto that place (rooms/place-restore)
+  const [backOnce] = useState(() => (typeof window !== "undefined" ? (takeReturnFor(`/room/${layout.game}`) ?? placeReturn(layout)) : null));
   const back = useRef(backOnce);
   // walked in through the plaza door: the exact spot / heading / pace you crossed the door line with (world/stage.ts
   // maps the plaza door frame onto this door); otherwise (reload, deep link) just inside the open doors

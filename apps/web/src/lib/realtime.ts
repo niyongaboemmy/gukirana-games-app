@@ -13,6 +13,8 @@ import { loadBlocks, persistBlock, persistUnblock } from "@/social/api";
 import { AT_YOU, type PAIR_ACTIONS } from "@/social/actions";
 import { onPairStart } from "@/social/people";
 import { useSession } from "./session";
+import { heldRoomFor, onPlaceMsg, onSeatHolds, usePlace } from "./place-hold";
+import type { PlaceMsg, SeatHolds } from "@gukirana/contracts";
 
 /** Realtime connection to the plaza / hall room (plan P1-WLD-01/02, P1-COM-01). Works over LAN for phone testing. */
 let room: Room | null = null;
@@ -101,8 +103,11 @@ export async function connectPlaza(
     // my block list applies before anyone becomes visible (server-enforced: invisible + silent both ways)
     const blocks = await loadBlocks().catch(() => [] as string[]);
     const options = { ...profile, look, blocks };
-    room = await client.joinOrCreate(target.name, target.name === "hall" ? { ...options, game: target.game } : options);
-    w.set({ connected: true });
+    // P2-NET-06: a place held for me lives in one hall instance: rejoin that one first (gone / full: the normal join)
+    const opts = target.name === "hall" ? { ...options, game: target.game } : options;
+    const held = target.name === "hall" ? heldRoomFor(target.game) : null;
+    room = held ? await client.joinById(held, opts).catch(() => client.joinOrCreate(target.name, opts)) : await client.joinOrCreate(target.name, opts);
+    w.set({ connected: true, roomId: room.roomId });
     retries = 0;
     const name = (id: string) => useWorld.getState().players[id]?.name ?? "Someone";
     room.onMessage("snapshot", (m: { you: string; players: RemotePlayer[] }) => {
@@ -156,6 +161,9 @@ export async function connectPlaza(
     // seats: hall chairs + plaza bench places (one person per seat)
     room.onMessage("seats", (m: Record<string, string>) => useWorld.setState({ seats: m }));
     room.onMessage("seat-taken", () => useWorld.setState({ seatTaken: Date.now() }));
+    // P2-NET-06: chairs kept for players who lost their connection (Held · returning), and what became of my own place
+    room.onMessage("seat-holds", (m: SeatHolds) => onSeatHolds(m));
+    room.onMessage("place", (m: PlaceMsg) => onPlaceMsg(m, target.game));
     room.onMessage("emote", (m: { id: string; emote: number }) => setEmote(m.id, m.emote));
     room.onMessage("waved", (m: { from: { id: string; name: string } | null; emote?: number }) => {
       if (!m.from) return;
@@ -240,7 +248,8 @@ export async function connectPlaza(
     room.onLeave((code?: number) => {
       room = null;
       resetSocial();
-      useWorld.setState({ connected: false, players: {}, seats: {} });
+      useWorld.setState({ connected: false, players: {}, seats: {}, roomId: null });
+      usePlace.setState({ seatHolds: {}, joined: null });
       // a server restart / network drop: come back by yourself; a deliberate removal stays final
       if (shouldReconnect(code)) scheduleReconnect();
       else wanted = false;

@@ -18,6 +18,7 @@ export const FN = {
   "deny.HALL_FULL": "The rail at that ring is full.",
   "deny.RATE_LIMITED": "Slow down a little.",
   "deny.SUBHALL_CLOSED": "The Boxing hall is closed right now.",
+  "deny.RING_HELD": "That ring is kept for a fighter who lost their connection. Pick a free (green) one.",
   "fight.connectFailed": "Couldn't open your fight. If Stars were staked, they come back automatically.",
   "fight.reconnecting": "Reconnecting to your fight…",
   "quick.waiting": "Looking for an opponent at {stake} Stars…",

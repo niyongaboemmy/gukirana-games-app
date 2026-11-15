@@ -5,8 +5,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { woodTexture } from "@/world/textures";
 import { BOXING_AISLES, BOXING_BENCHES, BOXING_SIZE, CROSS_Z, FEATURE_ZONE_HW, MAIN_AISLE_X, RINGS } from "./plan";
 import { F } from "./strings";
-import type { RingStatus } from "@gukirana/contracts";
-import { useRingStatuses } from "./rings";
+import { useRingStatuses, type ShownStatus } from "./rings";
 import { BOXING_DOOR, FEATURE_STAGE } from "./plan";
 
 /**
@@ -44,7 +43,7 @@ function poolTexture() {
  * free rings sit in a cool green-white light, busy ones in warm light, waiting amber, closed rings go dim — free vs busy
  * reads across the hall at a glance, with the number signs saying it in words. Instance colours: still one draw call.
  */
-const POOL_TINT: Record<RingStatus, string> = {
+const POOL_TINT: Record<ShownStatus, string> = {
   free: "#b9f2c8",
   waiting: "#ffd98a",
   starting: "#ffc2a6",
@@ -52,6 +51,7 @@ const POOL_TINT: Record<RingStatus, string> = {
   result: "#ffc2a6",
   practice: "#ffffff",
   closed: "#4a4a4a",
+  held: "#e0cfae",
 };
 export function LightPools({ lite }: { lite: boolean }) {
   const ref = useRef<THREE.InstancedMesh>(null);

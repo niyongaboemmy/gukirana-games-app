@@ -2,12 +2,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import type { RingStatus } from "@gukirana/contracts";
 import { useFightBridge } from "./bridge";
 import { useFightUi } from "./ui-store";
 import { STATUS_LAMP } from "./assets-shim";
 import { RINGS, type RingPlace } from "./plan";
-import { useRingStatuses } from "./rings";
+import { useRingStatuses, type ShownStatus } from "./rings";
 import { F } from "./strings";
 
 /**
@@ -34,8 +33,8 @@ const SIGN = { std: [1.5, 0.75], feature: [2.3, 1.15] } as const;
 export const signY = (r: RingPlace) => (r.feature ? r.canvasY + 3.7 : 4.25);
 
 /** pill colours: the status lamp, with readable ink */
-const PILL_INK: Partial<Record<RingStatus, string>> = { practice: "#141416", waiting: "#141416" };
-const pillFill = (s: RingStatus) => (s === "closed" ? "#4a4a4f" : STATUS_LAMP[s]);
+const PILL_INK: Partial<Record<ShownStatus, string>> = { practice: "#141416", waiting: "#141416", held: "#141416" };
+const pillFill = (s: ShownStatus) => (s === "closed" ? "#4a4a4f" : STATUS_LAMP[s]);
 
 function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   g.beginPath();
@@ -48,7 +47,7 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
 }
 
 /** one sign face into its atlas cell */
-export function drawSignCell(g: CanvasRenderingContext2D, i: number, number: string, status: RingStatus) {
+export function drawSignCell(g: CanvasRenderingContext2D, i: number, number: string, status: ShownStatus) {
   const x0 = (i % COLS) * CELL_W;
   const y0 = Math.floor(i / COLS) * CELL_H;
   g.clearRect(x0, y0, CELL_W, CELL_H);
@@ -90,7 +89,7 @@ export function drawSignCell(g: CanvasRenderingContext2D, i: number, number: str
 
 export function RingSigns() {
   const statuses = useRingStatuses();
-  const drawn = useRef<(RingStatus | null)[]>(RINGS.map(() => null));
+  const drawn = useRef<(ShownStatus | null)[]>(RINGS.map(() => null));
   const parts = useMemo(() => {
     const cv = document.createElement("canvas");
     cv.width = COLS * CELL_W;

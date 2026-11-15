@@ -12,6 +12,8 @@ import { ringState } from "./rings";
 import { F } from "./strings";
 import { useFightUi } from "./ui-store";
 import { WatchResult } from "./game/WatchResult";
+import { loadPlace, useNow } from "@/lib/place-hold";
+import { clock, pfill } from "@/lib/place-strings";
 
 /**
  * The ring prompt (plan §7.2): what you can do at the ring you stand by, per status —
@@ -34,6 +36,7 @@ export function RingPrompt() {
   const [level, setLevel] = useState(2);
   const [open, setOpen] = useState<"wait" | "practice" | null>(null);
   useEffect(() => setOpen(null), [near]);
+  const now = useNow(!!entry?.held || entry?.status === "waiting");
   // a fight is on for me: the fight HUD (fight/game) takes the screen
   if (mine) return null;
   if (!ring)
@@ -47,6 +50,13 @@ export function RingPrompt() {
   const isMine = (ring.red && ring.red.sid === you) || (ring.blue && ring.blue.sid === you);
   const btn = "pbtn phone:text-sm";
   const body = (() => {
+    // P2-NET-06: kept for a fighter who lost their connection: nobody may take it until it frees
+    if (ring.held && !isMine)
+      return (
+        <p className="pnote flex items-center gap-2 text-sm">
+          <Timer size={16} /> {pfill("place.heldReturning", { t: clock((ring.held.until ?? now) - now) })} · {pfill("place.heldNote")}
+        </p>
+      );
     switch (ring.status) {
       case "free":
         if (open === "wait")
@@ -95,7 +105,7 @@ export function RingPrompt() {
         if (isMine)
           return (
             <button type="button" className={`${btn} pbtn-secondary w-full`} onClick={() => fightActions.leave()}>
-              <Loader2 size={18} className="animate-spin" /> {F.waitingMine} · {F.cancel}
+              <Loader2 size={18} className="animate-spin" /> {F.waitingMine} <span className="num tabular-nums">{clock(now - (loadPlace()?.place === id ? loadPlace()!.since : now))}</span> · {F.cancel}
             </button>
           );
         return (
@@ -134,7 +144,7 @@ export function RingPrompt() {
     <div className="pointer-events-auto absolute bottom-[max(16px,env(safe-area-inset-bottom))] left-1/2 w-[min(420px,92vw)] -translate-x-1/2 phone:bottom-0 phone:w-[min(400px,54vw)]">
       <PaperCard
         size={phone ? "sm" : "md"}
-        title={`${F.ring(id)} · ${F.status[ring.status]}${sub}`}
+        title={`${F.ring(id)} · ${ring.held && !isMine ? F.status.held : F.status[ring.status]}${sub}`}
         icon={Swords}
         onBack={open ? () => setOpen(null) : undefined}
         headExtra={

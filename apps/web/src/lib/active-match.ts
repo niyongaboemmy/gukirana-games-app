@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ActiveMatch, GameId } from "@gukirana/contracts";
 import { api, useSession } from "./session";
 import { rememberBeforeGame } from "./return-point";
+import { clearPlace, resumePlace } from "./place-hold";
 
 /**
  * Resume after a reload, a closed tab or a lost connection (P2-NET-05). The match I am seated in is remembered in
@@ -79,17 +80,24 @@ export function useResume(): void {
   const uid = useSession((s) => s.me?.id);
   const done = useRef<string | null>(null);
   useEffect(() => {
-    if (!RESUME_ON || status !== "authenticated" || !uid || done.current === uid) return;
+    if (status !== "authenticated" || !uid || done.current === uid) return;
     done.current = uid;
     // already in the match (a reload of /match/<room>) or the hall that holds the fight: nothing to do
     if (path?.startsWith("/match/") || path === "/gate" || path?.startsWith("/console")) return;
+    // P2-NET-06: no live match → the table / ring the server still holds for me (lib/place-hold)
+    const place = () =>
+      void resumePlace(path)
+        .then((to) => to && router.replace(to))
+        .catch(() => undefined);
+    if (!RESUME_ON) return place();
     void findActive()
       .then((hit) => {
-        if (!hit) return;
+        if (!hit) return place();
+        clearPlace(); // a live match wins: its rules (P2-NET-05) apply, the place before it is over
         if (hit.game === "boxing" && path === "/room/boxing") return;
         rememberBeforeGame();
         router.replace(hit.path);
       })
-      .catch(() => undefined);
+      .catch(place);
   }, [status, uid, path, router]);
 }

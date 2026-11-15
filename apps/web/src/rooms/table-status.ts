@@ -1,3 +1,4 @@
+import { HELD_SEAT } from "@gukirana/contracts";
 import type { HallLayout, Seat, Table } from "./layouts";
 
 /**
@@ -6,14 +7,17 @@ import type { HallLayout, Seat, Table } from "./layouts";
  * - free:    nobody sits at the table
  * - waiting: one player sits there (waiting for an opponent — sit down to play them)
  * - playing: every chair is taken (a match in progress)
+ * - held:    nobody sits there now, but a chair is kept for a player who lost their connection (P2-NET-06)
  */
-export type TableStatus = "free" | "waiting" | "playing";
+export type TableStatus = "free" | "waiting" | "playing" | "held";
 
 /** Muted status colours (tone-mapped, never above the bloom threshold): read clearly, never glare. */
 export const STATUS_COLOR: Record<TableStatus, string> = {
   free: "#3fae74",
   waiting: "#d39a3a",
   playing: "#5f86d8",
+  // warm grey-amber: taken (not free), but nobody to play right now
+  held: "#9a8a72",
 };
 
 export const tableNo = (id: string) => Number(id.slice(1)) + 1;
@@ -27,7 +31,8 @@ export function tableStatuses(layout: HallLayout, seats: Record<string, string>)
   for (const t of layout.tables) {
     const mine = seatsOf(layout, t.id);
     const taken = mine.filter((s) => seats[s.id]).length;
-    out[t.id] = taken === 0 ? "free" : taken >= mine.length ? "playing" : "waiting";
+    const held = mine.filter((s) => seats[s.id] === HELD_SEAT).length;
+    out[t.id] = taken === 0 ? "free" : held === taken ? "held" : taken >= mine.length ? "playing" : "waiting";
   }
   return out;
 }

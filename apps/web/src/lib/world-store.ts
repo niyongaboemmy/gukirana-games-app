@@ -43,6 +43,8 @@ export type PortalId = "pool" | "ludo" | "igisoro" | "admin" | "arena" | "fight"
 
 interface WorldState {
   connected: boolean;
+  /** the hall / plaza room instance I am connected to (P2-NET-06: a held place is rejoined there) */
+  roomId: string | null;
   you: string | null;
   players: Record<string, RemotePlayer>;
   chat: ChatLine[];
@@ -78,6 +80,7 @@ function savedSpeed(): "slow" | "normal" | "fast" {
 
 export const useWorld = create<WorldState>()((set, get) => ({
   connected: false,
+  roomId: null,
   you: null,
   players: {},
   chat: [],
