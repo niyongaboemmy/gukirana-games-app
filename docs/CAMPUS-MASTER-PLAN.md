@@ -239,7 +239,7 @@ Games is the main reason people come, so its door has to be the closest, most ob
 
 The exterior Boxing hall is the interior turned a quarter (`fight/plan.ts hallLocal`: hall x → depth behind the
 pavilion, hall z → across). Inside nothing changes: the lobby (`hall:fight`) and Boxing hall (`hall:boxing`) scenes,
-the 50 ring positions (hall-local, mirrored by realtime `boxing-rings.ts`), the lobby → Boxing crossing and the game
+the ring positions (hall-local, mirrored by realtime `boxing-rings.ts`; P3-FGT-11: 32 rings in a 96.4 × 32.4 m hall, the slab 33.2 × 97.2 m, grown only on its free side and at the back — Ludo 5.7 m and the service pavilion 2.5 m clearances unchanged, back corner r ≤ 147.5), the lobby → Boxing crossing and the game
 code. The halls have no windows, and nobody sees the inside and the outside at once.
 
 ### 8.2 What changed

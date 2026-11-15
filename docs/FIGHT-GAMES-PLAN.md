@@ -1,6 +1,6 @@
 # Fight Games hall — Boxing (P3-FGT-01)
 
-Plan + shared contracts for the Fight Games hall and its first sub-hall, **Boxing**: 50 rings, live PvP for Stars,
+Plan + shared contracts for the Fight Games hall and its first sub-hall, **Boxing**: 32 rings (50 until P3-FGT-11), live PvP for Stars,
 practice against the AI, a real boxing kit while you are in the ring. Two agents build it in parallel from this page:
 **Agent W** (world) and **Agent G** (game). Their briefs are at the end (§11, §12).
 
@@ -37,7 +37,7 @@ placeholder inside its own folder, deleted at integration).
 | D3 | **Points-based sport boxing** with a *composure* (balance) meter, not health. A knockdown is a points event with a referee count; no injuries, no blood, no KO animation of harm. | Respectful tone, clear scoring. |
 | D4 | 3 rounds × 60 s, 15 s rest (admin-editable within bounds). Win on points or by **stoppage** (3 knockdowns in a round or 4 in the match). Ties → knockdowns → power punches → draw. | Short sessions (≈ 4 min), transparent result. |
 | D5 | A disconnect is a **referee time-out**: the clock stops for both; each fighter has a total pause budget = `reconnectSeconds`. | A real-time game can't keep running against an absent player. |
-| D6 | Two hall areas: **`hall:fight`** (lobby, sub-hall doors) and **`hall:boxing`** (the 50-ring hall), each its own realtime hall room. The fight itself is a separate `boxing` room per match. | Reuses the stage/area system; future sub-halls are new areas, not a bigger room. |
+| D6 | Two hall areas: **`hall:fight`** (lobby, sub-hall doors) and **`hall:boxing`** (the ring hall: 32 rings since P3-FGT-11), each its own realtime hall room. The fight itself is a separate `boxing` room per match. | Reuses the stage/area system; future sub-halls are new areas, not a bigger room. |
 | D7 | The Fight hall stands on **expansion plots plot-09 + plot-10 merged** (bearing 140°, outer promenade), close to the entry avenue. | The only place a ~95 × 30 m hall fits; very visible on arrival. |
 | D8 | The boxing kit is **derived from the ring registry** on every client (`kitFor(sid, rings)`); no avatar state, no look change, never saved. | Broadcast for free, can't desync, can't corrupt the saved look. |
 | D9 | **Procedural boxing animation** (IK, on the Rocketbox rig, `world/human/procedural.ts` style), driven by the engine's action + stage + tick. No licensed clips. | Deterministic, matches the frame data exactly, licence-safe (Mixamo can't be bundled; Rocketbox has no boxing clips). |
@@ -258,25 +258,26 @@ Doors in the back wall, left → right `FIGHT_SUBHALLS`: **Boxing** (lit portal,
 Wrestling, Karate (closed shutters with "Coming soon" i18n labels). A status board (ring grid with live colours), two
 benches, posters. Room size small (cheap scene). Its hall room is a plain `hall` room with game `fight`.
 
-### 4.3 Boxing hall (`hall:boxing`) — 50 rings
+### 4.3 Boxing hall (`hall:boxing`) — 32 rings (50 until P3-FGT-11)
 
 ```
-                 back wall (lockers / sponsor wall)
-  ┌───────────────────────────────────────────────────────────────┐
-  │ D  R39 R40 R41 R42 R43 R44   [ big screen ]  R45 R46 R47 R48 R49 R50 │
-  │ C  R27 ... R32              [  R1    R2   ]  R33 ... R38      │
-  │ B  R15 ... R20              [ feature zone]  R21 ... R26      │
-  │ A  R3  ... R8                               R9  ... R14       │
-  └──────────────────────── door (from lobby) ────────────────────┘
+                 back wall (lockers / sponsor wall), back aisle
+  ┌──────────────────────────────────────────────────────────────────┐
+  │ C  R23 R24 R25 R26 R27   [  R2  ]   R28 R29 R30 R31 R32           │
+  │ B  R13 R14 R15 R16 R17   [ screen ] R18 R19 R20 R21 R22           │
+  │ A  R3  R4  R5  R6  R7    [  R1  ]   R8  R9  R10 R11 R12           │
+  │    front cross aisle                        training wall          │
+  └──────────────────────── door (from lobby) ───────────────────────┘
 ```
 
 - **R1, R2 feature rings**: centre zone (≈ 14 m wide), raised platform 1.2 m, larger 6.1 m rings, a four-sided screen
   hung above showing the best live fight (or the feature fights), tiered standing rail for ≈ 60 people each.
-- **R3–R50 standard rings**: two blocks of 6 columns × 4 rows (A front → D back), numbered row by row from the west
-  side: row A = R3–R14, B = R15–R26, C = R27–R38, D = R39–R50 (left block first, then right block).
+- **R3–R32 standard rings**: two blocks of 5 columns × 3 rows (A front → C back), numbered row by row from the west
+  side: row A = R3–R12, B = R13–R22, C = R23–R32 (left block first, then right block).
 - Ring: training-gym size — 4.3 m inside the ropes, platform 4.9 m incl. apron, 0.9 m high, 4 ropes, corner pads red /
-  blue / white / white, steps at the red and blue corners, two corner stools. Pitch **6.4 m** (1.5 m aisles); the main
-  north–south aisles run either side of the feature zone, a 2.6 m cross aisle at the front.
+  blue / white / white, steps at the red and blue corners, two corner stools. Pitch **7.8 × 9.0 m**: every aisle is
+  two people wide (≥ 2.4 m clear, below); the main north–south aisles run either side of the feature zone, a cross
+  aisle at the front and a back aisle along the lockers.
 - **Status light** on every ring: a lit band under the apron + the number box above (`RingStatus`: free green, waiting
   amber, starting / fighting red, practice white, result red blink, closed off) + the name(s) and score on the number
   box at close range. Colour plus text — never colour alone.
@@ -285,12 +286,32 @@ benches, posters. Room size small (cheap scene). Its hall room is a plain `hall`
   overhead) is offered. Cheers / emotes reuse the social emotes.
 
 **As built (W, P3-FGT-01 world):** data in `apps/web/src/fight/plan.ts` (tested in `plan.test.ts`).
-- Hall 93 × 30 × 11 m; ring pitch **6.2 m across × 6.4 m deep** (§4.1 fallback: at 6.4 m across the outer back rings
-  pierce the chamfered corners); all 50 rings kept. Rows A–D at z = 9.5 / 3.1 / −3.3 / −9.7; a 3 m front cross aisle.
+- **P3-FGT-11 (aisles two people wide):** hall 96.4 × 32.4 × 11 m; ring pitch **7.8 m across × 9.0 m deep**; inner
+  columns at |x| = 11.9, rows A–C at z = 8.3 / −0.7 / −9.7. `fight/aisles.ts` reduces every ring to obstacle boxes
+  from the outermost things on the floor (barrier rail ±2.675 m, corner steps + hand rails 0.79 m out, corner kit) and
+  measures each aisle (`aisles.test.ts` holds ≥ 2.4 m, main / front cross ≥ 3 m):
+
+  | aisle | before (93 × 30 m, 50 rings) | after |
+  |---|---|---|
+  | column (between rails) | 0.85 m | 2.45 m |
+  | row (beside steps / straight lane) | 0.48 m / −0.08 m (steps overlapped the lane) | 3.08 m / 2.52 m |
+  | main (rail ↔ stage rail) | 3.22 m | 3.08 m |
+  | front cross (row A steps ↔ training-wall users) | 0.66 m | 3.06 m |
+  | back (row C steps ↔ lockers) | 1.26 m | 2.46 m |
+  | end strips (wall ↔ rail) | 0.78 m | 2.43 m |
+
+  Options weighed: (a) 50 rings at the new pitch need ≈ 120 × 38 m — the hall's back end would reach the loop road
+  and its side the north-east walk / Ludo Lounge: rejected; (b) 5 columns × 4 rows (42) still needs ≈ 38 m deep:
+  rejected; (c) **chosen:** grow the hall what the plot allows (+3.4 m long, +2.4 m wide on the free side only, the
+  slab off the door axis by `FIGHT_BUILDING.cx`) and keep 5 × 3 per block = **32 rings** (`BOXING_RING_COUNT`,
+  realtime `boxing-rings.ts` mirrors the centres; `plan.test` checks them ring by ring). The training rings' corner
+  kit stands tucked against the skirt in an open bay of the rail beside the steps (`ring-kit-core cornerKit`), inside
+  the steps' own reach into the aisle.
+- (P3-FGT-01 … 10: 93 × 30 m, pitch 6.2 × 6.4 m, rows A–D at z = 9.5 / 3.1 / −3.3 / −9.7, 50 rings.)
 - R1 / R2 stand **front / back** (z 4.6 / −5.4) on one raised 1.2 m stage in the feature zone (side by side does not fit
   14 m with their rails); the four-sided screen hangs between them. They are the assets `RingKit` (pro ring, 9.8 m rail).
-- **Ring size (resolved, P3-FGT-03):** `RingKit` takes `size: "pro" | "training"`. R1/R2 are pro rings; the 48
-  standard rings are training size (4.3 m inside the ropes, 4.9 m platform, deck 0.8 m, rail at ±2.65 m), all
+- **Ring size (resolved, P3-FGT-03):** `RingKit` takes `size: "pro" | "training"`. R1/R2 are pro rings; the 30
+  standard rings (48 until P3-FGT-11) are training size (4.3 m inside the ropes, 4.9 m platform, deck 0.8 m, rail at ±2.65 m), all
   rendered by one `<RingKit>`. `fight/training-rings.tsx` was removed.
 - Ring corner convention (the kit's): at `rotY = 0` the **red corner is local (−x, −z)**, blue (+x, +z).
 - Building: lobby wing 30 × 10 m behind the door line, hall behind it, back corners chamfered 3.6 m (r ≤ 155.9).
@@ -516,7 +537,7 @@ ESM, one task per PR, conventional commits `feat(fight): … [P3-FGT-01]` ending
 other project's ports.
 
 **Acceptance:** building visible on the plaza and enterable with the flag; lobby with 1 open + 3 "coming soon" doors;
-boxing hall with exactly 50 rings R1..R50, correct numbering, live status colours from the bridge; kit on in the ring,
+boxing hall with exactly BOXING_RING_COUNT rings (R1..R32 since P3-FGT-11), correct numbering, live status colours from the bridge; kit on in the ring,
 off outside, saved look unchanged; spectators can watch a mock fight with boxing poses; ≤ 150 draw calls and 60 fps on
 the phone profile (frame-meter number in the PR); 4 screenshots; `pnpm verify` green (real output in the report).
 
