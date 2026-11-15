@@ -173,6 +173,10 @@ keep the "Resume" rules above; this section covers the chair, the table and the 
   root layout asks the server (after the live-match check) and goes to the hall; the hall joins the same room
   (`joinById`, then the normal join) and starts you on the chair / at the ring steps; the server's `place` answer
   confirms it or shows the notice.
+- The Boxing client sends `boxing-sync` once it listens (a reload joins the hall before it mounts): the hall re-sends
+  the ring registry (held state included) and my ring.
+- **Trail:** realtime logs `place.held`, `place.restored` (with `awayMs`), `place.released` and `place.limit` with
+  user id, hall and place.
 - Kill switches: `FF_PLACE_HOLD=0` (realtime: no holds) and `NEXT_PUBLIC_FF_PLACE_HOLD=0` (web: no restore on load).
 
 ## Rules card (P2-NET-05)
