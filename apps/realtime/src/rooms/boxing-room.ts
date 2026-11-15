@@ -2,6 +2,10 @@ import { createHash } from "node:crypto";
 import { Room, matchMaker, type Client } from "@colyseus/core";
 import {
   COUNTDOWN_TICKS,
+  auditFight,
+  logStep,
+  logText,
+  newFightLog,
   beginFight,
   createFight,
   forfeitFight,
@@ -14,6 +18,7 @@ import {
   snapshotOf,
   stepFight,
   voidFight,
+  type FightLog,
   type FightState,
 } from "@gukirana/boxing";
 import {
@@ -49,6 +54,15 @@ const { privateKey } = keyFromSeed(loadEnv().RESULT_SIGNING_SEED);
 const TICK_MS = 1000 / TICK_HZ;
 const SNAP_EVERY = Math.round(TICK_HZ / FIGHTER_SNAPSHOT_HZ);
 const FRAME_EVERY = Math.round(TICK_HZ / SPECTATOR_FRAME_HZ);
+const sha256 = (v: string): string => createHash("sha256").update(v).digest("hex");
+
+/**
+ * The signed `stateHash` of a boxing result (P3-FGT-06): it commits to the final engine state (judges' cards,
+ * deductions, decision) AND to the fight log (every input the engine was given), so the settled match can be
+ * re-derived and checked by replaying the log (docs/BOXING-SCORING.md §6).
+ */
+export const boxingResultHash = (fight: FightState, log: FightLog): string =>
+  sha256(`boxing:v2:${sha256(hashFight(fight))}:${sha256(logText(log))}`);
 
 /** knobs tests shorten */
 export const boxingConfig = {
@@ -136,6 +150,8 @@ export class BoxingRoom extends Room {
   private opts!: BoxingOptions;
   private rules: MatchRules = DEFAULT_RULES;
   private fight!: FightState;
+  /** every engine call, for the pre-sign replay audit (P3-FGT-06) */
+  private log!: FightLog;
   private ids!: [string, string];
   private sessions = new Map<string, string>(); // sessionId → userId
   private seqs = new Map<string, number>(); // sessionId → last seq
@@ -168,7 +184,10 @@ export class BoxingRoom extends Room {
     const fr = this.rules.fight ?? DEFAULT_FIGHT_RULES;
     const bySeat = [...options.players].sort((a, b) => a.seat - b.seat);
     this.ids = [bySeat[0]!.userId, bySeat[1]!.userId];
-    this.fight = createFight(this.ids, fr);
+    // staked fights must name a winner on the cards (countback, drawTiebreak "staked"); friendlies may be drawn
+    const staked = options.stake > 0;
+    this.fight = createFight(this.ids, fr, { staked });
+    this.log = newFightLog([...this.ids], fr, staked);
     this.budget = [this.rules.reconnectSeconds * 1000, this.rules.reconnectSeconds * 1000];
     this.autoDispose = true;
     this.setPrivate(true);
@@ -298,6 +317,7 @@ export class BoxingRoom extends Room {
     if (this.finished || this.away[seat] !== null) return;
     this.away[seat] = Date.now();
     this.fight = pauseFight(this.fight, "DISCONNECT", seat);
+    this.log.ops.push({ o: "pause", reason: "DISCONNECT", who: seat });
     this.flushEvents();
     for (const c of this.clients) c.send(FightEvt.snap, snapshotOf(this.fight, this.opts.ring));
     this.frame();
@@ -318,6 +338,7 @@ export class BoxingRoom extends Room {
     this.broadcast(FightEvt.pause, { who: seat, connected: true, budgetMs: this.budget[seat] });
     if (this.away.every((a) => a === null) && this.fight.phase === "paused") {
       this.fight = resumeFight(this.fight);
+      this.log.ops.push({ o: "resume", countdown: true });
       this.budgetTicks -= COUNTDOWN_TICKS;
       for (const id of this.ids) this.lastSeen.set(id, Date.now());
       this.flushEvents();
@@ -371,6 +392,7 @@ export class BoxingRoom extends Room {
     this.introTimer = null;
     if (this.finished || this.fight.phase !== "intro") return;
     this.fight = beginFight(this.fight);
+    this.log.ops.push({ o: "begin" });
     this.t0 = Date.now();
     this.stepped = 0;
     for (const id of this.ids) this.lastSeen.set(id, Date.now());
@@ -403,6 +425,7 @@ export class BoxingRoom extends Room {
     const inputs = [input(0), input(1)] as const;
     this.pending = [{}, {}];
     if (s0.phase === "paused") return;
+    logStep(this.log, inputs);
     this.fight = stepFight(s0, inputs);
     this.budgetTicks++;
     const s = this.fight;
@@ -499,6 +522,7 @@ export class BoxingRoom extends Room {
     this.clearTimers();
     untrackLiveMatch(this.opts.matchId);
     this.fight = voidFight(this.fight);
+    this.log.ops.push({ o: "void" });
     const equal = Object.fromEntries(this.ids.map((id) => [id, 1]));
     this.broadcast(FightEvt.result, { ranks: equal, reason: "void", cause: "STALE_ESCROW", outcome: this.fight.outcome, settlement: { status: "void" } });
     this.over();
@@ -525,18 +549,35 @@ export class BoxingRoom extends Room {
     return { ok: false, error };
   }
 
-  private async finish(reason: Reason, cause?: VoidCause | ForfeitCause, loser?: Seat): Promise<void> {
+  private async finish(reason0: Reason, cause0?: VoidCause | ForfeitCause, loser?: Seat): Promise<void> {
     if (this.finished) return;
     this.finished = true;
     this.clearTimers();
     untrackLiveMatch(this.opts.matchId);
-    if (reason === "forfeit" && loser !== undefined) this.fight = forfeitFight(this.fight, loser);
-    else if (reason === "void") this.fight = voidFight(this.fight);
-    this.flushEvents();
+    let reason = reason0;
+    let cause = cause0;
+    if (reason === "forfeit" && loser !== undefined) {
+      this.fight = forfeitFight(this.fight, loser);
+      this.log.ops.push({ o: "forfeit", loser });
+    } else if (reason === "void") {
+      this.fight = voidFight(this.fight);
+      this.log.ops.push({ o: "void" });
+    }
+    // the engine's own end (points / stoppage / KO / DQ) was broadcast by its tick; forfeit / void made new events
+    if (reason0 !== "normal") this.flushEvents();
+    // pre-sign audit (P3-FGT-06): replay the log, re-derive every card and the decision; never sign a mismatch
+    if (reason !== "void") {
+      const errs = auditFight(this.fight, this.log);
+      if (errs.length) {
+        log.error({ matchId: this.opts.matchId, errs }, "boxing result failed its audit; voiding instead of signing");
+        reason = "void";
+        cause = "SERVER_ERROR";
+      }
+    }
     const res = matchResultOf(this.fight);
     const equal = Object.fromEntries(this.ids.map((id) => [id, 1]));
     const ranks = reason === "void" ? equal : res.ranks;
-    const stateHash = createHash("sha256").update(hashFight(this.fight)).digest("hex");
+    const stateHash = boxingResultHash(this.fight, this.log);
     const signed = signResult(
       { matchId: this.opts.matchId, game: BOXING_GAME_ID, ranks, reason, stateHash, finishedAt: new Date().toISOString() },
       privateKey,
@@ -573,6 +614,14 @@ export class BoxingRoom extends Room {
     });
     this.over();
     this.clock.setTimeout(() => this.disconnect(), matchConfig.lingerMs);
+  }
+
+  /** read-only views for audits / tests: the engine state and the fight log the result was signed from */
+  fightState(): FightState {
+    return this.fight;
+  }
+  fightLog(): FightLog {
+    return this.log;
   }
 
   /** tell the hall: the ring shows the result, then frees */

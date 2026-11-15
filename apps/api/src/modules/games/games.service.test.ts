@@ -337,3 +337,24 @@ describe("boxing (P3-FGT-01): a fight game on the same money paths", () => {
     await settings.update("ludo", DEFAULT_GAME_SETTINGS.ludo, "restore", "test");
   });
 });
+
+describe("boxing scoring (P3-FGT-06): bounded referee settings; only an untampered signed result settles", () => {
+  it("judges 3 / 5, cautions 0..3, warningsToDq 2..5, openScoring, drawTiebreak; a tampered result moves no Stars", async () => {
+    const save = (fight: Record<string, unknown>) =>
+      fail(settings.update("boxing", { ...DEFAULT_GAME_SETTINGS.boxing, enabled: true, fight: { ...DEFAULT_FIGHT_RULES, ...fight } }, "scoring", "test"));
+    for (const bad of [{ judges: 4 }, { judges: 7 }, { cautions: 4 }, { warningsToDq: 1 }, { warningsToDq: 6 }, { openScoring: "yes" }, { drawTiebreak: "red" }])
+      expect((await save(bad))?.code, JSON.stringify(bad)).toBe("INVALID_SETTINGS");
+    expect(await save({ judges: 3, cautions: 0, warningsToDq: 2, openScoring: false, drawTiebreak: "never" })).toBeUndefined();
+    const m = await create([c, d], 25, "boxing");
+    expect(m.rules?.fight).toMatchObject({ judges: 3, cautions: 0, warningsToDq: 2, openScoring: false, drawTiebreak: "never" });
+    const before = [await stars(c), await stars(d)];
+    const honest = signResult({ matchId: m.matchId, game: "boxing", ranks: { [c]: 1, [d]: 2 }, reason: "normal", stateHash: "a".repeat(64), finishedAt: new Date().toISOString() }, privateKey);
+    // a client (or anyone without the realtime key) flipping the winner, the reason or the hash: refused, nothing paid
+    for (const forged of [{ ...honest, ranks: { [c]: 2, [d]: 1 } }, { ...honest, ranks: { [c]: 1, [d]: 1 } }, { ...honest, reason: "void" as const }, { ...honest, stateHash: "b".repeat(64) }])
+      expect(await fail(games.settle(m.matchId, forged))).toMatchObject({ code: "BAD_RESULT_SIGNATURE" });
+    expect([await stars(c), await stars(d)]).toEqual(before);
+    await games.settle(m.matchId, honest);
+    expect([await stars(c), await stars(d)]).toEqual([before[0]! + 50, before[1]!]);
+    await settings.update("boxing", DEFAULT_GAME_SETTINGS.boxing, "restore", "test");
+  });
+});
