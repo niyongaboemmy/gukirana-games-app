@@ -34,7 +34,7 @@ export function writeGlb(path, model) {
   const TYPES = { 1: "SCALAR", 2: "VEC2", 3: "VEC3", 4: "VEC4", 16: "MAT4" };
   const accessor = (arr, size, { target, norm, minmax } = {}) => {
     const bv = view(arr, target);
-    const componentType = arr instanceof Float32Array ? 5126 : arr instanceof Uint32Array ? 5125 : arr instanceof Uint16Array ? 5123 : 5121;
+    const componentType = arr instanceof Float32Array ? 5126 : arr instanceof Uint32Array ? 5125 : arr instanceof Uint16Array ? 5123 : arr instanceof Int16Array ? 5122 : 5121;
     const acc = { bufferView: bv, componentType, count: arr.length / size, type: TYPES[size], ...(norm ? { normalized: true } : {}) };
     if (minmax) {
       const min = new Array(size).fill(Infinity);
@@ -113,19 +113,46 @@ export function writeGlb(path, model) {
   model.bones.forEach((_, i) => ibm.set(invRigid(getWorld(i)), i * 16));
   const skin = { joints: model.bones.map((_, i) => boneNode(i)), inverseBindMatrices: accessor(ibm, 16), skeleton: boneNode(0) };
 
+  // P3-FGT-14: morph targets quantised to normalised int16 (KHR_mesh_quantization; displacements < 1 m, 0.03 mm steps),
+  // the face-shape targets sparse (only the vertices they move) in float: loaders differ on sparse + normalised ints
+  const q16 = (d) => Int16Array.from(d, (v) => Math.round(Math.max(-1, Math.min(1, v)) * 32767));
+  const sparse = (count, idx, values) => {
+    const iv = view(idx.length && Math.max(...idx) < 65536 ? Uint16Array.from(idx) : Uint32Array.from(idx));
+    const vv = view(values);
+    const min = [Infinity, Infinity, Infinity],
+      max = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < values.length; i++) {
+      min[i % 3] = Math.min(min[i % 3], values[i], 0);
+      max[i % 3] = Math.max(max[i % 3], values[i], 0);
+    }
+    accessors.push({ componentType: 5126, count, type: "VEC3", min, max, sparse: { count: idx.length, indices: { bufferView: iv, componentType: Math.max(...idx) < 65536 ? 5123 : 5125 }, values: { bufferView: vv } } });
+    return accessors.length - 1;
+  };
   const meshes = [];
   for (const m of model.meshes) {
     const attributes = {};
     for (const [k, a] of Object.entries(m.attrs)) attributes[k] = accessor(a.data, a.size, { target: 34962, norm: a.norm, minmax: k === "POSITION" });
     const prim = { attributes, indices: accessor(m.index, 1, { target: 34963 }), mode: 4 };
-    if (m.morphs?.length) prim.targets = m.morphs.map((d) => ({ POSITION: accessor(d, 3, { target: 34962, minmax: true }) }));
-    meshes.push({ name: m.name, primitives: [prim], ...(m.morphs?.length ? { weights: m.morphs.map(() => 0), extras: { targetNames: model.morphNames } } : {}) });
+    const targets = [];
+    const names = [];
+    for (const [k, d] of (m.morphs ?? []).entries()) {
+      targets.push({ POSITION: accessor(q16(d), 3, { target: 34962, norm: true, minmax: true }) });
+      names.push(model.morphNames[k]);
+    }
+    for (const f of m.sparseMorphs ?? []) {
+      targets.push({ POSITION: sparse(m.attrs.POSITION.data.length / 3, f.indices, Float32Array.from(f.values)) });
+      names.push(f.name);
+    }
+    if (targets.length) prim.targets = targets;
+    meshes.push({ name: m.name, primitives: [prim], ...(targets.length ? { weights: targets.map(() => 0), extras: { targetNames: names } } : {}) });
     nodes.push({ name: m.name, mesh: meshes.length - 1, skin: 0 });
     nodes[0].children.push(nodes.length - 1);
   }
 
   const json = {
-    asset: { version: "2.0", generator: "gukirana boxer-body build (P3-FGT-13)", copyright: "Derived from MakeHuman 1.x base mesh, targets, skeleton and weights (CC0 1.0)" },
+    asset: { version: "2.0", generator: "gukirana boxer-body build (P3-FGT-13 / P3-FGT-14)", copyright: "Derived from MakeHuman 1.x base mesh, targets, skeleton and weights (CC0 1.0)" },
+    extensionsUsed: ["KHR_mesh_quantization"],
+    extensionsRequired: ["KHR_mesh_quantization"],
     scene: 0,
     scenes: [{ nodes: [0], ...(model.extras ? { extras: model.extras } : {}) }],
     nodes,

@@ -9,6 +9,8 @@ import { FightCamera } from "../camera";
 import { RING_BY_ID } from "../plan";
 import { useFightBridge } from "../bridge";
 import { RingMood } from "../ring-lights";
+import { useDelayed } from "../use-delayed";
+import { STOOL_PLACE_S } from "@/rooms/fight/ring-kit-core";
 
 /**
  * Dev-only 3D ring for the fight lab (P3-FGT-07, `/fight-lab?scene=1`): the practice ring with its fighters, referee and
@@ -18,7 +20,10 @@ import { RingMood } from "../ring-lights";
 export function RingLab({ ring }: { ring: RingId }) {
   const place = RING_BY_ID[ring]!;
   const status = useFightBridge((s) => s.rings[ring]?.status ?? "practice");
-  const rings = useMemo(() => [{ id: ring, x: place.x, z: place.z, rotY: place.rotY, status, number: Number(ring.slice(1)) }], [ring, place, status]);
+  // the corner stools between rounds, once the seconds have carried them in (as the hall: BoxingHallScene)
+  const resting = useFightBridge((s) => s.mine?.snap?.phase === "rest");
+  const placed = useDelayed(resting, STOOL_PLACE_S * 1000);
+  const rings = useMemo(() => [{ id: ring, x: place.x, z: place.z, rotY: place.rotY, status, number: Number(ring.slice(1)), rest: resting && placed }], [ring, place, status, resting, placed]);
   return (
     <Canvas style={{ position: "fixed", inset: 0 }} dpr={[1, 1.5]} camera={{ fov: 55, near: 0.05, far: 120, position: [place.x + 5, 3, place.z + 5] }} gl={{ antialias: true }}>
       <color attach="background" args={["#0c0a09"]} />

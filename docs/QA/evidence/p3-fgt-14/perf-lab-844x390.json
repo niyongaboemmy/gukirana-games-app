@@ -1,0 +1,62 @@
+[
+ {
+  "name": "round-jab",
+  "calls": 8,
+  "tris": 94557,
+  "fps": 60
+ },
+ {
+  "name": "round-cross",
+  "calls": 8,
+  "tris": 94557,
+  "fps": 60
+ },
+ {
+  "name": "round-lead-hook",
+  "calls": 8,
+  "tris": 94557,
+  "fps": 60
+ },
+ {
+  "name": "round-uppercut",
+  "calls": 8,
+  "tris": 94557,
+  "fps": 60
+ },
+ {
+  "name": "round-guard",
+  "calls": 8,
+  "tris": 94557,
+  "fps": 60
+ },
+ {
+  "name": "rest-stool-carried",
+  "calls": 10,
+  "tris": 125297,
+  "fps": 60
+ },
+ {
+  "name": "rest-on-stool",
+  "calls": 9,
+  "tris": 124913,
+  "fps": 60
+ },
+ {
+  "name": "rest-corner",
+  "calls": 9,
+  "tris": 124913,
+  "fps": 60
+ },
+ {
+  "name": "count-3",
+  "calls": 8,
+  "tris": 94557,
+  "fps": 60
+ },
+ {
+  "name": "count-7",
+  "calls": 8,
+  "tris": 94557,
+  "fps": 60
+ }
+]

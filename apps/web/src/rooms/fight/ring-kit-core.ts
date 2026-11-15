@@ -159,6 +159,9 @@ export function cornerPost(r: Placed, c: CornerId): Spot {
 
 /** Where a fighter's stool stands in their corner during the rest, facing the ring centre (the root of the
  * corner-rest pose). */
+/** how long the corner's second takes to lift the stool over the ropes into the corner at the bell (s, P3-FGT-14) */
+export const STOOL_PLACE_S = 1.2;
+
 export function stoolSpot(r: Placed, c: "red" | "blue"): Spot {
   const [sx, sz] = CORNERS[c];
   const D = dimsOf(r);

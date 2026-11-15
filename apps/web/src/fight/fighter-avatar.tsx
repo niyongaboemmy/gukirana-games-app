@@ -12,6 +12,7 @@ import type { RingLife } from "@/world/human/boxing/life";
 import type { Mood, PoseCmd } from "./present";
 import { ringNow } from "./ring-clock";
 import { BoxerAvatar, type BoxerProbe } from "@/world/human/boxer/BoxerAvatar";
+import { countSign, type CountSign } from "@/world/human/boxing/count-signs";
 
 /** P3-FGT-13: the ring people on the dedicated boxer body (on unless NEXT_PUBLIC_FF_BOXER_BODY=0) */
 export const BOXER_BODY = process.env.NEXT_PUBLIC_FF_BOXER_BODY !== "0";
@@ -38,6 +39,8 @@ export interface RingBody {
   sweat?: number;
   /** P3-FGT-13: redness where punches landed [head, torso] 0…1 (no blood, no injury) */
   red?: [number, number];
+  /** P3-FGT-14: the referee's count (1…10) shown on the fingers while counting */
+  count?: number;
 }
 export const newBody = (): RingBody => ({ cmd: null, react: null, mood: null, walk: false });
 
@@ -184,7 +187,14 @@ function RefereeBoxer({ look, body, lite, seed }: { look: AvatarLook; body: Reac
   const weight = useMemo(() => ({ current: 1 }), []);
   const anim = useRef(0);
   useBodyDriver(motion, body, weight, anim, "refWalk");
-  return <BoxerAvatar look={look} outfit="referee" motion={motion} clock={ringNow} weight={weight} seed={seed} lite={lite} />;
+  // the count on the fingers (count-signs.ts) while a count clip plays
+  const fingers = useMemo(() => ({ current: null as CountSign | null }), []);
+  useFrame(() => {
+    const b = body.current;
+    const clip = motion.current().clip;
+    fingers.current = b?.count && (clip === "refCount" || clip === "refCount2") ? countSign(b.count) : null;
+  });
+  return <BoxerAvatar look={look} outfit="referee" motion={motion} clock={ringNow} weight={weight} seed={seed} lite={lite} fingers={fingers} />;
 }
 
 function RefereePlaza({ look, body, lite = false }: { look: AvatarLook; body: React.RefObject<RingBody | null>; lite?: boolean }) {

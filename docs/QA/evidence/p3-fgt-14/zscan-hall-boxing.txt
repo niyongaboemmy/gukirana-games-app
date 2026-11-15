@@ -1,0 +1,4 @@
+hall:boxing flat tris: 1870
+
+hall:boxing wall faces: 4472
+

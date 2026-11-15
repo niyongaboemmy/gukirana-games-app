@@ -11,13 +11,14 @@ import { boxingKitOverride, refereeLook, type Corner } from "./kit";
 import { boxingLayer } from "./layer";
 import { BoxingMotion } from "./motion";
 import { BX } from "./strings";
+import { BoxerLab } from "../boxer/BoxerLab";
 
 /**
  * Dev-only boxing lab (/play/boxing-lab, development builds; P3-FGT-02): two fighters in kit in a feature ring cycling
  * through the motion library (the other fighter reacts at the impact frame), a kit line-up, and a 50-ring field for
  * the draw-call / triangle budget. Deterministic: the clock is the page clock, or frozen with ?t= / ?at=impact.
  *
- * Query: mode=duel|kit|field · clip=<name> (one clip, looping every few seconds; default: the whole library) ·
+ * Query: mode=duel|kit|field|boxer (boxer: the boxer-body debug view, boxer/BoxerLab.tsx) · clip=<name> (one clip, looping every few seconds; default: the whole library) ·
  * at=impact|<s> (freeze there) · dt=<s> (offset from that) · red / blue = feminine|masculine|neutral ·
  * southpaw=red|blue · headgear=1 · corner=red|blue (kit) · cam=side|front|back|close|low|corner|ring|top|field|kit|
  * gloves|head|boots · tier=lite|standard · ref=1 · rate=<x> (slow motion)
@@ -398,11 +399,12 @@ export default function BoxingLab() {
           <planeGeometry args={[400, 400]} />
           <meshStandardMaterial color="#26282d" roughness={0.95} />
         </mesh>
-        <RingKit rings={rings} featureRing="lab" tier={tier} statsRef={ringStats} />
+        {mode !== "boxer" && <RingKit rings={rings} featureRing="lab" tier={tier} statsRef={ringStats} />}
+        {mode === "boxer" && <BoxerLab q={q} setInfo={setInfo} />}
         {mode === "duel" && <Duel q={q} setInfo={setInfo} />}
         {mode === "field" && <Duel q={q} setInfo={setInfo} />}
         {mode === "kit" && <KitLineup q={q} setInfo={setInfo} />}
-        <CameraRig preset={preset} mode={mode} />
+        {mode !== "boxer" && <CameraRig preset={preset} mode={mode} />}
         <Probe ringStats={ringStats} />
       </Canvas>
       <div className="pointer-events-none absolute left-3 top-3 rounded-md bg-black/45 px-3 py-2 font-display text-xs leading-5 backdrop-blur">
