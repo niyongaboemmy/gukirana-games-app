@@ -107,6 +107,15 @@ export class BoxingMotion {
     }
   }
 
+  /**
+   * Face moods on top of the clips' own expressions (P3-FGT-05: wince after a hit, fatigue breathing, dazed eyes,
+   * relief, joy, disappointment). Each channel takes max(clip, mood); 0 = the clip alone.
+   */
+  readonly mood = { focus: 0, wince: 0, smile: 0, jaw: 0, eyes: 0 };
+  setMood(m: Partial<BoxingMotion["mood"]>) {
+    Object.assign(this.mood, m);
+  }
+
   /** The pose at clock time `t` (owned by the controller: copy it to keep it). */
   sample(t: number): Pose {
     this.advance(t);
@@ -116,11 +125,21 @@ export class BoxingMotion {
       const w = smooth((t - cmd.start) / cmd.blend);
       if (w < 1) {
         lerpPose(from, this.tmp, w, this.out);
-        return this.out;
+        return this.withMood(this.out);
       }
     }
     this.out.set(this.tmp);
-    return this.out;
+    return this.withMood(this.out);
+  }
+
+  private withMood(out: Pose): Pose {
+    const m = this.mood;
+    if (m.focus) out[P.focus] = Math.max(out[P.focus]!, m.focus);
+    if (m.wince) out[P.wince] = Math.max(out[P.wince]!, m.wince);
+    if (m.smile) out[P.smile] = Math.max(out[P.smile]!, m.smile);
+    if (m.jaw) out[P.jaw] = Math.max(out[P.jaw]!, m.jaw);
+    if (m.eyes) out[P.eyes] = Math.max(out[P.eyes]!, m.eyes);
+    return out;
   }
 
   /** a command's own pose at `t` (orthodox authoring → intensity → travel compensation → mirror) */

@@ -1,6 +1,7 @@
 "use client";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import type { KeyBinds } from "./input-map";
 
 /**
  * Boxing settings on this device (FIGHT-GAMES-PLAN §2.9). Presentation and controls only: nothing here changes the
@@ -19,6 +20,14 @@ export interface FightPrefsData {
   /** no camera shake / hit zoom (W reads it for the fight camera) */
   reducedMotion: boolean;
   speed: TrainingSpeed;
+  /** the player's own key bindings (P3-FGT-05; the defaults stay where free) */
+  keys: KeyBinds;
+  /** the first-fight tutorial was finished or skipped */
+  tutorialDone: boolean;
+  /** referee / corner voice lines (spoken, with captions) */
+  voice: boolean;
+  /** the crowd ambience */
+  crowd: boolean;
 }
 interface FightPrefs extends FightPrefsData {
   set: (p: Partial<FightPrefsData>) => void;
@@ -31,6 +40,10 @@ export const DEFAULT_FIGHT_PREFS: FightPrefsData = {
   leftHanded: false,
   reducedMotion: false,
   speed: "normal",
+  keys: {},
+  tutorialDone: false,
+  voice: true,
+  crowd: true,
 };
 
 export const useFightPrefs = create<FightPrefs>()(
@@ -45,6 +58,10 @@ export const useFightPrefs = create<FightPrefs>()(
       leftHanded: s.leftHanded,
       reducedMotion: s.reducedMotion,
       speed: s.speed,
+      keys: s.keys,
+      tutorialDone: s.tutorialDone,
+      voice: s.voice,
+      crowd: s.crowd,
     }),
   }),
 );

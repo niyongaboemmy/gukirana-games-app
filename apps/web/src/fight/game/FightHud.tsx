@@ -1,13 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { DoorOpen, Flag, RotateCcw, SlidersHorizontal, Trophy } from "lucide-react";
+import { Check, Clapperboard, DoorOpen, Flag, Hourglass, Megaphone, RotateCcw, SlidersHorizontal, Square, Trophy } from "lucide-react";
 import { CORNER_COLORS, TICK_HZ, type BoxingSnapshot, type Corner, type FighterView } from "@gukirana/contracts";
 import { Modal } from "@/games/GameShell";
 import { useFightBridge, type MyFight } from "../bridge";
 import { gameFightActions, startPractice } from "./actions";
 import { eventFx } from "./fx";
 import { FightSettings } from "./FightSettings";
-import { decisionKey, foulKey, ft, type FgKey } from "./strings";
+import { actionKey, foulKey, ft, methodKey, type FgKey } from "./strings";
+import { playHighlights, stopReplay, useReplay } from "./replay";
 import { useFightUi } from "./ui-store";
 
 /**
@@ -79,6 +80,12 @@ function FighterPanel({ f, name, me, side }: { f: FighterView; name: string; me:
       </div>
       <Meter value={f.stamina} label={ft("hud.stamina")} tone="stamina" flip={right} />
       <Meter value={f.composure} label={ft("hud.composure")} tone="composure" flip={right} />
+      {(((f as { deductions?: number }).deductions ?? 0) > 0 || ((f as { cautions?: number }).cautions ?? 0) > 0) && (
+        <div className={`flex gap-2 text-[10px] font-bold uppercase text-on-glass-muted ${right ? "justify-end" : ""}`}>
+          {((f as { cautions?: number }).cautions ?? 0) > 0 && <span>{ft("hud.caution")} {(f as { cautions?: number }).cautions}</span>}
+          {((f as { deductions?: number }).deductions ?? 0) > 0 && <span className="text-danger">−{(f as { deductions?: number }).deductions}</span>}
+        </div>
+      )}
       {f.warnings > 0 && (
         <div className={`flex gap-1 ${right ? "justify-end" : ""}`} aria-label={`${ft("hud.warning")} ${f.warnings}`}>
           {Array.from({ length: Math.min(5, f.warnings) }, (_, i) => (
@@ -127,6 +134,10 @@ function Callouts({ snap, me, now }: { snap: BoxingSnapshot; me: 0 | 1; now: num
     if (e.k === "roundEnd" && age < 2600)
       card = { title: ft("hud.roundEnd", { n: e.round }), sub: ft("hud.roundScore", { a: e.points[me], b: e.points[1 - me]! }) };
     if (e.k === "stoppage" && age < 3000) card = { title: ft("hud.stoppage") };
+    const k = e.k as string;
+    if (k === "ko" && age < 3500) card = { title: ft("hud.ko") };
+    if (k === "dq" && age < 3500) card = { title: ft("hud.dq") };
+    if (k === "break" && age < 1200) card = { title: ft("hud.break") };
     if (age > 1400) continue;
     if (e.k === "hit" && e.by === me) {
       if (e.combo >= 2) pops.push({ id, text: ft("hud.combo", { n: e.combo }), good: true });
@@ -143,6 +154,8 @@ function Callouts({ snap, me, now }: { snap: BoxingSnapshot; me: 0 | 1; now: num
       });
   }
   if (hintKey && now - hintAt < 1000) pops.push({ id: -1, text: ft(hintKey as FgKey), good: false });
+  const breakLeft = (snap as { breakLeft?: number }).breakLeft ?? 0;
+  if (breakLeft > 0) pops.push({ id: -2, text: ft("hud.waitBreak"), good: false });
   return (
     <div className="pointer-events-none absolute inset-x-0 top-[28%] flex flex-col items-center gap-2 phone:top-[30%]">
       {snap.phase === "knockdown" && snap.count !== undefined && (
@@ -180,6 +193,77 @@ function Callouts({ snap, me, now }: { snap: BoxingSnapshot; me: 0 | 1; now: num
   );
 }
 
+/* the scoring rules' result fields (P3-FGT-06) are optional here: older outcomes simply do not show them */
+type Card = { round: number; judges: [number, number][]; deductions?: [number, number]; knockdowns?: [number, number] };
+const cardsOf = (r: object): Card[] => ((r as { cards?: Card[] }).cards ?? []).filter((c) => Array.isArray(c?.judges) && c.judges.length > 0);
+const pairOf = (r: object, k: "warnings" | "deductions"): [number, number] | null => {
+  const v = (r as Record<string, unknown>)[k];
+  return Array.isArray(v) && v.length === 2 && (v[0] > 0 || v[1] > 0) ? (v as [number, number]) : null;
+};
+function votesText(r: object, me: 0 | 1): string {
+  const votes = (r as { votes?: (0 | 1 | null)[] }).votes;
+  if (!Array.isArray(votes) || !votes.length) return "";
+  const mine = votes.filter((v) => v === me).length;
+  const theirs = votes.filter((v) => v === 1 - me).length;
+  return ` · ${ft("result.votes", { a: mine, b: theirs })}`;
+}
+
+/** the highlights replay (big moments of this fight, re-posed by the 3D renderer at half speed) */
+function Highlights() {
+  const count = useReplay((s) => s.count);
+  const playing = useReplay((s) => s.playing);
+  if (!count) return null;
+  return (
+    <button type="button" className="pbtn pbtn-secondary" onClick={() => (playing ? stopReplay() : playHighlights())}>
+      {playing ? <Square size={16} /> : <Clapperboard size={18} />} {ft(playing ? "result.highlightsStop" : "result.highlights")}
+    </button>
+  );
+}
+
+/** the referee / corner line under the scoreboard (captions are always on) */
+function Caption({ now }: { now: number }) {
+  const c = useFightUi((s) => s.caption);
+  if (!c || now - c.at > 2600) return null;
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-[19%] flex justify-center phone:top-[24%]" aria-live="polite">
+      <div className={`${glass} gk-fade-up flex items-center gap-2 px-4 py-1.5 text-sm font-bold phone:text-xs`}>
+        <Megaphone size={14} className="text-gold" />
+        <span className="text-on-glass-muted">{ft(c.who === "referee" ? "caption.referee" : "caption.corner")}</span>
+        <span>{c.text}</span>
+      </div>
+    </div>
+  );
+}
+
+/** instant feedback for every press: what you pressed, then the engine's verdict (confirmed / queued / dropped) */
+function PressChip({ now }: { now: number }) {
+  const p = useFightUi((s) => s.press);
+  if (!p || now - p.at > 900) return null;
+  const icon = p.state === "confirmed" ? <Check size={14} /> : p.state === "buffered" ? <Hourglass size={14} /> : null;
+  const tone = p.state === "confirmed" ? "bg-success/85" : p.state === "dropped" ? "bg-danger/75" : "bg-black/55";
+  return (
+    <div className="pointer-events-none absolute bottom-[8%] left-1/2 -translate-x-1/2 phone:bottom-[3%]" data-press-state={p.state} data-press-action={p.a}>
+      <span key={p.n} className={`gk-fade-up flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black text-white ${tone}`}>
+        {icon}
+        {ft(actionKey(p.a))}
+        {p.state === "buffered" && <span className="font-semibold opacity-80">· {ft("hud.buffered")}</span>}
+      </span>
+    </div>
+  );
+}
+
+function ReplayBadge() {
+  const playing = useReplay((s) => s.playing);
+  if (!playing) return null;
+  return (
+    <div className="pointer-events-none absolute left-1/2 top-[19%] -translate-x-1/2">
+      <span className={`${glass} flex items-center gap-1.5 px-3 py-1 text-xs font-black uppercase tracking-wide`}>
+        <Clapperboard size={14} /> {ft("result.replaying")}
+      </span>
+    </div>
+  );
+}
+
 function ResultCard({ mine, onLeave }: { mine: MyFight; onLeave: () => void }) {
   const result = useFightUi((s) => s.result);
   if (!result) return null;
@@ -191,7 +275,10 @@ function ResultCard({ mine, onLeave }: { mine: MyFight; onLeave: () => void }) {
   return (
     <Modal label={title} title={title} icon={Trophy}>
       <div className="flex flex-col gap-3">
-        <p className="text-center text-sm font-semibold">{ft(decisionKey(result.decision))}</p>
+        <p className="text-center text-sm font-semibold">
+          {ft(methodKey((result as { method?: string }).method, result.decision))}
+          {votesText(result, me)}
+        </p>
         <p className="text-center font-display text-4xl font-black tabular-nums">
           {ft("result.score", { a: result.points[me], b: result.points[1 - me]! })}
         </p>
@@ -206,6 +293,33 @@ function ResultCard({ mine, onLeave }: { mine: MyFight; onLeave: () => void }) {
               {result.knockdowns[1 - me]} – {result.knockdowns[me]}
             </span>
           </div>
+          {cardsOf(result).length > 0 && (
+            <div className="prow flex-col !items-stretch gap-1">
+              <span className="prow-title">{ft("result.cards")}</span>
+              {cardsOf(result)[0]!.judges.map((_, j) => (
+                <span key={j} className="prow-sub flex justify-between tabular-nums">
+                  <span>{ft("result.card", { n: j + 1 })}</span>
+                  <span>{cardsOf(result).map((c) => `${c.judges[j]?.[me] ?? "–"}–${c.judges[j]?.[1 - me] ?? "–"}`).join(" · ")}</span>
+                </span>
+              ))}
+            </div>
+          )}
+          {pairOf(result, "warnings") && (
+            <div className="prow">
+              <span className="prow-title">{ft("result.warnings")}</span>
+              <span className="prow-sub ml-auto tabular-nums">
+                {pairOf(result, "warnings")![me]} – {pairOf(result, "warnings")![1 - me]}
+              </span>
+            </div>
+          )}
+          {pairOf(result, "deductions") && (
+            <div className="prow">
+              <span className="prow-title">{ft("result.deductions")}</span>
+              <span className="prow-sub ml-auto tabular-nums">
+                {pairOf(result, "deductions")![me]} – {pairOf(result, "deductions")![1 - me]}
+              </span>
+            </div>
+          )}
           <div className="prow">
             <span className="prow-title">{ft("result.power")}</span>
             <span className="prow-sub ml-auto tabular-nums">
@@ -226,6 +340,7 @@ function ResultCard({ mine, onLeave }: { mine: MyFight; onLeave: () => void }) {
             </p>
           )
         )}
+        <Highlights />
         <div className="flex gap-2">
           {practice && (
             <button type="button" className="pbtn pbtn-primary flex-1" data-autofocus onClick={() => startPractice(mine.ring, mine.level ?? 3, mine.names?.[0] ?? "")}>
@@ -272,6 +387,7 @@ export function FightHud() {
   const mine = useFightBridge((s) => s.mine);
   const [leaving, setLeaving] = useState(false);
   const [settings, setSettings] = useState(false);
+  const replaying = useReplay((s) => s.playing);
   const now = useNow(100);
   const feed = useFightUi((s) => s.feed);
   const played = useRef(0);
@@ -282,7 +398,7 @@ export function FightHud() {
     for (const { e, id } of feed) {
       if (id <= played.current) continue;
       played.current = id;
-      eventFx(e, me);
+      eventFx(e, me, useFightBridge.getState().mine?.snap);
     }
   }, [feed, me]);
 
@@ -319,8 +435,11 @@ export function FightHud() {
         </button>
       </div>
       <Callouts snap={snap} me={me} now={now} />
+      <Caption now={now} />
+      <PressChip now={now} />
+      <ReplayBadge />
       <div className="pointer-events-auto">
-        {snap.phase === "over" && <ResultCard mine={mine} onLeave={leave} />}
+        {snap.phase === "over" && !replaying && <ResultCard mine={mine} onLeave={leave} />}
         {leaving && snap.phase !== "over" && <LeaveDialog mine={mine} onStay={() => setLeaving(false)} onLeave={leave} />}
         {settings && <FightSettings live={mine.mode === "live"} onClose={() => setSettings(false)} />}
       </div>

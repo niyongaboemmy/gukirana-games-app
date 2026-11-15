@@ -5,7 +5,7 @@ import type { BotLevel } from "@gukirana/boxing";
 import { useFightBridge } from "../bridge";
 import { PracticeRunner, PracticeSession } from "./practice";
 import { practiceHz, useFightPrefs } from "./prefs";
-import { useFightUi } from "./ui-store";
+import { useFightUi, type PressFx } from "./ui-store";
 
 /**
  * The boxing game side of the ring prompts (FIGHT-GAMES-PLAN §7.2, §12 Do 5). W's prompts call these (through the
@@ -92,24 +92,48 @@ export function stopPractice(clear = true): void {
   }
 }
 export const practiceSession = (): PracticeSession | null => session;
+// dev QA handle: script practice states (knockdowns, endings) for screenshots
+if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") Object.assign(window as unknown as Record<string, unknown>, { __gkPractice: { session: () => session, input: () => fightInput } });
 
 /* ------------------------------------------------------------ controls → the fight ------------------------------------------------------------ */
 
 /** every control (touch, keys, mouse, pad) ends here: the same presses for every device (plan §2.8) */
 export const fightInput = {
-  press(a: BoxingAction): void {
+  press(a: BoxingAction, via: PressFx["via"] = "key"): void {
     const mine = useFightBridge.getState().mine;
     if (!mine) return;
+    const ui = useFightUi.getState();
+    ui.pressed(a, via);
+    const snap = mine.snap;
+    const me = snap?.fighters[mine.corner === "blue" ? 1 : 0];
+    if (!snap || snap.phase !== "round") {
+      // presses outside a round are dropped by the engine: say why instead of doing nothing
+      ui.confirm("dropped");
+      if (snap && (snap.phase === "countdown" || snap.phase === "intro" || snap.phase === "rest")) ui.hint("hud.waitBell");
+    } else if (me && me.act !== "idle") ui.confirm("buffered");
     if (mine.mode === "practice") session?.pressAction(a);
     else live.press?.(a);
   },
-  guard(g: boolean): void {
+  guard(g: boolean, via: PressFx["via"] = "key"): void {
     const mine = useFightBridge.getState().mine;
     if (!mine) return;
+    if (g) useFightUi.getState().pressed("guard", via);
     if (mine.mode === "practice") session?.setGuard(g);
     else live.guard?.(g);
   },
 };
+
+/* press feedback: confirmed once the engine shows the act, dropped when it never does (plan §3.3) */
+if (typeof window !== "undefined") {
+  useFightBridge.subscribe((b) => {
+    const ui = useFightUi.getState();
+    const p = ui.press;
+    if (!p || p.a === "guard" || p.state === "confirmed" || p.state === "dropped" || !b.mine?.snap) return;
+    const me = b.mine.snap.fighters[b.mine.corner === "blue" ? 1 : 0];
+    if (me.act === p.a) ui.confirm("confirmed");
+    else if (performance.now() - p.at > 650) ui.confirm("dropped");
+  });
+}
 
 /* ------------------------------------------------------------ the prompts' actions ------------------------------------------------------------ */
 

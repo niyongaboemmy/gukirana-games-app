@@ -2,13 +2,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { clipFor, CORNER_COLORS, HIT_REACTION, TICK_HZ, type BoxingSnapshot, type Corner, type FightEvent, type RingFighter, type RingId, type RingState } from "@gukirana/contracts";
+import { CORNER_COLORS, TICK_HZ, type BoxingSnapshot, type Corner, type FightEvent, type RingFighter, type RingId, type RingState } from "@gukirana/contracts";
 import { useWorld } from "@/lib/world-store";
 import { decodeLook, seededLook, type AvatarLook } from "@/world/outfits";
 import { lookOf, useProfile } from "@/lib/profile-store";
 import { hiddenPeople, SELF_ID } from "@/rooms/hall-hooks";
 import { isOnScreen, useArea } from "@/world/stage";
-import { FighterAvatar, type ClimbBlend, type FighterPose } from "./assets-shim";
+import { FightAvatar, newBody, RefereeAvatar, type RingBody } from "./fighter-avatar";
+import { moodOf, presentFighter, reactionFor, refereeSpot } from "./present";
+import { focusNow, ringCulled } from "./focus";
+import { replayFrame } from "./game/replay";
 import { CLIMB_S, climbPose } from "./climb";
 import { IMPOSTOR_POSES, impostorGeometry, impostorMaterial } from "./impostor-geometry";
 import { drainMyEvents, useFightBridge } from "./bridge";
@@ -92,12 +95,13 @@ export function FightersLayer({ lite }: { lite: boolean }) {
       .filter((x) => x.d < FULL_R)
       .sort((a, c) => a.d - c.d)
       .slice(0, lite ? 1 : 2);
-    for (const n of near) out.push({ ring: n.r.id, src: "loop" });
+    // focus mode (fighter): the neighbours sink into the dark, no full avatars for them
+    if (!(focusNow.mode === "fighter" && focusNow.k > 0)) for (const n of near) out.push({ ring: n.r.id, src: "loop" });
     const key = out.map((s) => `${s.ring}:${s.src}`).join(",");
     if (key !== slots.map((s) => `${s.ring}:${s.src}`).join(",")) setSlots(out);
   });
   return (
-    <group>
+    <group userData={{ focusKeep: true }}>
       {slots.map((s) => (
         <RingPair key={`${s.ring}:${s.src}`} slot={s} lite={lite} />
       ))}
@@ -119,7 +123,51 @@ function useFighterLook(f: RingFighter | undefined, fallback: string): AvatarLoo
 }
 
 const _a = new THREE.Vector3();
-/** the two fighters of one ring, driven by its snapshot */
+/** walking speed in the ring (to the corner / the neutral corner), m/s */
+const WALK_V = 1.5;
+
+interface Track {
+  key: string;
+  since: number;
+  x: number;
+  z: number;
+  yaw: number;
+  init: boolean;
+  hitAt: number;
+}
+const newTrack = (): Track => ({ key: "", since: 0, x: 0, z: 0, yaw: 0, init: false, hitAt: -1e9 });
+
+function turn(a: number, b: number, k: number) {
+  const d = Math.atan2(Math.sin(b - a), Math.cos(b - a));
+  return a + d * Math.min(1, k);
+}
+/** move a tracked body towards (tx, tz): walk when far (facing the way), glide when close; returns "walking" */
+function moveTo(tr: Track, tx: number, tz: number, faceYaw: number, dt: number, snap: boolean): boolean {
+  if (!tr.init || snap) {
+    tr.x = tx;
+    tr.z = tz;
+    tr.yaw = faceYaw;
+    tr.init = true;
+    return false;
+  }
+  const dx = tx - tr.x;
+  const dz = tz - tr.z;
+  const d = Math.hypot(dx, dz);
+  if (d > 0.45) {
+    const step = Math.min(d, WALK_V * dt);
+    tr.x += (dx / d) * step;
+    tr.z += (dz / d) * step;
+    tr.yaw = turn(tr.yaw, Math.atan2(dx, dz), dt * 8);
+    return true;
+  }
+  const k = 1 - Math.exp(-dt * 14);
+  tr.x += dx * k;
+  tr.z += dz * k;
+  tr.yaw = turn(tr.yaw, faceYaw, dt * 10);
+  return false;
+}
+
+/** the two fighters (and, in a real fight, the referee) of one ring, driven by its snapshot through fight/present.ts */
 function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
   const place = RING_BY_ID[slot.ring]!;
   const entry = useFightBridge((s) => s.rings[slot.ring]);
@@ -130,12 +178,17 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
   const fighterOf = (c: Corner): RingFighter | undefined => (myCorner === c ? { sid: you, name: "", corner: c } : entry?.[c]);
   const red = useFighterLook(fighterOf("red"), `${slot.ring}-red`);
   const blue = useFighterLook(fighterOf("blue"), `${slot.ring}-blue`);
+  const refLookV = useMemo(() => seededLook(`referee-${slot.ring}`, "#7a7a7a"), [slot.ring]);
+  const withRef = slot.src === "mine" || slot.src === "watched";
   const g = [useRef<THREE.Group>(null), useRef<THREE.Group>(null)] as const;
-  const poses = [useRef<FighterPose | null>(null), useRef<FighterPose | null>(null)] as const;
-  const climbs = [useRef<ClimbBlend | null>(null), useRef<ClimbBlend | null>(null)] as const;
-  const react = useRef<[{ clip: FighterPose["clip"]; at: number } | null, { clip: FighterPose["clip"]; at: number } | null]>([null, null]);
+  const refG = useRef<THREE.Group>(null);
+  const bodies = [useRef<RingBody | null>(newBody()), useRef<RingBody | null>(newBody())] as const;
+  const refBody = useRef<RingBody | null>(newBody());
+  const tracks = useRef([newTrack(), newTrack(), newTrack()]);
+  const phaseRef = useRef({ phase: "", since: 0, clinchSince: -1, refSide: 0 });
   const loopT0 = useMemo(() => performance.now() - ((hashOf(slot.ring) % 997) * 1000) / 3, [slot.ring]);
-  useFrame(() => {
+  useFrame(({ camera }, raw) => {
+    const dt = Math.min(raw, 0.05);
     const b = useFightBridge.getState();
     let snap: BoxingSnapshot | null = null;
     let events: FightEvent[] = [];
@@ -146,51 +199,121 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
       snap = b.watched?.snap ?? null;
       events = b.watched?.events ?? [];
     }
+    const replay = slot.src === "mine" ? replayFrame() : null;
+    if (replay) {
+      snap = replay.snap;
+      events = replay.events;
+    }
     if (!snap) snap = loopSnapshot(slot.ring, performance.now() - loopT0, b.rings[slot.ring]);
     const now = performance.now();
-    for (const e of events) if (e.k === "hit") react.current[(1 - e.by) as 0 | 1] = { clip: HIT_REACTION[e.punch], at: now };
+    const t = now / 1000;
+    const ph = phaseRef.current;
+    if (snap.phase !== ph.phase) {
+      ph.phase = snap.phase;
+      ph.since = t;
+    }
+    const phaseSince = t - ph.since;
+    const trs = tracks.current;
+    for (const e of events)
+      if (e.k === "hit") {
+        const to = (1 - e.by) as 0 | 1;
+        const r = reactionFor(e, snap.fighters[to].composure);
+        bodies[to].current!.react = { clip: r.clip, intensity: r.intensity, at: now };
+        trs[to]!.hitAt = t;
+      }
     // placement from dist (cm) and orbit (deg × 10) around the ring centre, on the canvas
     const th = ((snap.orbit / 10) * Math.PI) / 180;
     const half = Math.min(snap.dist / 200, place.half - 0.8);
     const ax = Math.cos(th);
     const az = Math.sin(th);
     const waiting = b.rings[slot.ring]?.status === "waiting";
-    const rest = snap.phase === "rest" || snap.phase === "intro" || waiting ? 1 : 0;
+    const rest = snap.phase === "rest" || waiting;
+    const corner = place.half - 1.0;
+    const winner = snap.phase === "over" ? snap.fighters.findIndex((f) => f.act === "celebrate") : -1;
+    const down = snap.fighters.findIndex((f) => f.act === "down") as 0 | 1 | -1;
+    // a clinch: in close, both idle (presentation; the engine's break field, when present, makes it official)
+    const breakLeft = (snap as { breakLeft?: number }).breakLeft ?? 0;
+    const close = snap.phase === "round" && snap.dist <= 80 && snap.fighters.every((f) => f.act === "idle");
+    if (close || breakLeft > 0) {
+      if (ph.clinchSince < 0) ph.clinchSince = t;
+    } else ph.clinchSince = -1;
+    const clinch = ph.clinchSince >= 0 && t - ph.clinchSince > 0.35;
+    const breaking = breakLeft > 0 || (clinch && t - ph.clinchSince > 1.1);
+    const tick = snap.tick;
+    const phase = snap.phase;
     snap.fighters.forEach((f, i) => {
       const s = i === 0 ? -1 : 1;
       const grp = g[i]!.current;
-      if (!grp) return;
-      // between rounds (and waiting for an opponent): in the corners (red −x,−z / blue +x,+z), facing the centre
-      const cx = rest ? s * (place.half - 1.0) : s * half * ax;
-      const cz = rest ? s * (place.half - 1.0) : s * half * az;
-      grp.position.set(place.x + cx, place.canvasY, place.z + cz);
-      _a.set(place.x - grp.position.x, 0, place.z - grp.position.z);
-      if (!rest) _a.set(-s * ax, 0, -s * az);
-      grp.rotation.y = Math.atan2(_a.x, _a.z);
+      const tr = trs[i]!;
+      // where to stand: the stool between rounds, a neutral corner while the other one is counted, else the fight
+      let tx: number, tz: number;
+      const counted = phase === "knockdown" && down !== -1 && down !== i;
+      if (rest) {
+        tx = s * corner;
+        tz = s * corner;
+      } else if (counted) {
+        tx = s * corner;
+        tz = -s * corner;
+      } else {
+        tx = s * half * ax;
+        tz = s * half * az;
+      }
+      const faceYaw = rest || counted ? Math.atan2(-tx, -tz) : Math.atan2(-s * ax, -s * az);
+      const walking = moveTo(tr, tx, tz, faceYaw, dt, false);
+      grp?.position.set(place.x + tr.x, place.canvasY, place.z + tr.z);
+      if (grp) grp.rotation.y = tr.yaw;
       // my own press shows at once (prediction), the next snapshot corrects it
-      const pred = slot.src === "mine" && b.mine && b.mine.predicted && f.corner === b.mine.corner && now - b.mine.predicted.at < 400 ? b.mine.predicted : null;
+      const pred = slot.src === "mine" && !replay && b.mine && b.mine.predicted && f.corner === b.mine.corner && now - b.mine.predicted.at < 400 ? b.mine.predicted : null;
       const view = pred ? { ...f, act: pred.act, actT: Math.floor(((now - pred.at) / 1000) * TICK_HZ) } : f;
-      const r = react.current[i as 0 | 1];
-      poses[i]!.current = {
-        clip: clipFor(view, snap!.phase),
-        t: view.actT / TICK_HZ,
-        react: r && now - r.at < 500 ? { clip: r.clip, t: (now - r.at) / 1000 } : null,
-      };
+      const key = `${view.act}:${phase}`;
+      if (key !== tr.key) {
+        tr.key = key;
+        tr.since = t;
+      }
+      const won = winner === -1 ? null : winner === i;
+      const body = bodies[i]!.current!;
+      body.walk = walking;
+      body.cmd = walking ? null : presentFighter(view, phase, { actSince: t - tr.since, phaseSince, clinch, tick }, won);
+      body.mood = moodOf(view, phase, t - tr.hitAt, won);
     });
+    // the referee: on the far side of the pair from the camera, stepping in to count, break and raise the winner
+    if (withRef && refG.current) {
+      if (!ph.refSide) ph.refSide = (camera.position.x - place.x) * -az + (camera.position.z - place.z) * ax >= 0 ? -1 : 1;
+      const spot = refereeSpot(phase, { dist: snap.dist, down, winner: winner === -1 ? null : (winner as 0 | 1), breaking, half: place.half });
+      const px = -az * ph.refSide;
+      const pz = ax * ph.refSide;
+      const rx = spot.x * ax + spot.z * px;
+      const rz = spot.x * az + spot.z * pz;
+      const tr = trs[2]!;
+      // face the action: the pair's middle, the downed fighter, or the camera side when raising a hand
+      const fx = spot.face ? spot.face * half * ax : 0;
+      const fz = spot.face ? spot.face * half * az : 0;
+      const faceYaw = phase === "over" ? Math.atan2(-px, -pz) : Math.atan2(fx - rx, fz - rz);
+      const walking = moveTo(tr, rx, rz, faceYaw, dt, false);
+      refG.current.position.set(place.x + tr.x, place.canvasY, place.z + tr.z);
+      refG.current.rotation.y = tr.yaw;
+      const rb = refBody.current!;
+      rb.walk = walking;
+      rb.cmd = walking ? null : { clip: spot.clip, offset: phaseSince, speed: 1, intensity: 1, hold: 0, key: `${spot.clip}:${phase}` };
+    }
     // my climb in / out over the corner steps overrides my fighter's place and pose
     const run = myClimb.run;
     const ci: 0 | 1 | -1 = run && run.ring === slot.ring && (slot.src === "mine" || slot.src === "exit") ? (run.corner === "red" ? 0 : 1) : -1;
-    for (const k of [0, 1] as const) if (k !== ci) climbs[k].current = null;
     if (run && ci !== -1) {
-      const t = (now - run.t0) / 1000;
+      const tt = (now - run.t0) / 1000;
       const grp = g[ci]!.current;
-      if (t < CLIMB_S || slot.src === "exit") {
-        const cp = climbPose(place, run.corner, run.dir, Math.min(t, CLIMB_S));
+      if (tt < CLIMB_S || slot.src === "exit") {
+        const cp = climbPose(place, run.corner, run.dir, Math.min(tt, CLIMB_S));
         grp?.position.set(cp.x, cp.y, cp.z);
         if (grp) grp.rotation.y = cp.yaw;
-        climbs[ci]!.current = { walk: cp.walk && t < CLIMB_S, duck: cp.duck };
-        poses[ci]!.current = { clip: cp.duckT >= 0 ? "duck" : "guard", t: cp.duckT >= 0 ? cp.duckT * 0.7 : 0, react: null };
-      } else climbs[ci]!.current = null;
+        const tr = trs[ci]!;
+        tr.x = cp.x - place.x;
+        tr.z = cp.z - place.z;
+        tr.yaw = cp.yaw;
+        const body = bodies[ci]!.current!;
+        body.walk = cp.walk && tt < CLIMB_S;
+        body.cmd = cp.duckT >= 0 ? { clip: "duck", offset: cp.duckT * 0.7, speed: 1, intensity: 1, hold: 0, key: "duck" } : body.walk ? null : { clip: "guardIdle", offset: 0, speed: 1, intensity: 1, hold: 0, key: "guard" };
+      }
     }
   });
   const showRed = slot.src !== "exit" || myCorner === "red";
@@ -199,12 +322,17 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
     <group>
       {showRed && (
         <group ref={g[0]}>
-          <FighterAvatar look={red} corner="red" poseRef={poses[0]} lite={lite} climbRef={climbs[0]} />
+          <FightAvatar look={red} corner="red" body={bodies[0]} lite={lite} />
         </group>
       )}
       {showBlue && (
         <group ref={g[1]}>
-          <FighterAvatar look={blue} corner="blue" poseRef={poses[1]} lite={lite} climbRef={climbs[1]} />
+          <FightAvatar look={blue} corner="blue" body={bodies[1]} lite={lite} />
+        </group>
+      )}
+      {withRef && (
+        <group ref={refG}>
+          <RefereeAvatar look={refLookV} body={refBody} lite={lite} />
         </group>
       )}
     </group>
@@ -308,7 +436,7 @@ function Impostors({ exclude }: { exclude: RingId[] }) {
     const counts = [0, 0, 0];
     RINGS.forEach((r: RingPlace, ri) => {
       const st = rings[r.id];
-      if (!st || !LIVE.has(st.status) || exclude.includes(r.id)) return;
+      if (!st || !LIVE.has(st.status) || exclude.includes(r.id) || ringCulled(r.id)) return;
       const rest = st.status === "waiting" || st.status === "starting";
       for (let k = 0; k < 2; k++) {
         const corner = k === 0 ? "red" : "blue";

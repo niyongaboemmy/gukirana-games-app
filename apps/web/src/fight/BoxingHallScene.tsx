@@ -21,6 +21,7 @@ import { fightMockOn, startFightMock } from "./mock";
 import { useBoxingNetClient } from "./game/net/client";
 import { hiddenPeople } from "@/rooms/hall-hooks";
 import { fightActions } from "./actions";
+import { FocusMode, useFocusRings } from "./FocusMode";
 
 /**
  * The Boxing hall interior (P3-FGT-01, plan §4.3–4.5): a matte, floodlit sports hall — polished-but-matte concrete,
@@ -47,14 +48,18 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
     return [all.filter((r) => r.feature), all.filter((r) => !r.feature)];
   }, [rings, restKey]);
   const [mock] = useState(fightMockOn);
+  // focus mode (P3-FGT-05): once the hall is dark around my ring, the ring kit keeps only that ring
+  const shownTraining = useFocusRings(training);
+  const shownFeatures = useFocusRings(features);
   return (
     <group>
       {!mock && <LiveNet />}
+      <FocusMode />
       <HallLights lite={lite} />
       <Shell layout={layout} lite={lite} />
       <FeatureStage />
-      <HallRingKit rings={training} size="training" lite={lite} />
-      <HallRingKit rings={features} size="pro" y={FEATURE_RING.stage} lite={lite} />
+      <HallRingKit rings={shownTraining} size="training" lite={lite} />
+      <HallRingKit rings={shownFeatures} size="pro" y={FEATURE_RING.stage} lite={lite} />
       <RingPanels />
       <PlatformShadows />
       <LightPools lite={lite} />

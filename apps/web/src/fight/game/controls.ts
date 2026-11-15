@@ -1,95 +1,71 @@
 "use client";
 import { useEffect } from "react";
-import type { BoxingAction } from "@gukirana/contracts";
 import { fightInput } from "./actions";
+import { isTyping, keyTable, mouseAction, newPadMemo, padStep, type PadMemo } from "./input-map";
 import { useFightPrefs } from "./prefs";
 
+export { swipeAction, PAD_BUTTONS, PAD_GUARD } from "./input-map";
+
 /**
- * Keyboard / mouse / gamepad bindings of a fight (FIGHT-GAMES-PLAN §2.8). Every device sends the same presses through
- * `fightInput`: controls never change the rules. Touch lives in TouchPads.tsx.
+ * Keyboard / mouse / gamepad bindings of a fight (FIGHT-GAMES-PLAN §2.8, scheme in input-map.ts). Listeners sit on
+ * `window` in the CAPTURE phase, so the hall's own key handlers (walk, wallet, voice) never see a fight key first, and
+ * every fight key is consumed (no page scroll on Space / arrows, no other shortcut). Touch lives in TouchPads.tsx.
  */
-export const KEY_ACTIONS: Record<string, BoxingAction> = {
-  KeyJ: "jab",
-  KeyK: "cross",
-  KeyL: "hook",
-  KeyI: "uppercut",
-  KeyA: "slipL",
-  KeyD: "slipR",
-  KeyW: "stepIn",
-  KeyS: "stepOut",
-};
-/** standard gamepad mapping: 0 A/✕, 1 B/○, 2 X/□, 3 Y/△, 6 LT, 7 RT */
-export const PAD_BUTTONS: Record<number, BoxingAction> = { 2: "jab", 3: "cross", 1: "hook", 0: "uppercut" };
-export const PAD_GUARD = [6, 7] as const;
-const FLICK = 0.6;
-const NEUTRAL = 0.3;
-
-/** a swipe on a pad → the action (left pad: slips / steps; right pad: punches). null = a tap. */
-export function swipeAction(pad: "guard" | "punch", dx: number, dy: number, min = 36): BoxingAction | null {
-  const ax = Math.abs(dx);
-  const ay = Math.abs(dy);
-  if (Math.max(ax, ay) < min) return null;
-  if (pad === "guard") {
-    if (ax >= ay) return dx < 0 ? "slipL" : "slipR";
-    return dy < 0 ? "stepIn" : "stepOut";
-  }
-  // punches: up = uppercut, mostly right = cross, sideways-down = hook
-  if (dy < 0 && ay > ax) return "uppercut";
-  if (dy > min / 2 && ax > min / 2) return "hook";
-  if (ax >= ay) return "cross";
-  return "hook";
-}
-
-const typing = (t: EventTarget | null): boolean =>
-  t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
-
-/** binds keys, mouse (on the 3D canvas / fight surface) and gamepads while `active` */
 export function useFightControls(active: boolean): void {
   useEffect(() => {
     if (!active) return;
-    let spaceDown = false;
+    let guardKeys = 0;
     let toggled = false;
+    const held = new Set<string>();
+    const table = () => keyTable(useFightPrefs.getState().keys);
     const onKeyDown = (e: KeyboardEvent) => {
-      if (typing(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.code === "Space") {
-        e.preventDefault();
-        if (e.repeat || spaceDown) return;
-        spaceDown = true;
+      if (isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
+      // a dialog (Leave, settings, key binding) has the keyboard
+      if (document.querySelector('[aria-modal="true"]')) return;
+      const a = table().get(e.code);
+      if (!a) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.repeat || held.has(e.code)) return;
+      held.add(e.code);
+      if (a === "guard") {
+        guardKeys++;
         if (useFightPrefs.getState().guardToggle) {
           toggled = !toggled;
-          fightInput.guard(toggled);
-        } else fightInput.guard(true);
+          fightInput.guard(toggled, "key");
+        } else if (guardKeys === 1) fightInput.guard(true, "key");
         return;
       }
-      const a = KEY_ACTIONS[e.code];
-      if (!a || e.repeat) return;
-      e.preventDefault();
-      fightInput.press(a);
+      fightInput.press(a, "key");
     };
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.code !== "Space") return;
-      spaceDown = false;
-      if (!useFightPrefs.getState().guardToggle) fightInput.guard(false);
+      if (!held.delete(e.code)) return;
+      e.stopPropagation();
+      if (table().get(e.code) !== "guard") return;
+      guardKeys = Math.max(0, guardKeys - 1);
+      if (!useFightPrefs.getState().guardToggle && guardKeys === 0) fightInput.guard(false, "key");
     };
-    const onSurface = (t: EventTarget | null) =>
-      t instanceof HTMLElement && (t.tagName === "CANVAS" || t.dataset.fightSurface === "1");
-    const onMouse = (e: MouseEvent) => {
-      if (!onSurface(e.target)) return;
-      if (e.button === 0) fightInput.press(e.shiftKey ? "hook" : "jab");
-      else if (e.button === 2) fightInput.press(e.shiftKey ? "uppercut" : "cross");
+    // the mouse punches on the 3D view / the fight surface (never on HUD buttons)
+    const onSurface = (t: EventTarget | null) => t instanceof HTMLElement && (t.tagName === "CANVAS" || t.dataset.fightSurface === "1");
+    const onMouse = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse" || !onSurface(e.target)) return;
+      const a = mouseAction(e.button, e.shiftKey);
+      if (!a) return;
+      e.preventDefault();
+      fightInput.press(a, "mouse");
     };
     const onMenu = (e: MouseEvent) => {
       if (onSurface(e.target)) e.preventDefault();
     };
     const onBlur = () => {
-      if (spaceDown && !useFightPrefs.getState().guardToggle) fightInput.guard(false);
-      spaceDown = false;
+      if (guardKeys && !useFightPrefs.getState().guardToggle) fightInput.guard(false, "key");
+      guardKeys = 0;
+      held.clear();
     };
 
-    // gamepad: edge-triggered buttons, guard on either trigger, stick flicks
+    // gamepads: polled every frame (the Gamepad API has no events for buttons)
     let raf = 0;
-    const prevButtons = new Map<number, boolean[]>();
-    const stickArmed = new Map<number, boolean>();
+    const memos = new Map<number, PadMemo>();
     let padGuard = false;
     const poll = () => {
       raf = requestAnimationFrame(poll);
@@ -97,40 +73,33 @@ export function useFightControls(active: boolean): void {
       let guardNow = false;
       let anyPad = false;
       for (const p of pads) {
-        if (!p) continue;
+        if (!p || p.connected === false) continue;
         anyPad = true;
-        const prev = prevButtons.get(p.index) ?? [];
-        const now = p.buttons.map((b) => b.pressed);
-        for (const [i, a] of Object.entries(PAD_BUTTONS)) if (now[+i] && !prev[+i]) fightInput.press(a);
-        if (PAD_GUARD.some((i) => now[i])) guardNow = true;
-        prevButtons.set(p.index, now);
-        const x = p.axes[0] ?? 0;
-        const y = p.axes[1] ?? 0;
-        const armed = stickArmed.get(p.index) ?? true;
-        if (armed && Math.max(Math.abs(x), Math.abs(y)) > FLICK) {
-          stickArmed.set(p.index, false);
-          if (Math.abs(x) >= Math.abs(y)) fightInput.press(x < 0 ? "slipL" : "slipR");
-          else fightInput.press(y < 0 ? "stepIn" : "stepOut");
-        } else if (Math.max(Math.abs(x), Math.abs(y)) < NEUTRAL) stickArmed.set(p.index, true);
+        let memo = memos.get(p.index);
+        if (!memo) memos.set(p.index, (memo = newPadMemo()));
+        const r = padStep(memo, p);
+        for (const a of r.presses) fightInput.press(a, "pad");
+        if (r.guard) guardNow = true;
       }
       if (anyPad && guardNow !== padGuard) {
         padGuard = guardNow;
-        fightInput.guard(guardNow);
+        fightInput.guard(guardNow, "pad");
       }
     };
     raf = requestAnimationFrame(poll);
 
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("mousedown", onMouse);
-    window.addEventListener("contextmenu", onMenu);
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("keyup", onKeyUp, true);
+    window.addEventListener("pointerdown", onMouse, true);
+    window.addEventListener("contextmenu", onMenu, true);
     window.addEventListener("blur", onBlur);
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("mousedown", onMouse);
-      window.removeEventListener("contextmenu", onMenu);
+      onBlur();
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("keyup", onKeyUp, true);
+      window.removeEventListener("pointerdown", onMouse, true);
+      window.removeEventListener("contextmenu", onMenu, true);
       window.removeEventListener("blur", onBlur);
     };
   }, [active]);

@@ -11,6 +11,7 @@ import { useFightBridge } from "./bridge";
 import { RingPrompt } from "./RingPrompt";
 import { FightOverlay as GameFightOverlay } from "./game/FightOverlay";
 import { F } from "./strings";
+import { useFightFocus } from "./focus";
 
 const glass = "glass rounded-card";
 
@@ -27,6 +28,15 @@ export function FightOverlay({ layout }: { layout: HallLayout }) {
   const mock = useFightBridge((s) => s.mock);
   const fighting = useFightBridge((s) => !!s.mine?.snap && s.mine.snap.phase !== "over");
   const inRing = useFightBridge((s) => !!s.mine);
+  // focus mode: the hall HUD (profile, joystick, chat, emotes, quick match) gives the screen to the fight
+  const focused = useFightFocus((s) => s.dim && s.mode === "fighter") || inRing;
+  useEffect(() => {
+    if (!focused) return;
+    // a focused text field (chat) would swallow the fight keys
+    const a = document.activeElement as HTMLElement | null;
+    if (a && /^(INPUT|TEXTAREA)$/.test(a.tagName)) a.blur();
+    useSocial.getState().chatOpen && useSocial.setState({ chatOpen: false });
+  }, [focused]);
   const [hint, setHint] = useState(true);
   useEffect(() => {
     const t = setTimeout(() => setHint(false), 6000);
@@ -43,7 +53,11 @@ export function FightOverlay({ layout }: { layout: HallLayout }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   return (
-    <div className="pointer-events-none fixed inset-0 z-20 text-white">
+    <div className="gk-fight-root pointer-events-none fixed inset-0 z-20 text-white" data-focus={focused ? "1" : undefined}>
+      {focused && (
+        <style>{`.gk-hud-in > :not(.gk-fight-root){opacity:0!important;pointer-events:none!important;transition:opacity .35s ease}`}</style>
+      )}
+      {!focused && (
       <div className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap phone:top-2 phone:gap-1.5">
         {!fighting && (
           <button
@@ -63,8 +77,9 @@ export function FightOverlay({ layout }: { layout: HallLayout }) {
           </span>
         </div>
       </div>
-      {mock && <div className={`${glass} absolute right-3 top-3 px-3 py-1.5 text-xs text-on-glass-muted phone:hidden`}>{F.mockNote}</div>}
-      {hint && (
+)}
+      {mock && !focused && <div className={`${glass} absolute right-3 top-3 px-3 py-1.5 text-xs text-on-glass-muted phone:hidden`}>{F.mockNote}</div>}
+      {hint && !focused && (
         <div className={`${glass} absolute left-1/2 top-16 -translate-x-1/2 px-4 py-2.5 text-center text-sm phone:top-[46px] phone:whitespace-nowrap phone:rounded-full phone:px-3 phone:py-1 phone:text-xs`}>
           <p className="font-bold phone:hidden">{boxing ? F.hallWelcome : F.lobbyWelcome}</p>
           <p className="text-on-glass-muted">{boxing ? F.hallSub : F.lobbySub}</p>
