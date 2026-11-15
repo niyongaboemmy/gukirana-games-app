@@ -13,6 +13,7 @@ import { env } from "../../common/env.js";
 import { kigaliDay } from "../../common/ids.js";
 import { GamesService, HEARTBEAT_STALE_MS } from "./games.service.js";
 import { GameSettingsService } from "./game-settings.service.js";
+import { FightRatingService } from "./fight-rating.service.js";
 
 /**
  * Match money + exit rules (P1-GAME-06, docs/GAME-EXIT-RULES.md) on an in-memory Postgres (PGlite): settle, forfeit,
@@ -355,6 +356,51 @@ describe("boxing scoring (P3-FGT-06): bounded referee settings; only an untamper
     expect([await stars(c), await stars(d)]).toEqual(before);
     await games.settle(m.matchId, honest);
     expect([await stars(c), await stars(d)]).toEqual([before[0]! + 50, before[1]!]);
+    await settings.update("boxing", DEFAULT_GAME_SETTINGS.boxing, "restore", "test");
+  });
+});
+
+describe("fight skill rating (P3-FGT-10): Glicko-2 on settlement only", () => {
+  it("a settled boxing fight rates both (idempotent on replay); voids and other games never rate; forfeits do; the leaderboard is real players", async () => {
+    const [p, q, r2] = [crowd[0]!, crowd[1]!, crowd[2]!];
+    await settings.update("boxing", { ...DEFAULT_GAME_SETTINGS.boxing, enabled: true }, "rating test", "test");
+    const fr = new FightRatingService(db);
+    const line = { thrown: 80, landed: 30, power: 12, body: 5, counters: 6, defended: 20, oppThrown: 70, oppLanded: 20, kd: 0, controlS: 40, gassedS: 5, landedTired: 2, perMin: 267, accuracy: 38, defencePct: 71, diff: 10, fouls: 0 };
+    const boxing = (matchId: string, ranks: Record<string, number>, reason: SignedMatchResult["reason"] = "normal", stats?: Record<string, Record<string, number>>) =>
+      signResult({ matchId, game: "boxing", ranks, reason, stateHash: "c".repeat(64), finishedAt: new Date().toISOString(), ...(stats ? { stats } : {}) }, privateKey);
+    // 1. p beats q
+    const m1 = await create([p, q], 25, "boxing");
+    const out = (await games.settle(m1.matchId, boxing(m1.matchId, { [p]: 1, [q]: 2 }, "normal", { [p]: line, [q]: { ...line, diff: -10 } }))) as {
+      fightRating?: Record<string, { before: number; after: number; provisional: boolean }>;
+    };
+    expect(out.fightRating?.[p]).toMatchObject({ before: 1500, provisional: true });
+    expect(out.fightRating![p]!.after).toBeGreaterThan(1500);
+    expect(out.fightRating![q]!.after).toBeLessThan(1500);
+    // replays (the room retrying) and a second apply never rate twice
+    await games.settle(m1.matchId, boxing(m1.matchId, { [p]: 1, [q]: 2 }));
+    const again = await fr.apply(m1.matchId, "boxing", [{ userId: p }, { userId: q }], { [p]: 1, [q]: 2 });
+    expect(again?.[p]?.after).toBe(out.fightRating![p]!.after);
+    const mineP = await fr.mine(p);
+    expect(mineP).toMatchObject({ games: 1, wins: 1, losses: 0, rating: out.fightRating![p]!.after });
+    expect(mineP.avg).toMatchObject({ accuracy: 38, defencePct: 71 });
+    // 2. a voided fight never rates
+    const m2 = await create([p, q], 25, "boxing");
+    await games.void(m2.matchId, "LEFT_BEFORE_START");
+    expect((await fr.mine(p)).games).toBe(1);
+    // 3. another game never touches the fight rating
+    const m3 = await create([p, r2], 25, "igisoro");
+    await games.settle(m3.matchId, result(m3.matchId, { [p]: 1, [r2]: 2 }));
+    expect((await fr.mine(r2)).games).toBe(0);
+    // 4. a forfeit is a result: it rates (no dodging a loss by leaving)
+    const m4 = await create([q, r2], 25, "boxing");
+    await games.settle(m4.matchId, boxing(m4.matchId, { [q]: 2, [r2]: 1 }, "forfeit"));
+    expect((await fr.mine(q)).losses).toBe(2);
+    // the leaderboard only lists rated players with enough fights (no bots, nobody invented)
+    const lb = await fr.leaderboard(p);
+    expect(lb.rows.every((x) => x.games >= 3)).toBe(true);
+    expect(lb.me).toMatchObject({ userId: p, games: 1 });
+    expect(await fr.glicko(p)).toMatchObject({ rating: out.fightRating![p]!.after });
+    expect(await fr.glicko(uid(99))).toBeNull();
     await settings.update("boxing", DEFAULT_GAME_SETTINGS.boxing, "restore", "test");
   });
 });

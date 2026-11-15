@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, NotFoundException, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { z } from "zod";
 import type { SignedMatchResult } from "@gukirana/signing";
 import { GameIdSchema, MatchHeartbeatSchema, VoidMatchSchema } from "@gukirana/contracts";
@@ -6,6 +6,11 @@ import { AuthGuard, CurrentUser, InternalGuard, type AccessClaims } from "../../
 import { parse } from "../../common/zod.js";
 import { uuidParam } from "../../common/ids.js";
 import { GamesService } from "./games.service.js";
+import { FightRatingService } from "./fight-rating.service.js";
+
+/** P3-FGT-10 rating UI / leaderboard flag: on unless FF_FIGHT_RATING=0 (dev default on; production sets it) */
+const ratingOn = () => process.env.FF_FIGHT_RATING !== "0";
+const FightGame = z.enum(["boxing"]).default("boxing");
 
 const CreateSchema = z.object({
   game: GameIdSchema,
@@ -82,5 +87,36 @@ export class GamesPublicController {
   @Get("offer")
   offer(@CurrentUser() u: AccessClaims) {
     return this.games.offer(u.sub);
+  }
+}
+
+/** realtime → api: a player's boxing rating for matchmaking (null = never rated) */
+@Controller("internal/fight")
+@UseGuards(InternalGuard)
+export class FightInternalController {
+  constructor(private readonly ratings: FightRatingService) {}
+
+  @Get("rating/:id")
+  rating(@Param("id") id: string) {
+    return this.ratings.glicko(uuidParam(id));
+  }
+}
+
+/** player: my fight rating (+ my average skill line) and the leaderboard of real players (P3-FGT-10) */
+@Controller("fight")
+@UseGuards(AuthGuard)
+export class FightPublicController {
+  constructor(private readonly ratings: FightRatingService) {}
+
+  @Get("rating/me")
+  mine(@CurrentUser() u: AccessClaims, @Query("game") game?: string) {
+    if (!ratingOn()) throw new NotFoundException();
+    return this.ratings.mine(u.sub, parse(FightGame, game));
+  }
+
+  @Get("leaderboard")
+  leaderboard(@CurrentUser() u: AccessClaims, @Query("game") game?: string, @Query("limit") limit?: string) {
+    if (!ratingOn()) throw new NotFoundException();
+    return this.ratings.leaderboard(u.sub, parse(FightGame, game), parse(z.coerce.number().int().min(1).max(100).default(50), limit));
   }
 }
