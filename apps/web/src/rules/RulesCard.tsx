@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { BookOpen, Check, Clock, LogOut, ShieldCheck, Star, Trophy, WifiOff } from "lucide-react";
 import { DEFAULT_FIGHT_RULES, DEFAULT_GAME_SETTINGS, GAME_NAMES, GAME_RULES_VERSION, isFightGame, rulesOf, type GameId, type MatchRules } from "@gukirana/contracts";
 import { PaperCard } from "@/ui/PaperCard";
@@ -77,6 +78,14 @@ export function RulesCard() {
   const [err, setErr] = useState<string | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const tickId = useId();
+  const path = usePathname();
+  // another page (e.g. resume into a live match): a card asked for on the old page is dropped
+  const lastPath = useRef(path);
+  useEffect(() => {
+    if (lastPath.current === path) return;
+    lastPath.current = path;
+    if (useRules.getState().ask) answerRules(false);
+  }, [path]);
 
   useEffect(() => {
     setTicked(false);
