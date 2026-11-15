@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { nearCampusWalk } from "./campus";
 import { plazaEdgeArcs } from "./walk-mesh";
+import { PERIMETER_STONES } from "./free-walk";
 import { GeoBatch } from "./geo";
 import { roofKit, roofMembrane } from "./roofs";
 import { LAMPS } from "./obstacles";
@@ -8,7 +8,7 @@ import { RING_PLANTERS } from "./beds";
 import { activityProps } from "./activity-props";
 import { NOTICE_BOARD, WATER_POINT } from "./activities";
 import { fightHall } from "@/fight/exterior";
-import { ARENA, FOOTPRINTS, igisoroHall, inBuilding, LUDO_DIE, PLOTS, sitePlan, toLocal, WING_HW, wingedHall } from "./footprints";
+import { ARENA, FOOTPRINTS, igisoroHall, LUDO_DIE, PLOTS, sitePlan, toLocal, WING_HW, wingedHall } from "./footprints";
 import {
   BENCHES,
   DOOR,
@@ -16,7 +16,6 @@ import {
   FOUNTAIN_COURT,
   FOUNTAIN_RADIUS,
   PAVING_R,
-  PERIMETER_R,
   ringPoint,
   SPAWN,
   TOTEMS,
@@ -718,27 +717,9 @@ function plaza(b: GeoBatch, tier: string) {
   activityProps(b);
   ao(b, NOTICE_BOARD.x, NOTICE_BOARD.z, NOTICE_BOARD.w + 1, 1.0, NOTICE_BOARD.rotY);
   ao(b, WATER_POINT.x, WATER_POINT.z, 1.0, 1.0);
-  // perimeter: low black lava-rock walls between the buildings (typical Musanze dry-stone walls) + road ring
-  // (3.6 m wall stones every STEP degrees; kept clear of the doors, the buildings and the entry gate's own walls)
-  const STEP = (3.6 / PERIMETER_R) * (180 / Math.PI);
-  const DOOR_GAP = (7.1 / PERIMETER_R) * (180 / Math.PI);
-  const builder = (deg: number) => {
-    for (const s of [-1.8, 0, 1.8]) {
-      const w = ringPoint(deg + STEP / 2, PERIMETER_R);
-      const o = ringPoint(deg + STEP / 2 + 90, s);
-      if (inBuilding(w.x + o.x, w.z + o.z, 1)) return true;
-    }
-    return false;
-  };
-  const off = (deg: number, a: number) => Math.abs(((deg + STEP / 2 - a + 540) % 360) - 180);
-  for (let deg = -180; deg < 180; deg += STEP) {
-    const near = PLOTS.some((q) => q.ring === DOOR_RING && off(deg, q.angleDeg) < DOOR_GAP);
-    const p = ringPoint(deg + STEP / 2, PERIMETER_R);
-    const gate = p.z > ENTRY_Z - 6 && Math.abs(p.x) < 17.5; // the entry gate has its own perimeter walls
-    // the Fight walk leaves the plaza through a gap in the wall (P3-FGT-01)
-    if (near || gate || builder(deg) || nearCampusWalk(p.x, p.z, 2.2)) continue;
-    b.box("lava", 3.6, 0.8, 0.6, { p: [p.x, 0.4, p.z], r: [0, p.rotY, 0], tile: 1.2 });
-  }
+  // perimeter: low black lava-rock walls between the buildings (typical Musanze dry-stone walls), clear of the doors,
+  // the buildings, the entry gate's own walls and the walks' mouths (world/free-walk.ts: the same stones are solid)
+  for (const p of PERIMETER_STONES) b.box("lava", 3.6, 0.8, 0.6, { p: [p.x, 0.4, p.z], r: [0, p.rotY, 0], tile: 1.2 });
   // expansion district: the outer promenade and the forecourts of the expansion plots and the outer-ring halls are
   // part of the campus walk network's one paved surface since P2-WLD-16 (world/walk-mesh.ts, drawn by CampusRoads)
   // the 16.5 m avenue from the plaza entry gate to the arrival gate (P2-WLD-12: it ends there; the ring road gave way

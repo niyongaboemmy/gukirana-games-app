@@ -28,6 +28,7 @@ import { cameraArm, freePoint, planRoute, plazaObstacles, resolve } from "./obst
 import { ringOf } from "./layout";
 import { clampToCampusWalk, onCampusWalk, walkDepth } from "./campus";
 import { walkRoute } from "./goto-walk";
+import { BUILDING_RECTS, FREE_WALK_ON, freeSpot, keepInCompound, planFreeRoute, resolveSolids } from "./free-walk";
 import type { Tier } from "./materials";
 import { useWorld } from "@/lib/world-store";
 import { lookOf, useProfile } from "@/lib/profile-store";
@@ -189,6 +190,11 @@ export function LocalPlayer({
   useLayoutEffect(() => {
     if (hand?.cam) camera.position.set(...hand.cam);
   }, [hand, camera]);
+  // dev-only hook for visual QA (place the person, read where they are), like __gkCam / __gkNav
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
+    (window as unknown as Record<string, unknown>).__gkPlayer = { pos: pos.current, facing };
+  }, []);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -199,16 +205,45 @@ export function LocalPlayer({
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
 
-    // drag = look around, click/tap on the ground = walk there, wheel = zoom
-    const el = gl.domElement;
-    const stopPointer = pointerNav(
-      el,
-      () => camera,
-      (dx, dy) => {
-        cameraState.yaw -= dx * 0.006;
-        cameraState.pitch = THREE.MathUtils.clamp(cameraState.pitch + dy * 0.004, 0.08, maxPitch(cameraState.distance));
-      },
-      (p) => {
+    /** a route to a point: across the plaza round its furniture, or over open ground round everything solid */
+    const routeTo = (t: { x: number; z: number }) =>
+      Math.hypot(pos.current.x, pos.current.z) < PLAZA_RADIUS - 0.5 && Math.hypot(t.x, t.z) < PLAZA_RADIUS - 0.5 ? planRoute(pos.current, t) : planFreeRoute(pos.current, t, plazaObstacles());
+    /** walk to a hall's doorstep and on through its door */
+    const toDoor = (d: (typeof PORTALS)[number]) => {
+      const a = (d.angleDeg * Math.PI) / 180;
+      const R = ringOf(d);
+      const t = portalTransform(d);
+      const step = R === DOOR_RING ? { x: Math.sin(a) * (PLAZA_RADIUS - 0.4), z: -Math.cos(a) * (PLAZA_RADIUS - 0.4) } : { x: t.entryX, z: t.entryZ };
+      route.current = [...routeTo(step), { x: Math.sin(a) * (R + 0.2), z: -Math.cos(a) * (R + 0.2) }];
+      return route.current.shift()!;
+    };
+    /**
+     * Walk anywhere (P2-WLD-16): a tap on a hall (its doorway, walls or roof, from the ground or the aerial view)
+     * walks to its door and through it; a tap on open ground walks there, round anything solid on the way.
+     */
+    const tapFree = (p: { x: number; z: number }) => {
+      for (const b of BUILDING_RECTS) {
+        const c = Math.cos(b.rot);
+        const s = Math.sin(b.rot);
+        const dx = p.x - b.x;
+        const dz = p.z - b.z;
+        if (Math.abs(dx * c - dz * s) > b.hw || Math.abs(dx * s + dz * c) > b.hd) continue;
+        const d = PORTALS.find((q) => q.id === b.plot);
+        if (d?.href) return toDoor(d);
+        break;
+      }
+      // a tap right in front of an open door on the plaza ring (the doorway itself)
+      const r = Math.hypot(p.x, p.z);
+      for (const d of PORTALS) {
+        if (!d.href || r < PLAZA_RADIUS - 1 || ringOf(d) !== DOOR_RING) continue;
+        const a = (d.angleDeg * Math.PI) / 180;
+        if (Math.abs(p.x * Math.cos(a) + p.z * Math.sin(a)) < DOOR.w / 2 && p.x * Math.sin(a) - p.z * Math.cos(a) > 0 && r < DOOR_RING + 3) return toDoor(d);
+      }
+      route.current = routeTo(freeSpot(p, plazaObstacles()));
+      return route.current.shift()!;
+    };
+    /** the walks-only campus (NEXT_PUBLIC_FF_FREE_WALK=0): beyond the plaza only the paved walks */
+    const tapOnWalks = (p: { x: number; z: number }) => {
         const r = Math.hypot(p.x, p.z);
         // tapping a playable building's doorway walks you through it (the door opens as you arrive)
         // a tap on a campus walk (P2-WLD-12, the generalised Fight walk): over the walk network (across the plaza to
@@ -253,7 +288,17 @@ export function LocalPlayer({
         // a tap on a bench, planter or flower bed walks to the nearest free spot next to it, around obstacles
         route.current = planRoute(pos.current, freePoint(q, plazaObstacles()));
         return route.current.shift()!;
+    };
+    // drag = look around, click/tap on the ground = walk there, wheel = zoom
+    const el = gl.domElement;
+    const stopPointer = pointerNav(
+      el,
+      () => camera,
+      (dx, dy) => {
+        cameraState.yaw -= dx * 0.006;
+        cameraState.pitch = THREE.MathUtils.clamp(cameraState.pitch + dy * 0.004, 0.08, maxPitch(cameraState.distance));
       },
+      (p) => (FREE_WALK_ON ? tapFree(p) : tapOnWalks(p)),
     );
     const wheel = (e: WheelEvent) => {
       cameraState.distance = wheelZoom(cameraState.distance, e.deltaY);
@@ -286,6 +331,7 @@ export function LocalPlayer({
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
     const w = useWorld.getState();
+    const prevPos = { x: pos.current.x, z: pos.current.z };
     // Go To (P2-WLD-13, world/goto.ts): turn to face a destination; take over a whole route ("Walk there", [] = stop)
     if (nav.face != null) {
       facing.current = nav.face;
@@ -377,6 +423,9 @@ export function LocalPlayer({
     // collisions: plaza edge (except through an open arena doorway), then round obstacles
     const r = Math.hypot(pos.current.x, pos.current.z);
     let limit = PLAZA_RADIUS;
+    /** free walking: the building whose open door you are passing through (its footprint lets you in) */
+    let openPlot: string | null = null;
+    let inDoorway = false;
     for (const p of PORTALS) {
       if (!p.href || (doorOpen[p.id] ?? 0) < 0.55) continue;
       const R = ringOf(p);
@@ -385,8 +434,22 @@ export function LocalPlayer({
       // a door held open for someone stepping out is not a way in when it is shut for you (closed / not allowed)
       if (!entering && stepOut.current <= 0 && doorRefusal(p.id)) continue;
       const a = (p.angleDeg * Math.PI) / 180;
-      const lateral = Math.abs(pos.current.x * Math.cos(a) + pos.current.z * Math.sin(a));
-      if (lateral < DOOR.w / 2 - 0.35 && pos.current.x * Math.sin(a) - pos.current.z * Math.cos(a) > 0) {
+      const lat = pos.current.x * Math.cos(a) + pos.current.z * Math.sin(a);
+      const lateral = Math.abs(lat);
+      const front = pos.current.x * Math.sin(a) - pos.current.z * Math.cos(a) > 0;
+      if (FREE_WALK_ON && front && lateral < DOOR.w / 2 + 0.45 && r > R - 2.5 && r < R - doorInset(p.kind) + VESTIBULE_DEPTH + 0.3) {
+        // free walking: in the open doorway (and the lobby behind it) the building's own footprint lets you through;
+        // the door jambs and the lobby walls keep you in the opening
+        openPlot = p.id;
+        const hw = DOOR.w / 2 - 0.35;
+        if (r > R - 0.6 && lateral > hw) {
+          const k = lat - Math.sign(lat) * hw;
+          pos.current.x -= k * Math.cos(a);
+          pos.current.z -= k * Math.sin(a);
+        }
+      }
+      if (lateral < DOOR.w / 2 - 0.35 && front) {
+        inDoorway = true;
         // walking in: on into the vestibule (a cold hall keeps loading while you are still visibly walking)
         // (entering: up to just short of the lobby's far end; the hall takes over once the camera is through the door)
         // (not entering but already in the lobby, e.g. a crossing was called off: never shove the person back out)
@@ -401,8 +464,15 @@ export function LocalPlayer({
         }
       }
     }
+    if (FREE_WALK_ON) {
+      // walk anywhere (P2-WLD-16): through a doorway only as far as its lobby; elsewhere the compound's boundary wall,
+      // the buildings and everything solid on the campus stop you (world/free-walk.ts)
+      if (inDoorway && r > limit) pos.current.multiplyScalar(limit / r);
+      keepInCompound(pos.current, prevPos);
+      resolveSolids(pos.current, openPlot);
+    }
     // beyond the plaza edge only the campus walks are walkable (P2-WLD-12): slide along their kerbs
-    if (r > limit && !(r > PLAZA_RADIUS - 0.5 && clampToCampusWalk(pos.current))) pos.current.multiplyScalar(limit / r);
+    else if (r > limit && !(r > PLAZA_RADIUS - 0.5 && clampToCampusWalk(pos.current))) pos.current.multiplyScalar(limit / r);
     // other people are solid: walk around them (soft push, no passing through) — except my partner in a hug
     for (const op of Object.values(w.players)) {
       if (op.id === people.partner) continue;

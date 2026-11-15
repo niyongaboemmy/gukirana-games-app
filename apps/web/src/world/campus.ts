@@ -287,6 +287,9 @@ export const GROWTH_PLOTS: { id: string; angleDeg: number; ring: number }[] = [-
 /** Walks are walkable ground (click-to-walk, camera follow) while a hall stands beyond the plaza (the Administrative
  *  Block, P2-WLD-14), with the Fight hall on, or with the campus walks flag. */
 export const CAMPUS_WALKS_ON = ADMIN_BLOCK_ON || FIGHT_ON || process.env.NEXT_PUBLIC_FF_CAMPUS_WALKS === "1";
+/** Walk anywhere in the compound (P2-WLD-16, world/free-walk.ts); NEXT_PUBLIC_FF_FREE_WALK=0 brings back the
+ *  walks-only campus (beyond the plaza only the paved walks are walkable). */
+export const FREE_WALK_ON = process.env.NEXT_PUBLIC_FF_FREE_WALK !== "0";
 /** promenade centre line radius */
 export const PROMENADE_R = (OUTER_PROMENADE.r0 + OUTER_PROMENADE.r1) / 2;
 /** The outer promenade is kept only north of the gate line (west end, bearing −PROMENADE_DEG). */
