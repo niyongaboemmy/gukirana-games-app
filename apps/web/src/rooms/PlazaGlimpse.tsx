@@ -26,6 +26,20 @@ import type { HallLayout } from "./layouts";
 
 type Part = { geo: THREE.BufferGeometry; m: THREE.Matrix4 };
 
+/** facade colours of the campus buildings (world/materials.ts), the roofs and the warm lit shopfronts */
+const BLOCK_COLORS: Record<string, string> = {
+  concreteDark: "#6f6c68",
+  brick: "#9a5a42",
+  limestone: "#d8d0bf",
+  charcoal: "#5c5c62",
+  wood: "#a07a52",
+  hoarding: "#262b38",
+  roof: "#9ea3a8",
+  thatch: "#a08560",
+  // shopfront glass: dark, with the warm interior showing through
+  glass: "#5a4632",
+};
+
 export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boolean }) {
   const { d } = layout.size;
   const frame = useMemo(() => hallFrame(layout), [layout]);
@@ -117,6 +131,32 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
       merged[k] = mergeGeometries(geos)!;
       geos.forEach((g) => g.dispose());
     }
+    // the buildings in ONE draw call: their facade colours (and a baked sun / sky shade per face) as vertex colours
+    const sun = frame.sun.clone().normalize();
+    const shaded: THREE.BufferGeometry[] = [];
+    for (const [k, hex] of Object.entries(BLOCK_COLORS)) {
+      const g = merged[k];
+      if (!g) continue;
+      delete merged[k];
+      const base = new THREE.Color(hex);
+      const n = g.getAttribute("normal") as THREE.BufferAttribute;
+      const col = new Float32Array(n.count * 3);
+      const v = new THREE.Vector3();
+      for (let i = 0; i < n.count; i++) {
+        v.fromBufferAttribute(n, i);
+        const lit = k === "glass" ? 1 : 0.62 + 0.18 * Math.max(0, v.y) + 0.38 * Math.max(0, v.dot(sun));
+        col[i * 3] = base.r * lit;
+        col[i * 3 + 1] = base.g * lit;
+        col[i * 3 + 2] = base.b * lit;
+      }
+      g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+      if (g.getAttribute("uv")) g.deleteAttribute("uv");
+      shaded.push(g);
+    }
+    if (shaded.length) {
+      merged.blocks = mergeGeometries(shaded)!;
+      shaded.forEach((g) => g.dispose());
+    }
     return merged;
   }, [frame, layout.door.x, layout.game, lite, d]);
 
@@ -143,22 +183,15 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
       lawn: day("#6f8f4c", 0.5),
       stone: day("#5d5a55", 0.5),
       white: day("#e4dfd5", 0.55),
-      // shopfronts: dark glass with the warm interior showing through (the halls' interior-mapped glass, far away)
-      glass: day("#3a3630", 0.35, { emissive: new THREE.Color("#6a5236") }),
+      glass: day("#2a3842", 0.45),
       granite: day("#a8a196", 0.55),
-      // facade materials of the real buildings (world/materials.ts)
-      concreteDark: day("#6f6c68", 0.5),
-      brick: day("#9a5a42", 0.5),
-      limestone: day("#d8d0bf", 0.55),
-      charcoal: day("#5c5c62", 0.5),
-      wood: day("#a07a52", 0.5),
-      hoarding: day("#262b38", 0.45),
+      // every building (vertex-coloured facades, baked daylight: unlit, so the hall's own lights never shade it)
+      blocks: new THREE.MeshBasicMaterial({ vertexColors: true, clippingPlanes: clip }),
       water: day("#3c6168", 0.55),
       agaseke: day("#ffffff", 0.6, { map: agaseke, emissiveMap: agaseke }),
       green: day("#557c3a", 0.5),
       roof: day("#9ea3a8", 0.55),
-      thatch: day("#a08560", 0.5),
-    } as Record<string, THREE.MeshLambertMaterial>;
+    } as Record<string, THREE.MeshLambertMaterial | THREE.MeshBasicMaterial>;
     // the arena drum stands right beside some halls: only draw it from 8 m outside the door, so it never hangs over
     // the doorway like a canopy (the real hall exteriors are smaller than these interiors)
     const far = [new THREE.Plane(new THREE.Vector3(0, 0, 1), -(d / 2 + 8))];
