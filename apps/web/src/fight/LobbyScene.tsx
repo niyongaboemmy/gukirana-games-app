@@ -164,15 +164,17 @@ function LobbyShell({ layout }: { layout: HallLayout }) {
       <mesh rotation-x={Math.PI / 2} position={[0, h, cz]} material={mats.ceil}>
         <planeGeometry args={[w, depth]} />
       </mesh>
-      {/* south wall with the plaza door */}
-      {[-1, 1].map((s) => (
-        <mesh key={s} material={mats.wall} position={[s * (dw / 2 + sideW / 2), h / 2, front + 0.2]}>
-          <boxGeometry args={[sideW, h, 0.4]} />
+      {/* south wall with the plaza door (gkSouth: left out of the glass captures, which look in through it) */}
+      <group userData={{ noMerge: true, gkSouth: true }}>
+        {[-1, 1].map((s) => (
+          <mesh key={s} material={mats.wall} position={[s * (dw / 2 + sideW / 2), h / 2, front + 0.2]}>
+            <boxGeometry args={[sideW, h, 0.4]} />
+          </mesh>
+        ))}
+        <mesh material={mats.wall} position={[0, (h + 3.0) / 2, front + 0.2]}>
+          <boxGeometry args={[dw, h - 3.0, 0.4]} />
         </mesh>
-      ))}
-      <mesh material={mats.wall} position={[0, (h + 3.0) / 2, front + 0.2]}>
-        <boxGeometry args={[dw, h - 3.0, 0.4]} />
-      </mesh>
+      </group>
       {/* side walls with timber slats */}
       {[-1, 1].map((s) => (
         <group key={`w${s}`}>

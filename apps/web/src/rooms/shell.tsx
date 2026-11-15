@@ -158,7 +158,8 @@ export function AutoDoor({ x, z, w, color }: { x: number; z: number; w: number; 
   // leaves hang so their bottom rail clears the floor by 1 cm
   const cy = 0.01 + 0.08 + H / 2;
   return (
-    <group position={[x, 0, z]}>
+    // gkSouth: the entrance, left out of the glass captures (they look into the room through the door line)
+    <group position={[x, 0, z]} userData={{ noMerge: true, gkSouth: true }}>
       {/* sliding leaves: never part of the room's static batch; each leaf's parts are batched on their own */}
       <group ref={left} position={[-w / 4, cy, -0.1]} userData={{ noMerge: true }}>
         <StaticMerge>{leaf}</StaticMerge>
@@ -274,46 +275,164 @@ export function WindowWall({
 
 /* ---------------- south wall with the entrance ---------------- */
 
+/** an exterior part of the hall's own facade seen from inside through its glazing (door frame: local z, x, y centre) */
+interface OutsidePart {
+  x: number;
+  y: number;
+  z: number;
+  w: number;
+  h: number;
+  d: number;
+  color: string;
+}
+/**
+ * Halls whose entrance front is a glazed shopfront outside (world/District.ts glassWithDoor), so that the same
+ * glazing is seen from inside (P2-WLD-18): its width, mullions, frame colour, the plaza door's inset in the building's
+ * door frame, and the parts of the facade right outside it (timber fins, brick piers, the basalt pylons).
+ */
+const SHOPFRONTS: Partial<Record<HallLayout["game"], { w: number; mullions: number[]; frame: string; inset: number; outside: OutsidePart[] }>> = {
+  pool: {
+    w: 13.2,
+    mullions: [],
+    frame: "#15171d",
+    inset: -0.55,
+    outside: [
+      // timber fins in front of the glass (every 0.62 m, clear of the entrance), the basalt entrance pylons
+      ...Array.from({ length: 23 }, (_, i) => -14 / 2 + 0.6 + i * 0.62)
+        .filter((x) => Math.abs(x) >= 3.0 && x <= 14 / 2 - 0.5)
+        .map((x) => ({ x, y: 3.6, z: -0.2, w: 0.1, h: 7.2, d: 0.55, color: "#7a5236" })),
+      ...[-1, 1].map((s) => ({ x: s * 2.35, y: 2.5, z: 0.35, w: 0.9, h: 5.0, d: 1.0, color: "#3a3634" })),
+    ],
+  },
+  ludo: {
+    w: 13.1,
+    mullions: [],
+    frame: "#15171d",
+    inset: -0.4,
+    outside: [
+      ...[-6.6, -4.4, 4.4, 6.6].map((x) => ({ x, y: 2.8, z: -0.15, w: 0.6, h: 5.6, d: 0.6, color: "#9a5a42" })),
+      ...[-1, 1].map((s) => ({ x: s * 2.35, y: 2.3, z: 0.35, w: 0.9, h: 4.6, d: 1.0, color: "#3a3634" })),
+    ],
+  },
+  admin: {
+    w: 12.6,
+    // the curtain wall's bronze mullions (every 1.35 m from the stone frame, clear of the door)
+    mullions: Array.from({ length: 11 }, (_, i) => -14.4 / 2 + 0.9 + i * 1.35).filter((x) => Math.abs(x) > 3.0 / 2 + 0.3 && Math.abs(x) < 12.6 / 2),
+    frame: "#3f382f",
+    inset: -1.6,
+    outside: [],
+  },
+};
+
+/**
+ * The entrance wall. For a hall with a glazed shopfront outside (Pool Hall, Ludo Lounge, Administrative Block) the same
+ * glazing is in it, seen from inside: smoked glass either side of the door and over it, the real plaza beyond
+ * (DoorGlimpse / PlazaGlimpse at its true bearing, the hall's captured landscape behind), the facade's own fins, piers
+ * and pylons right outside. Marked `gkSouth`: left out of the glass captures (world/GlassCapture), which look IN.
+ */
 export function SouthWall({ layout, children }: { layout: HallLayout; children: React.ReactNode }) {
   const { w, d, h } = layout.size;
   const half = layout.door.w / 2;
-  const seg = (w - layout.door.w) / 2;
+  const sf = SHOPFRONTS[layout.game];
+  const gw = sf ? Math.min(sf.w, w - 1) : layout.door.w;
+  const seg = (w - gw) / 2;
+  const side = (gw - layout.door.w) / 2;
+  const mats = useMemo(
+    () => ({
+      // fumed glass seen from inside: dark bronze-grey, the plaza through it
+      glass: new THREE.MeshStandardMaterial({ color: "#2a2119", transparent: true, opacity: 0.66, roughness: 0.06, metalness: 0.3, envMapIntensity: 0.6, depthWrite: false }),
+      frame: new THREE.MeshStandardMaterial({ color: sf?.frame ?? "#26282c", metalness: 0.5, roughness: 0.45 }),
+    }),
+    [sf],
+  );
+  useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats]);
+  // the facade's own parts outside, daylit like the plaza beyond (rooms/PlazaGlimpse)
+  const outside = useMemo(() => {
+    const by = new Map<string, THREE.MeshLambertMaterial>();
+    for (const o of sf?.outside ?? []) if (!by.has(o.color)) by.set(o.color, new THREE.MeshLambertMaterial({ color: o.color, emissive: new THREE.Color(o.color).multiplyScalar(0.55) }));
+    return by;
+  }, [sf]);
+  useEffect(() => () => outside.forEach((m) => m.dispose()), [outside]);
   return (
-    <group position={[0, h / 2, d / 2]}>
-      {[-1, 1].map((s) => (
-        <mesh key={s} position={[s * (half + seg / 2), 0, 0.15]} receiveShadow>
-          <boxGeometry args={[seg, h, 0.3]} />
-          {children}
-        </mesh>
-      ))}
-      <mesh position={[0, 1.45, 0.15]}>
-        <boxGeometry args={[layout.door.w, h - 2.9, 0.3]} />
-        {children}
-      </mesh>
-      {/* door frame: jambs + head lining the opening. Every face stands clear of the wall's faces (the old trim shared
-          the opening's side faces with the wall → z-fighting "blips" along the jamb). Jambs project 5 cm into the
-          opening and 2 cm proud of both wall faces; a slim casing frames it on the room side. */}
-      {[-1, 1].map((s) => (
-        <mesh key={`j${s}`} position={[s * (half - 0.005), -h / 2 + 1.45 - 0.03, 0.15]} castShadow={false} receiveShadow={false}>
-          <boxGeometry args={[0.11, 2.94, 0.34]} />
+    <group position={[0, h / 2, d / 2]} userData={{ noMerge: true, gkSouth: true }}>
+      <StaticMerge>
+        {[-1, 1].map((s) => (
+          <mesh key={s} position={[s * (gw / 2 + seg / 2), 0, 0.15]} receiveShadow>
+            <boxGeometry args={[seg, h, 0.3]} />
+            {children}
+          </mesh>
+        ))}
+        {sf ? (
+          <>
+            {[-1, 1].map((s) => (
+              <mesh key={`g${s}`} material={mats.glass} position={[s * (half + side / 2), 0, 0.15]} renderOrder={2}>
+                <planeGeometry args={[side - 0.02, h - 0.02]} />
+              </mesh>
+            ))}
+            <mesh material={mats.glass} position={[0, 1.45 + 0.005, 0.15]} renderOrder={2}>
+              <planeGeometry args={[layout.door.w - 0.02, h - 2.9 - 0.03]} />
+            </mesh>
+            {/* glazing frame: sill, head, the ends against the wall, mullions */}
+            {[-1, 1].map((s) => (
+              <group key={`f${s}`}>
+                <mesh material={mats.frame} position={[s * (half + side / 2), -h / 2 + 0.04, 0.15]}>
+                  <boxGeometry args={[side, 0.08, 0.12]} />
+                </mesh>
+                <mesh material={mats.frame} position={[s * (gw / 2 - 0.04), 0, 0.15]}>
+                  <boxGeometry args={[0.08, h - 0.16, 0.12]} />
+                </mesh>
+              </group>
+            ))}
+            <mesh material={mats.frame} position={[0, h / 2 - 0.04, 0.15]}>
+              <boxGeometry args={[gw, 0.08, 0.12]} />
+            </mesh>
+            {sf.mullions
+              .filter((x) => Math.abs(x) > half + 0.1 && Math.abs(x) < gw / 2 - 0.1)
+              .map((x) => (
+                <mesh key={`m${x}`} material={mats.frame} position={[x, 0, 0.15]}>
+                  <boxGeometry args={[0.06, h - 0.16, 0.1]} />
+                </mesh>
+              ))}
+            {sf.outside.map((o, i) => (
+              <mesh key={`o${i}`} material={outside.get(o.color)} position={[o.x, o.y - h / 2, o.z - sf.inset + 0.3]}>
+                <boxGeometry args={[o.w, o.h, o.d]} />
+              </mesh>
+            ))}
+          </>
+        ) : (
+          <mesh position={[0, 1.45, 0.15]}>
+            <boxGeometry args={[layout.door.w, h - 2.9, 0.3]} />
+            {children}
+          </mesh>
+        )}
+        {/* door frame: jambs + head lining the opening. Every face stands clear of the wall's faces (the old trim shared
+            the opening's side faces with the wall → z-fighting "blips" along the jamb). Jambs project 5 cm into the
+            opening and 2 cm proud of both wall faces; a slim casing frames it on the room side. */}
+        {[-1, 1].map((s) => (
+          <mesh key={`j${s}`} position={[s * (half - 0.005), -h / 2 + 1.45 - 0.03, 0.15]} castShadow={false} receiveShadow={false}>
+            <boxGeometry args={[0.11, 2.94, 0.34]} />
+            <meshStandardMaterial color="#26282c" metalness={0.6} roughness={0.42} />
+          </mesh>
+        ))}
+        <mesh position={[0, -h / 2 + 2.9 - 0.025, 0.15]} castShadow={false} receiveShadow={false}>
+          <boxGeometry args={[layout.door.w + 0.1, 0.07, 0.34]} />
           <meshStandardMaterial color="#26282c" metalness={0.6} roughness={0.42} />
         </mesh>
-      ))}
-      <mesh position={[0, -h / 2 + 2.9 - 0.025, 0.15]} castShadow={false} receiveShadow={false}>
-        <boxGeometry args={[layout.door.w + 0.1, 0.07, 0.34]} />
-        <meshStandardMaterial color="#26282c" metalness={0.6} roughness={0.42} />
-      </mesh>
-      {/* room-side casing (architrave): a thin flat frame 3 cm proud of the wall face */}
-      {[-1, 1].map((s) => (
-        <mesh key={`c${s}`} position={[s * (half + 0.08), -h / 2 + 1.47, -0.035]} castShadow={false} receiveShadow={false}>
-          <boxGeometry args={[0.1, 2.98, 0.02]} />
-          <meshStandardMaterial color="#1e1f23" metalness={0.5} roughness={0.5} />
-        </mesh>
-      ))}
-      <mesh position={[0, -h / 2 + 2.96, -0.035]} castShadow={false} receiveShadow={false}>
-        <boxGeometry args={[layout.door.w + 0.36, 0.1, 0.02]} />
-        <meshStandardMaterial color="#1e1f23" metalness={0.5} roughness={0.5} />
-      </mesh>
+        {/* room-side casing (architrave): a thin flat frame 3 cm proud of the wall face (only on a solid wall) */}
+        {!sf &&
+          [-1, 1].map((s) => (
+            <mesh key={`c${s}`} position={[s * (half + 0.08), -h / 2 + 1.47, -0.035]} castShadow={false} receiveShadow={false}>
+              <boxGeometry args={[0.1, 2.98, 0.02]} />
+              <meshStandardMaterial color="#1e1f23" metalness={0.5} roughness={0.5} />
+            </mesh>
+          ))}
+        {!sf && (
+          <mesh position={[0, -h / 2 + 2.96, -0.035]} castShadow={false} receiveShadow={false}>
+            <boxGeometry args={[layout.door.w + 0.36, 0.1, 0.02]} />
+            <meshStandardMaterial color="#1e1f23" metalness={0.5} roughness={0.5} />
+          </mesh>
+        )}
+      </StaticMerge>
     </group>
   );
 }
@@ -329,7 +448,8 @@ export function DoorGlimpse({ layout, lite = false }: { layout: HallLayout; lite
   const { d } = layout.size;
   const z0 = d / 2 + 0.3;
   return (
-    <group>
+    // (outside the hall: left out of the glass captures, gkSouth)
+    <group userData={{ noMerge: true, gkSouth: true }}>
       <PlazaGlimpse layout={layout} lite={lite} />
       {/* basalt threshold through the wall opening (the plaza impostor starts 35 cm outside the wall face) */}
       <mesh position={[layout.door.x, 0.003, d / 2 + 0.24]} rotation={[-Math.PI / 2, 0, 0]}>

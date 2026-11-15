@@ -4,21 +4,21 @@ import { PLAZA_OBSTACLES } from "./obstacles";
 import { inBuilding, toLocal } from "./footprints";
 import {
   apply,
-  CAPTURE_INSET,
+  CAPTURE_OUT,
+  captureBudget,
   cubeBytes,
   decodePaneUV,
   doorFrame,
   GLAZED,
-  INTERIOR_SIZE,
+  isDesktopClass,
+  interiorSize,
   localToRoom,
-  Lru,
-  maxCaptures,
   nextCapture,
   PANE_MODES,
   paneUV,
   projectionOf,
-  REFLECT_SIZE,
   reflectionPoint,
+  reflectSize,
   worldToLocal,
 } from "./glass-capture";
 
@@ -60,18 +60,14 @@ describe("glass capture: frames", () => {
 });
 
 describe("glass capture: placement and projection per hall", () => {
-  it("captures from just inside the door, at eye height, inside the room box", () => {
+  it("captures from the forecourt on the door axis, looking in through the door line, at eye height", () => {
     for (const g of GLAZED) {
       const p = projectionOf(g);
       const L = HALLS[g];
       expect(p.at[0]).toBe(L.door.x);
-      expect(p.at[2]).toBeCloseTo(L.size.d / 2 - CAPTURE_INSET, 9);
+      expect(p.at[2]).toBeCloseTo(L.size.d / 2 + CAPTURE_OUT, 9);
       expect(p.at[1]).toBeGreaterThan(1.2);
       expect(p.at[1]).toBeLessThan(L.size.h);
-      for (let i = 0; i < 3; i++) {
-        expect(p.at[i]!).toBeGreaterThan(p.min[i]!);
-        expect(p.at[i]!).toBeLessThan(p.max[i]!);
-      }
     }
   });
 
@@ -82,8 +78,9 @@ describe("glass capture: placement and projection per hall", () => {
       expect(p.max[0] - p.min[0]).toBeCloseTo(w, 9);
       expect(p.max[1] - p.min[1]).toBeCloseTo(h, 9);
       expect(p.max[2] - p.min[2]).toBeCloseTo(d, 9);
-      expect(p.maxD).toBeGreaterThanOrEqual(Math.hypot(w, d, h));
-      expect(p.maxD).toBeLessThan(Math.hypot(w, d, h) + 1);
+      // from a capture point to the room's far corners
+      for (const x of [p.min[0], p.max[0]]) expect(p.maxD).toBeGreaterThanOrEqual(Math.hypot(x - p.at[0], p.min[2] - p.at[2], h - p.at[1]));
+      expect(p.maxD).toBeLessThan(Math.hypot(w, d, h) + 2 * CAPTURE_OUT + 20);
     }
   });
 
@@ -121,20 +118,18 @@ describe("glass capture: pane modes, queue, memory", () => {
     expect(nextCapture({ x: 0, z: 0 }, all)).toBeNull();
   });
 
-  it("GPU memory of the captures is bounded (≤ 6 interiors + 6 reflections ≈ 38 MB; 3 on small devices)", () => {
-    expect(maxCaptures(undefined)).toBe(6);
-    expect(maxCaptures(8)).toBe(6);
-    expect(maxCaptures(4)).toBe(3);
-    const total = maxCaptures(8) * cubeBytes(INTERIOR_SIZE) + GLAZED.length * cubeBytes(REFLECT_SIZE);
-    expect(total).toBeLessThanOrEqual(40 * 1024 * 1024);
-  });
-
-  it("LRU releases the least recently captured beyond its capacity", () => {
-    const l = new Lru(2);
-    expect(l.touch("a")).toEqual([]);
-    expect(l.touch("b")).toEqual([]);
-    expect(l.touch("a")).toEqual([]);
-    expect(l.touch("c")).toEqual(["b"]);
-    expect(l.keys).toEqual(["a", "c"]);
+  it("capture sizes and the GPU memory budget (desktop 512 / 256 px, phone 256 / 128 px, all six halls)", () => {
+    expect(interiorSize(true)).toBe(512);
+    expect(interiorSize(false)).toBe(256);
+    expect(reflectSize(true)).toBe(256);
+    expect(reflectSize(false)).toBe(128);
+    expect(isDesktopClass(undefined, false)).toBe(true);
+    expect(isDesktopClass(8, false)).toBe(true);
+    expect(isDesktopClass(4, false)).toBe(false);
+    expect(isDesktopClass(8, true)).toBe(false);
+    expect(cubeBytes(512)).toBe(Math.round(512 * 512 * 24 * (4 / 3)));
+    expect(cubeBytes(256, false)).toBe(256 * 256 * 24);
+    expect(captureBudget(true)).toBeLessThanOrEqual(60 * 1024 * 1024);
+    expect(captureBudget(false)).toBeLessThanOrEqual(15 * 1024 * 1024);
   });
 });

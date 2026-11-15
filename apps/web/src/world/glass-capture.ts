@@ -81,29 +81,36 @@ export interface Projection {
   /** room box the march is bounded by (m, room frame) */
   min: [number, number, number];
   max: [number, number, number];
-  /** where the interior is captured from: just inside the door, eye height (room frame) */
+  /**
+   * where the interior is captured from (room frame): on the door axis OUTSIDE the south wall, at the distance and height
+   * a visitor looks in from. The south wall, the door and everything outside it (userData.gkSouth) are left out of the
+   * capture, so the room is seen through the door line exactly as from the forecourt.
+   */
   at: [number, number, number];
-  /** distance encoding range of the capture's alpha channel (m): the box diagonal */
+  /** distance encoding range of the capture's alpha channel (m): from the capture point to the far corners */
   maxD: number;
   /** height the march stops at (under the ceiling fixtures; the ceiling above it is box-projected) */
   cut: number;
 }
 
-/**
- * capture point: 2.5 m inside the south wall, a little above eye height. Far enough in that what stands right behind
- * the glass (the planters flanking the entrance, the door leaves) is seen from the front, not edge-on, and the floor
- * is not seen at a grazing angle; everything between it and the glass is still in view (looking back towards the wall).
- */
-export const CAPTURE_INSET = 2.5;
-export const CAPTURE_EYE = 1.8;
+/** capture point: CAPTURE_OUT m outside the south wall on the door axis, at eye height */
+export const CAPTURE_OUT = 3.5;
+export const CAPTURE_EYE = 1.7;
 
-/** Box-projection / ray-march parameters of a hall's glass (room frame). */
+/** Ray-march parameters and the capture point of a hall (room frame). */
 export function projectionOf(game: GlazedHall): Projection {
   const L = HALLS[game];
   const { w, d, h } = L.size;
   const min: [number, number, number] = [-w / 2, 0, -d / 2];
   const max: [number, number, number] = [w / 2, h, d / 2];
-  return { min, max, at: [L.door.x, Math.min(CAPTURE_EYE, h - 0.3), d / 2 - CAPTURE_INSET], maxD: Math.ceil(Math.hypot(w, d, h)), cut: Math.max(CAPTURE_EYE + 0.6, h - 0.9) };
+  const y = Math.min(CAPTURE_EYE, h - 0.3);
+  return {
+    min,
+    max,
+    at: [L.door.x, y, d / 2 + CAPTURE_OUT],
+    maxD: Math.ceil(Math.hypot(w / 2 + Math.abs(L.door.x), d + CAPTURE_OUT, h)),
+    cut: Math.max(CAPTURE_EYE + 0.6, h - 0.9),
+  };
 }
 
 /** Outside reflection capture: on the forecourt, `REFLECT_OUT` m in front of the door line, eye height (world). */
@@ -141,27 +148,19 @@ export function nextCapture(pos: { x: number; z: number }, done: ReadonlySet<str
   return best;
 }
 
-/** GPU memory of the captures (bytes): RGBA8 cube maps, no mips */
-export const cubeBytes = (size: number) => size * size * 4 * 6;
-export const INTERIOR_SIZE = 512;
-export const REFLECT_SIZE = 128;
-/** at most this many interior captures at a time (least recently seen released first); fewer on small devices */
-export const maxCaptures = (deviceMemoryGb: number | undefined) => (deviceMemoryGb !== undefined && deviceMemoryGb <= 4 ? 3 : 6);
+/** GPU memory of the captures (bytes): RGBA8 cube maps, with their mip chain (+1/3) */
+export const cubeBytes = (size: number, mips = true) => Math.round(size * size * 4 * 6 * (mips ? 4 / 3 : 1));
 
-/** Least-recently-used set of keys with a fixed capacity: `touch` returns the keys to release. */
-export class Lru {
-  private order: string[] = [];
-  constructor(public cap: number) {}
-  touch(key: string): string[] {
-    this.order = [...this.order.filter((k) => k !== key), key];
-    const out: string[] = [];
-    while (this.order.length > this.cap) out.push(this.order.shift()!);
-    return out;
-  }
-  delete(key: string) {
-    this.order = this.order.filter((k) => k !== key);
-  }
-  get keys() {
-    return [...this.order];
-  }
-}
+/**
+ * Capture sizes. Behind the smoked glass the interior is only a dim, heavily blurred impression (a high mip level), so
+ * the captures are small; the open doorway of a vestibule shows it sharper. The reflection is what reads on the glass:
+ * desktop 512 px interior / 256 px reflection, phones and small-memory devices 256 / 128.
+ */
+export const interiorSize = (desktop: boolean) => (desktop ? 512 : 256);
+export const reflectSize = (desktop: boolean) => (desktop ? 256 : 128);
+
+/** a desktop-class device: not a coarse pointer, more than 4 GB reported (or not reported) */
+export const isDesktopClass = (deviceMemoryGb: number | undefined, coarsePointer: boolean) => !coarsePointer && !(deviceMemoryGb !== undefined && deviceMemoryGb <= 4);
+
+/** the most GPU memory the glass captures hold (bytes): one interior (with mips) and one reflection per glazed hall */
+export const captureBudget = (desktop: boolean) => GLAZED.length * (cubeBytes(interiorSize(desktop)) + cubeBytes(reflectSize(desktop), false));

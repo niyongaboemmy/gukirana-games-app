@@ -7,39 +7,39 @@ import { getArea, useStage } from "./stage";
 import { glazingMaterials } from "./glazing";
 import {
   CAPTURE_RANGE,
+  captureBudget,
   cubeBytes,
   doorFrame,
   GLAZED,
-  INTERIOR_SIZE,
-  Lru,
-  maxCaptures,
+  interiorSize,
+  isDesktopClass,
   nextCapture,
   projectionOf,
-  REFLECT_SIZE,
   reflectionPoint,
+  reflectSize,
   type GlazedHall,
 } from "./glass-capture";
 
 /**
  * Captures what is really behind (and in front of) every hall's glass, once per session (P2-WLD-18):
  *
+ *  - the REFLECTION, what the smoked glass mostly shows: the plaza itself seen from the hall's forecourt (people left
+ *    out: they move), 256 px (128 on phones).
  *  - the INTERIOR: the hall's own area scene (exactly what you walk into, lit by its own lights, its windows showing its
- *    own captured landscape) rendered from just inside its door into a 512 px cube map, colour in RGB and the distance
- *    to the nearest surface in alpha (a second pass with an override material), for the glazing shader's ray march.
- *    A hall is captured as soon as it is warm and ready: walking up to its door warms it anyway (rooms/preload), and
- *    within CAPTURE_RANGE (40 m) of a door this asks for the warm-up itself when no other hall is warm (one at a time,
- *    released again right after the capture unless you are at its door).
- *  - the REFLECTION: the plaza itself seen from the hall's forecourt (people left out: they move), 128 px.
+ *    own landscape) seen from the forecourt through the door line: the south wall, the door and what is outside it
+ *    (userData.gkSouth) are left out. Colour in RGB, the distance to the nearest surface in alpha (second pass), with
+ *    mips: the smoked glass shows it only as a dim, heavily blurred impression; the open doorway at the end of a door
+ *    vestibule shows it sharper (depth-aware). 512 px (256 on phones).
  *
- * One cube face per frame (colour + distance for an interior face), so a capture never stalls the walk. Captures fade
- * into the glass (the shader keeps the honest tinted look until then). GPU memory: ≤ 6 interiors × 6 MB + 6 reflections
- * × 0.4 MB (≤ 3 interiors on devices reporting ≤ 4 GB). Lite renders no captures (honest glazing only).
+ * A hall is captured as soon as it is warm and ready: walking up to its door warms it anyway (rooms/preload); within
+ * CAPTURE_RANGE (40 m) of a door this asks for the warm-up itself when no other hall is warm, one at a time, released
+ * again afterwards unless you are at its door. One cube face per frame; captures fade in. GPU memory: captureBudget()
+ * (≈ 59 MB desktop, ≈ 14 MB phone for all six halls). Lite renders no captures (smoked glass with the sky reflection).
  */
 
 /**
  * The material of the distance pass: distance from the capture point → alpha (√ for near precision), the colour already
- * captured kept. With `map`: cut-out leaves / fronds (alpha-tested cards) keep their holes, so a plant has the depth of
- * its leaves, not of the quads they are drawn on.
+ * captured kept. With `map`: cut-out leaves (alpha-tested cards) keep their holes.
  */
 function distanceMaterial(maxD: number, map: THREE.Texture | null = null, alphaTest = 0) {
   return new THREE.ShaderMaterial({
@@ -81,14 +81,17 @@ function distanceMaterial(maxD: number, map: THREE.Texture | null = null, alphaT
   });
 }
 
-const cubeTarget = (size: number) =>
-  new THREE.WebGLCubeRenderTarget(size, {
+const cubeTarget = (size: number, mips: boolean) => {
+  const rt = new THREE.WebGLCubeRenderTarget(size, {
     type: THREE.UnsignedByteType, // half-float cube targets render black on some GPUs
     colorSpace: THREE.SRGBColorSpace,
-    generateMipmaps: false,
-    minFilter: THREE.LinearFilter,
+    generateMipmaps: mips,
+    minFilter: mips ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
   });
+  rt.texture.anisotropy = mips ? 4 : 1;
+  return rt;
+};
 
 interface Job {
   game: GlazedHall;
@@ -103,22 +106,24 @@ const interiors = new Map<GlazedHall, THREE.WebGLCubeRenderTarget>();
 const reflections = new Map<GlazedHall, THREE.WebGLCubeRenderTarget>();
 const fade = new Map<string, number>();
 /** capture state for QA (window.__gkGlass) */
-const stats = { interiors: [] as string[], reflections: [] as string[], bytes: 0, warming: null as string | null };
+const stats = { interiors: [] as string[], reflections: [] as string[], bytes: 0, budget: 0, warming: null as string | null };
 if (typeof window !== "undefined") {
   (window as unknown as { __gkGlass: typeof stats }).__gkGlass = stats;
   // dev: the capture targets themselves, for QA read-backs
   if (process.env.NODE_ENV !== "production") Object.assign(stats, { targets: { interiors, reflections } });
 }
 
-const publish = () => {
-  stats.interiors = [...interiors.keys()];
-  stats.reflections = [...reflections.keys()];
-  stats.bytes = interiors.size * cubeBytes(INTERIOR_SIZE) + reflections.size * cubeBytes(REFLECT_SIZE);
+const doorDist = (g: GlazedHall) => {
+  const f = doorFrame(g);
+  return Math.hypot(f.x - selfPose.x, f.z - selfPose.z);
 };
 
 export function GlassCapture() {
   const gl = useThree((s) => s.gl);
-  const lru = useMemo(() => new Lru(maxCaptures((navigator as Navigator & { deviceMemory?: number }).deviceMemory)), []);
+  const desktop = useMemo(
+    () => isDesktopClass((navigator as Navigator & { deviceMemory?: number }).deviceMemory, typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches),
+    [],
+  );
   const job = useRef<Job | null>(null);
   /** a hall this component asked to warm (released again after its capture) and since when it waits */
   const warming = useRef<{ game: GlazedHall; since: number } | null>(null);
@@ -132,38 +137,38 @@ export function GlassCapture() {
     if (!m) dist.current.set(k, (m = distanceMaterial(maxD, map, alphaTest)));
     return m;
   };
-
+  useEffect(() => {
+    stats.budget = captureBudget(desktop);
+  }, [desktop]);
   useEffect(() => () => job.current?.rt.dispose(), []);
 
+  const publish = () => {
+    stats.interiors = [...interiors.keys()];
+    stats.reflections = [...reflections.keys()];
+    stats.bytes = interiors.size * cubeBytes(interiorSize(desktop)) + reflections.size * cubeBytes(reflectSize(desktop), false);
+  };
+
   const bind = (game: GlazedHall) => {
+    const i = interiors.get(game);
+    const r = reflections.get(game);
+    const rp = reflectionPoint(game);
     for (const m of glazingMaterials(game)) {
-      const i = interiors.get(game);
-      const r = reflections.get(game);
-      m.uniforms.uCube!.value = i?.texture ?? null;
-      m.uniforms.uRefl!.value = r?.texture ?? null;
-      if (!i) m.uniforms.uHas!.value = 0;
-      if (!r) m.uniforms.uReflHas!.value = 0;
-      const rp = reflectionPoint(game);
-      (m.uniforms.uReflC!.value as THREE.Vector3).set(rp[0], rp[1], rp[2]);
+      const u = m.uniforms;
+      u.uCube!.value = i?.texture ?? null;
+      u.uSize!.value = interiorSize(desktop);
+      u.uRefl!.value = r?.texture ?? null;
+      if (!i) u.uHas!.value = 0;
+      if (!r) u.uReflHas!.value = 0;
+      (u.uReflC!.value as THREE.Vector3).set(rp[0], rp[1], rp[2]);
     }
   };
 
-  const release = (game: GlazedHall) => {
-    interiors.get(game)?.dispose();
-    interiors.delete(game);
-    fade.delete(`i:${game}`);
-    lru.delete(game);
-    bind(game);
-    publish();
-  };
-
-  /** start a capture job */
   const start = (game: GlazedHall, kind: Job["kind"]) => {
-    const rt = cubeTarget(kind === "interior" ? INTERIOR_SIZE : REFLECT_SIZE);
+    const interior = kind === "interior";
+    const rt = cubeTarget(interior ? interiorSize(desktop) : reflectSize(desktop), interior);
     const pr = projectionOf(game);
-    const cam = new THREE.CubeCamera(kind === "interior" ? 0.05 : 0.3, kind === "interior" ? pr.maxD * 1.8 : 900, rt);
-    if (kind === "interior") cam.position.set(...pr.at);
-    else cam.position.set(...reflectionPoint(game));
+    const cam = new THREE.CubeCamera(interior ? 0.05 : 0.3, interior ? pr.maxD * 1.5 : 900, rt);
+    cam.position.set(...(interior ? pr.at : reflectionPoint(game)));
     cam.coordinateSystem = gl.coordinateSystem;
     cam.updateCoordinateSystem();
     cam.updateMatrixWorld(true);
@@ -172,8 +177,8 @@ export function GlassCapture() {
 
   /** render one face of the current job (returns true when the job is complete) */
   const step = (j: Job): boolean => {
-    const area = getArea(j.kind === "interior" ? `hall:${j.game}` : "outdoor");
-    const scene = area.scene;
+    const interior = j.kind === "interior";
+    const scene = getArea(interior ? `hall:${j.game}` : "outdoor").scene;
     const cam = j.cam.children[j.face] as THREE.PerspectiveCamera;
     const prevTarget = gl.getRenderTarget();
     const prevFace = gl.getActiveCubeFace();
@@ -182,9 +187,9 @@ export function GlassCapture() {
     const ac = gl.autoClear;
     const vis = scene.visible;
     const hidden: THREE.Object3D[] = [];
-    // people move: never frozen into a capture
+    // people move (never frozen into a capture); the south wall, the door and what is outside it are not in the room
     scene.traverse((o) => {
-      if (o.userData.gkPerson && o.visible) {
+      if ((o.userData.gkPerson || (interior && o.userData.gkSouth)) && o.visible) {
         o.visible = false;
         hidden.push(o);
       }
@@ -195,7 +200,7 @@ export function GlassCapture() {
       gl.setRenderTarget(j.rt, j.face);
       gl.autoClear = true;
       gl.render(scene, cam);
-      if (j.kind === "interior") {
+      if (interior) {
         // distance pass: depth cleared, colour kept, alpha replaced; no background, no sprites / points / text / glass
         const pr = projectionOf(j.game);
         const plain = distFor(pr.maxD, null, 0);
@@ -286,13 +291,11 @@ export function GlassCapture() {
       cache.get(j.game)?.dispose();
       cache.set(j.game, j.rt);
       fade.set(`${j.kind === "interior" ? "i" : "r"}:${j.game}`, 0);
-      if (j.kind === "interior") for (const g of lru.touch(j.game)) if (g !== j.game) release(g as GlazedHall);
       bind(j.game);
       publish();
       if (j.kind === "interior" && warming.current?.game === j.game) {
         // asked for by this capture only: release it again unless you are at its door (then the walk-up keeps it)
-        const f = doorFrame(j.game);
-        if (Math.hypot(f.x - selfPose.x, f.z - selfPose.z) > 12) st.coolHall(j.game);
+        if (doorDist(j.game) > 12) st.coolHall(j.game);
         warming.current = null;
         stats.warming = null;
       }
@@ -304,9 +307,10 @@ export function GlassCapture() {
     acc.current = 0;
     const now = performance.now();
     const pos = { x: selfPose.x, z: selfPose.z };
+    const failedOf = (p: string) => [...failed.current].filter((k) => k.startsWith(p)).map((k) => k.slice(p.length));
     // 1. reflections: the plaza in front of each facade (the outdoor scene is always there while you are outside)
     if (st.view === "plaza" && st.ready.outdoor) {
-      const g = nextCapture(pos, new Set([...reflections.keys(), ...[...failed.current].filter((k) => k.startsWith("r:")).map((k) => k.slice(2))]), CAPTURE_RANGE + 20);
+      const g = nextCapture(pos, new Set([...reflections.keys(), ...failedOf("r:")]), CAPTURE_RANGE + 20);
       if (g) return start(g, "reflection");
     }
     // 2. interiors: any glazed hall that is warm and ready (after its own window capture and late parts settled)
@@ -319,17 +323,15 @@ export function GlassCapture() {
       const t0 = readySince.current.get(g) ?? now;
       readySince.current.set(g, t0);
       const bg = getArea(`hall:${g}`).scene.background as THREE.Texture | null;
-      if ((bg && (bg as THREE.Texture).isTexture) || now - t0 > 4000) {
-        if (now - t0 > 1200) return start(g, "interior");
-      }
+      if (((bg && bg.isTexture) || now - t0 > 4000) && now - t0 > 1200) return start(g, "interior");
       return;
     }
-    // 3. nothing warm to capture: ask for the nearest uncaptured hall within range (one at a time, never over a
-    //    hall that is warm for another reason)
+    // 3. nothing warm to capture: ask for the nearest uncaptured hall within range (one at a time, never over a hall
+    //    that is warm for another reason)
     if (st.view !== "plaza") return;
     const w = warming.current;
     if (w) {
-      // given up after 25 s (assets that never arrive, a closed hall): honest glazing stays
+      // given up after 25 s (assets that never arrive): the smoked glass keeps its plain look
       if (!st.warm.includes(w.game) || now - w.since > 25000) {
         if (now - w.since > 25000) failed.current.add(`i:${w.game}`);
         warming.current = null;
@@ -338,7 +340,7 @@ export function GlassCapture() {
       return;
     }
     if (st.warm.length) return;
-    const g = nextCapture(pos, new Set([...interiors.keys(), ...[...failed.current].filter((k) => k.startsWith("i:")).map((k) => k.slice(2))]));
+    const g = nextCapture(pos, new Set([...interiors.keys(), ...failedOf("i:")]));
     if (!g) return;
     warming.current = { game: g, since: now };
     stats.warming = g;

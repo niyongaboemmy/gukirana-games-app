@@ -96,7 +96,7 @@ for (const g of halls) {
   // walk to 9 m in front of the door (admin: over the campus walks), so the hall is captured (or warmed) like a visitor
   const stand = L2W(b, [0, 0, 9]);
   // (placed there: a long walk can cut through another hall's door)
-  await waitFor(() => !!window.__gkPlayer && window.__gkProbe.view === "plaza", 30000);
+  await waitFor(() => !!window.__gkPlayer && window.__gkProbe.view === "plaza", 120000);
   await page.evaluate(([x, z]) => {
     window.__gkNav.goal = null;
     window.__gkNav.target = null;
@@ -111,9 +111,17 @@ for (const g of halls) {
     oblique: { p: [b.x * 1.9, 1.65, 7], l: T },
     // head-on, close
     front: { p: [b.x, 1.65, 3.6], l: [b.x, 1.75, b.zf] },
+    // the entrance from the forecourt, a little off axis: the open door and what shows through it
+    entrance: { p: [-3.2, 1.65, 9], l: [0, 2.0, b.zf - 2] },
   };
   report.halls[g] = {};
   for (const [name, v] of Object.entries(views)) {
+    if (name === "entrance") {
+      // step up to the door so it opens (the sensor), a little to the side of the line of sight
+      const at = L2W(b, [1.6, 0, 2.2]);
+      await page.evaluate(([x, z]) => Object.assign(window.__gkPlayer.pos, { x, z }), [at[0], at[2]]);
+      await sleep(2500);
+    }
     const p = L2W(b, v.p);
     const l = L2W(b, v.l);
     await page.evaluate((p, l) => (window.__gkPlazaCam = { p, l }), p, l);
@@ -132,7 +140,7 @@ for (const g of halls) {
 }
 report.glass = has ? await page.evaluate(() => ({ ...window.__gkGlass, textures: window.__gkProbe.textures })) : null;
 // back at the spawn: draw calls with every capture in place
-await waitFor(() => !!window.__gkPlayer, 30000);
+await waitFor(() => !!window.__gkPlayer, 120000);
 await page.evaluate(() => {
   window.__gkNav.goal = null;
   window.__gkNav.target = null;
@@ -161,6 +169,10 @@ for (const g of halls) {
   await page.evaluate((d) => window.__gkRoomQA && (window.__gkRoomQA.cam = { p: [0, 1.6, d / 2 - 3.2], l: [0, 1.4, d / 2 + 10] }), b.d);
   await sleep(1200);
   await shot(`${g}-in-door-out`);
+  // the entrance wall from inside (its glazing, the plaza beyond)
+  await page.evaluate((d) => window.__gkRoomQA && (window.__gkRoomQA.cam = { p: [-3, 1.7, d / 2 - 9], l: [3, 1.8, d / 2] }), b.d);
+  await sleep(1200);
+  await shot(`${g}-in-south-wall`);
   await page.evaluate((d) => window.__gkRoomQA && (window.__gkRoomQA.cam = { p: [0, 1.7, 0], l: [0, 1.6, -d] }), b.d);
   await sleep(1200);
   await shot(`${g}-in-windows-out`);

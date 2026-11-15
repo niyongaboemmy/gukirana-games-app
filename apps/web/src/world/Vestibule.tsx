@@ -27,7 +27,8 @@ const STYLES: Record<PortalDef["kind"], Style> = {
   pool: { floor: "#5a3f2c", floorTex: "wood", wall: "#4a3d33", ceiling: "#2a2622", lights: 3 },
   ludo: { floor: "#b07a4a", floorTex: "herringbone", wall: "#cdb796", ceiling: "#8a6a4a", lights: 3 },
   igisoro: { floor: "#9a5b3c", floorTex: "tile", wall: "#c9a77c", ceiling: "#7a5a36", lights: 2 },
-  arena: { floor: "#8a7f74", floorTex: "tile", wall: "#d4c6b4", ceiling: "#2e231b", lights: 3 },
+  // (P2-WLD-18: the arena's glazed foyer itself, in its chocolate palette: timber walls, a dark soffit)
+  arena: { floor: "#8a7f74", floorTex: "tile", wall: "#4a3426", ceiling: "#2a1f18", lights: 3 },
   admin: { floor: "#b9b4ab", floorTex: "tile", wall: "#dcd8d0", ceiling: "#e6e3dd", lights: 3 },
   fight: { floor: "#77736d", floorTex: "tile", wall: "#3a3a3d", ceiling: "#1c1c1f", lights: 3 },
   soon: { floor: "#777", wall: "#777", ceiling: "#555", lights: 0 },
@@ -109,24 +110,28 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
     },
     [mats],
   );
-  const w = DOOR.w + 0.3;
-  const h = DOOR.h + 0.25;
-  // the hall beyond the inner doorway (its glazing material is shared with the facade, never disposed here)
+  // The Tournament Arena's door opens into its glazed foyer (District.ts: 12.4 m front, returns back to the drum at
+  // z = −7.6): the "vestibule" there IS the foyer, as wide, deep and tall as its glass box, so no corridor wall stands
+  // in the doorway. Everywhere else a door-wide lobby.
+  const foyer = def.kind === "arena";
+  const w = foyer ? 12.0 : DOOR.w + 0.3;
+  const h = foyer ? 6.1 : DOOR.h + 0.25;
   const z0 = inset - 0.04;
-  const hall = useMemo(() => (isGlazed(def.kind) ? paneGeometry("doorway", z0 - DEPTH, w, h) : null), [def.kind, w, h, z0]);
+  const depth = foyer ? z0 - -7.5 : DEPTH;
+  // the hall beyond the inner doorway (its glazing material is shared with the facade, never disposed here)
+  const hall = useMemo(() => (isGlazed(def.kind) ? paneGeometry("doorway", z0 - depth, w, h) : null), [def.kind, w, h, z0, depth]);
   useEffect(() => () => hall?.dispose(), [hall]);
-  const zc = z0 - DEPTH / 2;
+  const zc = z0 - depth / 2;
+  const cols = foyer ? [-3.6, 0, 3.6] : [0];
   const cast = !lite;
   return (
     <group>
-      <mesh
-        material={mats.floor}
-        position={[0, 0.012, zc]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        receiveShadow={cast}
-      >
-        <planeGeometry args={[w, DEPTH]} />
-      </mesh>
+      {/* (the foyer has its own basalt floor in the district batch) */}
+      {!foyer && (
+        <mesh material={mats.floor} position={[0, 0.012, zc]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow={cast}>
+          <planeGeometry args={[w, depth]} />
+        </mesh>
+      )}
       {[-1, 1].map((sd) => (
         <mesh
           key={sd}
@@ -135,32 +140,27 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
           castShadow={cast}
           receiveShadow={cast}
         >
-          <boxGeometry args={[0.1, h, DEPTH]} />
+          <boxGeometry args={[0.1, h, depth]} />
         </mesh>
       ))}
       <mesh material={mats.ceiling} position={[0, h + 0.05, zc]} castShadow={cast} receiveShadow={cast}>
-        <boxGeometry args={[w + 0.2, 0.1, DEPTH]} />
+        <boxGeometry args={[w + 0.2, 0.1, depth]} />
       </mesh>
       {Array.from({ length: s.lights }, (_, i) => {
-        const z = z0 - ((i + 0.5) / s.lights) * DEPTH;
-        return (
-          <group key={i}>
-            <mesh material={mats.light} position={[0, h - 0.002, z]} rotation={[Math.PI / 2, 0, 0]}>
+        const z = z0 - ((i + 0.5) / s.lights) * depth;
+        return cols.map((x) => (
+          <group key={`${i}:${x}`}>
+            <mesh material={mats.light} position={[x, h - 0.002, z]} rotation={[Math.PI / 2, 0, 0]}>
               <circleGeometry args={[0.09, 20]} />
             </mesh>
-            <mesh
-              material={mats.pool}
-              position={[0, 0.02, z]}
-              rotation={[-Math.PI / 2, 0, 0]}
-              renderOrder={1}
-            >
+            <mesh material={mats.pool} position={[x, foyer ? 0.05 : 0.02, z]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1}>
               <planeGeometry args={[1.6, 1.6]} />
             </mesh>
           </group>
-        );
+        ));
       })}
       {/* inner doorway: the hall itself beyond the lobby, at its true depth (captured interior) */}
-      {hall && isGlazed(def.kind) && <mesh geometry={hall} material={glazingMaterial(def.kind, tier)} position={[0, h / 2, z0 - DEPTH]} />}
+      {hall && isGlazed(def.kind) && <mesh geometry={hall} material={glazingMaterial(def.kind, tier)} position={[0, h / 2, z0 - depth]} />}
     </group>
   );
 }
