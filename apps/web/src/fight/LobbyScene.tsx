@@ -18,6 +18,8 @@ import { FIGHT_ON } from "./flags";
 import { startFightMock } from "./mock";
 import { LobbyVenue } from "./lobby-venue";
 import { GymLife } from "./gym-life";
+import { floorArrow } from "./hall-dressing";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 const FONT = "/fonts/Baloo2.ttf";
 
@@ -42,6 +44,7 @@ export function LobbyScene({ layout, lite }: { layout: HallLayout; lite: boolean
       <CeilingLights />
       <Portals />
       <StatusBoard />
+      <LobbyArrows />
       <group userData={{ noMerge: true }}>
         <PassageDoor />
         <LobbyVenue />
@@ -51,6 +54,32 @@ export function LobbyScene({ layout, lite }: { layout: HallLayout; lite: boolean
       </group>
     </group>
   );
+}
+
+/**
+ * Painted arrows from the plaza door to the open Boxing door (P3-FGT-08): the way in to the fights reads on the floor
+ * the moment you enter. One merged mesh.
+ */
+function LobbyArrows() {
+  const { geo, mat } = useMemo(() => {
+    const bx = SUBHALL_DOOR_X.boxing;
+    const pts = [
+      { x: -0.9, z: 4.9 },
+      { x: -3.4, z: 3.4 },
+      { x: -5.9, z: 1.9 },
+      { x: bx, z: 0.3 },
+      { x: bx, z: LOBBY_BACK_Z + 1.2 },
+    ];
+    const parts = pts.slice(0, -1).map((p, i) => {
+      const q = pts[i + 1]!;
+      return floorArrow(p.x, p.z, Math.atan2(q.x - p.x, q.z - p.z));
+    });
+    const geo = mergeGeometries(parts)!;
+    parts.forEach((g) => g.dispose());
+    return { geo, mat: new THREE.MeshStandardMaterial({ color: "#d8cdb4", roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -1 }) };
+  }, []);
+  useEffect(() => () => (geo.dispose(), mat.dispose()), [geo, mat]);
+  return <mesh geometry={geo} material={mat} receiveShadow />;
 }
 
 /** Three warm linear light strips across the ceiling (emissive, no real lights: the hemisphere + key light do the work). */

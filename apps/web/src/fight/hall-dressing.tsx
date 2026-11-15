@@ -82,6 +82,24 @@ const FEATURE_STAGE_TOP = 1.215;
 
 /* ---------------- floor markings ---------------- */
 
+/** a painted floor arrow (chevron head on a short shaft, ~1 m long) at (x, z) pointing along `yaw` (0 = +z) */
+export function floorArrow(x: number, z: number, yaw: number): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0.55);
+  shape.lineTo(0.34, 0.12);
+  shape.lineTo(0.12, 0.12);
+  shape.lineTo(0.12, -0.45);
+  shape.lineTo(-0.12, -0.45);
+  shape.lineTo(-0.12, 0.12);
+  shape.lineTo(-0.34, 0.12);
+  shape.closePath();
+  const g = new THREE.ShapeGeometry(shape);
+  g.rotateX(-Math.PI / 2);
+  g.rotateY(yaw + Math.PI);
+  g.translate(x, 0.009, z);
+  return g;
+}
+
 /** painted lines (one merged geometry): aisle edges, the front cross aisle, a safety square round every ring */
 export function FloorMarks() {
   const { geo, mat } = useMemo(() => {
@@ -114,22 +132,7 @@ export function FloorMarks() {
     }
     // painted wayfinding arrows (P3-FGT-08): from the lobby door up the west main aisle to the rings, along the cross
     // aisle east to the training gym, and back to the exit; each a chevron head on a short shaft
-    const arrow = (x: number, z: number, yaw: number) => {
-      const shape = new THREE.Shape();
-      shape.moveTo(0, 0.55);
-      shape.lineTo(0.34, 0.12);
-      shape.lineTo(0.12, 0.12);
-      shape.lineTo(0.12, -0.45);
-      shape.lineTo(-0.12, -0.45);
-      shape.lineTo(-0.12, 0.12);
-      shape.lineTo(-0.34, 0.12);
-      shape.closePath();
-      const g = new THREE.ShapeGeometry(shape);
-      g.rotateX(-Math.PI / 2);
-      g.rotateY(yaw + Math.PI);
-      g.translate(x, 0.009, z);
-      parts.push(g);
-    };
+    const arrow = (x: number, z: number, yaw: number) => parts.push(floorArrow(x, z, yaw));
     const westAisle = -(FEATURE_ZONE_HW + 1);
     for (const z of [8, 2, -4]) arrow(westAisle, z, Math.PI); // north, into the hall
     for (const x of [0, 6, 12]) arrow(x, zA + 0.75, Math.PI / 2); // east along the cross aisle, towards the gym
