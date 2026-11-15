@@ -27,6 +27,11 @@ export interface SignedMatchResult {
   seedCommit?: string;
   seedReveal?: string;
   finishedAt: string;
+  /**
+   * per-player skill lines computed by the game server from its own engine (boxing P3-FGT-10: FightStatLine), signed
+   * with the result so the API can keep a player's averages without ever trusting a client
+   */
+  stats?: Record<string, Record<string, number>>;
   signature: string;
 }
 

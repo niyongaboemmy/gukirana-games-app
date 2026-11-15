@@ -22,6 +22,8 @@ const ResultSchema = z.object({
   seedCommit: z.string().optional(),
   seedReveal: z.string().optional(),
   finishedAt: z.string(),
+  /** P3-FGT-10: per-player integer skill lines (boxing), signed by the game server */
+  stats: z.record(z.string(), z.record(z.string(), z.number().int())).optional(),
   signature: z.string(),
 });
 

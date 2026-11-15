@@ -75,6 +75,8 @@ export const api = {
     call<CreatedMatch>("/internal/matches", input),
   submitResult: (r: SignedMatchResult) =>
     call<{ status: string; pot?: number; ratings?: Record<string, number>; xp?: Record<string, number> }>(`/internal/matches/${r.matchId}/result`, r),
+  /** a player's boxing Glicko-2 rating for matchmaking (P3-FGT-10); null = never rated */
+  fightRating: (userId: string) => get<{ rating: number; rd: number } | null>(`/internal/fight/rating/${encodeURIComponent(userId)}`),
   voidMatch: (matchId: string, cause?: VoidCause) => call<{ status: string }>(`/internal/matches/${matchId}/void`, cause ? { cause } : {}),
   /** the matches this server runs (every ~20 s); the API answers with the ones that are no longer active */
   heartbeat: (matchIds: string[]) => call<{ inactive: string[] }>("/internal/matches/heartbeat", { matchIds }),
