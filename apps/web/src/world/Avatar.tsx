@@ -677,7 +677,9 @@ function HumanBody({
 
     // distance LOD + animation throttling (DESIGN-SPEC §16: cap animated mixers by distance)
     const dist = camera.position.distanceTo(_v);
-    const near = quality !== "lite" && (!lod || dist < NEAR_LOD);
+    // (with a ±0.6 m hysteresis band: someone standing right at 12 m from a bobbing camera swapped body levels every few
+    // frames, a visible shimmer of the whole figure; P3-FGT-12)
+    const near = quality !== "lite" && (!lod || dist < (s.near ? NEAR_LOD + 0.6 : NEAR_LOD - 0.6));
     // (near starts unset: the first frame always picks one level; `frame` starts at a per-person offset, so the
     // old `frame === 0` test never ran for most people and both levels stayed visible: every body drawn twice)
     if (near !== s.near) {

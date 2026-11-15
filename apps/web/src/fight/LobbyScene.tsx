@@ -74,7 +74,8 @@ function BoxingWay() {
     s.closePath();
     return {
       geo: new THREE.ShapeGeometry(s).rotateX(-Math.PI / 2).rotateY(Math.PI),
-      mat: new THREE.MeshBasicMaterial({ color: "#e0453a", toneMapped: false }),
+      // inlaid in the floor: pulled towards the camera in depth (6 mm alone z-fought with the floor far down the foyer)
+      mat: new THREE.MeshBasicMaterial({ color: "#e0453a", toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
     };
   }, []);
   useEffect(() => () => (parts.geo.dispose(), parts.mat.dispose()), [parts]);
@@ -208,9 +209,10 @@ function LobbyShell({ layout }: { layout: HallLayout }) {
         <planeGeometry args={[pw, LOBBY_PASSAGE.d]} />
       </mesh>
       {/* dark gray threshold through the doorway (the wall's 40 cm had no floor: the backdrop showed through) */}
-      <mesh rotation-x={-Math.PI / 2} position={[bx, 0.003, back - 0.2]}>
+      <mesh rotation-x={-Math.PI / 2} position={[bx, 0.005, back - 0.2]}>
         <planeGeometry args={[pw + 0.2, 0.46]} />
-        <meshStandardMaterial color="#3a3a3c" roughness={0.85} />
+        {/* over the floor and the passage floor (2 mm): its own depth offset, never coplanar with either */}
+        <meshStandardMaterial color="#3a3a3c" roughness={0.85} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} />
       </mesh>
       <HallGlimpse w={pw} h={3.0} position={[bx, 1.5, back - 0.4 - LOBBY_PASSAGE.d + 0.02]} />
       {/* ceiling light panels */}
@@ -464,7 +466,14 @@ function StatusBoard() {
   useEffect(() => () => (tex.dispose(), mat.dispose(), glare.map?.dispose(), glare.dispose()), [tex, mat, glare]);
   const hover = useRef<number>(-1);
   const acc = useRef(2);
+  const shown = useRef("");
   const redraw = () => {
+    // P3-FGT-12: repaint (and re-upload the 1600 × 800 texture) only when what it shows changed — the statuses and
+    // scores, the clock's minute, the hovered card. It used to repaint every second whatever happened (a texture upload
+    // hitch a second, and the whole screen re-filtered).
+    const key = boardKey(hover.current);
+    if (key === shown.current) return;
+    shown.current = key;
     drawBoard(tex.image as HTMLCanvasElement, hover.current);
     tex.needsUpdate = true;
   };
@@ -521,6 +530,16 @@ function StatusBoard() {
       </mesh>
     </group>
   );
+}
+
+/** everything the board shows, as a string: it is repainted only when this changes */
+export function boardKey(hover: number, rings = useFightBridge.getState().rings, now = new Date()): string {
+  let k = `${hover}|${now.getHours()}:${now.getMinutes()}|`;
+  for (const r of RINGS) {
+    const e = rings[r.id];
+    k += `${e?.status ?? "free"}${e?.score ? `${e.score.red}-${e.score.blue}` : ""},`;
+  }
+  return k;
 }
 
 /** board canvas (px) and its card grid: 10 cards a row (ceil(RINGS / 10) rows: 4 for 32 rings) under a header, a legend row at the bottom */

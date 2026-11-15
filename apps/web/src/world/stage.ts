@@ -138,7 +138,10 @@ export function getArea(a: Area): AreaObjects {
     const scene = new THREE.Scene();
     scene.name = `area:${a}`;
     scene.visible = false;
-    const camera = a === "outdoor" ? new THREE.PerspectiveCamera(60, 16 / 9, 0.15, 3200) : new THREE.PerspectiveCamera(55, 16 / 9, 0.05, 120);
+    // P3-FGT-12: the Fight halls (a 96 m hall full of 2–15 mm floor paint, canvas prints and apron lines) get twice the
+    // depth precision with a 10 cm near plane (the follow camera never comes closer than ~1.4 m to anything it shows)
+    const near = a === "hall:fight" || a === "hall:boxing" ? 0.1 : 0.05;
+    const camera = a === "outdoor" ? new THREE.PerspectiveCamera(60, 16 / 9, 0.15, 3200) : new THREE.PerspectiveCamera(55, 16 / 9, near, 120);
     camera.position.set(0, 4, a === "outdoor" ? 24 : 14);
     o = { scene, camera };
     areas.set(a, o);
