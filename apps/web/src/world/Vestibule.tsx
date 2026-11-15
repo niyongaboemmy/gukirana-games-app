@@ -57,16 +57,9 @@ export const DOOR_FRAME: Record<PortalDef["kind"], string> = {
 };
 export const doorFrameMaterial = (kind: PortalDef["kind"]) => new THREE.MeshStandardMaterial({ color: DOOR_FRAME[kind], metalness: 0.55, roughness: 0.42 });
 
-/** Herringbone / tile floor variants of the shared wood texture (cached per kind). */
-function floorMap(kind: Style["floorTex"]): THREE.Texture | null {
-  if (!kind) return null;
-  if (kind === "wood") {
-    const t = woodTexture().clone();
-    t.repeat.set(1.2, 1.2);
-    t.rotation = Math.PI / 2;
-    t.needsUpdate = true;
-    return t;
-  }
+/** One tile of the floor pattern (128 px): tile or herringbone; null for timber boards (the shared wood texture). */
+function floorTile(kind: Style["floorTex"]): CanvasImageSource | null {
+  if (!kind || kind === "wood") return null;
   const c = document.createElement("canvas");
   c.width = c.height = 128;
   const g = c.getContext("2d")!;
@@ -93,11 +86,60 @@ function floorMap(kind: Style["floorTex"]): THREE.Texture | null {
       }
     g.restore();
   }
+  return c;
+}
+
+/**
+ * The lobby floor baked into one texture over the whole floor (`w` × `len` m, the door at the bottom edge): the hall's
+ * floor pattern in its colour and, just inside the door, the ribbed coir entrance mat with a dark border (one draw
+ * call for both; `mat.from` / `mat.to`: metres in from the door).
+ */
+function lobbyFloor(style: Style, w: number, len: number, mat: { w: number; from: number; to: number }): THREE.CanvasTexture {
+  const ppm = 80;
+  const c = document.createElement("canvas");
+  c.width = Math.round(w * ppm);
+  c.height = Math.round(len * ppm);
+  const g = c.getContext("2d")!;
+  const tile = floorTile(style.floorTex);
+  if (tile) {
+    // the pattern twice across and twice along the lobby (as the old 2 × 2 repeat)
+    const tw = c.width / 2;
+    const th = c.height / 2;
+    for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) g.drawImage(tile, x * tw, y * th, tw, th);
+  } else {
+    // timber boards running into the hall
+    const wood = woodTexture().image as CanvasImageSource;
+    const sz = 1.6 * ppm;
+    for (let y = 0; y < c.height; y += sz) for (let x = 0; x < c.width; x += sz) g.drawImage(wood, x, y, sz, sz);
+  }
+  g.globalCompositeOperation = "multiply";
+  g.fillStyle = style.floor;
+  g.fillRect(0, 0, c.width, c.height);
+  g.globalCompositeOperation = "source-over";
+  const x0 = Math.round(((w - mat.w) / 2) * ppm);
+  const y0 = Math.round(c.height - mat.to * ppm);
+  const mw = Math.round(mat.w * ppm);
+  const mh = Math.round((mat.to - mat.from) * ppm);
+  g.fillStyle = "#1f1d1b";
+  g.fillRect(x0, y0, mw, mh);
+  g.fillStyle = "#2c2925";
+  g.fillRect(x0 + 6, y0 + 6, mw - 12, mh - 12);
+  for (let x = x0 + 10, i = 0; x < x0 + mw - 10; x += 4, i++) {
+    g.fillStyle = i % 2 ? "#4a443d" : "#3b3631";
+    g.fillRect(x, y0 + 10, 2, mh - 20);
+  }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(2, 2);
+  t.anisotropy = 4;
   return t;
+}
+
+/** A box whose faces all sample one column of the wall wash (u fixed): an even top-down wash across a narrow panel. */
+function washedBox(w: number, h: number, d: number, u: number): THREE.BufferGeometry {
+  const g = new THREE.BoxGeometry(w, h, d);
+  const uv = g.getAttribute("uv") as THREE.BufferAttribute;
+  for (let i = 0; i < uv.count; i++) uv.setX(i, u);
+  return g;
 }
 
 let washTex: THREE.CanvasTexture | null = null;
@@ -125,26 +167,6 @@ function wallWash(): THREE.CanvasTexture {
   return washTex;
 }
 
-let matTex: THREE.CanvasTexture | null = null;
-/** Ribbed coir entrance mat with a darker border. */
-function matTexture(): THREE.CanvasTexture {
-  if (matTex) return matTex;
-  const c = document.createElement("canvas");
-  c.width = 128;
-  c.height = 64;
-  const g = c.getContext("2d")!;
-  g.fillStyle = "#2a2724";
-  g.fillRect(0, 0, 128, 64);
-  for (let x = 6; x < 122; x += 3) {
-    g.fillStyle = x % 2 ? "#4a443d" : "#3e3933";
-    g.fillRect(x, 6, 2, 52);
-  }
-  matTex = new THREE.CanvasTexture(c);
-  matTex.colorSpace = THREE.SRGBColorSpace;
-  matTex.anisotropy = 4;
-  return matTex;
-}
-
 /**
  * One smoked-glass door leaf (origin: bottom centre, glass in the z = 0 plane): slim stiles and rails in the hall's
  * frame, a horizontal push bar on both faces. Used by the street doors (world/Plaza AutoDoors, they slide) and by the
@@ -156,6 +178,15 @@ export function DoorLeaf({ w, h, glass, frame }: { w: number; h: number; glass: 
   return (
     <>
       <mesh geometry={pane} material={glass} position={[0, h / 2, 0]} />
+      <LeafFrame w={w} h={h} frame={frame} />
+    </>
+  );
+}
+
+/** A door leaf's frame (stiles, rails, push bars on both faces) around its glass (origin: bottom centre). */
+function LeafFrame({ w, h, frame }: { w: number; h: number; frame: THREE.Material }) {
+  return (
+    <>
       {[-1, 1].map((k) => (
         <mesh key={k} material={frame} position={[(k * (w - 0.05)) / 2, h / 2, 0]}>
           <boxGeometry args={[0.05, h, 0.05]} />
@@ -197,19 +228,15 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
     // the recess is shaded by the building: without real shadows (Lite) darken it by hand
     const k = lite ? 0.55 : 1;
     const col = (hex: string) => new THREE.Color(hex).multiplyScalar(k);
-    const fm = floorMap(s.floorTex);
     const wash = wallWash().clone();
     wash.repeat.set(s.lights, 1);
     wash.needsUpdate = true;
     return {
-      floor: new THREE.MeshStandardMaterial({ color: col(s.floor), map: fm, roughness: 0.55, metalness: 0 }),
+      floor: new THREE.MeshStandardMaterial({ color: col("#ffffff"), map: foyer ? null : lobbyFloor(s, w, depth + 0.12, { w: Math.min(w - 0.5, 3.4), from: 0.25, to: 1.85 }), roughness: 0.6, metalness: 0 }),
       // the walls take the downlights' light: a warm scallop under each one (emissive, no real light needed)
       wall: new THREE.MeshStandardMaterial({ color: col(s.wall), roughness: 0.85, emissive: new THREE.Color(s.wall).lerp(new THREE.Color("#ffd9a8"), 0.25), emissiveMap: wash, emissiveIntensity: lite ? 0.3 : 0.38 }),
-      // the back wall: the same finish, evenly lit (no scallops across its narrow panels)
-      back: new THREE.MeshStandardMaterial({ color: col(s.wall), roughness: 0.85, emissive: new THREE.Color(s.wall).lerp(new THREE.Color("#ffd9a8"), 0.25), emissiveIntensity: lite ? 0.14 : 0.18 }),
       // (the soffit faces down, away from the daylight: a little of the downlights' bounce keeps it from reading black)
       ceiling: new THREE.MeshStandardMaterial({ color: col(s.ceiling), roughness: 0.9, emissive: new THREE.Color(s.ceiling), emissiveIntensity: 0.3 }),
-      mat: new THREE.MeshStandardMaterial({ map: matTexture(), roughness: 1, metalness: 0 }),
       frame: doorFrameMaterial(def.kind),
       light: new THREE.MeshBasicMaterial({ color: new THREE.Color("#ffe3b8").multiplyScalar(0.85), toneMapped: false }),
       pool: new THREE.MeshBasicMaterial({
@@ -221,7 +248,7 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
         blending: THREE.AdditiveBlending,
       }),
     };
-  }, [def.kind, s, lite]);
+  }, [def.kind, s, lite, foyer, w, depth]);
   useEffect(
     () => () => {
       mats.floor.map?.dispose();
@@ -242,6 +269,15 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
   const DH = 2.9;
   const side = (w - DW) / 2;
   const leaf = DW / 2 - 0.05;
+  // the back wall's panels sample the wash at a scallop's centre (u = 0.5 / lights): lit evenly from the top
+  const back = useMemo(() => {
+    const u = 0.5 / Math.max(1, s.lights);
+    return { side: washedBox(side + 0.02, h + 0.02, 0.1, u), over: washedBox(DW + 0.02, h + 0.02 - DH, 0.092, u) };
+  }, [side, h, DW, s.lights]);
+  useEffect(() => () => Object.values(back).forEach((g) => g.dispose()), [back]);
+  // the inner doors: one smoked pane across both closed leaves (one draw call), the leaves' stiles, rails and bars
+  const pane = useMemo(() => paneGeometry("door", 0, DW - 0.18, DH - 0.2), [DW]);
+  useEffect(() => () => pane.dispose(), [pane]);
   return (
     <group>
       {!foyer && (
@@ -250,10 +286,6 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
           <planeGeometry args={[w, depth + 0.12]} />
         </mesh>
       )}
-      {/* coir entrance mat just inside the street door */}
-      <mesh material={mats.mat} position={[0, fy + 0.009, z0 - 1.05]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow={cast}>
-        <planeGeometry args={[Math.min(w - 0.5, 3.4), 1.6]} />
-      </mesh>
       {/* side walls (running 12 cm past the back wall's face, covering its ends) and their skirting */}
       {[-1, 1].map((sd) => (
         <group key={sd}>
@@ -270,14 +302,10 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
       </mesh>
       {/* back wall either side of and over the inner doors (2 cm into the side walls and the ceiling: no shared faces) */}
       {[-1, 1].map((sd) => (
-        <mesh key={`p${sd}`} material={mats.back} position={[sd * (DW / 2 + (side + 0.02) / 2), (h + 0.02) / 2, zb - 0.05]} receiveShadow={cast}>
-          <boxGeometry args={[side + 0.02, h + 0.02, 0.1]} />
-        </mesh>
+        <mesh key={`p${sd}`} geometry={back.side} material={mats.wall} position={[sd * (DW / 2 + (side + 0.02) / 2), (h + 0.02) / 2, zb - 0.05]} castShadow={cast} receiveShadow={cast} />
       ))}
       {/* (1 cm into the side panels, its face 4 mm behind theirs: no shared faces) */}
-      <mesh material={mats.back} position={[0, (DH + h + 0.02) / 2, zb - 0.05]} receiveShadow={cast}>
-        <boxGeometry args={[DW + 0.02, h + 0.02 - DH, 0.092]} />
-      </mesh>
+      <mesh geometry={back.over} material={mats.wall} position={[0, (DH + h + 0.02) / 2, zb - 0.05]} castShadow={cast} receiveShadow={cast} />
       {/* inner door frame: jambs, head and the meeting stile pair, set into the opening */}
       {[-1, 1].map((sd) => (
         <mesh key={`j${sd}`} material={mats.frame} position={[sd * (DW / 2 - 0.045), DH / 2, zb - 0.05]}>
@@ -288,12 +316,12 @@ export function Vestibule({ def, inset, tier }: { def: PortalDef; inset: number;
         <boxGeometry args={[DW, 0.1, 0.16]} />
       </mesh>
       {/* the inner doors, closed: two smoked-glass leaves meeting in the middle */}
-      {glass &&
-        [-1, 1].map((sd) => (
-          <group key={`l${sd}`} position={[sd * (leaf / 2 + 0.003), fy + 0.002, zb - 0.05 + sd * 0.012]}>
-            <DoorLeaf w={leaf} h={DH - 0.11} glass={glass} frame={mats.frame} />
-          </group>
-        ))}
+      {glass && <mesh geometry={pane} material={glass} position={[0, fy + (DH - 0.11) / 2, zb - 0.05]} />}
+      {[-1, 1].map((sd) => (
+        <group key={`l${sd}`} position={[sd * (leaf / 2 + 0.003), fy + 0.002, zb - 0.05]}>
+          <LeafFrame w={leaf} h={DH - 0.11} frame={mats.frame} />
+        </group>
+      ))}
       {/* the door operator's lit sensor over the inner doors */}
       <mesh material={mats.light} position={[0, DH + 0.12, zb + 0.008]}>
         <boxGeometry args={[foyer ? DW + 0.6 : 0.5, 0.025, 0.02]} />
