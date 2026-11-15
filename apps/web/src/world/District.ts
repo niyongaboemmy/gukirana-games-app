@@ -9,6 +9,7 @@ import { NOTICE_BOARD, WATER_POINT } from "./activities";
 import { fightHall } from "@/fight/exterior";
 import { interiorPane } from "./interior-glass";
 import type { InteriorKind } from "./interior-plan";
+import { agasekeGeometry } from "./agaseke";
 import { ARENA, FOOTPRINTS, igisoroHall, inBuilding, LUDO_DIE, PLOTS, sitePlan, toLocal, WING_HW, wingedHall } from "./footprints";
 import {
   BENCHES,
@@ -664,26 +665,8 @@ function plaza(b: GeoBatch, tier: string) {
   b.cyl("white", FOUNTAIN_RADIUS - 0.3, FOUNTAIN_RADIUS - 0.3, 0.44, 64, { p: [0, 0.34, 0] }, true);
   b.add("white", flat(new THREE.RingGeometry(FOUNTAIN_RADIUS - 0.35, FOUNTAIN_RADIUS + 0.05, 64, 1)), { p: [0, 0.56, 0] });
   b.cyl("lava", 1.0, 1.15, 0.9, 32, { p: [0, 0.6, 0], uv: [5, 0.8] });
-  const prof: [number, number][] = [
-    [0.001, 0],
-    [0.5, 0],
-    [0.64, 0.12],
-    [0.78, 0.5],
-    [0.8, 0.9],
-    [0.7, 1.22],
-    [0.6, 1.3],
-    [0.68, 1.34],
-    [0.64, 1.5],
-    [0.5, 1.9],
-    [0.32, 2.35],
-    [0.16, 2.75],
-    [0.07, 3.0],
-    [0.001, 3.12],
-  ];
-  b.add("agaseke", new THREE.LatheGeometry(
-    prof.map(([r, y]) => new THREE.Vector2(r, y)),
-    tier === "lite" ? 20 : 40,
-  ), { p: [0, 1.05, 0], s: [1.35, 1.35, 1.35], uv: [6, 1] });
+  // the Agaseke (igiseke) sculpture: the real basket's shape and weave (world/agaseke.ts), 3.8 m tall on its plinth
+  b.add("agaseke", agasekeGeometry(3.8, tier === "lite" ? 24 : 48), { p: [0, 1.05, 0] });
   // ten bronze nozzles inside the coping
   for (let i = 0; i < 10; i++) {
     const a = (i / 10) * Math.PI * 2;

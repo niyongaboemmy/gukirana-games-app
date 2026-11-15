@@ -13,6 +13,7 @@ import { SouthWall, WindowWall } from "./shell";
 import { STATUS_COLOR, tableAt, tableNo, tableStatuses, type TableStatus } from "./table-status";
 import { pickedTable } from "./RoomPlayer";
 import { useRoom } from "./room-store";
+import { agasekeGeometry, agasekeTextures } from "@/world/agaseke";
 
 /**
  * Igisoro Court — a big, calm, contemporary Rwandan games hall (34 × 26 m, 5 m ceiling): sixteen low Igisoro tables
@@ -200,24 +201,6 @@ function agasekeTexture() {
     t.anisotropy = 4;
     return t;
   });
-}
-/** Agaseke basket with its tall conical lid */
-function agasekeGeometry() {
-  const pts = [
-    [0, 0],
-    [0.07, 0],
-    [0.1, 0.03],
-    [0.13, 0.12],
-    [0.12, 0.2],
-    [0.09, 0.24],
-    [0.1, 0.25],
-    [0.085, 0.3],
-    [0.05, 0.42],
-    [0.02, 0.55],
-    [0.012, 0.6],
-    [0, 0.62],
-  ].map(([x, y]) => new THREE.Vector2(x, y));
-  return new THREE.LatheGeometry(pts, 24);
 }
 /** Agaseke-inspired pendant shade: a woven bell, open below (rim at y = 0) */
 function shadeGeometry() {
@@ -645,9 +628,10 @@ export function IgisoroCourt({ layout, lite }: { layout: HallLayout; lite: boole
   const mat = usePbr("tatami_mat", [1.6, 2]);
   const panels = useMemo(() => [imigongoPanel(0), imigongoPanel(1)], []);
   const frieze = useMemo(() => imigongo([24, 1]), []);
-  const agaseke = useMemo(() => agasekeTexture(), []);
   const box = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
-  const agasekeGeo = useMemo(() => agasekeGeometry(), []);
+  // the real igiseke shape and weave (world/agaseke.ts), 62 cm tall
+  const agasekeGeo = useMemo(() => agasekeGeometry(0.62, 28), []);
+  const basket = useMemo(() => agasekeTextures(), []);
   const matGeo = useMemo(() => new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), []);
   const smallN = useMemo(() => new THREE.Vector2(0.3, 0.3), []);
   const T = IGISORO_TREE;
@@ -944,7 +928,7 @@ export function IgisoroCourt({ layout, lite }: { layout: HallLayout; lite: boole
         <meshStandardMaterial map={timber.map} color="#9a7452" roughness={0.88} metalness={0} envMapIntensity={0.1} />
       </Instanced>
       <Instanced geometry={agasekeGeo} items={X.agas} castShadow={!lite}>
-        <meshStandardMaterial map={agaseke} roughness={0.92} metalness={0} envMapIntensity={0.1} />
+        <meshStandardMaterial map={basket.map} bumpMap={basket.bump} bumpScale={0.6} roughness={0.9} metalness={0} envMapIntensity={0.1} />
       </Instanced>
       <GltfInstances
         url={model("potted_plant_02")}

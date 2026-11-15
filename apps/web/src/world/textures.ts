@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { agasekeTextures } from "./agaseke";
 
 /**
  * Procedural canvas textures (no downloads, works offline). Every texture is cached, so materials can share them.
@@ -683,34 +684,9 @@ export function hoardingTexture(): THREE.CanvasTexture {
   });
 }
 
-/** Agaseke basket weave: natural sisal with black and red-ochre zig-zag bands. */
+/** Agaseke (igiseke) weave: cream coiled sisal with black stepped motifs (world/agaseke.ts; v runs with the height). */
 export function agasekeTexture(): THREE.CanvasTexture {
-  return cached("agaseke", () => {
-    const { c, g } = canvas(256, 512);
-    const r = rng(17);
-    g.fillStyle = "#d8bd86";
-    g.fillRect(0, 0, 256, 512);
-    for (let y = 0; y < 512; y += 4) {
-      g.fillStyle = `rgba(120,85,40,${0.12 + r() * 0.12})`;
-      g.fillRect(0, y, 256, 1.5);
-    }
-    const band = (y0: number, h: number, col: string, teeth: number) => {
-      g.fillStyle = col;
-      const w = 256 / teeth;
-      for (let i = 0; i < teeth; i++) {
-        g.beginPath();
-        g.moveTo(i * w, y0 + h);
-        g.lineTo(i * w + w / 2, y0);
-        g.lineTo(i * w + w, y0 + h);
-        g.fill();
-      }
-    };
-    band(400, 40, "#1B1B1B", 8);
-    band(330, 26, "#B5532A", 10);
-    band(170, 30, "#1B1B1B", 10);
-    band(90, 22, "#B5532A", 12);
-    return finish("agaseke", c, { aniso: 4 });
-  });
+  return agasekeTextures().map;
 }
 
 /* ---------- avatar fabric prints ---------- */
