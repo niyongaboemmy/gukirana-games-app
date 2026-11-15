@@ -2,6 +2,7 @@
 import { useEffect, useMemo } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import { glimpseByTime } from "@/world/time-of-day/hooks";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { DOOR_RING, FOUNTAIN_RADIUS, OUTER_PROMENADE, PAVING_R, ringPoint } from "@/world/layout";
 import { PROMENADE_DEG, PROMENADE_EAST_DEG } from "@/world/campus";
@@ -171,8 +172,9 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
   }, [gl]);
   const mats = useMemo(() => {
     const clip = [new THREE.Plane(new THREE.Vector3(0, 0, 1), -(d / 2 + 0.35))];
+    // (P2-WLD-19: the baked daylight follows the time of day — glimpseByTime)
     const day = (color: string, k = 0.55, extra: THREE.MeshLambertMaterialParameters = {}) =>
-      new THREE.MeshLambertMaterial({ color, emissive: new THREE.Color(color).multiplyScalar(k), clippingPlanes: clip, ...extra });
+      glimpseByTime(new THREE.MeshLambertMaterial({ color, emissive: new THREE.Color(color).multiplyScalar(k), clippingPlanes: clip, ...extra }));
     const paving = pavingTexture().clone();
     paving.wrapS = paving.wrapT = THREE.RepeatWrapping;
     paving.repeat.set((PAVING_R * 2) / 4.8, (PAVING_R * 2) / 4.8);
@@ -188,7 +190,7 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
       glass: day("#2a3842", 0.45),
       granite: day("#a8a196", 0.55),
       // every building (vertex-coloured facades, baked daylight: unlit, so the hall's own lights never shade it)
-      blocks: new THREE.MeshBasicMaterial({ vertexColors: true, clippingPlanes: clip }),
+      blocks: glimpseByTime(new THREE.MeshBasicMaterial({ vertexColors: true, clippingPlanes: clip })),
       water: day("#3c6168", 0.55),
       agaseke: day("#ffffff", 0.6, { map: agaseke, emissiveMap: agaseke }),
       green: day("#557c3a", 0.5),
@@ -204,7 +206,7 @@ export function PlazaGlimpse({ layout, lite }: { layout: HallLayout; lite: boole
       ["white", "#86593b"],
       ["roof", "#4e3324"],
     ] as const) {
-      const m = out[k]!.clone() as THREE.MeshLambertMaterial;
+      const m = glimpseByTime(out[k]!.clone() as THREE.MeshLambertMaterial);
       m.clippingPlanes = far;
       if (color) {
         m.color.set(color);

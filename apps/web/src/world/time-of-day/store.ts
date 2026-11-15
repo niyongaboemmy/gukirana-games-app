@@ -11,7 +11,18 @@
  */
 import * as THREE from "three";
 import { create } from "zustand";
-import { clockLabel, loadChoice, saveChoice, shownTime, targetTime, transitionDone, transitionMs, type Preset, type TodMode, type Transition } from "./clock";
+import {
+  clockLabel,
+  loadChoice,
+  saveChoice,
+  shownTime,
+  targetTime,
+  transitionDone,
+  transitionMs,
+  type Preset,
+  type TodMode,
+  type Transition,
+} from "./clock";
 import { computeLook, phaseOf, type Look, type Phase } from "./look";
 import { moonPosition, skyDir, sunPosition, worldToEquatorial, type MoonState, type SkyPos } from "./solar";
 
@@ -19,7 +30,9 @@ import { moonPosition, skyDir, sunPosition, worldToEquatorial, type MoonState, t
  * Feature flag: NEXT_PUBLIC_FF_TIME_OF_DAY=1 turns it on, =0 off; unset = on in development, off in production
  * builds. Off, the campus keeps the classic hand-tuned morning (sun 17° up in the east-south-east) and no HUD chip.
  */
-export const TOD_ON = process.env.NEXT_PUBLIC_FF_TIME_OF_DAY ? process.env.NEXT_PUBLIC_FF_TIME_OF_DAY === "1" : process.env.NODE_ENV !== "production";
+export const TOD_ON = process.env.NEXT_PUBLIC_FF_TIME_OF_DAY
+  ? process.env.NEXT_PUBLIC_FF_TIME_OF_DAY === "1"
+  : process.env.NODE_ENV !== "production";
 
 /** The classic morning (P1-WLD-03) shown with the flag off: sun at azimuth 104°, 17° up. */
 const CLASSIC_SUN: SkyPos = { el: 17, az: 104 };
@@ -169,7 +182,12 @@ export function stepTimeOfDay(perf: number, inXR: boolean) {
     if (phase !== s.phase) phaseSince = perf;
     const settle = !running && phase !== s.settledPhase && perf - phaseSince > 1000;
     if (label !== s.label || phase !== s.phase || running !== s.transitioning || settle)
-      useTimeOfDay.setState({ label, phase, transitioning: running, ...(settle ? { settledPhase: phase } : {}) });
+      useTimeOfDay.setState({
+        label,
+        phase,
+        transitioning: running,
+        ...(settle ? { settledPhase: phase } : {}),
+      });
   }
 }
 
@@ -202,5 +220,13 @@ if (typeof window !== "undefined" && process.env.NODE_ENV !== "production" && TO
   (window as unknown as Record<string, unknown>).__gkTod = {
     pin: (minutes: number, instant = true) => chooseTime("custom", { minutes, instant }),
     preset: (p: Preset | "now", instant = false) => chooseTime(p, { instant }),
-    state: () => ({ mode, label: clockLabel(tod.t), phase: tod.look.phase, sunEl: +tod.sun.el.toFixed(2), moon: +tod.moon.fraction.toFixed(2), lights: +tod.look.lights.toFixed(2), transitioning: tod.transitioning }),
+    state: () => ({
+      mode,
+      label: clockLabel(tod.t),
+      phase: tod.look.phase,
+      sunEl: +tod.sun.el.toFixed(2),
+      moon: +tod.moon.fraction.toFixed(2),
+      lights: +tod.look.lights.toFixed(2),
+      transitioning: tod.transitioning,
+    }),
   };

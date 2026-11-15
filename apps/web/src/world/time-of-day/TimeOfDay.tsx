@@ -22,7 +22,8 @@ export function TimeOfDay() {
   // dev-only: the root scene for the QA scripts (qa/e2e/tod-debug.mjs lists the lights of every area)
   const root = useThree((s) => s.scene);
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production") (window as unknown as Record<string, unknown>).__gkTodRoot = root;
+    if (process.env.NODE_ENV !== "production")
+      (window as unknown as Record<string, unknown>).__gkTodRoot = root;
   }, [root]);
   useFrame(() => {
     stepTimeOfDay(performance.now(), inXR);
@@ -32,7 +33,15 @@ export function TimeOfDay() {
     todUniforms.uGkLamp.value = L.lampHead;
     todUniforms.uGkWin.value = L.windows / 0.3;
     todUniforms.uGkHaze.value.set(...L.hazeSrgb);
+    todUniforms.uGkFar.value = L.farDim;
     applyDaylightTint(L.unlit);
+    // the plaza through a hall door: daylight tint, never quite black (the plaza lamps light it after dusk)
+    const g = todUniforms.uGkGlimpse.value;
+    g.setRGB(
+      Math.max(L.unlit[0], 0.1 * L.lights),
+      Math.max(L.unlit[1], 0.075 * L.lights),
+      Math.max(L.unlit[2], 0.05 * L.lights),
+    );
   }, -10);
   return null;
 }

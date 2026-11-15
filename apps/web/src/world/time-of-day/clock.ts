@@ -19,7 +19,11 @@ export const PRESETS: Preset[] = ["morning", "midday", "sunset", "night"];
 export const MODES: TodMode[] = ["now", ...PRESETS];
 
 /** Fixed preset clock times (Kigali minutes); Sunset is computed per date (see presetMinutes). */
-export const PRESET_MIN: Record<Exclude<Preset, "sunset">, number> = { morning: 8 * 60, midday: 12 * 60 + 30, night: 21 * 60 };
+export const PRESET_MIN: Record<Exclude<Preset, "sunset">, number> = {
+  morning: 8 * 60,
+  midday: 12 * 60 + 30,
+  night: 21 * 60,
+};
 /** the Sunset preset: the sun's disc just touching the horizon (upper limb ≈ +0.3° above it), a few minutes before sunset */
 export const SUNSET_LEAD_MIN = 3;
 
@@ -91,7 +95,10 @@ export function loadChoice(storage: Pick<Storage, "getItem"> | null | undefined)
     if (!raw) return { mode: "now" };
     const v = JSON.parse(raw) as Partial<Saved>;
     if (v && typeof v.mode === "string" && ([...MODES, "custom"] as string[]).includes(v.mode)) {
-      const minutes = typeof v.minutes === "number" && Number.isFinite(v.minutes) ? ((v.minutes % 1440) + 1440) % 1440 : undefined;
+      const minutes =
+        typeof v.minutes === "number" && Number.isFinite(v.minutes)
+          ? ((v.minutes % 1440) + 1440) % 1440
+          : undefined;
       return v.mode === "custom" ? { mode: "custom", minutes: minutes ?? 12 * 60 } : { mode: v.mode };
     }
   } catch {

@@ -49,7 +49,10 @@ export function sunEquatorial(jd: number): { decl: number; eqTimeMin: number; ra
   const M = 357.52911 + T * (35999.05029 - 0.0001537 * T);
   const e = 0.016708634 - T * (0.000042037 + 0.0000001267 * T);
   const Mr = M * RAD;
-  const C = Math.sin(Mr) * (1.914602 - T * (0.004817 + 0.000014 * T)) + Math.sin(2 * Mr) * (0.019993 - 0.000101 * T) + Math.sin(3 * Mr) * 0.000289;
+  const C =
+    Math.sin(Mr) * (1.914602 - T * (0.004817 + 0.000014 * T)) +
+    Math.sin(2 * Mr) * (0.019993 - 0.000101 * T) +
+    Math.sin(3 * Mr) * 0.000289;
   const trueLong = L0 + C;
   const omega = 125.04 - 1934.136 * T;
   const lambda = trueLong - 0.00569 - 0.00478 * Math.sin(omega * RAD);
@@ -59,7 +62,12 @@ export function sunEquatorial(jd: number): { decl: number; eqTimeMin: number; ra
   const ra = norm360(Math.atan2(Math.cos(eps * RAD) * Math.sin(lambda * RAD), Math.cos(lambda * RAD)) * DEG);
   const y = Math.tan((eps / 2) * RAD) ** 2;
   const L0r = L0 * RAD;
-  const eq = y * Math.sin(2 * L0r) - 2 * e * Math.sin(Mr) + 4 * e * y * Math.sin(Mr) * Math.cos(2 * L0r) - 0.5 * y * y * Math.sin(4 * L0r) - 1.25 * e * e * Math.sin(2 * Mr);
+  const eq =
+    y * Math.sin(2 * L0r) -
+    2 * e * Math.sin(Mr) +
+    4 * e * y * Math.sin(Mr) * Math.cos(2 * L0r) -
+    0.5 * y * y * Math.sin(4 * L0r) -
+    1.25 * e * e * Math.sin(2 * Mr);
   return { decl, eqTimeMin: 4 * eq * DEG, ra };
 }
 
@@ -71,7 +79,12 @@ function horizontal(decl: number, haDeg: number, lat: number): SkyPos {
   const sinEl = Math.sin(p) * Math.sin(d) + Math.cos(p) * Math.cos(d) * Math.cos(h);
   const el = Math.asin(Math.max(-1, Math.min(1, sinEl))) * DEG;
   // azimuth from north, clockwise
-  const az = norm360(Math.atan2(-Math.sin(h) * Math.cos(d), Math.cos(p) * Math.sin(d) - Math.sin(p) * Math.cos(d) * Math.cos(h)) * DEG);
+  const az = norm360(
+    Math.atan2(
+      -Math.sin(h) * Math.cos(d),
+      Math.cos(p) * Math.sin(d) - Math.sin(p) * Math.cos(d) * Math.cos(h),
+    ) * DEG,
+  );
   return { el, az };
 }
 
@@ -118,7 +131,9 @@ export function moonPosition(ms: number, lat: number = SITE.lat, lon: number = S
   const sd = sun.decl * RAD;
   const md = decl * RAD;
   const dra = (sun.ra - ra) * RAD;
-  const elong = Math.acos(Math.max(-1, Math.min(1, Math.sin(sd) * Math.sin(md) + Math.cos(sd) * Math.cos(md) * Math.cos(dra))));
+  const elong = Math.acos(
+    Math.max(-1, Math.min(1, Math.sin(sd) * Math.sin(md) + Math.cos(sd) * Math.cos(md) * Math.cos(dra))),
+  );
   const inc = Math.atan2(149_598_000 * Math.sin(elong), 385_001 - 149_598_000 * Math.cos(elong));
   const fraction = (1 + Math.cos(inc)) / 2;
   // waxing while the moon is east of the sun (its ecliptic longitude ahead of the sun's)
@@ -161,7 +176,7 @@ export function worldToEquatorial(ms: number, lat: number = SITE.lat, lon: numbe
 /* ---------------------------------------------------------------- Kigali clock ---------------------------------------------------------------- */
 
 /** Minutes after midnight on the Kigali clock (CAT, UTC+2, no daylight saving) for a timestamp. */
-export const kigaliMinutes = (ms: number) => ((((ms / 60_000 + SITE.utcOffsetH * 60) % 1440) + 1440) % 1440);
+export const kigaliMinutes = (ms: number) => (((ms / 60_000 + SITE.utcOffsetH * 60) % 1440) + 1440) % 1440;
 
 /** Timestamp of a Kigali clock time (minutes after midnight, may be outside 0…1440) on the Kigali day of `dayOf`. */
 export function kigaliTime(dayOf: number, minutes: number): number {

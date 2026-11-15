@@ -47,7 +47,14 @@ function pools(tier: Tier): Pool[] {
     // the lantern hangs 1.55 m out on its arm, 7.85 m up, over the road
     const hx = l.x + Math.sin(l.rotY) * 1.55;
     const hz = l.z + Math.cos(l.rotY) * 1.55;
-    out.push({ x: l.x + Math.sin(l.rotY) * 2.2, y: l.y, z: l.z + Math.cos(l.rotY) * 2.2, r: 8.5, k: 0.9, head: [hx, l.y + 7.82, hz] });
+    out.push({
+      x: l.x + Math.sin(l.rotY) * 2.2,
+      y: l.y,
+      z: l.z + Math.cos(l.rotY) * 2.2,
+      r: 8.5,
+      k: 0.9,
+      head: [hx, l.y + 7.82, hz],
+    });
   }
   // hall doors: the canopy downlights spill onto the forecourt (the doors are findable at night)
   for (const d of PORTALS) {
@@ -128,7 +135,11 @@ function lightsMaterial(vert: string, frag: string, k: number) {
   return new THREE.ShaderMaterial({
     vertexShader: vert,
     fragmentShader: frag,
-    uniforms: { uOn: { value: 0 }, uFogD: { value: 0.00085 }, uColor: { value: WARM.clone().multiplyScalar(k) } },
+    uniforms: {
+      uOn: { value: 0 },
+      uFogD: { value: 0.00085 },
+      uColor: { value: WARM.clone().multiplyScalar(k) },
+    },
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
@@ -149,7 +160,16 @@ export function NightLights({ tier, fogD }: { tier: Tier; fogD: number }) {
     const poolMat = lightsMaterial(poolVert, poolFrag, 0.16);
     const pool = new THREE.InstancedMesh(flat, poolMat, list.length);
     const m = new THREE.Matrix4();
-    list.forEach((p, i) => pool.setMatrixAt(i, m.compose(new THREE.Vector3(p.x, p.y + 0.05, p.z), new THREE.Quaternion(), new THREE.Vector3(p.r, 1, p.r))));
+    list.forEach((p, i) =>
+      pool.setMatrixAt(
+        i,
+        m.compose(
+          new THREE.Vector3(p.x, p.y + 0.05, p.z),
+          new THREE.Quaternion(),
+          new THREE.Vector3(p.r, 1, p.r),
+        ),
+      ),
+    );
     pool.frustumCulled = false;
     pool.renderOrder = 1;
     pool.name = "night-pools";

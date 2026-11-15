@@ -17,17 +17,49 @@ export const todUniforms = {
   uGkWin: { value: 1 },
   /** volcano / far-hill haze colour (sRGB, applied after the colour-space conversion: Landscape volcano shader) */
   uGkHaze: { value: new THREE.Vector3(0.706, 0.765, 0.812) },
+  /** far terrain brightness (volcanoes, far hills): 1 by day, dimmer at night — distant ridges read as dark silhouettes
+   *  against the night sky although the night fill near the player is raised for readability */
+  uGkFar: { value: 1 },
   /** tint of unlit "daylight-baked" shader materials (fountain spray): white by day, dim blue at night */
   uGkUnlit: { value: new THREE.Color(1, 1, 1) },
+  /** the plaza glimpsed through a hall's open door (rooms/PlazaGlimpse, baked daylight): the daylight tint plus the
+   *  warm lamp light of the plaza at night */
+  uGkGlimpse: { value: new THREE.Color(1, 1, 1) },
 };
 
+/** Multiply a material's final colour by the plaza-glimpse tint (set before its first compile). */
+export function glimpseByTime<M extends THREE.Material>(m: M): M {
+  const prev = m.onBeforeCompile;
+  m.onBeforeCompile = (sh, r) => {
+    prev.call(m, sh, r);
+    sh.uniforms.uGkGlimpse = todUniforms.uGkGlimpse;
+    sh.fragmentShader =
+      "uniform vec3 uGkGlimpse;\n" +
+      sh.fragmentShader.replace(
+        "#include <opaque_fragment>",
+        "#include <opaque_fragment>\n  gl_FragColor.rgb *= uGkGlimpse;",
+      );
+  };
+  m.customProgramCacheKey = () => `gk-tod-glimpse-${m.type}`;
+  return m;
+}
+
 /** Multiply a standard material's emissive by a time-of-day uniform (set before its first compile). */
-export function emissiveByTime(m: THREE.MeshStandardMaterial, uniform: "uGkLamp" | "uGkWin", key: string): THREE.MeshStandardMaterial {
+export function emissiveByTime(
+  m: THREE.MeshStandardMaterial,
+  uniform: "uGkLamp" | "uGkWin",
+  key: string,
+): THREE.MeshStandardMaterial {
   const prev = m.onBeforeCompile;
   m.onBeforeCompile = (sh, r) => {
     prev.call(m, sh, r);
     sh.uniforms[uniform] = todUniforms[uniform];
-    sh.fragmentShader = `uniform float ${uniform};\n` + sh.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>\n  totalEmissiveRadiance *= ${uniform};`);
+    sh.fragmentShader =
+      `uniform float ${uniform};\n` +
+      sh.fragmentShader.replace(
+        "#include <emissivemap_fragment>",
+        `#include <emissivemap_fragment>\n  totalEmissiveRadiance *= ${uniform};`,
+      );
   };
   m.customProgramCacheKey = () => key;
   return m;

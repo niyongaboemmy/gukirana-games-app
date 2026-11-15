@@ -51,14 +51,22 @@ async function signedInPage(viewport = { width: 1280, height: 720 }) {
 }
 
 async function toWorld(p, path = "/world") {
-  await p.goto(`${BASE}${path}${q}`, { waitUntil: "domcontentloaded", timeout: 180000 });
-  const t0 = Date.now();
-  while (Date.now() - t0 < 180000) {
-    const ok = await p.evaluate(() => window.__gkProbe?.ready && !!window.__gkProbe?.view).catch(() => false);
-    if (ok) break;
-    await sleep(1000);
+  // the arrival gate is a view too: wait for the plaza / the hall itself (one retry: a cold dev compile can bounce)
+  const want = path === "/world" ? "plaza" : `hall:${path.split("/").pop()}`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await p.goto(`${BASE}${path}${q}`, { waitUntil: "domcontentloaded", timeout: 180000 });
+    const t0 = Date.now();
+    while (Date.now() - t0 < 150000) {
+      const ok = await p.evaluate((w) => window.__gkProbe?.ready && window.__gkProbe?.view === w, want).catch(() => false);
+      if (ok) {
+        await sleep(6000);
+        return true;
+      }
+      await sleep(1000);
+    }
+    results.notes.push(`${path}: view ${await p.evaluate(() => window.__gkProbe?.view).catch(() => "?")} after 150 s (attempt ${attempt + 1})`);
   }
-  await sleep(6000);
+  return false;
 }
 
 /** median whole-frame draw calls over ~1.5 s */

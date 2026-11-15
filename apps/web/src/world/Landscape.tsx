@@ -877,14 +877,16 @@ export function Landscape({ tier }: { tier: Tier }) {
       sh.uniforms.uMorning = mistUniform;
       // the haze colour follows the time of day (P2-WLD-19: blue-grey by day, peach at sunset, deep blue at night)
       sh.uniforms.uGkHaze = todUniforms.uGkHaze;
+      sh.uniforms.uGkFar = todUniforms.uGkFar;
       sh.fragmentShader = sh.fragmentShader
-        .replace("#include <common>", "#include <common>\nuniform float uMorning;\nuniform vec3 uGkHaze;")
+        .replace("#include <common>", "#include <common>\nuniform float uMorning;\nuniform vec3 uGkHaze;\nuniform float uGkFar;")
         .replace(
           "#include <fog_fragment>",
           `#include <fog_fragment>
         {
           float gkD = length(vViewPosition);
           float gkK = 1.0 - exp(-gkD * 0.00046 * (1.0 + 1.6 * uMorning));
+          gl_FragColor.rgb *= uGkFar;
           vec3 gkG = vec3(dot(gl_FragColor.rgb, vec3(0.3, 0.59, 0.11)));
           gl_FragColor.rgb = mix(mix(gl_FragColor.rgb, gkG, 0.45 * gkK), uGkHaze, gkK);
         }`,

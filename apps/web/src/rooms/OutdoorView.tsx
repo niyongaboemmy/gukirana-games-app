@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, useFrame, useThree } from "@react-three/fiber";
-import { Environment, Lightformer, Sky } from "@react-three/drei";
 import * as THREE from "three";
 import { Landscape } from "@/world/Landscape";
 import { FOG_COLOR, SUN_DIR } from "@/world/Lighting";
+import { TOD_ON, tod, useTimeOfDay } from "@/world/time-of-day/store";
+import { TodSky } from "@/world/time-of-day/TodSky";
+import { TodEnvironment } from "@/world/time-of-day/TodEnvironment";
 import { ringPoint } from "@/world/layout";
 import { LAWN_BEDS } from "@/world/beds";
 import type { HallLayout } from "./layouts";
@@ -61,14 +63,18 @@ export function OutdoorView({
   onReady?: () => void;
 }) {
   const { gl, scene } = useThree();
-  const frame = useMemo(() => hallFrame(layout), [layout]);
-  const key = `${layout.game}:${lite ? "lite" : "std"}`;
+  // P2-WLD-19: the view follows the time of day — one capture per settled phase (cached like before), re-taken lazily
+  // when the phase changes while the hall is mounted; the previous view stays up until the new one is ready
+  const phase = useTimeOfDay((s) => (TOD_ON ? s.settledPhase : "classic"));
+  const key = `${layout.game}:${lite ? "lite" : "std"}:${phase}`;
+  const frame = useMemo(() => hallFrame(layout), [layout, key]);
   // the view out of this hall's windows never changes during a session: once captured it is kept (the next warm-up
   // of this hall, e.g. walking up to its door again, then costs nothing)
   const cached = CAPTURED.get(key) ?? null;
   const outdoor = useMemo(() => {
     const s = new THREE.Scene();
     s.fog = new THREE.FogExp2(FOG_COLOR, lite ? 0.0012 : 0.00085);
+    s.fog.color.setRGB(...tod.look.fog); // (P2-WLD-19: the shown time of day's horizon colour)
     return s;
   }, [lite]);
   const rt = useMemo(
@@ -91,6 +97,15 @@ export function OutdoorView({
   }, [rt, outdoor]);
   const [captured, setCaptured] = useState(!!cached);
   const step = useRef<{ n: number; compiled: "no" | "running" | "done"; face: number }>({ n: 0, compiled: "no", face: 0 });
+  // (P2-WLD-19) a new phase without a cached view: capture again (the outdoor fog takes the phase's colour)
+  const shownKey = useRef(key);
+  useEffect(() => {
+    if (shownKey.current === key) return;
+    shownKey.current = key;
+    (outdoor.fog as THREE.FogExp2).color.setRGB(...tod.look.fog);
+    step.current = { n: 0, compiled: "no", face: 0 };
+    setCaptured(!!CAPTURED.get(key));
+  }, [key, outdoor]);
 
   useEffect(() => {
     MOUNTED.add(key);
@@ -100,12 +115,18 @@ export function OutdoorView({
     if (CAPTURED.get(key) === rt) {
       scene.background = rt.texture;
       scene.backgroundIntensity = 1;
-    } else scene.background = new THREE.Color("#c4d2dc");
+    } else if (!(scene.background instanceof THREE.CubeTexture)) scene.background = new THREE.Color("#c4d2dc");
+    // (P2-WLD-19: a phase change keeps the previous view up until the new capture replaces it)
     return () => {
-      scene.background = null;
-      if (CAPTURED.get(key) !== rt) rt.dispose();
+      if (CAPTURED.get(key) !== rt && scene.background !== rt.texture) rt.dispose();
     };
   }, [scene, rt, key]);
+  useEffect(
+    () => () => {
+      scene.background = null;
+    },
+    [scene],
+  );
 
   /** the renderer state the capture draws with (programs are keyed on it, so the compile below must use it too) */
   const withCaptureState = <T,>(face: number, fn: () => T): T => {
@@ -160,42 +181,16 @@ export function OutdoorView({
     onReady?.();
   });
 
-  const sunPos = useMemo(() => frame.sun.clone().multiplyScalar(400), [frame]);
+  // the sky, sun / moon light and image lighting of the shown time of day, turned into the hall's frame (P2-WLD-19)
+  const L = tod.look;
+  const keyPos = useMemo(() => frame.sun.clone().multiplyScalar(120), [frame]);
   if (captured) return null;
   return createPortal(
     <>
-      <Sky
-        distance={2400}
-        sunPosition={sunPos}
-        turbidity={7}
-        rayleigh={1.6}
-        mieCoefficient={0.006}
-        mieDirectionalG={0.82}
-      />
-      <hemisphereLight args={["#c9def0", "#56643a", 0.55]} />
-      <directionalLight position={frame.sun.clone().multiplyScalar(120)} intensity={2.9} color="#ffe4c4" />
-      <Environment scene={outdoor} frames={1} resolution={lite ? 32 : 64} environmentIntensity={0.85}>
-        <Sky
-          distance={2400}
-          sunPosition={sunPos}
-          turbidity={7}
-          rayleigh={1.6}
-          mieCoefficient={0.006}
-          mieDirectionalG={0.82}
-        />
-        <Lightformer
-          form="circle"
-          intensity={6}
-          color="#ffe2b8"
-          position={frame.sun.clone().multiplyScalar(50).toArray()}
-          scale={10}
-          target={[0, 0, 0]}
-        />
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2, 0]}>
-          <circleGeometry args={[400, 32]} />
-          <meshBasicMaterial color="#3e4a33" />
-        </mesh>
-      </Environment>
+      <TodSky lite={lite} yaw={frame.yaw} />
+      <hemisphereLight args={[new THREE.Color().setRGB(...L.hemiSky), new THREE.Color().setRGB(...L.hemiGround), L.hemiI * 1.2]} />
+      <directionalLight position={keyPos} intensity={L.keyI * 1.1} color={new THREE.Color().setRGB(...L.keyCol)} />
+      <TodEnvironment scene={outdoor} resolution={lite ? 32 : 64} intensity={0.85 / 0.55} yaw={frame.yaw} once />
       <group rotation={[0, frame.yaw, 0]}>
         <group position={[-frame.centre.x, 0, -frame.centre.z]}>
           <Landscape tier={lite ? "lite" : "standard"} />

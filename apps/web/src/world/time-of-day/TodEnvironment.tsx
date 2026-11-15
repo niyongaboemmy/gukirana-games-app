@@ -23,7 +23,19 @@ const pmremOf = (gl: THREE.WebGLRenderer) => {
   if (!g) pmrems.set(gl, (g = new THREE.PMREMGenerator(gl)));
   return g;
 };
-export function TodEnvironment({ resolution, intensity = 1, yaw = 0, scene: target, once = false }: { resolution: number; intensity?: number; yaw?: number; scene?: THREE.Scene; once?: boolean }) {
+export function TodEnvironment({
+  resolution,
+  intensity = 1,
+  yaw = 0,
+  scene: target,
+  once = false,
+}: {
+  resolution: number;
+  intensity?: number;
+  yaw?: number;
+  scene?: THREE.Scene;
+  once?: boolean;
+}) {
   const gl = useThree((s) => s.gl);
   const own = useThree((s) => s.scene);
   const scene = target ?? own;
@@ -37,11 +49,19 @@ export function TodEnvironment({ resolution, intensity = 1, yaw = 0, scene: targ
     followCamera(sky);
     s.add(sky);
     // the sun: a bright disc 50 m out, facing the centre (drei Lightformer "circle", scale 10, intensity 6 by day)
-    const sunMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(), toneMapped: false, side: THREE.DoubleSide });
+    const sunMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(),
+      toneMapped: false,
+      side: THREE.DoubleSide,
+    });
     const sun = new THREE.Mesh(new THREE.CircleGeometry(5, 24), sunMat);
     s.add(sun);
     // a broad sky panel high in the north (the cool fill the hand-tuned morning had)
-    const panelMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(), toneMapped: false, side: THREE.DoubleSide });
+    const panelMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(),
+      toneMapped: false,
+      side: THREE.DoubleSide,
+    });
     const panel = new THREE.Mesh(new THREE.PlaneGeometry(120, 30), panelMat);
     panel.position.set(0, 40, -60);
     panel.lookAt(0, 0, 0);
@@ -51,7 +71,17 @@ export function TodEnvironment({ resolution, intensity = 1, yaw = 0, scene: targ
     ground.position.y = -2;
     s.add(ground);
     s.add(cam);
-    return { fbo, cam, s, skyMat, sun, sunMat, panelMat, groundMat, pmrem: null as THREE.WebGLCubeRenderTarget | null };
+    return {
+      fbo,
+      cam,
+      s,
+      skyMat,
+      sun,
+      sunMat,
+      panelMat,
+      groundMat,
+      pmrem: null as THREE.WebGLCubeRenderTarget | null,
+    };
   }, [resolution]);
   useEffect(
     () => () => {
@@ -83,7 +113,11 @@ export function TodEnvironment({ resolution, intensity = 1, yaw = 0, scene: targ
     const k = L.sunI / 2.6;
     env.sunMat.color.setRGB(L.sunCol[0] * 6 * k, L.sunCol[1] * 6 * k, L.sunCol[2] * 6 * k);
     const sky = L.hemiI / 0.45;
-    env.panelMat.color.setRGB(L.hemiSky[0] * 1.2 * sky * 0.62, L.hemiSky[1] * 1.2 * sky * 0.62, L.hemiSky[2] * 1.2 * sky * 0.62);
+    env.panelMat.color.setRGB(
+      L.hemiSky[0] * 1.2 * sky * 0.62,
+      L.hemiSky[1] * 1.2 * sky * 0.62,
+      L.hemiSky[2] * 1.2 * sky * 0.62,
+    );
     env.groundMat.color.setRGB(0.047 * L.unlit[0], 0.066 * L.unlit[1], 0.034 * L.unlit[2]);
     const autoClear = gl.autoClear;
     const xr = gl.xr.enabled;

@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { clockLabel, ease, loadChoice, nearestDay, presetMinutes, PRESET_MIN, saveChoice, shownTime, STORAGE_KEY, targetTime, transitionDone, transitionMs } from "./clock";
+import {
+  clockLabel,
+  ease,
+  loadChoice,
+  nearestDay,
+  presetMinutes,
+  PRESET_MIN,
+  saveChoice,
+  shownTime,
+  STORAGE_KEY,
+  targetTime,
+  transitionDone,
+  transitionMs,
+} from "./clock";
 import { computeLook, lightsOn, phaseOf, sunColour, twilightOf } from "./look";
 import { kigaliMinutes, kigaliTime, sunPosition } from "./solar";
 
@@ -77,7 +90,11 @@ describe("transition", () => {
 describe("storage", () => {
   const mem = () => {
     const m = new Map<string, string>();
-    return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), m };
+    return {
+      getItem: (k: string) => m.get(k) ?? null,
+      setItem: (k: string, v: string) => void m.set(k, v),
+      m,
+    };
   };
   it("round-trips the choice", () => {
     const s = mem();
@@ -88,13 +105,28 @@ describe("storage", () => {
   });
   it("falls back to Now when storage is missing, throws or holds junk", () => {
     expect(loadChoice(null)).toEqual({ mode: "now" });
-    expect(loadChoice({ getItem: () => { throw new Error("SecurityError"); } })).toEqual({ mode: "now" });
+    expect(
+      loadChoice({
+        getItem: () => {
+          throw new Error("SecurityError");
+        },
+      }),
+    ).toEqual({ mode: "now" });
     const s = mem();
     s.m.set(STORAGE_KEY, "{not json");
     expect(loadChoice(s)).toEqual({ mode: "now" });
     s.m.set(STORAGE_KEY, JSON.stringify({ mode: "eclipse" }));
     expect(loadChoice(s)).toEqual({ mode: "now" });
-    expect(saveChoice({ setItem: () => { throw new Error("QuotaExceeded"); } }, { mode: "night" })).toBe(false);
+    expect(
+      saveChoice(
+        {
+          setItem: () => {
+            throw new Error("QuotaExceeded");
+          },
+        },
+        { mode: "night" },
+      ),
+    ).toBe(false);
   });
 });
 

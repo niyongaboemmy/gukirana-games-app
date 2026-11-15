@@ -37,13 +37,28 @@ export const smoothstep = (a: number, b: number, x: number) => {
   return t * t * (3 - 2 * t);
 };
 const mix = (a: number, b: number, t: number) => a + (b - a) * t;
-const mixRgb = (a: Rgb, b: Rgb, t: number): Rgb => [mix(a[0], b[0], t), mix(a[1], b[1], t), mix(a[2], b[2], t)];
+const mixRgb = (a: Rgb, b: Rgb, t: number): Rgb => [
+  mix(a[0], b[0], t),
+  mix(a[1], b[1], t),
+  mix(a[2], b[2], t),
+];
 
 /* ---------------------------------------------------------------- phases ---------------------------------------------------------------- */
 
 /** The named phases of the day (UI icon, capture cache keys, analytics-free). */
-export type Phase = "night" | "dawn" | "sunrise" | "morning" | "midday" | "afternoon" | "golden" | "sunset" | "dusk";
-export const PHASES: Phase[] = ["night", "dawn", "sunrise", "morning", "midday", "afternoon", "golden", "sunset", "dusk"];
+export type Phase =
+  "night" | "dawn" | "sunrise" | "morning" | "midday" | "afternoon" | "golden" | "sunset" | "dusk";
+export const PHASES: Phase[] = [
+  "night",
+  "dawn",
+  "sunrise",
+  "morning",
+  "midday",
+  "afternoon",
+  "golden",
+  "sunset",
+  "dusk",
+];
 
 /**
  * Phase from the sun's altitude (degrees, refracted) and direction of travel. Bands (docs/TIME-OF-DAY.md §3):
@@ -82,7 +97,11 @@ export function airMass(el: number): number {
  * ~680 / 550 / 440 nm scaled by the station pressure (≈ 0.81 atm at 1,850 m), plus a light highland aerosol (Ångström
  * β ≈ 0.04, α 1.3). Gives the familiar white noon sun, cream morning sun and deep orange disc at the horizon.
  */
-const TAU: Rgb = [0.036 * 0.81 + 0.04 * 0.68 ** -1.3 * 0.55, 0.098 * 0.81 + 0.04 * 0.55 ** -1.3 * 0.55, 0.236 * 0.81 + 0.04 * 0.44 ** -1.3 * 0.55];
+const TAU: Rgb = [
+  0.036 * 0.81 + 0.04 * 0.68 ** -1.3 * 0.55,
+  0.098 * 0.81 + 0.04 * 0.55 ** -1.3 * 0.55,
+  0.236 * 0.81 + 0.04 * 0.44 ** -1.3 * 0.55,
+];
 export function transmittance(el: number): Rgb {
   const m = airMass(el);
   return [Math.exp(-TAU[0] * m), Math.exp(-TAU[1] * m), Math.exp(-TAU[2] * m)];
@@ -125,18 +144,198 @@ interface Key {
  * entries follow photographs of the Virunga foothills (short equatorial twilight: deep blue within ~25 min).
  */
 const KEYS: Key[] = [
-  { h: -90, zenith: "#04070f", horizon: "#0d1422", glow: "#0d1422", glowK: 0, fog: "#111926", fogK: 0.85, hemiSky: "#6a7ea8", hemiGround: "#1d2220", hemiI: 1.9, envI: 0.55, cloud: "#121620", cloudA: 0.34, unlit: "#38425c" },
-  { h: -18, zenith: "#04070f", horizon: "#0d1422", glow: "#0d1422", glowK: 0, fog: "#111926", fogK: 0.85, hemiSky: "#6a7ea8", hemiGround: "#1d2220", hemiI: 1.9, envI: 0.55, cloud: "#121620", cloudA: 0.34, unlit: "#38425c" },
-  { h: -12, zenith: "#081126", horizon: "#1a2640", glow: "#27304c", glowK: 0.25, fog: "#1b2537", fogK: 0.88, hemiSky: "#6f84ad", hemiGround: "#1f2420", hemiI: 1.8, envI: 0.55, cloud: "#1c2130", cloudA: 0.4, unlit: "#414c68" },
-  { h: -8, zenith: "#112147", horizon: "#394c72", glow: "#7d6378", glowK: 0.55, fog: "#323f5a", fogK: 0.92, hemiSky: "#7a8eb8", hemiGround: "#252a22", hemiI: 1.45, envI: 0.55, cloud: "#3e4058", cloudA: 0.48, unlit: "#5a6684" },
-  { h: -4, zenith: "#1f3b76", horizon: "#76819f", glow: "#d98c68", glowK: 0.95, fog: "#66718d", fogK: 0.95, hemiSky: "#95a5c8", hemiGround: "#2f3427", hemiI: 1.1, envI: 0.55, cloud: "#8a7a88", cloudA: 0.55, unlit: "#7f88a0" },
-  { h: -1, zenith: "#2f5c9e", horizon: "#b2a5a6", glow: "#ff965a", glowK: 1.25, fog: "#a09ca4", fogK: 1.0, hemiSky: "#b4b6cc", hemiGround: "#3c3e2e", hemiI: 0.78, envI: 0.55, cloud: "#d9a28d", cloudA: 0.6, unlit: "#aaa6b0" },
-  { h: 2, zenith: "#4677ba", horizon: "#dcbfa3", glow: "#ffad6e", glowK: 1.05, fog: "#cabdb1", fogK: 1.0, hemiSky: "#cfc6c4", hemiGround: "#4a4630", hemiI: 0.6, envI: 0.55, cloud: "#f2c6a3", cloudA: 0.62, unlit: "#d6c6b6" },
-  { h: 6, zenith: "#5386c6", horizon: "#e2d6c6", glow: "#ffcd98", glowK: 0.7, fog: "#cdcfcb", fogK: 1.0, hemiSky: "#d2d4d8", hemiGround: "#4e5034", hemiI: 0.5, envI: 0.55, cloud: "#f6dfc6", cloudA: 0.62, unlit: "#eee4d8" },
-  { h: 12, zenith: "#578dcd", horizon: "#c9d6df", glow: "#ffeedb", glowK: 0.45, fog: "#c4d2dc", fogK: 1.0, hemiSky: "#c9def0", hemiGround: "#4a5236", hemiI: 0.45, envI: 0.55, cloud: "#f4f6f8", cloudA: 0.62, unlit: "#ffffff" },
-  { h: 17, zenith: "#578dcd", horizon: "#c6d4de", glow: "#fff2e2", glowK: 0.4, fog: "#c4d2dc", fogK: 1.0, hemiSky: "#c9def0", hemiGround: "#4a5236", hemiI: 0.45, envI: 0.55, cloud: "#f4f6f8", cloudA: 0.62, unlit: "#ffffff" },
-  { h: 40, zenith: "#4f88cf", horizon: "#c2d3e2", glow: "#fff6ec", glowK: 0.3, fog: "#c5d3de", fogK: 0.95, hemiSky: "#c9def0", hemiGround: "#4c5538", hemiI: 0.48, envI: 0.55, cloud: "#f6f8fa", cloudA: 0.62, unlit: "#ffffff" },
-  { h: 90, zenith: "#4a84cf", horizon: "#c0d3e4", glow: "#fff8f0", glowK: 0.25, fog: "#c6d5e0", fogK: 0.92, hemiSky: "#cce0f2", hemiGround: "#4e573a", hemiI: 0.5, envI: 0.55, cloud: "#f8f9fb", cloudA: 0.6, unlit: "#ffffff" },
+  {
+    h: -90,
+    zenith: "#04070f",
+    horizon: "#0d1422",
+    glow: "#0d1422",
+    glowK: 0,
+    fog: "#111926",
+    fogK: 0.85,
+    hemiSky: "#6a7ea8",
+    hemiGround: "#1d2220",
+    hemiI: 1.9,
+    envI: 0.55,
+    cloud: "#121620",
+    cloudA: 0.34,
+    unlit: "#38425c",
+  },
+  {
+    h: -18,
+    zenith: "#04070f",
+    horizon: "#0d1422",
+    glow: "#0d1422",
+    glowK: 0,
+    fog: "#111926",
+    fogK: 0.85,
+    hemiSky: "#6a7ea8",
+    hemiGround: "#1d2220",
+    hemiI: 1.9,
+    envI: 0.55,
+    cloud: "#121620",
+    cloudA: 0.34,
+    unlit: "#38425c",
+  },
+  {
+    h: -12,
+    zenith: "#081126",
+    horizon: "#1a2640",
+    glow: "#27304c",
+    glowK: 0.25,
+    fog: "#1b2537",
+    fogK: 0.88,
+    hemiSky: "#6f84ad",
+    hemiGround: "#1f2420",
+    hemiI: 1.8,
+    envI: 0.55,
+    cloud: "#1c2130",
+    cloudA: 0.4,
+    unlit: "#414c68",
+  },
+  {
+    h: -8,
+    zenith: "#112147",
+    horizon: "#394c72",
+    glow: "#7d6378",
+    glowK: 0.55,
+    fog: "#323f5a",
+    fogK: 0.92,
+    hemiSky: "#7a8eb8",
+    hemiGround: "#252a22",
+    hemiI: 1.45,
+    envI: 0.55,
+    cloud: "#3e4058",
+    cloudA: 0.48,
+    unlit: "#5a6684",
+  },
+  {
+    h: -4,
+    zenith: "#1f3b76",
+    horizon: "#76819f",
+    glow: "#d98c68",
+    glowK: 0.95,
+    fog: "#66718d",
+    fogK: 0.95,
+    hemiSky: "#95a5c8",
+    hemiGround: "#2f3427",
+    hemiI: 1.1,
+    envI: 0.55,
+    cloud: "#8a7a88",
+    cloudA: 0.55,
+    unlit: "#7f88a0",
+  },
+  {
+    h: -1,
+    zenith: "#2f5c9e",
+    horizon: "#b2a5a6",
+    glow: "#ff965a",
+    glowK: 1.25,
+    fog: "#a09ca4",
+    fogK: 1.0,
+    hemiSky: "#b4b6cc",
+    hemiGround: "#3c3e2e",
+    hemiI: 0.78,
+    envI: 0.55,
+    cloud: "#d9a28d",
+    cloudA: 0.6,
+    unlit: "#aaa6b0",
+  },
+  {
+    h: 2,
+    zenith: "#4677ba",
+    horizon: "#dcbfa3",
+    glow: "#ffad6e",
+    glowK: 1.05,
+    fog: "#cabdb1",
+    fogK: 1.0,
+    hemiSky: "#cfc6c4",
+    hemiGround: "#4a4630",
+    hemiI: 0.6,
+    envI: 0.55,
+    cloud: "#f2c6a3",
+    cloudA: 0.62,
+    unlit: "#d6c6b6",
+  },
+  {
+    h: 6,
+    zenith: "#5386c6",
+    horizon: "#e2d6c6",
+    glow: "#ffcd98",
+    glowK: 0.7,
+    fog: "#cdcfcb",
+    fogK: 1.0,
+    hemiSky: "#d2d4d8",
+    hemiGround: "#4e5034",
+    hemiI: 0.5,
+    envI: 0.55,
+    cloud: "#f6dfc6",
+    cloudA: 0.62,
+    unlit: "#eee4d8",
+  },
+  {
+    h: 12,
+    zenith: "#578dcd",
+    horizon: "#c9d6df",
+    glow: "#ffeedb",
+    glowK: 0.45,
+    fog: "#c4d2dc",
+    fogK: 1.0,
+    hemiSky: "#c9def0",
+    hemiGround: "#4a5236",
+    hemiI: 0.45,
+    envI: 0.55,
+    cloud: "#f4f6f8",
+    cloudA: 0.62,
+    unlit: "#ffffff",
+  },
+  {
+    h: 17,
+    zenith: "#578dcd",
+    horizon: "#c6d4de",
+    glow: "#fff2e2",
+    glowK: 0.4,
+    fog: "#c4d2dc",
+    fogK: 1.0,
+    hemiSky: "#c9def0",
+    hemiGround: "#4a5236",
+    hemiI: 0.45,
+    envI: 0.55,
+    cloud: "#f4f6f8",
+    cloudA: 0.62,
+    unlit: "#ffffff",
+  },
+  {
+    h: 40,
+    zenith: "#4f88cf",
+    horizon: "#c2d3e2",
+    glow: "#fff6ec",
+    glowK: 0.3,
+    fog: "#c5d3de",
+    fogK: 0.95,
+    hemiSky: "#c9def0",
+    hemiGround: "#4c5538",
+    hemiI: 0.48,
+    envI: 0.55,
+    cloud: "#f6f8fa",
+    cloudA: 0.62,
+    unlit: "#ffffff",
+  },
+  {
+    h: 90,
+    zenith: "#4a84cf",
+    horizon: "#c0d3e4",
+    glow: "#fff8f0",
+    glowK: 0.25,
+    fog: "#c6d5e0",
+    fogK: 0.92,
+    hemiSky: "#cce0f2",
+    hemiGround: "#4e573a",
+    hemiI: 0.5,
+    envI: 0.55,
+    cloud: "#f8f9fb",
+    cloudA: 0.6,
+    unlit: "#ffffff",
+  },
 ];
 
 interface LinKey {
@@ -147,7 +346,16 @@ interface LinKey {
 }
 const LIN: LinKey[] = KEYS.map((k) => ({
   h: k.h,
-  c: { zenith: lin(k.zenith), horizon: lin(k.horizon), glow: lin(k.glow), fog: lin(k.fog), hemiSky: lin(k.hemiSky), hemiGround: lin(k.hemiGround), cloud: lin(k.cloud), unlit: lin(k.unlit) },
+  c: {
+    zenith: lin(k.zenith),
+    horizon: lin(k.horizon),
+    glow: lin(k.glow),
+    fog: lin(k.fog),
+    hemiSky: lin(k.hemiSky),
+    hemiGround: lin(k.hemiGround),
+    cloud: lin(k.cloud),
+    unlit: lin(k.unlit),
+  },
   fogSrgb: srgb(k.fog),
   n: { glowK: k.glowK, fogK: k.fogK, hemiI: k.hemiI, envI: k.envI, cloudA: k.cloudA },
 }));
@@ -201,6 +409,8 @@ export interface Look {
   led: number;
   /** lamp diffuser emissive intensity */
   lampHead: number;
+  /** far terrain brightness multiplier (night: silhouettes) */
+  farDim: number;
 }
 
 export interface MoonIn {
@@ -229,7 +439,11 @@ export function computeLook(sunEl: number, rising: boolean, moon: MoonIn): Look 
   const { c, n, fogSrgb } = keysAt(sunEl);
   // evenings are a little warmer and hazier than mornings (dust and smoke of the day; morning valley mist is cool)
   const eve = rising ? 0 : smoothstep(-9, -2, sunEl) * (1 - smoothstep(4, 14, sunEl));
-  const warm = (x: Rgb, k: number): Rgb => [x[0] * (1 + 0.1 * k), x[1] * (1 + 0.02 * k), x[2] * (1 - 0.08 * k)];
+  const warm = (x: Rgb, k: number): Rgb => [
+    x[0] * (1 + 0.1 * k),
+    x[1] * (1 + 0.02 * k),
+    x[2] * (1 - 0.08 * k),
+  ];
   const horizon = warm(c.horizon, eve);
   const glow = warm(c.glow, eve);
   const cloud = warm(c.cloud, eve);
@@ -250,7 +464,9 @@ export function computeLook(sunEl: number, rising: boolean, moon: MoonIn): Look 
   const keyIsSun = sunEl > -2;
   const keyCol = keyIsSun ? sunCol : moonCol;
   const keyI = keyIsSun ? sunI : moonI;
-  const shadow = keyIsSun ? smoothstep(0.5, 8, sunEl) : 0.45 * moon.fraction * smoothstep(5, 20, moon.el) * dark;
+  const shadow = keyIsSun
+    ? smoothstep(0.5, 8, sunEl)
+    : 0.45 * moon.fraction * smoothstep(5, 20, moon.el) * dark;
 
   // night sky: stars from nautical twilight on, washed out by a bright moon; the moon brightens the night sky a bit
   const stars = smoothstep(-6, -14, sunEl) * (1 - 0.55 * moon.fraction * moonUp);
@@ -294,5 +510,6 @@ export function computeLook(sunEl: number, rising: boolean, moon: MoonIn): Look 
     windows: 0.3 + 0.95 * lights,
     led: 1 + 0.3 * lights,
     lampHead: 0.15 + 3.6 * lights,
+    farDim: 1 - 0.62 * smoothstep(-2, -12, sunEl) * (1 - 0.35 * moonSky),
   };
 }

@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { kigaliMinutes, kigaliTime, moonPosition, skyDir, sunCrossing, sunPosition, worldToEquatorial } from "./solar";
+import {
+  kigaliMinutes,
+  kigaliTime,
+  moonPosition,
+  skyDir,
+  sunCrossing,
+  sunPosition,
+  worldToEquatorial,
+} from "./solar";
 
 const day = (iso: string) => Date.parse(`${iso}T10:00:00Z`);
-const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(Math.round(m % 60)).padStart(2, "0")}`;
+const hm = (m: number) =>
+  `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(Math.round(m % 60)).padStart(2, "0")}`;
 
 /**
  * Musanze (1.5° S, 29.6° E, CAT = UTC+2) sunrise / sunset, Kigali clock. Reference: the NOAA spreadsheet values for

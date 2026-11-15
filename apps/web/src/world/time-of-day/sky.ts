@@ -198,7 +198,10 @@ const Y = new THREE.Vector3(0, 1, 0);
  * Copy the time-of-day state into a sky material. `yaw` turns the sky (a hall's window capture is taken in the
  * hall's own frame); `night` false leaves out the stars and moon (environment capture); `twinkle` 0…1.
  */
-export function updateSky(m: THREE.ShaderMaterial, opts: { yaw?: number; night?: boolean; twinkle?: number; time?: number; f?: TodFrame } = {}) {
+export function updateSky(
+  m: THREE.ShaderMaterial,
+  opts: { yaw?: number; night?: boolean; twinkle?: number; time?: number; f?: TodFrame } = {},
+) {
   const f = opts.f ?? tod;
   const L = f.look;
   const u = m.uniforms;
