@@ -64,6 +64,7 @@ export type BoxingClipName =
   // referee (staff NPC, bare hands)
   | "refIdle"
   | "refCount"
+  | "refCount2"
   | "refBreak"
   | "refStart"
   | "refRaise"
@@ -731,10 +732,24 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     loop: true,
     impact: 0.45,
     events: [{ t: 0.45, kind: "beat" }],
+    // P3-FGT-14: the palm (and the fingers of the count: count-signs.ts) shown to the fighter at the bottom of each beat
     keys: keys(STAND, [
-      [0, { ...REF_SPEC(), lean: 0.25, head: [0.3, 0, 0], rear: [-0.2, 1.62, 0.32], rearPole: [-1, -0.3, -0.2], rearPalm: [1, 0, 0], fist: 0.1 }],
-      [0.45, { rear: [-0.2, 1.08, 0.42], rearPalm: [1, -0.2, 0.2] }],
-      [1, { rear: [-0.2, 1.62, 0.32], rearPalm: [1, 0, 0] }],
+      [0, { ...REF_SPEC(), lean: 0.25, head: [0.3, 0, 0], rear: [-0.2, 1.62, 0.32], rearPole: [-1, -0.3, -0.2], rearPalm: [0.6, 0, 0.8], fist: 0.1 }],
+      [0.45, { rear: [-0.18, 1.12, 0.46], rearPalm: [0.15, -0.1, 1] }],
+      [1, { rear: [-0.2, 1.62, 0.32], rearPalm: [0.6, 0, 0.8] }],
+    ]),
+  },
+  // counts 6–10: the first hand stays up open beside the face, the other one beats the second five (P3-FGT-14)
+  refCount2: {
+    kind: "referee",
+    duration: 1,
+    loop: true,
+    impact: 0.45,
+    events: [{ t: 0.45, kind: "beat" }],
+    keys: keys(STAND, [
+      [0, { ...REF_SPEC(), lean: 0.25, head: [0.3, 0, 0], rear: [-0.33, 1.4, 0.34], rearPole: [-1, -0.4, -0.2], rearPalm: [0.25, 0, 1], lead: [0.2, 1.62, 0.32], leadPole: [1, -0.3, -0.2], leadPalm: [-0.6, 0, 0.8], fist: 0.1 }],
+      [0.45, { lead: [0.15, 1.2, 0.5], leadPalm: [-0.15, -0.1, 1] }],
+      [1, { lead: [0.2, 1.62, 0.32], leadPalm: [-0.6, 0, 0.8] }],
     ]),
   },
   // "break!": both arms out between the fighters, palms out

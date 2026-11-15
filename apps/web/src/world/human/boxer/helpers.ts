@@ -44,6 +44,51 @@ export function twistOf(q: THREE.Quaternion, axis: THREE.Vector3, out: THREE.Qua
   return out.set(out.x / l, out.y / l, out.z / l, out.w / l);
 }
 
+/**
+ * Finger signs (P3-FGT-14, the referee's count): per hand and finger the chain of bones and the flexion axis, from the
+ * bind pose (identity rotations: a bone's local axes are the root's). Flexion turns a finger towards the palm about
+ * (finger direction × palm normal); the thumb folds across the palm.
+ */
+export interface FingerRig {
+  hands: Record<"L" | "R", { chains: { bones: THREE.Bone[]; axis: THREE.Vector3 }[] } | null>;
+}
+
+export function fingerRig(bone: (name: string) => THREE.Bone | null): FingerRig {
+  const hand = (S: "L" | "R") => {
+    const h = bone(`Bip01_${S}_Hand`);
+    const mid = bone(`Bip01_${S}_Finger2`);
+    const th = bone(`Bip01_${S}_Finger0`);
+    if (!h || !mid || !th) return null;
+    const side = S === "R" ? 1 : -1;
+    // palm normal (hand-local = bind world): right hand fingers × thumb = the back of the hand (as rig.ts)
+    const palm = new THREE.Vector3().crossVectors(mid.position.clone().normalize(), th.position.clone().normalize()).multiplyScalar(-side).normalize();
+    const chains = [0, 1, 2, 3, 4].map((f) => {
+      const bones = [`Bip01_${S}_Finger${f}`, `Bip01_${S}_Finger${f}1`, `Bip01_${S}_Finger${f}2`].map(bone).filter((b): b is THREE.Bone => !!b);
+      const dir = (bones[1]?.position ?? bones[0]!.position).clone().normalize();
+      const axis = new THREE.Vector3().crossVectors(dir, palm).normalize();
+      return { bones, axis };
+    });
+    return { chains };
+  };
+  return { hands: { L: hand("L"), R: hand("R") } };
+}
+
+const _fq = new THREE.Quaternion();
+/** set one hand's fingers to the extensions (1 straight … 0 folded), blended by w over whatever the rig left */
+export function signFingers(fr: FingerRig, S: "L" | "R", ext: readonly number[], w = 1) {
+  const h = fr.hands[S];
+  if (!h || w < 0.002) return;
+  h.chains.forEach((c, f) => {
+    const fold = 1 - (ext[f] ?? 0);
+    // per joint: a finger folds ~85° at each joint, the thumb less and across
+    const amt = fold * (f === 0 ? 0.75 : 1.45);
+    c.bones.forEach((b, j) => {
+      _fq.setFromAxisAngle(c.axis, f === 0 && j === 0 ? amt * 0.6 : amt);
+      b.quaternion.slerp(_fq, w);
+    });
+  });
+}
+
 /** pose the helpers from the arm bones' current local rotations */
 export function driveHelpers(h: HelperRig) {
   for (const s of h.shoulders) s.helper.quaternion.copy(_id).slerp(s.upper.quaternion, SHOULDER_FOLLOW);

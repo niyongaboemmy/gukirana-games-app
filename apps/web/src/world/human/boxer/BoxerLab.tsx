@@ -10,6 +10,7 @@ import { boxingKitOverride } from "../boxing/kit";
 import { Avatar } from "../../Avatar";
 import { BoxerAvatar, type BoxerProbe } from "./BoxerAvatar";
 import type { BoxerOutfit } from "./boxer-body";
+import { countSign } from "../boxing/count-signs";
 
 /**
  * Boxer body debug view (P3-FGT-14, dev-only, /play/boxing-lab?mode=boxer): one ring person on the boxer body, one clip
@@ -19,6 +20,7 @@ import type { BoxerOutfit } from "./boxer-body";
  *    bone=arm (clavicle red / upper arm green / forearm blue / spine2 grey): where the shoulder blends;
  *  - bind=1        the bind pose (no rig: what the GLB ships); bare=1 the body alone (no garments, nothing culled);
  * Query: clip=<name> · at=<s into the clip> (or at=impact) · gender=m|f · outfit=boxer|referee|staff ·
+ * count=<1…10> (the referee's finger count over the clip, e.g. clip=refCount / refCount2) ·
  * glb=before (the P3-FGT-13 GLB, kept untracked under public/assets/characters/_before/ for comparisons) ·
  * cam=<VIEWS key> (in the chest frame; az / el / dist / fov override it) · headgear=0 · cmp=1 (the old Rocketbox fighter beside it, same
  * clip and clock: the rig's reference body).
@@ -148,6 +150,7 @@ export function BoxerLab({ q, setInfo }: { q: URLSearchParams; setInfo: (s: stri
   const clock = useMemo(() => () => at, [at]);
   const weight = useMemo(() => ({ current: bind ? 0 : 1 }), [bind]);
   const probe = useRef<BoxerProbe | null>(null);
+  const fingers = useMemo(() => ({ current: q.get("count") ? countSign(Number(q.get("count"))) : null }), [q]);
   const { scene } = useThree();
   useEffect(() => setInfo(`boxer ${gender} ${outfit} · ${clip} @ ${at.toFixed(2)} s${debug ? ` · ${debug}` : ""}${bind ? " · bind" : ""}`), [gender, outfit, clip, at, debug, bind, setInfo]);
   // debug overlays once the person exists
@@ -180,7 +183,7 @@ export function BoxerLab({ q, setInfo }: { q: URLSearchParams; setInfo: (s: stri
   }, [debug, q, scene]);
   return (
     <>
-      <BoxerAvatar look={LOOK[gender]} outfit={outfit} kit="#c0262d" polo="#2b2e34" motion={motion} clock={clock} weight={weight} seed={7} klass={0} noHeadgear={q.get("headgear") === "0"} bare={q.get("bare") === "1"} src={q.get("glb") === "before" ? `/assets/characters/_before/boxer-${gender}.glb` : undefined} probe={probe} />
+      <BoxerAvatar look={LOOK[gender]} outfit={outfit} kit="#c0262d" polo="#2b2e34" motion={motion} clock={clock} weight={weight} seed={7} klass={0} noHeadgear={q.get("headgear") === "0"} bare={q.get("bare") === "1"} fingers={fingers} src={q.get("glb") === "before" ? `/assets/characters/_before/boxer-${gender}.glb` : undefined} probe={probe} />
       {q.get("cmp") === "1" && <Reference look={LOOK[gender]} motion={motion} clock={clock} />}
       <CamRig q={q} probe={probe} />
     </>

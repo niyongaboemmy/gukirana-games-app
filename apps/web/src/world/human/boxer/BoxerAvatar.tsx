@@ -9,7 +9,8 @@ import type { BoxingMotion } from "../boxing/motion";
 import { P } from "../boxing/pose";
 import { BOXER_URL, buildOf, makeBoxer, type BoxerGender, type BoxerInstance, type BoxerOutfit } from "./boxer-body";
 import { BoxerFace } from "./boxer-face";
-import { driveHelpers, helperRig } from "./helpers";
+import { driveHelpers, fingerRig, helperRig, signFingers } from "./helpers";
+import type { CountSign } from "../boxing/count-signs";
 
 /**
  * A ring person on the boxer body (P3-FGT-13): fighters in kit, the referee, corner staff, judges, hall staff. Posed
@@ -56,6 +57,8 @@ export interface BoxerAvatarProps {
   bare?: boolean;
   /** another GLB of the same layout (lab: before / after comparisons) */
   src?: string;
+  /** finger signs over the pose (the referee's count, P3-FGT-14): first = the right hand, second = the left */
+  fingers?: { current: CountSign | null };
 }
 
 const BEARD: Record<string, number> = { none: 0, stubble: 0.45, shadow: 0.35, moustache: 0.55, goatee: 0.6, chinstrap: 0.6, short: 0.78, full: 0.95 };
@@ -88,6 +91,7 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
   const rig = useMemo(() => new BoxingRig(inst.root, inst.arms, { torso: inst.torso }), [inst]);
   const face = useMemo(() => new BoxerFace(inst.bone, seed), [inst, seed]);
   const helpers = useMemo(() => helperRig(inst.bone), [inst]);
+  const fingerBones = useMemo(() => fingerRig(inst.bone), [inst]);
   // bind pose of every bone: restored before each frame's pose (no mixer underneath: finger curls must not accumulate)
   const bind = useMemo(() => inst.mesh.skeleton.bones.map((b) => ({ b, q: b.quaternion.clone(), p: b.position.clone() })), [inst]);
   const parts = useMemo(() => ({ head: inst.bone("Bip01_Head"), spine: inst.bone("Bip01_Spine1"), pelvis: inst.bone("Bip01_Pelvis") }), [inst]);
@@ -138,6 +142,11 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
     const near = camera.position.distanceTo(_v) < 16;
     rig.apply(pose, w, !!props.motion.current().mirrored, near && !lite);
     driveHelpers(helpers);
+    const sign = props.fingers?.current;
+    if (sign && near) {
+      signFingers(fingerBones, "R", sign.first, w);
+      signFingers(fingerBones, "L", sign.second, w);
+    }
     if (near)
       face.apply(
         { focus: pose[P.focus]!, effort: pose[P.effort]!, wince: pose[P.wince]!, smile: pose[P.smile]!, jaw: pose[P.jaw]!, eyes: pose[P.eyes]! },
