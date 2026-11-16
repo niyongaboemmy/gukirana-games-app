@@ -66,7 +66,7 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
   return (
     <group>
       {!mock && <LiveNet />}
-      <FocusMode />
+      <FocusMode lite={lite} />
       <TrainingZone hidden={gym.hidden} dim={gym.dim} />
       <GymLife room="boxing" lite={lite} hidden={gym.hidden} />
       <HallLights lite={lite} />

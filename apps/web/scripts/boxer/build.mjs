@@ -15,8 +15,10 @@ import { fileURLToPath } from "node:url";
 import { jointPos, macroTargets, morph, readObj, readProxy, readSkeleton, readTarget } from "./mh.mjs";
 import { writeGlb } from "./glb.mjs";
 import { shoulderShare, weightBytes } from "./skin-math.mjs";
-import { buildGlove, headgearSeam, headgearThickness, HEADGEAR_V5, HEADGEAR_V6 } from "./kit-shapes.mjs";
+import { buildGlove, headgearSeam, headgearThickness, HEADGEAR_V5, HEADGEAR_V6, HEADGEAR_V7 } from "./kit-shapes.mjs";
 import { bakeDetail, bandHeight, encodePng } from "./anatomy-bake.mjs";
+import { measureBody } from "./measure.mjs";
+import { bakeVertexAo } from "./vertex-ao.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "../../public/assets/characters");
@@ -272,8 +274,37 @@ const ATHLETIC = {
 const ATHLETIC_ON = process.env.ATHLETIC !== "0";
 /** P3-FGT-17 garment changes (the v5 GLBs are built with V5=1) */
 const BODY_V6_BUILD = process.env.V5 !== "1";
+/** P3-FGT-18 (docs/FIGHT-REALISM-V7.md): the v7 body, garments and kit; V6=1 rebuilds the P3-FGT-17 GLBs exactly */
+const V7_BUILD = BODY_V6_BUILD && process.env.V6 !== "1";
+/**
+ * P3-FGT-18 proportion fixes from the anthropometric audit (measure.mjs; docs/FIGHT-REALISM-V7.md §2). The v6 sculpt
+ * pinched the waist into a mannequin's (waist-to-hip 0.72 masculine / 0.60 feminine; athletes measure ≈ 0.83–0.88 /
+ * 0.70–0.75), the feminine neck was 28 % too long (chin to the sternal notch 0.067 of the stature; adults ≈ 0.052)
+ * and thin, the feminine head a little small (7.7 heads), the masculine shoulder joints a little wide (0.25 of the
+ * stature). Applied on top of ATHLETIC (the v6 waist decrease is cancelled by the increase here).
+ */
+const PROPORTION_V7 = {
+  m: [
+    ["measure/measure-waist-circ-incr", 1.2],
+    ["measure/measure-shoulder-dist-decr", 0.25],
+    ["measure/measure-neck-circ-incr", 0.3],
+    ["head/head-scale-vert-incr", 0.05],
+    ["head/head-scale-horiz-incr", 0.08],
+    ["head/head-scale-depth-incr", 0.08],
+  ],
+  f: [
+    ["measure/measure-waist-circ-incr", 1.15],
+    ["measure/measure-neck-height-decr", 0.7],
+    ["measure/measure-neck-circ-incr", 0.1],
+    ["head/head-scale-vert-incr", 0.2],
+    ["head/head-scale-horiz-incr", 0.15],
+    ["head/head-scale-depth-incr", 0.15],
+  ],
+};
 function variantPositions(params) {
-  const extra = ATHLETIC_ON ? (ATHLETIC[params.gender >= 0.5 ? "m" : "f"] ?? []).map(([f, w]) => [join(MH, "targets", `${f}.target`), w * (params.athletic ?? 1)]) : [];
+  const g = params.gender >= 0.5 ? "m" : "f";
+  const sets = ATHLETIC_ON ? [...(ATHLETIC[g] ?? []), ...(V7_BUILD ? (PROPORTION_V7[g] ?? []) : [])] : [];
+  const extra = sets.map(([f, w]) => [join(MH, "targets", `${f}.target`), w * (params.athletic ?? 1)]);
   const p = morph(BASE, [...macroTargets(MH, params), ...extra]);
   return p;
 }
@@ -614,7 +645,7 @@ function buildVariant(key, base, morphParams) {
     const fNeck = lerp(neckBaseY + 0.03, neckBaseY - 0.012, front) + 0.03 * smooth(0.035, 0.085, Math.abs(p[0])) - p[1];
     return Math.min(fBottom, fSleeve, fFore, fNeck, 0.3 - headW(i));
   };
-  const hemY = kneeL[1] + 0.105;
+  const hemY = kneeL[1] + (V7_BUILD ? 0.125 : 0.105);
   const trunksTop = waistY + 0.012;
   const bootTop = (i) => (wSum(i, ["Bip01_L_Calf", "Bip01_R_Calf", "Bip01_L_Foot", "Bip01_R_Foot", "Bip01_L_Toe0", "Bip01_R_Toe0"]) > 0.3 ? bootTopY - V(i)[1] : -1);
   const shoeTop = (i) => (footW(i) > 0.3 || wOf(i, "Bip01_L_Calf") + wOf(i, "Bip01_R_Calf") > 0.5 ? ankleL[1] + 0.035 - V(i)[1] : -1);
@@ -709,7 +740,7 @@ function buildVariant(key, base, morphParams) {
     // (P3-FGT-16: at the front neckline the skin slides under the cloth as the chin tucks: the body is kept 3 cm further
     // in there; at the back it would rise through the cloth instead, so not behind the neck)
     (vestField(i) > 0.004 + 0.03 * smooth(0.02, 0.15, wOf(i, "Bip01_Neck") + wOf(i, "Bip01_Head")) * smooth(spine2[2] + 0.05, spine2[2] + 0.09, V(i)[2]) ? COVER.vest : 0) |
-    (vestField(i) > 0.0025 && Math.abs(V(i)[0]) < shoulderX * 0.56 && V(i)[1] > shoulderL[1] - 0.16 && V(i)[2] < spine2[2] + 0.06 ? COVER.vestCore : 0) |
+    (vestField(i) > 0.0025 && Math.abs(V(i)[0]) < shoulderX * (V7_BUILD ? 0.85 : 0.56) && V(i)[1] > shoulderL[1] - 0.16 && V(i)[2] < spine2[2] + 0.06 ? COVER.vestCore : 0) |
     (trunksCoverBody(i) ? COVER.trunks : 0) |
     (bootTop(i) > 0.012 ? COVER.boots : 0) |
     (glovesCover(i) ? COVER.gloves : 0) |
@@ -1151,15 +1182,19 @@ function buildVariant(key, base, morphParams) {
   const HUG = BODY_V6_BUILD ? new Float64Array(NV) : null;
   // (P3-FGT-17: a competition singlet is a fitted jersey, not a shirt: below the chest it may follow the trunk in at
   // 0.55 m per metre of height (the shirt drape: 0.22) with 6 mm of ease — the V from the lats to the waist shows)
-  const VEST_DRAPE = BODY_V6_BUILD ? drapeShirt({ hang: 0.55, ease: 0.006 }) : DRAPE_SURF;
+  // (P3-FGT-18: a competition vest is loose jersey — it hangs from the chest / bust and the lats and blouses over the
+  // waistband instead of shrink-wrapping the waist: 0.32 m/m and 1 cm of ease; docs/FIGHT-REALISM-V7.md §4)
+  const VEST_DRAPE = V7_BUILD ? drapeShirt({ hang: 0.32, ease: 0.01 }) : BODY_V6_BUILD ? drapeShirt({ hang: 0.55, ease: 0.006 }) : DRAPE_SURF;
   const VEST_SURF = Float64Array.from(VEST_DRAPE);
   if (HUG) {
     for (const i of bodyV) {
       const p = V(i);
       const fa = vestHole(i);
-      if (fa < -0.01 || fa > 0.08) continue;
-      const low = smooth(shoulderL[1] - 0.005, shoulderL[1] - 0.06, p[1]);
-      const h = (1 - smooth(0.006, 0.06, fa)) * low;
+      if (fa < -0.01 || fa > (V7_BUILD ? 0.1 : 0.08)) continue;
+      // (P3-FGT-18: the bound arm hole lies on the body up to the shoulder joint's height and in a wider band (9 cm);
+      // over the strap's top the cloth keeps its own small working allowance — vestOffsetV7 — not v6's 2.6 cm pad)
+      const low = V7_BUILD ? smooth(shoulderL[1] + 0.035, shoulderL[1] - 0.02, p[1]) : smooth(shoulderL[1] - 0.005, shoulderL[1] - 0.06, p[1]);
+      const h = (1 - smooth(0.006, V7_BUILD ? 0.09 : 0.06, fa)) * low;
       if (h <= 0) continue;
       HUG[i] = h;
       const n = Nv(i);
@@ -1184,6 +1219,16 @@ function buildVariant(key, base, morphParams) {
       }
     }
   }
+  // P3-FGT-18: the tuck — under the trunks' band the jersey lies on the body (the looser v7 drape stood 1 cm off the
+  // waist and came through the 6 mm elastic band in red drips)
+  if (V7_BUILD)
+    for (const i of bodyV) {
+      const p = V(i);
+      const t = smooth(trunksTop + 0.02, trunksTop - 0.004, p[1]);
+      if (t <= 0) continue;
+      const n = Nv(i);
+      for (let c = 0; c < 3; c++) VEST_SURF[i * 3 + c] = lerp(VEST_SURF[i * 3 + c], P[i * 3 + c] + n[c] * 0.0012, t);
+    }
   const NVest = HUG ? normalsOf(VEST_SURF, bodyFaces) : NDr;
   if (HUG)
     for (let it = 0; it < 8; it++) {
@@ -1201,6 +1246,23 @@ function buildVariant(key, base, morphParams) {
         NVest[i * 3 + 2] = z / l;
       }
     }
+  /**
+   * P3-FGT-18: the vest's stand-off. v6 lifted the straps up to 2.6 cm off the trapezius and the shoulder blades (so the
+   * shrugging shoulder never rose through them): from the side camera that read as shoulder pads. Now 4 mm of jersey
+   * everywhere (the body under the cloth is culled; depenetrate.ts pushes any garment vertex out of the drawn skin)
+   * and, above the trunks' waistband, the tucked-in jersey blouses out in soft, uneven puffs (1–1.6 cm).
+   */
+  const vestOffsetV7 = (i) => {
+    const p = V(i);
+    const tuck = smooth(trunksTop + 0.01, trunksTop + 0.035, p[1]) * (1 - smooth(trunksTop + 0.03, trunksTop + 0.11, p[1]));
+    const ang = Math.atan2(p[0], p[2] - pelvis[2]);
+    const puff = tuck * (0.009 + 0.004 * Math.sin(ang * 6 + 0.8) + 0.003 * Math.sin(ang * 11 + 2.1));
+    // (over the strap and the shoulder blade, where the trapezius and the scapula work under the cloth in a guard, a
+    // working allowance of up to 6 mm more — a third of v6's — so the skin at the edge never rises through the jersey)
+    const work = 0.006 * smooth(0.15, 0.5, wSum(i, ["Bip01_L_Clavicle", "Bip01_R_Clavicle", "Bip01_L_ShoulderHelper", "Bip01_R_ShoulderHelper"])) * (0.6 + 0.4 * smooth(spine2[2] + 0.04, spine2[2] - 0.03, p[2]));
+    const under = smooth(trunksTop + 0.012, trunksTop - 0.004, p[1]);
+    return lerp((0.004 + work + Math.max(0, puff)) * (HUG ? 1 - 0.35 * HUG[i] : 1), 0.0025, under);
+  };
   const vest = shell("kit_vest", bodyFaces, NVest, {
     // P3-FGT-16 follow-up: the vest follows the body under it (smoothed over the garment: no notches) and its edges are
     // bound (rolled binding with thickness); the strap is narrower and sits on the trapezius, clear of the deltoid
@@ -1210,7 +1272,7 @@ function buildVariant(key, base, morphParams) {
     field: vestField,
     // (a little more over the arm holes and straps, where the shoulder works under the cloth)
     // (P3-FGT-16: more stand-off over the trapezius and the shoulder blades, which rise under the straps in a guard)
-    offset: (i) => (0.005 + 0.004 * smooth(0.2, 0.5, armW(i) + wSum(i, ["Bip01_L_Clavicle", "Bip01_R_Clavicle"])) + 0.007 * smooth(0.15, 0.5, wSum(i, ["Bip01_L_Clavicle", "Bip01_R_Clavicle", "Bip01_L_ShoulderHelper", "Bip01_R_ShoulderHelper", "Bip01_Neck"])) * smooth(spine2[2] + 0.04, spine2[2] - 0.03, V(i)[2]) * 2.4) * (HUG ? 1 - 0.6 * HUG[i] : 1),
+    offset: V7_BUILD ? vestOffsetV7 : (i) => (0.005 + 0.004 * smooth(0.2, 0.5, armW(i) + wSum(i, ["Bip01_L_Clavicle", "Bip01_R_Clavicle"])) + 0.007 * smooth(0.15, 0.5, wSum(i, ["Bip01_L_Clavicle", "Bip01_R_Clavicle", "Bip01_L_ShoulderHelper", "Bip01_R_ShoulderHelper", "Bip01_Neck"])) * smooth(spine2[2] + 0.04, spine2[2] - 0.03, V(i)[2]) * 2.4) * (HUG ? 1 - 0.6 * HUG[i] : 1),
     surface: VEST_SURF,
     flatAo: true,
     mat: MAT.vest,
@@ -1236,7 +1298,24 @@ function buildVariant(key, base, morphParams) {
     const flute = 0.0075 * Math.sin(ang * 5 + side * 0.7) * legT * legT;
     return lerp(0.011 + 0.026 * legT + flute, 0.0115, band);
   };
-  const trunks = shell("kit_trunks", tightsFaces, NT, {
+  // P3-FGT-18: loose satin trunks (drapeTrunks): the legs hang from the hips / seat, wide openings, a broad flat band;
+  // the cloth lags the thigh a little (15 % of the leg's swing goes to the pelvis: the legs move inside the trunks)
+  const TRUNKS_SURF = V7_BUILD ? drapeTrunks(tightsFaces) : null;
+  const NTk = TRUNKS_SURF ? normalsOf(TRUNKS_SURF, tightsFaces) : NT;
+  const pelvisBone = FINAL_INDEX.get("Bip01_Pelvis");
+  const LEGISH = new Map();
+  for (const S of ["L", "R"]) for (const n of ["Thigh", "Calf"]) LEGISH.set(FINAL_INDEX.get(`Bip01_${S}_${n}`), [[FINAL_INDEX.get(`Bip01_${S}_${n}`), 0.85], [pelvisBone, 0.15]]);
+  const trunks = shell("kit_trunks", tightsFaces, NTk, V7_BUILD ? {
+    field: (i) => Math.min(V(i)[1] - hemY, trunksTop - V(i)[1]),
+    flatAo: true,
+    surface: TRUNKS_SURF,
+    // (a 6 mm elastic band over the body; 3 mm of satin elsewhere — the drape gives the volume)
+    offset: (i) => lerp(0.003, 0.006, smooth(trunksTop - 0.066, trunksTop - 0.056, V(i)[1])),
+    remap: (bone) => LEGISH.get(bone) ?? [[bone, 1]],
+    mat: MAT.trunks,
+    hem: 0.004,
+    rimMat: MAT.trunks,
+  } : {
     bridge: 1,
     field: (i) => Math.min(V(i)[1] - hemY, trunksTop - V(i)[1]),
     flatAo: true,
@@ -1654,6 +1733,80 @@ function buildVariant(key, base, morphParams) {
     return out;
   }
 
+  /**
+   * P3-FGT-18: amateur boxing trunks as loose satin (docs/FIGHT-REALISM-V7.md §4). Each leg hangs from the widest
+   * point of the hips / seat almost straight down (the opening at the hem is far wider than the thigh: a skirt-like
+   * leg, not a tight), flares a little towards the hem, falls in 6–7 uneven folds (deepest at the hem), and keeps clear
+   * of the midline so the two legs' cloth never merges. Above the crotch it follows the hips; the band sits flat on the
+   * body (the shell's offset adds the elastic's thickness).
+   */
+  function drapeTrunks(faces) {
+    const verts = new Set();
+    for (const f of faces) for (const i of f) verts.add(i);
+    const out = Float64Array.from(P);
+    const yTop = trunksTop + 0.01,
+      yBot = hemY - 0.02;
+    const DY = 0.01,
+      NA = 48;
+    const rows = Math.ceil((yTop - yBot) / DY) + 1;
+    const ri = (y) => clamp(Math.round((yTop - y) / DY), 0, rows - 1);
+    const ai = (a) => ((Math.round((a / (2 * Math.PI)) * NA) % NA) + NA) % NA;
+    const axisAt = (side, y) => {
+      const hip = bp(side > 0 ? "Bip01_L_Thigh" : "Bip01_R_Thigh");
+      const knee = bp(side > 0 ? "Bip01_L_Calf" : "Bip01_R_Calf");
+      const t = clamp((y - knee[1]) / (hip[1] - knee[1] || 1), 0, 1);
+      return [lerp(knee[0], hip[0], t), lerp(knee[2], hip[2], t)];
+    };
+    const crotchY = pelvis[1] - 0.09;
+    for (const side of [1, -1]) {
+      const R = Array.from({ length: rows }, () => new Float64Array(NA));
+      const mine = [...verts].filter((i) => V(i)[0] * side > 0 && V(i)[1] <= yTop + 0.03 && V(i)[1] >= yBot - 0.03);
+      for (const i of mine) {
+        const p = V(i);
+        const [cx, cz] = axisAt(side, p[1]);
+        const a = ai(Math.atan2(p[0] - cx, p[2] - cz));
+        const k = ri(p[1]);
+        R[k][a] = Math.max(R[k][a], Math.hypot(p[0] - cx, p[2] - cz));
+      }
+      for (let k = 0; k < rows; k++) {
+        const r = R[k];
+        for (let pass = 0; pass < NA; pass++) for (let a = 0; a < NA; a++) if (!r[a]) r[a] = Math.max(r[(a + 1) % NA], r[(a + NA - 1) % NA]) * 0.999;
+        const mx = r.map((_, a) => Math.max(r[(a + NA - 1) % NA], r[a], r[(a + 1) % NA]));
+        for (let a = 0; a < NA; a++) r[a] = (mx[(a + NA - 1) % NA] + mx[a] * 2 + mx[(a + 1) % NA]) / 4;
+      }
+      // the hang: below the crotch the radius barely shrinks (0.05 per unit height) — the leg falls from the seat
+      const H = R.map((r) => Float64Array.from(r));
+      for (let k = 1; k < rows; k++) {
+        const y = yTop - k * DY;
+        const slope = y < crotchY ? 0.05 : 0.7;
+        for (let a = 0; a < NA; a++) H[k][a] = Math.max(R[k][a], H[k - 1][a] - slope * DY);
+      }
+      for (const i of mine) {
+        const p = V(i);
+        const k = ri(p[1]);
+        const [cx, cz] = axisAt(side, p[1]);
+        const dx = p[0] - cx,
+          dz = p[2] - cz;
+        const own = Math.hypot(dx, dz);
+        const ang = Math.atan2(dx, dz);
+        const t = clamp((crotchY - p[1]) / (crotchY - hemY), 0, 1);
+        const band = smooth(trunksTop - 0.075, trunksTop - 0.055, p[1]);
+        // flare and folds (uneven: two frequencies), deepest at the hem
+        const fold = (0.0055 * Math.sin(ang * 6 + side * 0.9) + 0.0025 * Math.sin(ang * 13 + 1.7 + side)) * (0.25 + 0.75 * t) * (1 - band);
+        let r = H[k][ai(ang)] + 0.006 + 0.016 * t * t + fold;
+        r = lerp(r, own + 0.002, band);
+        // (never past the midline: the inner side of each leg stays 5 mm on its own side)
+        const inward = -Math.sin(ang) * side;
+        if (inward > 0.05) r = Math.min(r, Math.max(own + 0.003, (Math.abs(cx) - 0.005) / inward));
+        r = Math.max(r, own + 0.003);
+        const f = r / (own || 1);
+        out[i * 3] = cx + dx * f;
+        out[i * 3 + 2] = cz + dz * f;
+        out[i * 3 + 1] = p[1];
+      }
+    }
+    return out;
+  }
   /** the trousers: each leg hangs straight from the seat / the thigh's widest point (the tights helper as the body) */
   function drapeTrousers(faces) {
     const verts = new Set();
@@ -1814,7 +1967,9 @@ function buildVariant(key, base, morphParams) {
         const r = Math.max(radius[e][a], rawR[e][a] + 0.004) + th;
         const p = add(headC, scl(dir, r));
         const sg = seam ? seam(el, az) : 0;
-        row.push(m.vert(p, dir, skinBones(p), typeof mat === "function" ? mat(el, az, dir) : mat, { ao: sg > 0 ? 0.2 : 0.5, src: -1 - th * 1000 }));
+        // (P3-FGT-18: the shell's own coordinates in the uv — u = azimuth / 2π (0 = the face), v = elevation, 0 … 1 — the
+        // shader draws the stitched panels, the rear lacing and the velcro on them)
+        row.push(m.vert(p, dir, skinBones(p), typeof mat === "function" ? mat(el, az, dir) : mat, { ao: sg > 0 ? 0.2 : 0.5, src: -1 - th * 1000, ...(V7_BUILD ? { uv: [a / AZ, e / EL] } : {}) }));
       }
       grid.push(row);
     }
@@ -1865,7 +2020,7 @@ function buildVariant(key, base, morphParams) {
   const headBone = FINAL_INDEX.get("Bip01_Head");
   const eyeEl = Math.atan2(eyeL[1] - headC[1], Math.max(0.05, eyeL[2] - headC[2]));
   const chinEl = Math.atan2(jaw[1] - 0.06 - headC[1], 0.07);
-  const HG = BODY_V6_BUILD ? HEADGEAR_V6 : HEADGEAR_V5;
+  const HG = V7_BUILD ? HEADGEAR_V7 : BODY_V6_BUILD ? HEADGEAR_V6 : HEADGEAR_V5;
   const headgear = headShell("kit_headgear", {
     // P3-FGT-16: an amateur open-face headgear (kit-shapes.mjs): forehead bolster, cheek pads, ear pieces, a quilted crown
     thick: (el, az, d) => headgearThickness(el, az, d, eyeEl, chinEl, HG) - headgearSeam(el, az, eyeEl),
@@ -2011,6 +2166,33 @@ function buildVariant(key, base, morphParams) {
   });
   const poloCollar = collar("staff_collar", MAT.polo);
 
+  // P3-FGT-18: the skin's _ao becomes baked ambient occlusion (vertex-ao.mjs) — from the body itself and the vest /
+  // trunks (the garments every outfit's skin edge sits next to; never the headgear or gloves, which the referee's face
+  // and hands do not wear). The v6 shading used the anatomy map's cavity instead, so the old value is unused there.
+  if (V7_BUILD) {
+    const tris = [];
+    const push = (mb) => {
+      for (let t = 0; t < mb.idx.length; t++) {
+        const v = mb.idx[t];
+        tris.push(mb.p[v * 3], mb.p[v * 3 + 1], mb.p[v * 3 + 2]);
+      }
+    };
+    push(bodyMesh);
+    push(vest);
+    push(trunks);
+    const skinV = [];
+    for (let v = 0; v < bodyMesh.count; v++) if (bodyMesh.mat[v] === MAT.skin) skinV.push(v);
+    const pts = new Float64Array(skinV.length * 3), nrm = new Float64Array(skinV.length * 3);
+    skinV.forEach((v, k) => {
+      for (let c = 0; c < 3; c++) {
+        pts[k * 3 + c] = bodyMesh.p[v * 3 + c];
+        nrm[k * 3 + c] = bodyMesh.n[v * 3 + c];
+      }
+    });
+    const ao = bakeVertexAo(tris, pts, nrm);
+    skinV.forEach((v, k) => (bodyMesh.ao[v] = ao[k]));
+  }
+
   const meshes = [bodyMesh, vest, trunks, boots, socks, gloves, headgear, wraps, shirt, refCollar, bowtie, trousers, shoes, polo, poloCollar, hairCap];
   return { key, G, meshes, landmarks: { headC, eyeL, eyeR, kit: [Math.abs(thighL[0]), pelvis[1] - 0.07, trunksTop, hemY], torso: G.torso }, morphParams };
 }
@@ -2133,6 +2315,12 @@ const GENDERS = {
 mkdirSync(OUT, { recursive: true });
 for (const [key, spec] of Object.entries(GENDERS)) {
   const base = buildVariant(key, spec.base);
+  // P3-FGT-18: anthropometric audit of the bind-pose body (docs/FIGHT-REALISM-V7.md §2)
+  if (process.env.MEASURE === "1") {
+    const bodyV = new Set(GROUPS.get("body").flat());
+    console.log(`measure ${key}`, JSON.stringify(measureBody({ P: base.G.P, bodyV, bp: (n) => base.G.bones[FINAL_INDEX.get(n)].pos, wOf })));
+    if (process.env.MEASURE_ONLY === "1") continue;
+  }
   const morphNames = Object.keys(spec.morphs);
   // each morph: the same build with other macro values; garment vertices follow their source body vertex
   const morphGeo = morphNames.map((m) => geometry(variantPositions({ ...spec.base, ...spec.morphs[m] })));

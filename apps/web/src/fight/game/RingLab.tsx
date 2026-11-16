@@ -12,6 +12,12 @@ import { useFightBridge } from "../bridge";
 import { RingMood } from "../ring-lights";
 import { useDelayed } from "../use-delayed";
 import { STOOL_PLACE_S } from "@/rooms/fight/ring-kit-core";
+import { EffectComposer, N8AO, ToneMapping } from "@react-three/postprocessing";
+import { ToneMappingMode } from "postprocessing";
+import { BOXER_V7 } from "@/world/human/boxer/body-v6";
+
+/** P3-FGT-18: the post chain on (v7; ?ao=0 turns it off for before / after frames) */
+const AO = BOXER_V7 && (typeof window === "undefined" || new URLSearchParams(window.location.search).get("ao") !== "0");
 
 /**
  * Dev-only 3D ring for the fight lab (P3-FGT-07, `/fight-lab?scene=1`): the practice ring with its fighters, referee and
@@ -26,7 +32,7 @@ export function RingLab({ ring }: { ring: RingId }) {
   const placed = useDelayed(resting, STOOL_PLACE_S * 1000);
   const rings = useMemo(() => [{ id: ring, x: place.x, z: place.z, rotY: place.rotY, status, number: Number(ring.slice(1)), rest: resting && placed }], [ring, place, status, resting, placed]);
   return (
-    <Canvas style={{ position: "fixed", inset: 0 }} dpr={[1, 1.5]} camera={{ fov: 55, near: 0.05, far: 120, position: [place.x + 5, 3, place.z + 5] }} gl={{ antialias: true }}>
+    <Canvas shadows={BOXER_V7 ? "percentage" : undefined} style={{ position: "fixed", inset: 0 }} dpr={[1, 1.5]} camera={{ fov: 55, near: 0.05, far: 120, position: [place.x + 5, 3, place.z + 5] }} gl={{ antialias: true }}>
       <color attach="background" args={["#0c0a09"]} />
       <hemisphereLight args={["#fff4e6", "#2a2622", 0.9]} />
       <directionalLight position={[place.x + 3, 9, place.z + 2]} intensity={2.2} />
@@ -38,6 +44,13 @@ export function RingLab({ ring }: { ring: RingId }) {
       <FightersLayer lite={false} />
       <FightCamera />
       <RingMood k={() => 1} ring={() => place} withKey />
+      {/* P3-FGT-18: the hall's post chain for a fighter in focus (N8AO + ACES), as SceneCanvas Effects */}
+      {AO && (
+        <EffectComposer multisampling={4} enableNormalPass={false}>
+          <N8AO quality="performance" aoRadius={0.55} distanceFalloff={0.9} intensity={2.4} color="black" />
+          <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+        </EffectComposer>
+      )}
       <Probe at={place} />
     </Canvas>
   );
@@ -85,6 +98,8 @@ function Probe({ at }: { at: { x: number; z: number } }) {
     camera.lookAt(at.x + fixed[3]!, fixed[4]!, at.z + fixed[5]!);
   }, 0.9);
   // the fight camera runs at priority 0.5, which turns R3F's own render off: render here, after it
-  useFrame(({ scene }) => gl.render(scene, camera), 1);
+  useFrame(({ scene }) => {
+    if (!AO) gl.render(scene, camera);
+  }, 1);
   return null;
 }

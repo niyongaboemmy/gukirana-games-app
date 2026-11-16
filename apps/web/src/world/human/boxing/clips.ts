@@ -1,4 +1,5 @@
-import { armOf, GUARD, GUARD_AUTHOR, GUARD_LEAD_ARM as GL, GUARD_REAR_ARM as GR, KNEEL, P, pose, POSE_SIZE, SIT, STAND, newPose, stanceWeight, type ArmSpec, type Pose, type PoseSpec, type V3 } from "./pose";
+import { BOXER_V7 } from "../boxer/body-v6";
+import { armOf, GUARD,GUARD_AUTHOR, GUARD_LEAD_ARM as GL, GUARD_REAR_ARM as GR, KNEEL, P, pose, POSE_SIZE, SIT, STAND, newPose, stanceWeight, type ArmSpec, type Pose, type PoseSpec, type V3 } from "./pose";
 
 /**
  * Boxing motion library (P3-FGT-02): procedural, licence-safe, deterministic clips on the Rocketbox rig. Each clip
@@ -1149,6 +1150,25 @@ function WINNER_SPEC(): PoseSpec {
  * at belt height (ready to step in between), eyes up on the boxers — never upright with the hands clasped.
  */
 function REF_SPEC(): PoseSpec {
+  // P3-FGT-18 (docs/FIGHT-REALISM-V7.md §8): an amateur referee's ready stance — hands loosely together at the belt,
+  // close to the body, knees soft, weight on the balls of the feet, watching the pair. v6 held the hands 30 cm out in
+  // front, leaning in: from the side camera the hand floated beside the near boxer as if touching nothing.
+  if (BOXER_V7)
+    return {
+      hips: [0, 0.845, 0],
+      lead: [0.06, 1.0, 0.19],
+      rear: [-0.06, 0.99, 0.18],
+      leadPole: [0.45, -1, -0.2],
+      rearPole: [-0.45, -1, -0.2],
+      leadPalm: [-0.9, -0.2, 0.2],
+      rearPalm: [0.9, -0.2, 0.2],
+      leadFoot: [0.18, 0, 0.04],
+      rearFoot: [-0.18, 0, -0.04],
+      fist: 0.25,
+      lean: 0.1,
+      head: [0.02, 0, 0],
+      focus: 0.7,
+    };
   // P3-FGT-13: hands loosely in front of the stomach, elbows down by the sides (never arms akimbo)
   return {
     hips: [0, 0.855, 0],

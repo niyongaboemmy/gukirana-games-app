@@ -5,7 +5,7 @@ import type { ArmBones } from "../procedural";
 import type { TorsoSlices } from "../boxing/rig";
 import { boxerMaterial, type BoxerColors, type BoxerUniforms } from "./boxer-material";
 import { depenetrate } from "./depenetrate";
-import { BODY_V6 } from "./body-v6";
+import { BODY_V6, BOXER_V7 } from "./body-v6";
 
 /**
  * The ring people's body (P3-FGT-13, docs/FIGHT-REALISM-V3.md §3): one athletic, properly skinned body per gender
@@ -21,9 +21,12 @@ import { BODY_V6 } from "./body-v6";
 export type BoxerGender = "m" | "f";
 export type BoxerOutfit = "boxer" | "referee" | "staff" | "casual";
 /** P3-FGT-17: the rebuilt bodies; the P3-FGT-16 bodies stay as the flag's fallback (body-v6.ts) */
-export const BOXER_URL: Record<BoxerGender, string> = BODY_V6
+/** P3-FGT-18: the v7 bodies; the P3-FGT-17 ones stay as boxer-{m,f}-v6.glb (flag off) */
+export const BOXER_URL: Record<BoxerGender, string> = BOXER_V7
   ? { m: "/assets/characters/boxer-m.glb", f: "/assets/characters/boxer-f.glb" }
-  : { m: "/assets/characters/boxer-m-v5.glb", f: "/assets/characters/boxer-f-v5.glb" };
+  : BODY_V6
+    ? { m: "/assets/characters/boxer-m-v6.glb", f: "/assets/characters/boxer-f-v6.glb" }
+    : { m: "/assets/characters/boxer-m-v5.glb", f: "/assets/characters/boxer-f-v5.glb" };
 
 /** body cover bits (build.mjs COVER) */
 const COVER = { vest: 1, trunks: 2, boots: 4, gloves: 8, headgear: 16, shirt: 32, trousers: 64, shoes: 128, hair: 256, sock: 512, vestCore: 1024 } as const;
@@ -60,6 +63,8 @@ export interface BoxerSpec {
   lite?: boolean;
   /** P3-FGT-17: the v6 shading (anatomy map, skin pass); false = the P3-FGT-16 look (flag off, the lab's before view) */
   v6?: boolean;
+  /** P3-FGT-18: the v7 shading (satin trunks, stitched headgear / gloves, sweat sheen, received shadows); false = v6 */
+  v7?: boolean;
 }
 
 export interface BoxerInstance {
@@ -189,13 +194,15 @@ export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: Boxer
     { L: new THREE.Vector3().fromArray(extras.landmarks.eyeL).add(deltas[index.get(boneOf(skeleton, "Bip01_L_Eye")!) ?? 0]!), R: new THREE.Vector3().fromArray(extras.landmarks.eyeR).add(deltas[index.get(boneOf(skeleton, "Bip01_R_Eye")!) ?? 0]!) },
     spec.face,
     extras.landmarks.kit,
-    { gender: spec.gender, lite: spec.lite, v6: spec.v6 ?? BODY_V6 },
+    { gender: spec.gender, lite: spec.lite, v6: spec.v6 ?? BODY_V6, v7: (spec.v6 ?? BODY_V6) && (spec.v7 ?? BOXER_V7) },
   );
   if (spec.fadeable) material.alphaHash = true;
   const mesh = new THREE.SkinnedMesh(merged, material);
   mesh.name = "boxer-body";
   mesh.castShadow = spec.shadows !== false;
-  mesh.receiveShadow = false;
+  // (P3-FGT-18: the ring people take the broadcast key's shadow — the vest on the body, the arms on the trunk, the
+  // headgear on the face; the shadow bias is set on the light: fight/ring-lights.tsx)
+  mesh.receiveShadow = (spec.v6 ?? BODY_V6) && (spec.v7 ?? BOXER_V7) && spec.shadows !== false;
   mesh.frustumCulled = true;
   root.add(mesh);
   root.updateMatrixWorld(true);

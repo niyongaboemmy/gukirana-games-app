@@ -600,7 +600,9 @@ export function dressBody(root: THREE.Object3D, arms: ArmBones[], materials: THR
   // ---- the body's own shader: bare legs below the trunks, shoes in the boot colour
   for (const m of materials) {
     const u = m.userData.gkUniforms as LookUniforms | undefined;
-    if (!u) continue;
+    // (P3-FGT-18: a material without the look uniforms — the campus shader no longer carries uLegsSkin — is left as is;
+    // the boxing lab's Rocketbox duel threw here)
+    if (!u || !u.uLegsSkin || !u.uShoes || !u.uBottom) continue;
     const prev = { legs: u.uLegsSkin.value, shoes: u.uShoes.value.clone(), bottom: u.uBottom.value.clone(), detail: u.uTopDetail?.value ?? 0.85, sweat: u.uSweat?.value ?? 0 };
     u.uLegsSkin.value = 1;
     // the vest is smooth jersey (the everyday garment's folds / prints barely show) and the skin carries a light sheen

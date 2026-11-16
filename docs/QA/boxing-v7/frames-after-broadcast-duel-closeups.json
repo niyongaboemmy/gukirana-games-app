@@ -1,0 +1,218 @@
+[
+ {
+  "phase": "after",
+  "group": "broadcast",
+  "name": "fight-desktop-a",
+  "size": "1280x720@1",
+  "calls": 19,
+  "tris": 183042,
+  "fps": 60
+ },
+ {
+  "phase": "after",
+  "group": "broadcast",
+  "name": "fight-desktop-b",
+  "size": "1280x720@1",
+  "calls": 19,
+  "tris": 183042,
+  "fps": 60
+ },
+ {
+  "phase": "after",
+  "group": "broadcast",
+  "name": "fight-phone-a",
+  "size": "844x390@2",
+  "calls": 19,
+  "tris": 183042,
+  "fps": 60
+ },
+ {
+  "phase": "after",
+  "group": "broadcast",
+  "name": "fight-phone-b",
+  "size": "844x390@2",
+  "calls": 19,
+  "tris": 183042,
+  "fps": 60
+ },
+ {
+  "phase": "after",
+  "group": "duel",
+  "name": "duel-guard-side",
+  "size": "1280x720@1",
+  "calls": 1,
+  "tris": 1,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "duel",
+  "name": "duel-jab-side",
+  "size": "1280x720@1",
+  "calls": 1,
+  "tris": 1,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "duel",
+  "name": "duel-hook-side",
+  "size": "1280x720@1",
+  "calls": 1,
+  "tris": 1,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "duel",
+  "name": "duel-clinch-side",
+  "size": "1280x720@1",
+  "calls": 1,
+  "tris": 1,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "duel",
+  "name": "duel-guard-close",
+  "size": "1280x720@1",
+  "calls": 1,
+  "tris": 1,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "duel",
+  "name": "duel-m-guard-close",
+  "size": "1280x720@1",
+  "calls": 1,
+  "tris": 1,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "duel",
+  "name": "duel-guard-phone",
+  "size": "844x390@2",
+  "calls": 1,
+  "tris": 1,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "duel",
+  "name": "duel-jab-front",
+  "size": "1280x720@1",
+  "calls": 1,
+  "tris": 1,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "closeups",
+  "name": "cu-body-side-f",
+  "size": "560x760@1",
+  "calls": 3,
+  "tris": 56130,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "closeups",
+  "name": "cu-body-34-m",
+  "size": "560x760@1",
+  "calls": 3,
+  "tris": 56696,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "closeups",
+  "name": "cu-body-back-f",
+  "size": "560x760@1",
+  "calls": 3,
+  "tris": 56130,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "closeups",
+  "name": "cu-body-front-m",
+  "size": "560x760@1",
+  "calls": 3,
+  "tris": 56696,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "closeups",
+  "name": "cu-shoulder-f",
+  "size": "600x600@1",
+  "calls": 3,
+  "tris": 57834,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "closeups",
+  "name": "cu-back-f",
+  "size": "600x600@1",
+  "calls": 3,
+  "tris": 57834,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "closeups",
+  "name": "cu-armhole-m",
+  "size": "600x600@1",
+  "calls": 3,
+  "tris": 58460,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "closeups",
+  "name": "cu-trunks-f",
+  "size": "600x600@1",
+  "calls": 3,
+  "tris": 56130,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "closeups",
+  "name": "cu-trunks-m",
+  "size": "600x600@1",
+  "calls": 3,
+  "tris": 56696,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "closeups",
+  "name": "cu-headgear-34",
+  "size": "600x600@1",
+  "calls": 3,
+  "tris": 56696,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "closeups",
+  "name": "cu-headgear-back",
+  "size": "600x600@1",
+  "calls": 3,
+  "tris": 56130,
+  "fps": null
+ },
+ {
+  "phase": "after",
+  "group": "closeups",
+  "name": "cu-glove",
+  "size": "600x600@1",
+  "calls": 3,
+  "tris": 56130,
+  "fps": null
+ }
+]

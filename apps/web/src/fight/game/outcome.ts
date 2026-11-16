@@ -67,7 +67,20 @@ export const OUTCOME_COLOR: Record<PunchOutcome, string> = {
   missed: "#ef4444",
 };
 
-const POWER: ReadonlySet<Punch> = new Set<Punch>(["cross", "hook", "rhook", "uppercut"]);
+/**
+ * P3-FGT-18: the pop for a punch, from MY side of it. My punches keep their outcome word and colour (green when I land);
+ * a punch that lands on ME reads "Hit" in a warm red (it used to say "Landed" in green, as if I had scored); their
+ * punches that I stopped or that missed me are a neutral cream (nobody scored).
+ */
+export const HIT_ON_ME_COLOR = "#f0643c";
+export const THEIR_STOPPED_COLOR = "#e2d3c1";
+export function outcomePop(pv: Pick<PunchVerdict, "outcome" | "mine">): { word: "out.hit" | `out.${PunchOutcome}`; color: string } {
+  if (pv.mine) return { word: `out.${pv.outcome}`, color: OUTCOME_COLOR[pv.outcome] };
+  const landed = pv.outcome === "landed" || pv.outcome === "counter";
+  return landed ? { word: "out.hit", color: HIT_ON_ME_COLOR } : { word: `out.${pv.outcome}`, color: THEIR_STOPPED_COLOR };
+}
+
+const POWER: ReadonlySet<Punch> =new Set<Punch>(["cross", "hook", "rhook", "uppercut"]);
 
 export interface Side {
   thrown: number;

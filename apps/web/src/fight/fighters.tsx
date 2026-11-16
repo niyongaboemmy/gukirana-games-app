@@ -25,6 +25,7 @@ import { drainMyEvents, useFightBridge } from "./bridge";
 import { RING_BY_ID, RINGS, type RingPlace } from "./plan";
 import { STOOL_PLACE_S, stoolSpot } from "@/rooms/fight/ring-kit-core";
 import { stoolGeometry } from "@/rooms/fight/ring-kit-geometry";
+import { BOXER_V7 } from "@/world/human/boxer/body-v6";
 
 /**
  * Fighters in the rings (P3-FGT-01 §6, §4.5):
@@ -457,7 +458,10 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
       const live = (phase === "round" || phase === "countdown") && !walking && view.act !== "down" && !clinch;
       body.life = live ? { seed: hashOf(slot.ring) + i * 7919, energy: Math.min(1, view.stamina / 800), tired: view.stamina < 450 ? (450 - view.stamina) / 450 : 0, move: tr.spd, daze: view.composure < 400 ? (400 - view.composure) / 400 : 0 } : null;
       // sweat builds with the work done (presentation of the engine's stamina; P3-FGT-09)
-      body.sweat = 0.3 + 0.6 * Math.min(1, Math.max(0, (1000 - view.stamina) / 700));
+      // (P3-FGT-18: and over the rounds — a fighter is dry at the first bell and glistening by the last; presentation only)
+      body.sweat = BOXER_V7
+        ? Math.min(1, 0.22 + 0.5 * Math.min(1, Math.max(0, (1000 - view.stamina) / 700)) + 0.14 * Math.max(0, (snap.round ?? 1) - 1))
+        : 0.3 + 0.6 * Math.min(1, Math.max(0, (1000 - view.stamina) / 700));
     });
     // the referee: on the far side of the pair from the camera, stepping in to count, break and raise the winner
     if (withRef && refG.current) {

@@ -8,6 +8,7 @@
  * clip with root travel (footwork), which are authored in the clip's START frame so they stay planted while the root
  * moves (see clips.ts `travel`). Pure data + maths, no three.js: unit-testable and the same on every screen.
  */
+import { BOXER_V7 } from "../boxer/body-v6";
 
 export const P = {
   /** hips (Bip01) position: x, absolute height above the floor, z */
@@ -288,7 +289,7 @@ export const GUARD_AUTHOR: Pose = pose(newPose(), {
   rearArm: GUARD_REAR_ARM,
 });
 
-export const GUARD: Pose = pose(GUARD_AUTHOR, {
+const GUARD_V6: Pose = pose(GUARD_AUTHOR, {
   // P3-FGT-09: a deeper athletic stance — knees bent (hips ~4 cm lower), the feet where they were (travel / pivots are
   // authored round them), weight forward
   // on the balls of the feet, torso leaning in and bladed, chin tucked behind the lead shoulder, both gloves up at the
@@ -319,6 +320,27 @@ export const GUARD: Pose = pose(GUARD_AUTHOR, {
   shrugLead: 0.3,
   shrugRear: 0.12,
 });
+
+/**
+ * P3-FGT-18 (docs/FIGHT-REALISM-V7.md §7, flag BOXER_V7): the guard re-keyed on boxing fundamentals and the reference
+ * board — the user read v6 as "stiff, no weight". Sat down into the knees (hips 2 cm lower), bladed ~33° (was 29°),
+ * leaning in over the lead knee, the chin tucked down behind a raised lead shoulder (the shoulder comes up to the jaw,
+ * the rear one a little), up on the ball of the rear foot. The feet stay where every clip's travel / pivot is authored;
+ * the keyed arms (and their joint limits) are unchanged.
+ */
+const GUARD_V7: Pose = pose(GUARD_V6, {
+  hips: [0, 0.795, -0.03],
+  yaw: -0.58,
+  lean: 0.25,
+  head: [0.35, 0.12, 0.03],
+  leadHeel: 0.1,
+  rearHeel: 0.4,
+  leadKnee: [0.36, 0, 1],
+  rearKnee: [-0.08, 0, 1],
+  shrugLead: 0.48,
+  shrugRear: 0.16,
+});
+export const GUARD: Pose = BOXER_V7 ? GUARD_V7 : GUARD_V6;
 
 /**
  * The clips are authored round GUARD_AUTHOR (the P3-FGT-02 stance); P3-FGT-09 deepened the stance. clips.ts moves an

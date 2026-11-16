@@ -15,7 +15,7 @@ import { stopReplay, useReplay } from "./replay";
 import { useFightUi } from "./ui-store";
 import { useFightPrefs } from "./prefs";
 import { COACH_SHOW_MS, coachMayShow, coachTip, type CoachTip } from "./coach";
-import { judgeGoal, levelGoal, liveRound, OUTCOME_COLOR, punchVerdict, roundVerdict, type RoundReason } from "./outcome";
+import { judgeGoal, levelGoal, liveRound, outcomePop, punchVerdict, roundVerdict, type RoundReason } from "./outcome";
 import { ResultPanel } from "./ResultPanel";
 import { useFightUi as useWorldUi } from "../ui-store";
 import { FPV_ON } from "../fpv";
@@ -198,7 +198,9 @@ function Callouts({ snap, me, now }: { snap: BoxingSnapshot; me: 0 | 1; now: num
                         : "hud.missedFar",
               )
             : "";
-      outs.push({ id, word: ft(`out.${pv.outcome}` as FgKey), sub: pv.mine ? why : ft("out.theirs", { punch: ft(actionKey(pv.punch)) }), color: OUTCOME_COLOR[pv.outcome], mine: pv.mine });
+      // (P3-FGT-18: who scored, by word and colour: green "Landed" for mine, warm red "Hit — their cross" on me)
+      const pop = outcomePop(pv);
+      outs.push({ id, word: ft(pop.word as FgKey), sub: pv.mine ? why : ft("out.theirs", { punch: ft(actionKey(pv.punch)).toLocaleLowerCase() }), color: pop.color, mine: pv.mine });
     }
     if (e.k === "secondWind" && age < 1600) pops.push({ id, text: ft(e.to === me ? "life.secondWind" : "life.theirSecondWind"), good: e.to === me });
     if (e.k === "warning" && age < 1400 && e.to === me)

@@ -231,7 +231,9 @@ export const FG = {
   "out.blocked": "Blocked",
   "out.slipped": "Slipped",
   "out.missed": "Missed",
-  "out.theirs": "Their {punch}",
+  "out.theirs": "their {punch}",
+  /* P3-FGT-18: a punch that landed on me (warm red pop, never the green of my own scores) */
+  "out.hit": "Hit",
   "out.points": "+{n}",
   "hud.liveRound": "R{n}",
   "hud.liveRoundLabel": "This round: you {a}, them {b}",

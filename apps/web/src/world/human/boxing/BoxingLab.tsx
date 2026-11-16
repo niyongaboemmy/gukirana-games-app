@@ -5,6 +5,10 @@ import * as THREE from "three";
 import { Avatar } from "../../Avatar";
 import { DEFAULT_LOOK, HAIR_COLORS, SKIN_TONES, type AvatarLook, type BodyType, type HairStyle } from "../../outfits";
 import { RingKit, type RingKitStats } from "@/rooms/fight/ring-kit";
+import { RingMood } from "@/fight/ring-lights";
+import { EffectComposer, N8AO, ToneMapping } from "@react-three/postprocessing";
+import { ToneMappingMode } from "postprocessing";
+import { BOXER_V7 } from "../boxer/body-v6";
 import { fightSpots, PUNCH_RANGE, RING, refereeSpot, stoolSpot, toHall, type RingSpec, type Spot } from "@/rooms/fight/ring-kit-core";
 import { BOXING_CLIPS, BOXING_CLIP_NAMES, REF_RAISE, TOUCH_DISTANCE, type BoxingClipName } from "./clips";
 import { boxingKitOverride, refereeLook, type Corner } from "./kit";
@@ -162,13 +166,13 @@ function Fighter({ look, corner, motion, clock, at, kitOn, headgear, referee, re
     const qq = new URLSearchParams(location.search);
     const tone = qq.get(corner === "red" ? "rtone" : "btone");
     const g = look.bodyType === "feminine" ? "f" : "m";
-    return { before: qq.get("glb") === "before", tone: tone !== null ? SKIN_TONES[Number(tone)] : undefined, g };
+    return { before: qq.get("glb") === "before", v6: qq.get("glb") === "v6", tone: tone !== null ? SKIN_TONES[Number(tone)] : undefined, g };
   }, [corner, look.bodyType]);
   const boxerLook = lab.tone && !referee ? { ...look, skinTone: lab.tone } : look;
   return (
     <group ref={g} position={[at.x, at.y, at.z]} rotation={[0, at.yaw, 0]}>
       {boxerBody ? (
-        <BoxerAvatar look={boxerLook} outfit={referee ? "referee" : "boxer"} kit={corner === "red" ? "#b3242b" : "#1f4fb0"} motion={motion} clock={clock.now} weight={weight} seed={corner === "red" ? 11 : 23} noHeadgear={!headgear} probe={probe} opponent={opponent} src={lab.before ? `/assets/characters/boxer-${lab.g}-v5.glb` : undefined} v5={lab.before} />
+        <BoxerAvatar look={boxerLook} outfit={referee ? "referee" : "boxer"} kit={corner === "red" ? "#b3242b" : "#1f4fb0"} motion={motion} clock={clock.now} weight={weight} seed={corner === "red" ? 11 : 23} noHeadgear={!headgear} probe={probe} opponent={opponent} src={lab.before ? `/assets/characters/boxer-${lab.g}-v5.glb` : lab.v6 ? `/assets/characters/boxer-${lab.g}-v6.glb` : undefined} v5={lab.before} v6={lab.v6} />
       ) : (
         <Avatar look={shown} animRef={anim} showTag={false} shadows rigLayer={layer} seedId={`lab-${corner}-${look.bodyType}`} />
       )}
@@ -413,7 +417,30 @@ function Probe({ ringStats }: { ringStats: React.RefObject<RingKitStats | null> 
   return null;
 }
 
+/**
+ * P3-FGT-18: `light=ring` — the hall's fight-night rig instead of the studio lights (fight/ring-lights.tsx RingMood:
+ * the dark room, the overhead key with the ring's shadow, rims and camera-side fills; with BOXER_V7 also the N8AO post
+ * pass of the hall's composer), so a lab shot is lit as the user sees the ring.
+ */
+function RingLights() {
+  return (
+    <>
+      <hemisphereLight args={["#fbf1e4", "#57504a", 1.55]} />
+      <ambientLight color="#ffe9d0" intensity={0.28} />
+      <directionalLight position={[14, 30, 10]} intensity={1.1} color="#fff1df" />
+      <RingMood k={() => 1} ring={() => ({ x: LAB_RING.x, z: LAB_RING.z, canvasY: RING.deck })} withKey />
+      {BOXER_V7 && (
+        <EffectComposer multisampling={4} enableNormalPass={false}>
+          <N8AO quality="performance" aoRadius={0.55} distanceFalloff={0.9} intensity={2.4} color="black" />
+          <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+        </EffectComposer>
+      )}
+    </>
+  );
+}
+
 function Lights({ field }: { field: boolean }) {
+  if (typeof location !== "undefined" && new URLSearchParams(location.search).get("light") === "ring") return <RingLights />;
   return (
     <>
       <hemisphereLight args={["#eef0f4", "#24262b", 0.75]} />
