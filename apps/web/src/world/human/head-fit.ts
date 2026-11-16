@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { BodyType, HairStyle, HeadwearKind } from "../outfits";
 import { EAR_LANDMARKS, SKULL_FITS } from "./skull";
+import { campusHumansOn } from "./realism-flag";
 
 /**
  * How hair and headwear sit on a head (P2-AVA-10), in the face frame (metres; origin between the eyes, +x the
@@ -31,11 +32,14 @@ export const BAND: Record<
   wrap: { front: 0.045, aboveEar: 0.011, back: -0.045 },
 };
 
+/** P2-AVA-12 cap band height at the front (face frame y, m) with the realistic campus people on. */
+export const CAP_FRONT_V2 = 0.041;
 export function bandY(kind: Exclude<HeadwearKind, "none">, body: BodyType, az: number): number {
   const b = BAND[kind];
   // smaller heads (fit scale) get proportionally lower bands; the sides clear that body's own ear tops
   const k = SKULL_FITS[body].s[1];
-  const f = b.front * k;
+  // P2-AVA-12: a cap is worn lower on the forehead (≈ 1.5–2 cm above the brows, the brim shading the eyes)
+  const f = (kind === "cap" && campusHumansOn() ? CAP_FRONT_V2 : b.front) * k;
   const back = b.back * k;
   const s = kind === "kufi" ? b.aboveEar * k : EAR_LANDMARKS[body].earTop + b.aboveEar;
   const a1 = (f - back) / 2;

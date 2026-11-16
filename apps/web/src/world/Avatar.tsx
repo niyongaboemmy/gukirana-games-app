@@ -28,6 +28,10 @@ import { SeatedLayer } from "./human/seated-layer";
 import { useVoice } from "@/voice/voice";
 import { useDeferredReady } from "./deferred";
 import { ageParams } from "./age";
+import { eyeballGeometry, fitEyes, makeEyeMaterial, sinkEyeCaps, type EyeFit } from "./human/eyes";
+import { campusHumansOn, campusPart } from "./human/realism-flag";
+import { MotionLayer } from "./human/motion-layer";
+import { crowd } from "./human/crowd";
 
 /**
  * Realistic human avatar (DESIGN-SPEC §7): photographic, rigged Rocketbox bodies (MIT) — feminine, masculine and
@@ -188,11 +192,26 @@ function prepareBase(scene: THREE.Object3D, modelId: HumanModelId) {
         const ff = faceFrameOf(mesh);
         if (ff) relaxMouth(g, frame, ff.l.x / Math.hypot(ff.m.elements[0]!, ff.m.elements[3]!, ff.m.elements[6]!));
       }
+      // real eyeballs (P2-AVA-12): fit them to the painted eye caps, then pull the caps inside them
+      if (campusHumansOn() && campusPart("eyes")) {
+        const bones = mesh.skeleton.bones;
+        const eyeIdx = ["Bip01_LEye", "Bip01_REye"].map((n) => bones.findIndex((b) => b.name === n)).filter((i) => i >= 0);
+        const fits = fitEyes(g, eyeIdx);
+        if (fits.length === 2) {
+          sinkEyeCaps(g, fits);
+          const fwd = new THREE.Vector3(0, 0, 1).applyMatrix3(frame.Rt).normalize();
+          const up = new THREE.Vector3(0, 1, 0).applyMatrix3(frame.Rt).normalize();
+          g.userData.gkEyes = { fits, geo: eyeballGeometry(fits, fwd, up) } satisfies EyeInfo;
+        }
+      }
     }
     smoothHeadNormals(g);
     if (!headHi.has(g)) headHi.set(g, tessellateHead(g, 0.6));
   }
 }
+
+/** Real eyeballs of a base head geometry (P2-AVA-12): the fit and the shared eyeball geometry. */
+type EyeInfo = { fits: EyeFit[]; geo: THREE.BufferGeometry };
 
 /** Per base head geometry: face frame, hair mask (CPU copy + texture), body (P2-AVA-10). */
 // kept on the geometry itself (not a module-level map): survives hot reloads of this module in development
@@ -217,6 +236,7 @@ function slimHead(g: THREE.BufferGeometry): { lo: THREE.BufferGeometry; hi: THRE
     deflateHair(lo, info.frame, info.body, info.mask, { keep: 0.0015, tuck: true, inner: (_u, w) => w > 0.62, force: (u, w) => u > 0.1 && u < 0.24 && w > 0.63 && w < 0.84 });
     smoothHeadNormals(lo);
     v = { lo, hi: tessellateHead(lo, 0.6) };
+    if (g.userData.gkEyes) lo.userData.gkEyes = g.userData.gkEyes;
     headSlim.set(g, v);
     headInfo.set(lo, info);
   }
@@ -257,6 +277,8 @@ interface Instance {
   headMesh: { mesh: THREE.Mesh; lo: THREE.BufferGeometry; hi: THREE.BufferGeometry } | null;
   /** fitted hair / headwear meshes with their near and far geometry (swapped by distance) */
   lodMeshes: { mesh: THREE.Mesh; near: THREE.BufferGeometry; far: THREE.BufferGeometry }[];
+  /** real eyeballs (P2-AVA-12), shown with the near body only */
+  eyes: THREE.Mesh | null;
 }
 
 function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMeta, shadows: boolean, keepClothes: boolean, modelId: HumanModelId): Instance {
@@ -266,6 +288,7 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
   const lite: THREE.Object3D[] = [];
   const materials: THREE.Material[] = [];
   const matCache = new Map<THREE.Material, THREE.Material>();
+  const matCacheLite = new Map<THREE.Material, THREE.Material>();
   // face frame of the bind pose (eye / lip bones) for the head shader's painted details
   let frame: ReturnType<typeof faceFrameOf> = null;
   root.traverse((o) => {
@@ -283,17 +306,21 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
     if (hi && !headMesh) headMesh = { mesh, lo: mesh.geometry, hi };
     if (headHi.has(mesh.geometry)) headMeshes.push(mesh);
     const base = mesh.material as THREE.MeshStandardMaterial;
-    let m = matCache.get(base);
+    // the far body level gets its own, cheaper look material with the realistic people on (P2-AVA-12: no sheen lobe,
+    // no sub-pixel detail): most of a crowd is drawn with it
+    const liteMat = part === "lod1" && campusHumansOn();
+    const cache = liteMat ? matCacheLite : matCache;
+    let m = cache.get(base);
     if (!m) {
       if (base.name === "body" || base.name === "head") {
-        m = makeLookMaterial(base, look, meta, base.name === "head", keepClothes, frame);
-        if (base.name === "head") faceU = (m.userData.gkUniforms as LookUniforms | undefined) ?? null;
+        m = makeLookMaterial(base, look, meta, base.name === "head", keepClothes, frame, liteMat);
+        if (base.name === "head" && !liteMat) faceU = (m.userData.gkUniforms as LookUniforms | undefined) ?? null;
       }
       else if (base.name === "haircards") m = makeHairCardMaterial(base, look, meta);
       // own copy (lashes, eyes …) so one person fading at a door never fades everyone's eyes
       else m = base.clone();
       materials.push(m);
-      matCache.set(base, m);
+      cache.set(base, m);
     }
     mesh.material = m;
     mesh.castShadow = shadows;
@@ -309,6 +336,7 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
   // ---- fitted hair + headwear on the head (P2-AVA-10)
   const lodMeshes: Instance["lodMeshes"] = [];
   const own: THREE.Object3D[] = [];
+  let eyes: THREE.Mesh | null = null;
   const hm = headMesh as Instance["headMesh"];
   const info = hm ? headInfo.get(hm.lo) : undefined;
   if (hm && info && (hm.mesh as THREE.SkinnedMesh).isSkinnedMesh && hm.mesh.parent) {
@@ -323,6 +351,17 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
       hm.lo = slim.lo;
       hm.hi = slim.hi;
       for (const m of headMeshes) m.geometry = slim.lo;
+    }
+    const ei = hm.lo.userData.gkEyes as EyeInfo | undefined;
+    if (ei) {
+      const mat = makeEyeMaterial(look.face?.eyeColor ?? "#3b2416", seedOf(encodeLook(look)));
+      const m = hairMesh(ei.geo, mat, headSk);
+      m.name = "gk-eyes";
+      m.castShadow = false;
+      parent.add(m);
+      own.push(m);
+      materials.push(mat);
+      eyes = m;
     }
     const hg = hairGeometry(hm.lo, hm.hi, info.frame, info.mask, info.body, look.hairStyle, hairHatClass(hatKind, look.hairStyle));
     if (hg) {
@@ -406,7 +445,7 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
       mm.needsUpdate = true;
     }
   }
-  return { root, full, lite, materials, fadeable, extras, head, jaw: bone("Bip01_MJaw"), arms, spine: bone("Bip01_Spine1"), faceU, headMesh, lodMeshes };
+  return { root, full, lite, materials, fadeable, extras, head, jaw: bone("Bip01_MJaw"), arms, spine: bone("Bip01_Spine1"), faceU, headMesh, lodMeshes, eyes };
 }
 
 function disposeInstance(inst: Instance) {
@@ -598,15 +637,20 @@ function HumanBody({
   }, [inst]);
   /** the seat being sat on / stood up from (kept through the stand-up after the seat itself is released) */
   const seatLatch = useRef<SeatProfile | null>(null);
+  // the campus motion layer (P2-AVA-12): leaning into turns, starts / stops, the jump, reactions, the face's feelings
+  // (not for fighters: a rig layer — the boxing motion, world/human/boxing — owns their pose and face)
+  const motion = useMemo(() => (campusHumansOn() && campusPart("motion") && !rigLayer ? new MotionLayer(inst.root, (n) => inst.root.getObjectByName(n) ?? null, inst.arms) : null), [inst, rigLayer]);
+  const lift = useRef<THREE.Group>(null);
   useEffect(() => {
     animator.start();
     return () => {
       animator.stop();
       disposeInstance(inst);
+      crowd.remove(inst);
     };
   }, [inst, animator]);
 
-  const st = useRef({ last: new THREE.Vector3(), has: false, speed: 0, fwd: 0, yaw: 0, yawRate: 0, frame: seed % 8, acc: 0, jaw: 0, jawT: 0, look: 0, near: null as boolean | null, phone: 0, tilt: 0, fade: 1, faded: false, faceLod: -1, headHi: null as boolean | null });
+  const st = useRef({ vel: new THREE.Vector3(), last: new THREE.Vector3(), has: false, speed: 0, fwd: 0, yaw: 0, yawRate: 0, frame: seed % 8, acc: 0, jaw: 0, jawT: 0, look: 0, near: null as boolean | null, phone: 0, tilt: 0, fade: 1, faded: false, faceLod: -1, headHi: null as boolean | null });
   // a rebuilt person (new look) starts with every level visible and the original head: pick the levels again
   useEffect(() => {
     Object.assign(st.current, { near: null, faceLod: -1, headHi: null });
@@ -658,6 +702,8 @@ function HumanBody({
       const vz = (_v.z - s.last.z) / Math.max(dt, 1e-3);
       const v = Math.min(9, Math.hypot(vx, vz));
       const k = 1 - Math.exp(-dt * 12);
+      s.vel.x += (vx - s.vel.x) * k;
+      s.vel.z += (vz - s.vel.z) * k;
       s.speed += (v - s.speed) * k;
       s.fwd += (Math.max(-9, Math.min(9, vx * Math.sin(_e.y) + vz * Math.cos(_e.y))) - s.fwd) * k;
       let d = _e.y - s.yaw;
@@ -680,6 +726,15 @@ function HumanBody({
 
     // distance LOD + animation throttling (DESIGN-SPEC §16: cap animated mixers by distance)
     const dist = camera.position.distanceTo(_v);
+    // who stands where (bumps, P2-AVA-12): everyone registers, people near the camera check for a bump on them
+    if (motion) {
+      const nowS = performance.now() / 1000;
+      crowd.update(inst, _v, s.vel, nowS);
+      if (dist < 20 && !animator.out.seated) {
+        const b = crowd.bumpOn(inst, nowS);
+        if (b) motion.bump(b.from, b.strength, nowS);
+      }
+    }
     // (with a ±0.6 m hysteresis band: someone standing right at 12 m from a bobbing camera swapped body levels every few
     // frames, a visible shimmer of the whole figure; P3-FGT-12)
     const near = quality !== "lite" && (!lod || dist < (s.near ? NEAR_LOD + 0.6 : NEAR_LOD - 0.6));
@@ -689,6 +744,7 @@ function HumanBody({
       s.near = near;
       inst.full.forEach((m) => (m.visible = near));
       inst.lite.forEach((m) => (m.visible = !near));
+      if (inst.eyes) inst.eyes.visible = near;
     }
     // face detail LOD: hair-fine stipple / freckles up close, their mean colour further away
     const faceLod = dist < 7 ? 1 : dist < 14 ? Math.round(((14 - dist) / 7) * 10) / 10 : 0;
@@ -714,6 +770,7 @@ function HumanBody({
     const anim = animRef.current ?? 0;
     const social = socialRef?.current;
     animator.update(step, {
+      hold: motion?.out.hold,
       anim,
       speed: s.speed,
       forward: s.fwd,
@@ -733,6 +790,14 @@ function HumanBody({
         _q.premultiply(_q3.setFromAxisAngle(axis, a));
         b.parent!.getWorldQuaternion(_q2);
         b.quaternion.copy(_q2.invert().multiply(_q));
+      }
+    }
+    // the campus motion layer: lean, start / stop spring, jump, reactions (people near enough to see them)
+    if (motion && dist < 40) {
+      motion.apply(step, { speed: s.speed, forward: s.fwd, yawRate: s.yawRate, anim, moveW: animator.out.moveW, seated: animator.out.seated, now: performance.now() / 1000 });
+      if (lift.current) {
+        lift.current.position.y = motion.out.lift;
+        lift.current.rotation.z = motion.out.roll;
       }
     }
     // walking: pin the planted foot (people near enough to see their feet; animated every frame there)
@@ -796,7 +861,8 @@ function HumanBody({
     // jaw: syllable-like open/close while speaking
     if (inst.jaw) {
       s.jawT += step;
-      const target = talking ? Math.max(0, Math.sin(s.jawT * 13) * 0.6 + Math.sin(s.jawT * 7.3) * 0.4) * 0.22 : 0;
+      // (the feeling's open mouth too: cheering, laughing, a startle; P2-AVA-12)
+      const target = Math.max(talking ? Math.max(0, Math.sin(s.jawT * 13) * 0.6 + Math.sin(s.jawT * 7.3) * 0.4) * 0.22 : 0, (motion?.emotion.jaw ?? 0) * 0.2);
       s.jaw += (target - s.jaw) * (1 - Math.exp(-step * 18));
       const rest = (inst.jaw.userData.rest as THREE.Quaternion | undefined) ?? (inst.jaw.userData.rest = inst.jaw.quaternion.clone());
       inst.jaw.quaternion.copy(rest);
@@ -813,7 +879,7 @@ function HumanBody({
         root.worldToLocal(_v2.copy(p));
         const a = Math.atan2(_v2.x, _v2.z);
         if (Math.abs(a) < 2.2) want = THREE.MathUtils.clamp(a, -0.95, 0.95);
-      }
+      } else if (motion && motion.out.glanceW > 0.02) want = motion.out.glance * motion.out.glanceW;
       s.look += (want - s.look) * (1 - Math.exp(-step * 5));
       if (Math.abs(s.look) > 0.002) {
         head.getWorldQuaternion(_q);
@@ -826,16 +892,18 @@ function HumanBody({
     }
     // face life: blinking, saccades, eyes leading the head towards the person looked at (close people only)
     if (dist < 16) {
-      const dev = process.env.NODE_ENV !== "production" ? (globalThis as { __gkFace?: { blink?: number } }).__gkFace : undefined;
+      const dev = process.env.NODE_ENV !== "production" ? (globalThis as { __gkFace?: { blink?: number; emotion?: { joy: number; surprise: number; sad: number } } }).__gkFace : undefined;
       face.force = dev?.blink ?? null;
-      face.update({ dt: step, talking, gazeYaw: THREE.MathUtils.clamp((want - s.look) * 0.9, -0.4, 0.4), gazePitch: 0, engaged: want !== 0 });
+      face.update({ dt: step, talking, gazeYaw: THREE.MathUtils.clamp((want - s.look) * 0.9, -0.4, 0.4), gazePitch: 0, engaged: want !== 0, emotion: dev?.emotion ?? motion?.emotion });
       extraLayer?.afterFace?.(step);
     }
   });
 
   return (
     <group ref={tilt}>
-      <primitive object={inst.root} />
+      <group ref={lift}>
+        <primitive object={inst.root} />
+      </group>
       {/* the everyday-life clips stream once the first view is up (they never delay it) */}
       {lifeOk && (
         <Suspense fallback={null}>

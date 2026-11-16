@@ -5,6 +5,8 @@ import type { HumanModelMeta } from "./meta";
 import { DEFAULT_FACE, type FaceLook } from "../face";
 import type { FaceFrame } from "./face-rig";
 import { ageParams } from "../age";
+import { FABRIC, GK_SKIN_GLSL, skinDetailTexture } from "./skin/skin-shading";
+import { campusHumansOn, campusPart } from "./realism-flag";
 
 /**
  * Look-driven recolouring of the photographic Rocketbox textures. The base albedo keeps all its detail (pores,
@@ -75,6 +77,13 @@ export interface LookUniforms {
   uTopDetail: { value: number };
   /** P3-FGT-09: sweat sheen on bare skin (0 dry … 1 soaked; the ring raises it with effort, lighting reads the form) */
   uSweat: { value: number };
+  /** P2-AVA-12 realistic campus people (world/human/realism-flag.ts): 1 = skin detail / breakup / transmission, fabric */
+  uReal: { value: number };
+  uDetailMap: { value: THREE.Texture | null };
+  /** pore tiles per UV unit (head / body texture densities differ) */
+  uDetailTile: { value: number };
+  /** fabric weave ids (skin/skin-shading.ts FABRIC) of the base garments: top, bottom */
+  uFabric: { value: THREE.Vector2 };
 }
 
 /**
@@ -170,7 +179,7 @@ function printTex(id: OutfitItem["print"]): THREE.Texture | null {
   return t;
 }
 
-export function lookUniforms(look: AvatarLook, meta: HumanModelMeta, isHead: boolean, mask: THREE.Texture | null, keepClothes = false, frame: FaceFrame | null = null): LookUniforms {
+export function lookUniforms(look: AvatarLook, meta: HumanModelMeta, isHead: boolean, mask: THREE.Texture | null, keepClothes = false, frame: FaceFrame | null = null, lite = false): LookUniforms {
   const top = itemById(look.outfit.top);
   const bottom = itemById(look.outfit.bottom);
   const shoes = itemById(look.outfit.shoes);
@@ -182,6 +191,7 @@ export function lookUniforms(look: AvatarLook, meta: HumanModelMeta, isHead: boo
   const skinMix = Math.max(THREE.MathUtils.clamp(Math.abs(Math.log2(lum(skin) / Math.max(lum(ref), 1e-4))) / 2.2, 0, 0.85), isHead ? 0 : 0.7);
   const bottomKind = bottom?.kind;
   const ag = ageParams(look.age, look.bodyType);
+  const real = campusHumansOn();
   return {
     uMask: { value: mask },
     uIsHead: { value: isHead ? 1 : 0 },
@@ -212,6 +222,11 @@ export function lookUniforms(look: AvatarLook, meta: HumanModelMeta, isHead: boo
     uClothes: { value: keepClothes ? 0 : 1 },
     uTopDetail: { value: 0.85 },
     uSweat: { value: 0 },
+    uReal: { value: real ? 1 : 0 },
+    uDetailMap: { value: real ? skinDetailTexture() : null },
+    // (negative = off: the far body level, and the dev switch)
+    uDetailTile: { value: (isHead ? 30 : 85) * (campusPart("detail") && !lite ? 1 : -1) },
+    uFabric: { value: new THREE.Vector2(meta.fabric?.top ?? FABRIC.none, bottom?.id === "chinos" ? FABRIC.cottonTwill : (meta.fabric?.bottom ?? FABRIC.none)) },
     uSpecMap: { value: meta.specInMask && isHead ? 1 : 0 },
     ...faceUniforms(look.face ?? DEFAULT_FACE, isHead ? frame : null),
   };
@@ -233,6 +248,9 @@ uniform float uFaceOn; uniform float uFaceDetail; uniform vec4 uFaceL; uniform v
 uniform vec4 uFH; uniform vec4 uFH2; uniform vec4 uBrow; uniform vec4 uMarks; uniform vec3 uLipTint; uniform vec4 uMakeup;
 uniform float uSpecMap; uniform float uHairFade; uniform float uFaceIpd; uniform float uHairGrey; uniform vec4 uAge; uniform float uHairColGrey;
 varying vec3 vGkF;
+uniform float uReal; uniform sampler2D uDetailMap; uniform float uDetailTile; uniform vec2 uFabric;
+// P2-AVA-12: thin parts (ears) for transmission, garment weights for the fabric weave / sheen
+float gkThin = 0.0; float gkTopW = 0.0; float gkBotW = 0.0; float gkBrowW = 0.0;
 // per-fragment results shared with the roughness / normal / lighting chunks
 float gkSkinW = 0.0; float gkEyeW = 0.0; float gkIrisW = 0.0; float gkBeardW = 0.0; float gkLipW = 0.0; float gkHairW = 0.0;
 float gkSpec = 0.25; float gkH = 0.0; float gkAO = 1.0;
@@ -246,6 +264,10 @@ float gkNoise(vec2 p) {
 }
 // band-limited octave: fades to its mean (0.5) as its cells approach the pixel size (no shimmer at a distance)
 float gkOct(vec2 p, float cellsPerPx) { return mix(0.5, gkNoise(p), clamp(1.4 - cellsPerPx * 1.6, 0.0, 1.0)); }
+${GK_SKIN_GLSL.detailNormal}
+${GK_SKIN_GLSL.breakup}
+${GK_SKIN_GLSL.transmission}
+${GK_SKIN_GLSL.fabric}
 `;
 
 /** Vertex side: the bind-pose face position (moves with the skin, so painted details follow lids, lips and jaw). */
@@ -425,21 +447,42 @@ if (uFaceOn > 0.5) {
   // feathered top edge, crisper lower edge, tapered tail
   float bD = length(vec2(bq.x, bq.y * (bq.y > 0.0 ? 0.85 : 1.1))) + eN2 * 0.35 + max(bq.x, 0.0) * 0.25;
   float styleB = (1.0 - smoothstep(0.62, 1.05, bD)) * smoothstep(0.08, 0.22, ax);
-  gkCol = mix(gkCol, gkShaved, baseB * (1.0 - styleB) * uBrow.w * front * skinish);
+  // (P2-AVA-12: the covered base brow takes the surrounding skin's depth: the plain shaved tone read as a pale bar)
+  gkCol = mix(gkCol, gkShaved * mix(1.0, 0.8, uReal), baseB * (1.0 - styleB) * uBrow.w * front * skinish);
   vec2 bd = normalize(vec2(sign(q.x), mix(1.9, 0.18, smoothstep(-0.34, 0.02, bx))));
   vec2 bp = vec2(dot(q.xy, vec2(-bd.y, bd.x)), dot(q.xy, bd));
   float bs = gkOct(bp * vec2(105.0, 26.0), fw * 105.0) * 0.6 + gkOct(bp * vec2(48.0, 12.0) + 5.0, fw * 48.0) * 0.4;
   float bFine = clamp(1.4 - fw * 105.0 * 1.6, 0.0, 1.0) * det;
-  float browA = styleB * uBrow.x * mix(1.0, smoothstep(0.25, 0.75, bs + (styleB - 0.5) * 0.6), bFine);
+  // (P2-AVA-12: every brow is drawn as hair strands, at least 60 % dense: the photo brows of the base heads are light and
+  // read grey on every skin tone)
+  float browA = styleB * max(uBrow.x, 0.6 * uReal) * mix(1.0, smoothstep(0.25, 0.75, bs + (styleB - 0.5) * 0.6), bFine);
   // the photo brow (hair-masked texels) breaks into strands with skin between them; a shade lighter overall
   float natB = baseB * gkM.g * (1.0 - styleB * uBrow.x) * front;
-  gkCol = mix(gkCol, gkShaved * 0.85, natB * mix(0.22, (1.0 - smoothstep(0.3, 0.62, bs)) * 0.75, bFine));
+  gkCol = mix(gkCol, gkShaved * 0.85, natB * mix(0.22, (1.0 - smoothstep(0.3, 0.62, bs)) * 0.75, bFine) * (1.0 - 0.8 * uReal));
   // grey hair colours: dark brow hairs with silver ones among them (never a flat white brow); with age some brow
   // hairs turn silver too
   vec3 browC = (uHairColGrey > 0.001 ? vec3(0.018, 0.015, 0.013) : max(uHair * 1.3, vec3(0.012, 0.009, 0.008))) * (0.8 + 0.4 * bs);
   browC = mix(browC, vec3(0.26, 0.25, 0.24) * (0.8 + 0.4 * bs), step(gkHash(floor(bp * vec2(105.0, 26.0)) + 5.5), max(uAge.w * 0.5, uHairColGrey * 0.55)));
+  // (P2-AVA-12: the feminine base photo has light, blonde brows sitting a little above the drawn brow: texels in the
+  // brow zone lighter than the skin turn to skin, so no pale bar shows over the brow)
+  if (uReal > 0.5) {
+    float bz = (1.0 - smoothstep(0.42, 0.56, abs(bx))) * smoothstep(-0.14, -0.05, q.y - uFaceL.z) * (1.0 - smoothstep(0.16, 0.26, q.y - uFaceL.z));
+    float bl = smoothstep(1.05, 1.5, gkL / max(uSkinRef, 1e-4));
+    gkCol = mix(gkCol, gkShaved, bz * bl * front * skinish * (1.0 - clamp(browA, 0.0, 1.0)));
+  }
+  // (P2-AVA-12: under the strands the brow is dense hair too, not the photo's light brow showing between them)
+  gkCol = mix(gkCol, mix(gkCol, browC, 0.65), max(styleB, baseB * 0.8 * (1.0 - uBrow.w)) * uReal * front * skinish * 0.85);
   gkCol = mix(gkCol, browC, clamp(browA, 0.0, 1.0) * front * skinish);
-  gkH += (browA + natB) * (bs - 0.5) * bFine;
+  // (P2-AVA-12: brow hair is matte: with the skin's forehead sheen on it, dark brows caught the sky and read grey)
+  gkBrowW = uReal * clamp(browA * front * skinish + natB, 0.0, 1.0);
+  // the whole brow zone is matte (the base photo's specular map is glossy on the brow ridge: a pale bar of sky above
+  // the brow)
+  {
+    float bz2 = (1.0 - smoothstep(0.42, 0.56, abs(bx))) * smoothstep(-0.14, -0.05, q.y - uFaceL.z) * (1.0 - smoothstep(0.16, 0.26, q.y - uFaceL.z));
+    gkBrowW = max(gkBrowW, uReal * bz2 * front);
+  }
+  // (P2-AVA-12: no relief from the photo-brow mask: its texel blocks lit up as a pale bar above the brow)
+  gkH += (browA + natB * (1.0 - uReal)) * (bs - 0.5) * bFine;
   // ---- freckles (cheeks and the bridge of the nose) and a beauty mark
   if (uMarks.x > 0.0 && det > 0.01) {
     float area = max(1.0 - smoothstep(0.3, 0.6, length(vec2(ax - 0.5, q.y + 0.45))), 1.0 - smoothstep(0.12, 0.28, length(vec2(q.x, q.y + 0.28))));
@@ -485,6 +528,8 @@ if (uFaceOn > 0.5) {
   float aoE = 1.0 - smoothstep(0.0, 0.14, length(vec2(ax - 0.26, (q.y + 0.02) * 1.3)));
   float aoM = 1.0 - smoothstep(0.0, 0.1, length(vec2(ax - 0.45, (q.y - mY) * 1.4)));
   gkAO = 1.0 - (0.3 * aoE + 0.32 * aoM) * front;
+  // P2-AVA-12: the ears (and a little the nose wings) are thin: light from behind comes through them, red
+  gkThin = uReal * gkM.r * max(smoothstep(1.0, 1.28, ax) * (1.0 - front) * smoothstep(-0.9, -0.2, q.y) * (1.0 - smoothstep(0.3, 0.6, q.y)), 0.35 * (1.0 - smoothstep(0.1, 0.24, length(vec2(ax - 0.17, q.y - uFaceL.w + 0.12)))));
 }
 `;
 
@@ -522,11 +567,16 @@ const RECOLOUR = /* glsl */ `
     gkL = gkLn;
   }
   vec3 gkSkinCol = mix(gkBase * uSkinMul, uSkin * gkDetail(gkL, uSkinRef, 0.9), uSkinMix);
+  // P2-AVA-12: light skin is never grey: blood under thin skin keeps it warm (a touch more red, less blue on the
+  // light tones only; deep tones are untouched)
+  if (uReal > 0.5) gkSkinCol *= mix(vec3(1.0), vec3(1.05, 0.97, 0.9), smoothstep(0.18, 0.55, dot(uSkin, vec3(0.2126, 0.7152, 0.0722))));
   vec3 gkCol = mix(gkBase, gkSkinCol, gkM.r);
   if (uSpecMap > 0.5) gkSpec = gkM.a;
   if (uIsHead > 0.5) {
     // scalp hair: a noise-broken hairline (no painted edge), more depth in the photo's own strands / curls
-    float gkHn = gkNoise(vMapUv * 900.0) - 0.5;
+    // (P2-AVA-12: the break-up noise only on the scalp: on the brows / lash line it read as grey grain)
+    float gkScalp = uReal > 0.5 && uFaceOn > 0.5 ? max(smoothstep(uFaceL.z + 0.18, uFaceL.z + 0.4, vGkF.y), smoothstep(0.75, 1.1, abs(vGkF.x))) : 1.0;
+    float gkHn = (gkNoise(vMapUv * 900.0) - 0.5) * gkScalp;
     float gkHair = clamp(gkM.g + gkHn * 1.2 * gkM.g * (1.0 - gkM.g) * 4.0, 0.0, 1.0);
     // grey colours: pepper-and-silver per strand (a flat light grey showed as white patches at the nape / temples)
     vec3 gkHairBase = uHairColGrey > 0.001 ? mix(vec3(0.016, 0.014, 0.012), vec3(0.28, 0.27, 0.26), step(gkHash(floor(vMapUv * 760.0) + 1.7), uHairColGrey * (uFaceOn > 0.5 && vGkF.y < uFaceL.z + 0.4 && vGkF.z > -0.3 ? 0.4 : 1.0))) : max(uHair, vec3(0.011, 0.0095, 0.0085));
@@ -535,7 +585,7 @@ const RECOLOUR = /* glsl */ `
     // baby hairs: just outside the hairline the skin carries a faint, fine darkening
     float gkNearHair = texture2D(uMask, vMapUv, 2.5).g;
     float gkBaby = clamp(gkNearHair - gkM.g, 0.0, 1.0) * gkM.r * (1.0 - uHairToSkin);
-    gkCol = mix(gkCol, gkHairCol, gkBaby * 0.45 * step(0.55, gkNoise(vMapUv * 1400.0)));
+    gkCol = mix(gkCol, gkHairCol, gkBaby * 0.45 * step(0.55, gkNoise(vMapUv * 1400.0)) * gkScalp);
     if (uHairFade > 0.5 && uFaceOn > 0.5) {
       vec3 gkFm = vGkF * uFaceIpd;
       float gkSide = smoothstep(0.035, 0.07, -gkFm.z);
@@ -562,6 +612,8 @@ const RECOLOUR = /* glsl */ `
     gkCol = mix(gkCol, gkTopC * gkDetail(gkL, uTopRef, uTopDetail), gkM.g * uClothes);
     gkCol = mix(gkCol, gkBotC, gkM.b * uClothes);
     float gkShoe = clamp(1.0 - gkM.r - gkM.g - gkM.b, 0.0, 1.0);
+    gkTopW = gkM.g * uClothes;
+    gkBotW = gkM.b * uClothes * (1.0 - uLegsSkin);
     gkCol = mix(gkCol, min(uShoes * gkDetail(gkL, uShoesRef, 0.85), vec3(0.7)), gkShoe * uClothes);
   }
   gkSkinW = clamp(gkM.r * (1.0 - gkM.g) + gkM.g * uHairToSkin, 0.0, 1.0) * (1.0 - gkBeardW * 0.7);
@@ -592,6 +644,16 @@ const ROUGH = /* glsl */ `
     roughnessFactor = mix(roughnessFactor, 0.82, gkBeardW);
     roughnessFactor = mix(roughnessFactor, uMakeup.z > 0.5 ? 0.36 : 0.7, gkLipW);
     roughnessFactor = mix(roughnessFactor, mix(0.24, 0.12, gkIrisW), gkEyeW);
+    roughnessFactor = mix(roughnessFactor, 0.86, gkBrowW);
+  }
+  if (uReal > 0.5) {
+    // P2-AVA-12: skin roughness is never one flat value (pores, oil, dry patches), broken at two scales
+    roughnessFactor += gkBreakup(vMapUv, uIsHead > 0.5 ? 46.0 : 110.0) * 0.16 * gkSkinW;
+    // fabrics: matte cotton / fleece, a touch smoother suiting
+    float gkRt = uFabric.x == 4.0 ? 0.72 : (uFabric.x == 3.0 ? 0.95 : 0.86);
+    float gkRb = uFabric.y == 4.0 ? 0.72 : (uFabric.y == 2.0 ? 0.82 : 0.86);
+    roughnessFactor = mix(roughnessFactor, gkRt, gkTopW * 0.8);
+    roughnessFactor = mix(roughnessFactor, gkRb, gkBotW * 0.8);
   }
 }
 `;
@@ -608,6 +670,27 @@ if (uIsHead > 0.5) {
   vec2 gkDh = vec2(dFdx(gkH), dFdy(gkH)) * 0.0006;
   vec3 gkGrad = sign(gkDet) * (gkDh.x * gkR1 + gkDh.y * gkR2);
   normal = normalize(abs(gkDet) * normal - gkGrad);
+}
+if (uReal > 0.5) {
+  // P2-AVA-12: pore / micro-wrinkle detail on the skin (faded below a pixel), the garments' weave
+  float gkLod = gkDetailLod(vMapUv, uDetailTile, 96.0);
+  if (uDetailTile > 0.0 && gkSkinW > 0.01 && gkLod > 0.001) {
+    vec2 gkDn = texture2D(uDetailMap, vMapUv * uDetailTile).rg * 2.0 - 1.0;
+    normal = gkDetailN(normal, -vViewPosition, vMapUv * uDetailTile, gkDn, 0.3 * gkSkinW * gkLod);
+  }
+  if (uIsHead < 0.5 && uDetailTile > 0.0) {
+    for (int gkI = 0; gkI < 2; gkI++) {
+      float gkW = gkI == 0 ? gkTopW : gkBotW;
+      int gkId = int((gkI == 0 ? uFabric.x : uFabric.y) + 0.5);
+      if (gkW < 0.05 || gkId == 0) continue;
+      float gkF = gkId == 1 ? 180.0 : (gkId == 2 ? 300.0 : 220.0);
+      float gkCyc = gkId == 1 ? 40.0 : (gkId == 2 ? 6.0 : 4.0);
+      float gkFl = gkDetailLod(vMapUv, gkF, gkCyc);
+      if (gkFl < 0.001) continue;
+      vec2 gkFn = gkFabricN(gkId, vMapUv, gkF, gkFl, uDetailMap);
+      normal = gkDetailN(normal, -vViewPosition, vMapUv * gkF, gkFn, (gkId == 1 ? 0.5 : 0.32) * gkW);
+    }
+  }
 }
 `;
 
@@ -632,8 +715,18 @@ const SPEC = /* glsl */ `
   float gkF = mix(1.0, mix(0.55, 0.85, max(smoothstep(0.04, 0.42, gkSpec), gkSheen * 0.8)), gkSkinW);
   gkF = mix(gkF, 0.9, gkHairW);
   gkF = mix(gkF, 0.7, gkBeardW);
+  gkF = mix(gkF, 0.45, gkBrowW);
   material.specularColor *= gkF;
   material.specularColorBlended *= gkF;
+#ifdef USE_SHEEN
+  // P2-AVA-12: cloth sheen per weave (velvet-soft grazing light on fleece / knit, a cool lift on denim), none on skin
+  {
+    vec4 gkSt = gkFabricSheen(int(uFabric.x + 0.5), material.diffuseColor);
+    vec4 gkSb = gkFabricSheen(int(uFabric.y + 0.5), material.diffuseColor);
+    material.sheenColor = gkSt.rgb * gkTopW + gkSb.rgb * gkBotW;
+    material.sheenRoughness = clamp(mix(0.6, gkSt.a, gkTopW) * (1.0 - gkBotW) + gkSb.a * gkBotW, 0.07, 1.0);
+  }
+#endif
 }
 `;
 
@@ -650,6 +743,7 @@ if (gkSkinW > 0.001) {
   gkDI = mix(irradiance, gkNL * directLight.color, gkSkinW);
 }
 reflectedLight.directDiffuse += gkDI * diffuseBRDF * ( 1.0 - F );
+if (gkThin > 0.001) reflectedLight.directDiffuse += gkTransmit(geometryNormal, geometryViewDir, directLight.direction, directLight.color, gkThin, material.diffuseColor) * 0.25;
 `;
 
 const WARM = /* glsl */ `
@@ -660,14 +754,19 @@ reflectedLight.indirectDiffuse *= mix(1.0, gkAO, uIsHead);
 reflectedLight.indirectDiffuse += gkSkinW * diffuseColor.rgb * vec3(0.05, 0.02, 0.01);
 `;
 
-/** Clone a base Rocketbox material and attach the look recolour shader. */
-export function makeLookMaterial(base: THREE.MeshStandardMaterial, look: AvatarLook, meta: HumanModelMeta, isHead: boolean, keepClothes = false, frame: FaceFrame | null = null): THREE.MeshStandardMaterial {
+/**
+ * Clone a base Rocketbox material and attach the look recolour shader. `lite` (P2-AVA-12): the far body level (beyond
+ * the near LOD): no physical sheen lobe, no pore / weave detail (sub-pixel there anyway), the rest identical.
+ */
+export function makeLookMaterial(base: THREE.MeshStandardMaterial, look: AvatarLook, meta: HumanModelMeta, isHead: boolean, keepClothes = false, frame: FaceFrame | null = null, lite = false): THREE.MeshStandardMaterial {
   const mask = (base.userData.gkMask as THREE.Texture | undefined) ?? null;
-  const m = base.clone();
+  const real = campusHumansOn() && !!mask && !!base.map;
+  // P2-AVA-12: a physical material (sheen lobe for the fabrics); same maps / settings as the base
+  const m: THREE.MeshStandardMaterial = real && !lite && campusPart("sheen") ? toPhysical(base) : base.clone();
   m.emissiveMap = null;
   m.emissive.set(0x000000);
   if (!mask || !m.map) return m;
-  const u = lookUniforms(look, meta, isHead, mask, keepClothes, frame);
+  const u = lookUniforms(look, meta, isHead, mask, keepClothes, frame, lite);
   m.userData.gkUniforms = u;
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, u);
@@ -682,8 +781,20 @@ export function makeLookMaterial(base: THREE.MeshStandardMaterial, look: AvatarL
         .replace("#include <lights_physical_fragment>", SPEC)
         .replace("#include <lights_fragment_end>", WARM);
   };
-  m.customProgramCacheKey = () => "gk-human-look-4";
+  m.customProgramCacheKey = () => (real ? "gk-human-look-5r" : "gk-human-look-4");
   return m;
+}
+
+/** A MeshPhysicalMaterial with a standard material's maps and settings, sheen on (its colour set per fragment). */
+function toPhysical(base: THREE.MeshStandardMaterial): THREE.MeshPhysicalMaterial {
+  const p = new THREE.MeshPhysicalMaterial();
+  THREE.MeshStandardMaterial.prototype.copy.call(p, base);
+  p.defines = { STANDARD: "", PHYSICAL: "" };
+  p.userData = { ...base.userData };
+  p.sheen = 1;
+  p.sheenColor.setRGB(0, 0, 0);
+  p.sheenRoughness = 0.6;
+  return p;
 }
 
 /** Hair cards (alpha-tested strands) take the chosen hair colour via luminance transfer. */

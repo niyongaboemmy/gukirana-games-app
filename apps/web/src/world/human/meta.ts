@@ -24,6 +24,12 @@ export interface HumanModelMeta {
    * the real oil distribution (T-zone sheen, matte cheeks) instead of one value.
    */
   specInMask?: boolean;
+  /**
+   * P2-AVA-12: the weave of the garments the base body actually wears (its photo texture / folds: the look recolours
+   * them), world/human/skin/skin-shading.ts FABRIC ids — masculine: a canvas jacket over jeans; feminine: a suit
+   * jacket and suit trousers; neutral: a fleece zip jacket over jeans.
+   */
+  fabric?: { top: number; bottom: number };
 }
 
 const BASE = "/assets/characters";
@@ -37,6 +43,7 @@ export const HUMAN_MODELS: Record<HumanModelId, HumanModelMeta> = {
     regions: { skin: 0.0637, top: 0.0855, bottom: 0.1527, shoes: 0.3992, hair: 0.0066 },
     hairCards: false,
     specInMask: true,
+    fabric: { top: 5, bottom: 2 },
   },
   feminine: {
     url: `${BASE}/feminine.glb`,
@@ -46,6 +53,7 @@ export const HUMAN_MODELS: Record<HumanModelId, HumanModelMeta> = {
     regions: { skin: 0.1811, top: 0.0594, bottom: 0.0082, shoes: 0.0261, hair: 0.0091 },
     hairCards: true,
     specInMask: true,
+    fabric: { top: 4, bottom: 4 },
   },
   neutral: {
     url: `${BASE}/neutral.glb`,
@@ -55,6 +63,7 @@ export const HUMAN_MODELS: Record<HumanModelId, HumanModelMeta> = {
     regions: { skin: 0.1284, top: 0.1166, bottom: 0.0357, shoes: 0.3117, hair: 0.012 },
     hairCards: false,
     specInMask: true,
+    fabric: { top: 3, bottom: 2 },
   },
   guard: {
     url: `${BASE}/guard.glb`,

@@ -301,6 +301,13 @@ export interface FaceInput {
   gazePitch: number;
   /** someone is being looked at (smaller, face-to-face saccades) */
   engaged: boolean;
+  /**
+   * P2-AVA-12: the feeling on the face, 0 … 1 each (world/human/motion-layer.ts Emotion), built from ARKit-named
+   * primitives: joy = mouthSmile + cheekSquint (corners up and out, cheeks up pushing the lower lids: smiling eyes) +
+   * a little browOuterUp; surprise = browInnerUp + browOuterUp + eyeWide (upper lids up); sad = browInnerUp only (the
+   * inner ends up, the outer ends a touch down) + mouthFrown (corners down) + upper lids a little lower.
+   */
+  emotion?: { joy: number; surprise: number; sad: number };
 }
 
 /** Blink / eye amplitudes (m, rad); exported for the preview hook and tests. */
@@ -324,6 +331,11 @@ export class FaceRig {
   private sacc = { y: 0, p: 0 };
   private eye = { y: 0, p: 0 };
   private brow = 0;
+  /** inner brow bones (the sad brow lifts only these) */
+  private inner = new Set<THREE.Bone>();
+  private cheeks = new Set<THREE.Bone>();
+  /** mouth corners: outward direction (a smile widens the mouth) */
+  private out = new Map<THREE.Bone, THREE.Vector3>();
   /** mouth corners / cheeks for idle micro-expressions (P2-AVA-11) */
   private corners: LiveBone[] = [];
   private micro = 0;
@@ -383,6 +395,7 @@ export class FaceRig {
       for (const n of [`Bip01_${s}InnerEyebrow`, `Bip01_${s}OuterEyebrow`]) {
         const x = live(n);
         if (x) this.brows.push(x);
+        if (x && n.includes("Inner")) this.inner.add(x.bone);
       }
       const e = get(`Bip01_${s}Eye`);
       if (e) {
@@ -396,6 +409,12 @@ export class FaceRig {
     for (const n of ["Bip01_LMouthCorner", "Bip01_RMouthCorner", "Bip01_LCheek", "Bip01_RCheek"]) {
       const x = live(n);
       if (x) this.corners.push(x);
+      if (x && n.includes("Cheek")) this.cheeks.add(x.bone);
+      if (x && n.includes("MouthCorner") && x.bone.parent) {
+        // the face frame's outward direction (towards that side's ear) in the corner bone's parent space
+        relQ(x.bone.parent, pq).invert();
+        this.out.set(x.bone, new THREE.Vector3(n.startsWith("Bip01_L") ? 1 : -1, 0, 0).applyQuaternion(pq));
+      }
     }
     this.microPhase = this.rnd() * 100;
   }
@@ -453,18 +472,38 @@ export class FaceRig {
     // ---- lids: blink + follow the gaze (looking down lowers the upper lid)
     const close = this.force ?? this.blinkAmount();
     const follow = THREE.MathUtils.clamp(-this.eye.p, -0.2, 0.25) * 4 * mm;
-    for (const l of this.lids.top) l.bone.position.copy(l.base).addScaledVector(this.down.get(l.bone)!, close * BLINK_TOP + follow);
-    for (const l of this.lids.bottom) l.bone.position.copy(l.base).addScaledVector(this.down.get(l.bone)!, -close * BLINK_BOTTOM + follow * 0.3);
-    // ---- brows: a small lift now and then while talking
+    const em = inp.emotion;
+    const joy = em?.joy ?? 0,
+      sur = em?.surprise ?? 0,
+      sad = em?.sad ?? 0;
+    // eyes wide in surprise (the upper lid goes up, never while blinking), a heavier lid when sad; smiling eyes (the
+    // cheeks push the lower lids up)
+    const lidTop = close * BLINK_TOP + follow + (sad * 1.8 - sur * 3.4) * mm * (1 - close);
+    const lidBottom = -close * BLINK_BOTTOM + follow * 0.3 - joy * 2.4 * mm;
+    for (const l of this.lids.top) l.bone.position.copy(l.base).addScaledVector(this.down.get(l.bone)!, lidTop);
+    for (const l of this.lids.bottom) l.bone.position.copy(l.base).addScaledVector(this.down.get(l.bone)!, lidBottom);
+    // ---- brows: a small lift now and then while talking; the feeling's brows on top
     const want = inp.talking ? Math.max(0, Math.sin(this.t * 2.3) * Math.sin(this.t * 0.9)) * 1.1 * mm : 0;
     this.brow += (want - this.brow) * (1 - Math.exp(-dt * 6));
-    for (const b of this.brows) b.bone.position.copy(b.base).addScaledVector(this.down.get(b.bone)!, -this.brow);
+    for (const b of this.brows) {
+      const inner = this.inner.has(b.bone);
+      const lift = this.brow + (sur * 6.5 + joy * 1.2 + (inner ? sad * 5.5 : -sad * 1.2)) * mm;
+      b.bone.position.copy(b.base).addScaledVector(this.down.get(b.bone)!, -lift);
+    }
     // ---- idle micro-expressions: the corners of the mouth (and the cheeks with them) drift up a fraction of a mm now
     // and then, a little more while face to face or talking (a living, friendly face rather than a frozen one)
     const tm = this.t + this.microPhase;
     const drift = Math.max(0, Math.sin(tm * 0.31) * 0.6 + Math.sin(tm * 0.83 + 1.3) * 0.4);
     const wantM = (0.18 + (inp.engaged || inp.talking ? 0.32 : 0)) * drift * mm;
     this.micro += (wantM - this.micro) * (1 - Math.exp(-dt * 3));
-    for (const c of this.corners) c.bone.position.copy(c.base).addScaledVector(this.down.get(c.bone)!, -this.micro);
+    for (const c of this.corners) {
+      const cheek = this.cheeks.has(c.bone);
+      // smile: corners up 9 mm and out 6.5 mm, cheeks up 5.5 mm; frown: corners down 6 mm (bone offsets: the corner bones
+      // carry only part of the lips' skin weights, so the visible skin moves ≈ 40 % of this)
+      const up = this.micro + (cheek ? joy * 5.5 : joy * 9.0 - sad * 6.0) * mm;
+      c.bone.position.copy(c.base).addScaledVector(this.down.get(c.bone)!, -up);
+      const o = this.out.get(c.bone);
+      if (o) c.bone.position.addScaledVector(o, (joy * 6.5 - sad * 1.2) * mm);
+    }
   }
 }

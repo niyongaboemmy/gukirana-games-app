@@ -5,7 +5,8 @@
  *
  * Query: `look=<look code>` · `body=feminine|masculine|neutral` · `skin=<0…10 index into SKIN_TONES>` ·
  * `age=young|adult|senior` · `light=day|sunset|night|studio` · `cam=<preset>` · `anim=0|1|2|10|11|12` ·
- * `walk=<m/s>` (walks a straight line, the camera tracks) · `lod=1` (the remote-player distance LOD) · `dpr`.
+ *   `walk=<m/s>` (walks a straight line, the camera tracks) · `lod=1` (the remote-player distance LOD) · `dpr` ·
+ *   `crowd=<n>` (n more people round the lab person, P2-AVA-12 perf) · `people=v1` (the people before P2-AVA-12).
  *
  * window.__gkHuman (read / write from the QA script, no reloads):
  *   { ready, frames, scene, gl, camera, person, view: { az, el, dist, target, fov }, look: "<code>" | undefined,
@@ -19,6 +20,7 @@ import * as THREE from "three";
 import { Avatar } from "@/world/Avatar";
 import { decodeLook, SKIN_TONES, type AvatarLook, type BodyType } from "@/world/outfits";
 import { AGE_GROUPS, type AgeGroup } from "@/world/age";
+import { releaseDeferred } from "@/world/deferred";
 
 type Target = "body" | "head" | "eyes" | "chest" | "handL" | "handR" | "feet" | "hips";
 /** [azimuth ° around the person (0 = in front), elevation °, distance m, target, fov °] */
@@ -40,6 +42,11 @@ const VIEWS: Record<string, [number, number, number, Target, number]> = {
   feet: [25, 14, 1.4, "feet", 30],
   walk: [90, 3, 4.8, "body", 30],
   walk34: [40, 4, 4.8, "body", 30],
+  // P2-AVA-12: headwear from behind / above, the clothes up close, a jump in full
+  headBack: [150, 12, 0.75, "head", 30],
+  headTop: [20, 38, 0.8, "head", 30],
+  waist: [25, 0, 0.95, "hips", 32],
+  jump: [90, 2, 5.6, "body", 34],
 };
 
 const BONES: Record<Exclude<Target, "body" | "eyes" | "feet">, RegExp> = {
@@ -108,7 +115,13 @@ interface LabState {
   person: THREE.Object3D | null;
   view: { az: number; el: number; dist: number; target: Target; fov: number };
   look?: string;
-  walk: { speed: number };
+  /** P2-AVA-12: `turn` (rad/s) walks a circle instead of a straight line (leaning into the curve) */
+  walk: { speed: number; turn?: number };
+  /**
+   * P2-AVA-12: an action code to play (wave 10, cheer 20, disappointed 25, jump 32, surprise 33 …), also while walking
+   * (a running jump); null = the walk / idle the lab picks itself.
+   */
+  act: number | null;
   /** the look on show (skin tone, age, body) */
   current: AvatarLook | null;
   /** reference: hide the person, show a plain matte sphere in the skin's albedo where the face is (skin fidelity) */
@@ -142,6 +155,7 @@ const lab: LabState = {
   person: null,
   view: { az: 0, el: 3, dist: 4.6, target: "body", fov: 30 },
   walk: { speed: 0 },
+  act: null,
   current: null,
   reference: false,
   referenceAt: null,
@@ -237,12 +251,23 @@ function Walker({
     const p = person.current;
     if (!p) return;
     const s = lab.walk.speed;
-    if (s > 0) {
+    const turn = lab.walk.turn ?? 0;
+    if (s > 0 && turn) {
+      // a circle: the heading turns at `turn` rad/s, the camera keeps its view relative to the heading
+      const h = (p.userData.gkHeading ?? Math.PI / 2) + turn * Math.min(dt, 0.05);
+      p.userData.gkHeading = h;
+      p.rotation.y = h;
+      yaw.current = h;
+      p.position.x += Math.sin(h) * s * Math.min(dt, 0.05);
+      p.position.z += Math.cos(h) * s * Math.min(dt, 0.05);
+      anim.current = lab.act ?? (s > 2.6 ? 2 : 1);
+    } else if (s > 0) {
       p.rotation.y = Math.PI / 2;
       yaw.current = Math.PI / 2;
       p.position.x += s * Math.min(dt, 0.05);
-      anim.current = s > 2.6 ? 2 : 1;
-    } else if (anim.current === 1 || anim.current === 2) anim.current = 0;
+      anim.current = lab.act ?? (s > 2.6 ? 2 : 1);
+    } else if (lab.act != null) anim.current = lab.act;
+    else if (anim.current === 1 || anim.current === 2 || anim.current >= 10) anim.current = 0;
   });
   return null;
 }
@@ -276,6 +301,46 @@ function Reference({ person, color }: { person: React.RefObject<THREE.Group | nu
   );
 }
 
+/**
+ * Crowd mode (P2-AVA-12 performance, `crowd=<n>`): n people on rings round the lab person (3 m, 7 m, 11 m …), a quarter
+ * standing, the rest strolling, walking briskly or running round their ring, each with their own seeded look, with the
+ * plaza's remote-player distance LOD; the first ring casts shadows. qa/e2e/human-assess/crowd-perf.mjs measures it.
+ */
+function Crowd({ n }: { n: number }) {
+  const list = useMemo(
+    () =>
+      Array.from({ length: n }, (_, i) => {
+        const ring = Math.floor(i / 8);
+        return { i, r: 3 + ring * 4, a0: ((i % 8) / 8) * Math.PI * 2 + ring * 0.4, speed: [0, 1.3, 1.7, 3.4][i % 4]!, look: decodeLook("", "#7a4a2a", `crowd-${i}`) };
+      }),
+    [n],
+  );
+  return (
+    <>
+      {list.map((p) => (
+        <CrowdPerson key={p.i} {...p} />
+      ))}
+    </>
+  );
+}
+function CrowdPerson({ i, r, a0, speed, look }: { i: number; r: number; a0: number; speed: number; look: AvatarLook }) {
+  const g = useRef<THREE.Group>(null);
+  const anim = useRef(0);
+  const a = useRef(a0);
+  useFrame((_, dt) => {
+    if (!g.current) return;
+    if (speed > 0) a.current += (speed / r) * Math.min(dt, 0.05);
+    g.current.position.set(Math.sin(a.current) * r, 0, Math.cos(a.current) * r);
+    g.current.rotation.y = a.current + Math.PI / 2;
+    anim.current = speed > 2.6 ? 2 : speed > 0 ? 1 : 0;
+  });
+  return (
+    <group ref={g}>
+      <Avatar look={look} animRef={anim} showTag={false} lod shadows={i < 8} seedId={`crowd-${i}`} />
+    </group>
+  );
+}
+
 function LookPoll({ onLook }: { onLook: (code: string) => void }) {
   const last = useRef<string | undefined>(undefined);
   useFrame(() => {
@@ -299,6 +364,9 @@ export default function HumanLab() {
     return lookFrom(q, code);
   }, [q, code]);
   useEffect(() => void (lab.current = look), [look]);
+  // the everyday-life clips (cheer, laugh, shrug, idle fidgets …) stream once the world's first view is up; the lab has
+  // no world, so release them right away (before P2-AVA-12 the lab never showed those emotes)
+  useEffect(() => releaseDeferred(), []);
   const rig = RIGS[(q.get("light") as Rig) ?? "day"] ?? RIGS.day;
   const person = useRef<THREE.Group>(null);
   const yaw = useRef(0);
@@ -307,6 +375,8 @@ export default function HumanLab() {
     const v = VIEWS[q.get("cam") ?? "full"] ?? VIEWS.full!;
     lab.view = { az: v[0], el: v[1], dist: v[2], target: v[3], fov: v[4] };
     lab.walk.speed = Number(q.get("walk") ?? 0);
+    const a0 = Number(q.get("anim") ?? 0);
+    lab.act = a0 >= 10 ? a0 : null;
     (window as unknown as { __gkHuman?: LabState; __gkHumanViews?: typeof VIEWS }).__gkHuman = lab;
     (window as unknown as { __gkHumanViews?: typeof VIEWS }).__gkHumanViews = VIEWS;
   }, [q]);
@@ -393,6 +463,11 @@ export default function HumanLab() {
           </Suspense>
         </group>
         <Reference person={person} color={look.skinTone} />
+        {Number(q.get("crowd") ?? 0) > 0 && (
+          <Suspense fallback={null}>
+            <Crowd n={Math.min(80, Number(q.get("crowd")))} />
+          </Suspense>
+        )}
         <Walker person={person} anim={anim} yaw={yaw} />
         <Director person={person} yaw={yaw} />
         <LookPoll onLook={setCode} />

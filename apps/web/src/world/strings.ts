@@ -15,7 +15,9 @@ export const W = {
   enterAction: "Enter",
   enterPrompt: (place: string) => `Enter ${place}`,
   /** desktop control hints: the full line for the first minute, then the short one */
-  hintFull: "W/S walk · A/D turn · click to walk · click a person for options · drag to look · Shift run · E interact · T chat · V talk",
+  hintFull: "W/S walk · A/D turn · click to walk · click a person for options · drag to look · Shift run · Space jump · E interact · T chat · V talk",
+  /** P2-AVA-12: the Jump button (NEXT_PUBLIC_FF_JUMP) */
+  jump: "Jump",
   hintShort: "E interact · T chat · G emotes · V talk",
   /** Tournament Arena exterior (P2-WLD-17): the crown lettering over the big screen, the ticket window, the screen */
   arenaCrown: "GUKIRANA PLAYGROUND",

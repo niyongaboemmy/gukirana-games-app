@@ -1,6 +1,6 @@
 "use client";
 import { ACT, type PairKind } from "@gukirana/contracts";
-import { Brain, Camera, CircleCheck, CircleHelp, CircleX, Coffee, Frown, Hand, HandFist, Handshake, HeartHandshake, Laugh, Music, PartyPopper, Pointer, Smartphone, Sparkles, ThumbsUp, type LucideIcon } from "lucide-react";
+import { BadgeAlert, Brain, Camera, CircleCheck, CircleHelp, CircleX, Coffee, Frown, Hand, HandFist, Handshake, HeartHandshake, Laugh, Music, PartyPopper, Pointer, Smartphone, Sparkles, ThumbsUp, type LucideIcon } from "lucide-react";
 
 /**
  * People actions catalogue (P1-WLD-02 / P1-COM-04, docs/PEOPLE-BEHAVIOUR.md): what a player can do with their
@@ -34,6 +34,7 @@ export const ACTIONS: Record<string, ActionDef> = {
   dance: A(ACT.dance, "dance", "Dance", Music, 8000),
   think: A(ACT.think, "think", "Think", Brain, 8500),
   disappointed: A(ACT.disappointed, "disappointed", "Oh no", Frown, 2800),
+  surprise: A(ACT.surprise, "surprise", "Surprise", BadgeAlert, 1800, true),
   phone: A(ACT.phone, "phone", "Check phone", Smartphone, 6300),
   photo: A(ACT.photo, "photo", "Take a photo", Camera, 8200),
   coffee: A(ACT.coffee, "coffee", "Coffee", Coffee, 0),
@@ -53,6 +54,8 @@ export const EMOTE_PICKER: ActionDef[] = [
   ACTIONS.shrug!,
   ACTIONS.shakeHead!,
   ACTIONS.cheer!,
+  ACTIONS.surprise!,
+  ACTIONS.disappointed!,
   ACTIONS.photo!,
   ACTIONS.phone!,
   ACTIONS.dance!,

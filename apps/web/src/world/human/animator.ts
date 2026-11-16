@@ -81,6 +81,8 @@ export interface AnimInput {
   rootMotion?: "clip" | "inPlace";
   /** wall clock (ms) for the seeded idle schedule */
   now?: number;
+  /** P2-AVA-12: hold the gait phase (a running jump in the air: the legs do not cycle mid-air) */
+  hold?: boolean;
 }
 
 export interface FootStep {
@@ -249,7 +251,7 @@ export class HumanAnimator {
       lw = backward ? [["walk", 1]] : this.locoWeights(Math.max(s, 0.2));
       let cyc = 0;
       for (const [c, w] of lw) cyc += w * this.cycle(c);
-      this.advancePhase(((backward ? -1 : 1) * Math.max(s, 0.2) * dt) / Math.max(cyc, 0.1), s > 2.4 ? 1 : 0, Math.min(1, 0.45 + s / 4));
+      if (!inp.hold) this.advancePhase(((backward ? -1 : 1) * Math.max(s, 0.2) * dt) / Math.max(cyc, 0.1), s > 2.4 ? 1 : 0, Math.min(1, 0.45 + s / 4));
     } else if (turning) {
       lw = [["walk", 1]];
       this.advancePhase((Math.abs(inp.yawRate) * 0.18 * dt) / Math.max(this.cycle("walk"), 0.1), 2, 0.35);
