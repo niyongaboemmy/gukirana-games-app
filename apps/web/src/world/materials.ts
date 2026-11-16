@@ -37,7 +37,8 @@ export const GAME_COLORS = {
   admin: "#C9A96B",
   fight: "#C8322A",
   soon: "#8A94A6",
-  sky: "#3DA9FC",
+  /** the neutral accent (totem strips, service pavilion, entry gate glow): warm amber — was sky blue, off-brand */
+  sky: "#E8B67E",
   gold: "#FFC83D",
   warm: "#FFD9A0",
 } as const;
@@ -111,7 +112,7 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     // (P2-WLD-09: a softer charcoal — the many kerb lines read as calm joints, not black stripes across the plaza)
     basalt: std({ map: concreteTexture(), color: "#605d57", roughness: 0.78 }),
     granite: std({ map: concreteTexture(), color: "#a8a196", roughness: 0.7 }),
-    // each hall's glazing: its real interior behind the glass, the real forecourt reflected on it (P2-WLD-18)
+    // each hall's glazing: smoked glass, the real forecourt reflected on it (P2-WLD-18, P2-WLD-20: no interior)
     ...Object.fromEntries(GLAZED.map((g) => [`glazing-${g}`, glazingMaterial(g, tier)])),
     basinFloor: std({ map: concreteTexture(), color: "#6d6a64", roughness: 0.9 }),
     brass: std({ color: "#9a7a45", metalness: 1, roughness: 0.45 }),

@@ -4,21 +4,19 @@ import { PLAZA_OBSTACLES } from "./obstacles";
 import { inBuilding, toLocal } from "./footprints";
 import {
   apply,
-  CAPTURE_OUT,
   captureBudget,
   cubeBytes,
   decodePaneUV,
   doorFrame,
   GLAZED,
   isDesktopClass,
-  interiorSize,
   localToRoom,
   nextCapture,
   PANE_MODES,
   paneUV,
-  projectionOf,
   reflectionPoint,
   reflectSize,
+  roomBox,
   worldToLocal,
 } from "./glass-capture";
 
@@ -59,28 +57,15 @@ describe("glass capture: frames", () => {
   });
 });
 
-describe("glass capture: placement and projection per hall", () => {
-  it("captures from the forecourt on the door axis, looking in through the door line, at eye height", () => {
+describe("glass capture: room box and reflection point per hall", () => {
+  it("the room box is the real room (vision glass outside it turns into spandrel)", () => {
     for (const g of GLAZED) {
-      const p = projectionOf(g);
-      const L = HALLS[g];
-      expect(p.at[0]).toBe(L.door.x);
-      expect(p.at[2]).toBeCloseTo(L.size.d / 2 + CAPTURE_OUT, 9);
-      expect(p.at[1]).toBeGreaterThan(1.2);
-      expect(p.at[1]).toBeLessThan(L.size.h);
-    }
-  });
-
-  it("box = the real room, distance range covers its diagonal", () => {
-    for (const g of GLAZED) {
-      const p = projectionOf(g);
+      const p = roomBox(g);
       const { w, d, h } = HALLS[g].size;
       expect(p.max[0] - p.min[0]).toBeCloseTo(w, 9);
       expect(p.max[1] - p.min[1]).toBeCloseTo(h, 9);
       expect(p.max[2] - p.min[2]).toBeCloseTo(d, 9);
-      // from a capture point to the room's far corners
-      for (const x of [p.min[0], p.max[0]]) expect(p.maxD).toBeGreaterThanOrEqual(Math.hypot(x - p.at[0], p.min[2] - p.at[2], h - p.at[1]));
-      expect(p.maxD).toBeLessThan(Math.hypot(w, d, h) + 2 * CAPTURE_OUT + 20);
+      expect(p.min[1]).toBe(0);
     }
   });
 
@@ -100,27 +85,29 @@ describe("glass capture: placement and projection per hall", () => {
 });
 
 describe("glass capture: pane modes, queue, memory", () => {
-  it("pane UVs round-trip (mode cell + the south-wall plane)", () => {
+  it("pane UVs round-trip (mode cell + the south-wall plane); door leaves have their own mode, no open doorway mode", () => {
     for (const m of PANE_MODES) {
       const [u, v] = paneUV(m, -1.535);
       expect(decodePaneUV(u)).toBe(m);
       expect(v).toBe(-1.535);
     }
     expect(decodePaneUV(9.5)).toBeNull();
+    expect(PANE_MODES).toContain("door");
+    expect(PANE_MODES as readonly string[]).not.toContain("doorway");
   });
 
-  it("captures the nearest open hall in range first, skips captured / out of range", () => {
+  it("captures the nearest hall in range first (closed halls too: it is the plaza), skips captured / out of range", () => {
     const pool = doorFrame("pool");
     expect(nextCapture({ x: pool.x * 0.9, z: pool.z * 0.9 }, new Set())).toBe("pool");
     expect(nextCapture({ x: pool.x * 0.9, z: pool.z * 0.9 }, new Set(["pool"]))).not.toBe("pool");
     expect(nextCapture({ x: 0, z: 400 }, new Set())).toBeNull();
     const all = new Set<string>(GLAZED);
     expect(nextCapture({ x: 0, z: 0 }, all)).toBeNull();
+    const arena = doorFrame("arena");
+    expect(nextCapture({ x: arena.x * 0.9, z: arena.z * 0.9 }, new Set())).toBe("arena");
   });
 
-  it("capture sizes and the GPU memory budget (desktop 512 / 256 px, phone 256 / 128 px, all six halls)", () => {
-    expect(interiorSize(true)).toBe(512);
-    expect(interiorSize(false)).toBe(256);
+  it("reflection sizes and the GPU memory budget (desktop 256 px, phone 128 px, all six halls, no interiors)", () => {
     expect(reflectSize(true)).toBe(256);
     expect(reflectSize(false)).toBe(128);
     expect(isDesktopClass(undefined, false)).toBe(true);
@@ -129,7 +116,8 @@ describe("glass capture: pane modes, queue, memory", () => {
     expect(isDesktopClass(8, true)).toBe(false);
     expect(cubeBytes(512)).toBe(Math.round(512 * 512 * 24 * (4 / 3)));
     expect(cubeBytes(256, false)).toBe(256 * 256 * 24);
-    expect(captureBudget(true)).toBeLessThanOrEqual(60 * 1024 * 1024);
-    expect(captureBudget(false)).toBeLessThanOrEqual(15 * 1024 * 1024);
+    expect(captureBudget(true)).toBe(GLAZED.length * 256 * 256 * 24);
+    expect(captureBudget(true)).toBeLessThanOrEqual(10 * 1024 * 1024);
+    expect(captureBudget(false)).toBeLessThanOrEqual(2.5 * 1024 * 1024);
   });
 });

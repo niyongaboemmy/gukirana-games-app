@@ -61,15 +61,24 @@ function whoosh(opening: boolean) {
 
 /* ---------------- auto sliding door ---------------- */
 
+/**
+ * The entrance's smoked glass seen from inside (P2-WLD-18/20): dark bronze-grey at about 34 % transmission, the plaza
+ * through it. One look for the entrance glazing (SouthWall) and the door leaves (AutoDoor), so they read as one front
+ * and match the smoked doors outside.
+ */
+export const fumedGlass = () => new THREE.MeshStandardMaterial({ color: "#2a2119", transparent: true, opacity: 0.66, roughness: 0.06, metalness: 0.3, envMapIntensity: 0.6, depthWrite: false });
+/** door frames, rails, push bars and the header track inside: graphite, like the street doors outside (world/Vestibule DOOR_FRAME) */
+const FRAME = "#1e1f23";
+
 const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
 /**
  * Surface-mounted automatic sliding door on the inside face of the entrance wall (`z` = the wall face). The two leaves
  * run on their own tracks in front of the wall (left 10 cm, right 13 cm into the room: never in the wall's plane, never
- * coplanar with each other), under a header track + operator housing that also stands clear of the wall. Glass is one
- * shared low-opacity physical material with a fixed render order; every other part is opaque (no sorting flicker).
+ * coplanar with each other), under a header track + operator housing that also stands clear of the wall. Glass is the
+ * entrance's smoked glass (fumedGlass) with a fixed render order; every other part is opaque (no sorting flicker).
  */
-export function AutoDoor({ x, z, w, color }: { x: number; z: number; w: number; color: string }) {
+export function AutoDoor({ x, z, w }: { x: number; z: number; w: number; color: string }) {
   const left = useRef<THREE.Group>(null);
   const right = useRef<THREE.Group>(null);
   const op = useRef({ latched: false, progress: 0, init: false, farFor: 0, lastDist: 0, approach: 0, lastWhoosh: -99, t: 0 });
@@ -117,18 +126,16 @@ export function AutoDoor({ x, z, w, color }: { x: number; z: number; w: number; 
   });
   const mats = useMemo(
     () => ({
-      glass: new THREE.MeshPhysicalMaterial({ color: "#c5d3da", transparent: true, opacity: 0.16, roughness: 0.04, metalness: 0, reflectivity: 0.6, envMapIntensity: 1.3, depthWrite: false }),
-      alu: new THREE.MeshStandardMaterial({ color: "#b9bec6", metalness: 0.85, roughness: 0.3 }),
-      steel: new THREE.MeshStandardMaterial({ color: "#d6d9de", metalness: 0.95, roughness: 0.15 }),
-      // satin-frosted safety band, tinted towards the hall colour (opaque: never sorted against the glass)
-      band: new THREE.MeshStandardMaterial({ color: new THREE.Color("#e9eef0").lerp(new THREE.Color(color), 0.35), roughness: 0.6, metalness: 0 }),
+      glass: fumedGlass(),
+      alu: new THREE.MeshStandardMaterial({ color: FRAME, metalness: 0.55, roughness: 0.42 }),
       housing: new THREE.MeshStandardMaterial({ color: "#2a2d34", metalness: 0.7, roughness: 0.35 }),
     }),
-    [color],
+    [],
   );
   useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats]);
   const H = 2.6; // glass height (between the rails)
   const lw = w / 2; // leaf width
+  const cyRef = 0.01 + 0.08 + H / 2; // the leaf's centre height (its parts are placed relative to it)
   const leaf = (
     <>
       <mesh material={mats.glass} renderOrder={3}>
@@ -145,20 +152,25 @@ export function AutoDoor({ x, z, w, color }: { x: number; z: number; w: number; 
           <boxGeometry args={[lw - 0.1, 0.08, 0.04]} />
         </mesh>
       ))}
-      {/* vertical pull handle on the room side, near the meeting edge */}
-      <mesh material={mats.steel} position={[0, 0, -0.05]}>
-        <cylinderGeometry args={[0.014, 0.014, 0.9, 10]} />
-      </mesh>
-      {/* frosted manifestation band (safety marking) on the room-side face, 2 mm proud of the glass */}
-      <mesh material={mats.band} position={[0, -0.25, -0.009]}>
-        <boxGeometry args={[lw - 0.1, 0.08, 0.002]} />
-      </mesh>
+      {/* horizontal push bars on both faces at 1.05 m, on short stand-offs (like the street doors outside) */}
+      {[-1, 1].map((f) => (
+        <group key={`b${f}`}>
+          <mesh material={mats.alu} position={[0, 1.05 - cyRef, f * 0.06]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.016, 0.016, lw * 0.62, 10]} />
+          </mesh>
+          {[-1, 1].map((sd) => (
+            <mesh key={sd} material={mats.alu} position={[sd * lw * 0.27, 1.05 - cyRef, f * 0.038]}>
+              <boxGeometry args={[0.025, 0.025, 0.03]} />
+            </mesh>
+          ))}
+        </group>
+      ))}
     </>
   );
   // leaves hang so their bottom rail clears the floor by 1 cm
   const cy = 0.01 + 0.08 + H / 2;
   return (
-    // gkSouth: the entrance, left out of the glass captures (they look into the room through the door line)
+    // gkSouth: the entrance (a tag kept from the P2-WLD-18 interior captures, which no longer exist: P2-WLD-20)
     <group position={[x, 0, z]} userData={{ noMerge: true, gkSouth: true }}>
       {/* sliding leaves: never part of the room's static batch; each leaf's parts are batched on their own */}
       <group ref={left} position={[-w / 4, cy, -0.1]} userData={{ noMerge: true }}>
@@ -328,7 +340,7 @@ const SHOPFRONTS: Partial<Record<HallLayout["game"], { w: number; mullions: numb
  * The entrance wall. For a hall with a glazed shopfront outside (Pool Hall, Ludo Lounge, Administrative Block) the same
  * glazing is in it, seen from inside: smoked glass either side of the door and over it, the real plaza beyond
  * (DoorGlimpse / PlazaGlimpse at its true bearing, the hall's captured landscape behind), the facade's own fins, piers
- * and pylons right outside. Marked `gkSouth`: left out of the glass captures (world/GlassCapture), which look IN.
+ * and pylons right outside. Marked `gkSouth` (the entrance side; the interior captures that used it are gone, P2-WLD-20).
  */
 export function SouthWall({ layout, children }: { layout: HallLayout; children: React.ReactNode }) {
   const { w, d, h } = layout.size;
@@ -339,8 +351,8 @@ export function SouthWall({ layout, children }: { layout: HallLayout; children: 
   const side = (gw - layout.door.w) / 2;
   const mats = useMemo(
     () => ({
-      // fumed glass seen from inside: dark bronze-grey, the plaza through it
-      glass: new THREE.MeshStandardMaterial({ color: "#2a2119", transparent: true, opacity: 0.66, roughness: 0.06, metalness: 0.3, envMapIntensity: 0.6, depthWrite: false }),
+      // fumed glass seen from inside: dark bronze-grey, the plaza through it (the door leaves are the same: fumedGlass)
+      glass: fumedGlass(),
       frame: new THREE.MeshStandardMaterial({ color: sf?.frame ?? "#26282c", metalness: 0.5, roughness: 0.45 }),
     }),
     [sf],
@@ -448,7 +460,7 @@ export function DoorGlimpse({ layout, lite = false }: { layout: HallLayout; lite
   const { d } = layout.size;
   const z0 = d / 2 + 0.3;
   return (
-    // (outside the hall: left out of the glass captures, gkSouth)
+    // (outside the hall: gkSouth)
     <group userData={{ noMerge: true, gkSouth: true }}>
       <PlazaGlimpse layout={layout} lite={lite} />
       {/* basalt threshold through the wall opening (the plaza impostor starts 35 cm outside the wall face) */}

@@ -52,10 +52,10 @@ function wallWithDoor(b: GeoBatch, key: string, w: number, h: number, z: number,
 }
 
 /**
- * A glazed shopfront with the door opening in the middle (the layout of wallWithDoor). P2-WLD-18: what you see through
- * it is the hall's REAL interior (world/glazing.ts: captured from just inside its door, ray-marched at true depth),
- * the glass line being the room's south wall; glass above the room's ceiling is back-painted spandrel glass behind a
- * slim transom at the ceiling line. A dark backing behind the panes keeps the building closed when seen edge-on.
+ * A glazed shopfront with the door opening in the middle (the layout of wallWithDoor): the hall's smoked glass
+ * (world/glazing.ts, P2-WLD-18), the glass line being the room's south wall; glass above the room's ceiling is
+ * back-painted spandrel glass behind a slim transom at the ceiling line. A dark backing behind the panes keeps the
+ * building closed when seen edge-on.
  */
 function glassWithDoor(b: GeoBatch, game: GlazedHall, w: number, h: number, z: number, t: number, transomKey = "screenFrame") {
   const ow = DOOR.w + 0.4;
@@ -70,12 +70,12 @@ function glassWithDoor(b: GeoBatch, game: GlazedHall, w: number, h: number, z: n
   if (ceil < h - 0.2) b.box(transomKey, w, 0.12, 0.1, { p: [0, ceil, zf + 0.05] });
 }
 
-/** Aluminium door surround with a slim LED trim in the game colour, plus a basalt threshold. */
-function doorSurround(b: GeoBatch, led: string, z = 0) {
+/** Door surround (aluminium, or `frame`: chocolate at the arena) with a slim LED trim in the game colour, plus a basalt threshold. */
+function doorSurround(b: GeoBatch, led: string, z = 0, frame = "alu") {
   const hw = DOOR.w / 2;
-  b.box("alu", 0.16, DOOR.h + 0.16, 0.36, { p: [-(hw + 0.08), (DOOR.h + 0.16) / 2, z] });
-  b.box("alu", 0.16, DOOR.h + 0.16, 0.36, { p: [hw + 0.08, (DOOR.h + 0.16) / 2, z] });
-  b.box("alu", DOOR.w + 0.32, 0.16, 0.36, { p: [0, DOOR.h + 0.08, z] });
+  b.box(frame, 0.16, DOOR.h + 0.16, 0.36, { p: [-(hw + 0.08), (DOOR.h + 0.16) / 2, z] });
+  b.box(frame, 0.16, DOOR.h + 0.16, 0.36, { p: [hw + 0.08, (DOOR.h + 0.16) / 2, z] });
+  b.box(frame, DOOR.w + 0.32, 0.16, 0.36, { p: [0, DOOR.h + 0.08, z] });
   b.box(led, 0.03, DOOR.h + 0.2, 0.03, { p: [-(hw + 0.19), (DOOR.h + 0.2) / 2, z + 0.19] });
   b.box(led, 0.03, DOOR.h + 0.2, 0.03, { p: [hw + 0.19, (DOOR.h + 0.2) / 2, z + 0.19] });
   b.box(led, DOOR.w + 0.41, 0.03, 0.03, { p: [0, DOOR.h + 0.2, z + 0.19] });
@@ -474,8 +474,8 @@ function tournamentArena(b: GeoBatch, tier: string) {
   // ---- the big screen's chocolate frame on the drum, with the header that carries the crown lettering (Plaza.tsx)
   b.box("choco", 17.4, 7.1, 0.5, { p: [0, 13.3, cz + rz + 0.9] });
 
-  // ---- entrance: glazed foyer (P2-WLD-18: the arena's real foyer, captured, through the front and the returns; the
-  // returns run into the drum, no slot), chocolate mullions and transom
+  // ---- entrance: glazed foyer in smoked glass (P2-WLD-18; the returns run into the drum, no slot), chocolate mullions
+  // and transom; inside it the foyer (world/Vestibule) is closed by a timber back wall in front of the drum
   glassWithDoor(b, "arena", 12.4, 6.2, -1.3, 0.14);
   const retZ1 = -7.6;
   const retL = -1.3 - retZ1;
@@ -511,7 +511,7 @@ function tournamentArena(b: GeoBatch, tier: string) {
   b.box("screenFrame", 1.6, 1.2, 0.3, { p: [-4.6, 1.75, -1.15] });
   b.box("choco", 1.9, 0.08, 0.6, { p: [-4.6, 2.42, -1.0] });
   b.box("limestone", 1.7, 0.06, 0.4, { p: [-4.6, 1.12, -0.98] });
-  doorSurround(b, "led-halo", -1.1);
+  doorSurround(b, "led-halo", -1.1, "choco");
 
   // ---- flagpoles either side of the canopy (Rwanda's flag, Ambience.tsx)
   for (const x of ARENA_FLAGPOLES) {

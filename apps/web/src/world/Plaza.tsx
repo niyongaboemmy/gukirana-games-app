@@ -16,7 +16,9 @@ import { EntryGate } from "./gate/EntryGate";
 import { GAME_COLORS, LED_BOOST, worldMaterials, type Tier } from "./materials";
 import { arenaScreenTexture } from "./textures";
 import { FountainWater } from "./Fountain";
-import { DoorBadge, Vestibule } from "./Vestibule";
+import { DoorBadge, DoorLeaf, doorFrameMaterial, Vestibule } from "./Vestibule";
+import { glazingMaterial } from "./glazing";
+import { isGlazed } from "./glass-capture";
 import { watchBuildings } from "./buildings";
 import { useDoorShut } from "./door-access";
 import { atlasPlane, labelAtlas, type LabelAtlas } from "./label-atlas";
@@ -101,6 +103,7 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
       {badge && <DoorBadge def={def} y={badge[0]} z={badge[1]} />}
       {!soon && <AutoDoors def={def} inset={inset} tier={tier} locked={!def.href || closed} />}
       {!soon && def.href && closed && <ClosedSign wooden={def.kind === "igisoro"} inset={inset} />}
+      {!soon && !def.href && <ClosedSign wooden={def.kind === "igisoro"} inset={inset} soon />}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, DOOR_RING - (DOOR_RING - 2.4) + 0.2]} userData={{ noMerge: true }}>
         <ringGeometry args={[0.85, 1.1, 48]} />
         <meshBasicMaterial ref={ring} color={ledColor} transparent opacity={0.5} toneMapped={false} depthWrite={false} />
@@ -139,19 +142,24 @@ function Door({ def, active, tier }: { def: PortalDef; active: boolean; tier: Ti
 }
 
 let closedAtlas: LabelAtlas | null = null;
+let soonAtlas: LabelAtlas | null = null;
 /**
  * A door that is shut for you says so (GAP-004): a red "CLOSED" plaque on the doors at eye height and a red door
- * lamp over them (it blooms, like the LED signs). Not part of the static batch: it comes and goes with the state.
+ * lamp over them (it blooms, like the LED signs). A hall that has not opened yet (its feature flag off, P2-WLD-20):
+ * a cream-on-chocolate "OPENING SOON" plaque and a warm amber lamp instead. Not part of the static batch: it comes and
+ * goes with the state.
  */
-function ClosedSign({ inset, wooden }: { inset: number; wooden: boolean }) {
+function ClosedSign({ inset, wooden, soon = false }: { inset: number; wooden: boolean; soon?: boolean }) {
   const parts = useMemo(() => {
-    closedAtlas ??= labelAtlas([{ text: W.closedSign, px: 96 }], { cols: 1, cellW: 512, cellH: 160, ink: "#ffffff", paper: "#8f2620", letterSpacing: 0.14 });
+    const atlas = soon
+      ? (soonAtlas ??= labelAtlas([{ text: W.openingSoonSign, px: 84 }], { cols: 1, cellW: 640, cellH: 160, ink: "#f4ead8", paper: "#4a2f20", letterSpacing: 0.12 }))
+      : (closedAtlas ??= labelAtlas([{ text: W.closedSign, px: 96 }], { cols: 1, cellW: 512, cellH: 160, ink: "#ffffff", paper: "#8f2620", letterSpacing: 0.14 }));
     return {
-      plaque: atlasPlane(1.15, 0.36, closedAtlas.uv(0)),
-      plaqueMat: new THREE.MeshBasicMaterial({ map: closedAtlas.texture, toneMapped: false }),
-      lampMat: new THREE.MeshBasicMaterial({ color: new THREE.Color("#ff3b30").multiplyScalar(2.2), toneMapped: false }),
+      plaque: atlasPlane(soon ? 1.44 : 1.15, 0.36, atlas.uv(0)),
+      plaqueMat: new THREE.MeshBasicMaterial({ map: atlas.texture, toneMapped: false }),
+      lampMat: new THREE.MeshBasicMaterial({ color: new THREE.Color(soon ? "#e8a860" : "#ff3b30").multiplyScalar(soon ? 1.4 : 2.2), toneMapped: false }),
     };
-  }, []);
+  }, [soon]);
   useEffect(
     () => () => {
       parts.plaque.dispose();
@@ -186,12 +194,16 @@ function AutoDoors({ def, inset, tier, locked = false }: { def: PortalDef; inset
   const mats = useMemo(() => {
     const m = worldMaterials(tier);
     return {
-      frame: new THREE.MeshStandardMaterial({ color: "#c9ced6", metalness: 0.85, roughness: 0.32 }),
-      glass: new THREE.MeshStandardMaterial({ color: "#cfe6f2", metalness: 0.2, roughness: 0.04, transparent: true, opacity: 0.22, envMapIntensity: 1.6, depthWrite: false }),
+      // the hall's door frame (the same as its inner doors and the lobby's skirting: world/Vestibule)
+      frame: doorFrameMaterial(def.kind),
       wood: (m["woodDark"] as THREE.MeshStandardMaterial | undefined) ?? new THREE.MeshStandardMaterial({ color: "#6b4a2f", roughness: 0.6 }),
       handle: new THREE.MeshStandardMaterial({ color: "#b08a4a", metalness: 1, roughness: 0.3 }),
     };
-  }, [tier]);
+  }, [tier, def.kind]);
+  useEffect(() => () => mats.frame.dispose(), [mats]);
+  // the leaves: the hall's smoked glass, like its facade (P2-WLD-20: they used to be clear, showing whatever stood
+  // behind them: at the arena the drum's brick plinth and glass band inside the foyer)
+  const glass = isGlazed(def.kind) ? glazingMaterial(def.kind, tier, "door") : null;
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
     // a real sensor door opens for whoever walks up to it, not only for you
@@ -265,38 +277,22 @@ function AutoDoors({ def, inset, tier, locked = false }: { def: PortalDef; inset
     );
   return (
     <group position={[0, 0, z]}>
-      {/* overhead track + sensor */}
+      {/* overhead track in the door frame's finish, a slim lit sensor under it (red while the door is shut for you) */}
       <mesh position={[0, h + 0.09, -0.02]} material={mats.frame}>
         <boxGeometry args={[DOOR.w * 2, 0.18, 0.14]} />
       </mesh>
-      <mesh position={[0, h + 0.09, 0.06]} userData={{ noMerge: true }}>
-        <boxGeometry args={[0.22, 0.06, 0.02]} />
-        <meshBasicMaterial color={new THREE.Color(locked ? "#d23c3c" : def.color).multiplyScalar(1.1)} toneMapped={false} />
+      <mesh position={[0, h + 0.035, 0.052]} userData={{ noMerge: true }}>
+        <boxGeometry args={[0.36, 0.022, 0.02]} />
+        <meshBasicMaterial color={new THREE.Color(locked ? "#d23c3c" : "#ffe3b8").multiplyScalar(locked ? 1.1 : 0.9)} toneMapped={false} />
       </mesh>
-      {[-1, 1].map((s) => (
-        <group key={s} ref={s < 0 ? left : right} position={[s * (w / 2), 0, s * 0.03]} userData={{ noMerge: true }}>
-          <StaticMerge>
-          <mesh position={[0, h / 2, 0]} material={mats.glass} renderOrder={2}>
-            <boxGeometry args={[w - 0.06, h - 0.1, 0.02]} />
-          </mesh>
-          {/* slim aluminium frame */}
-          <mesh position={[0, h - 0.03, 0]} material={mats.frame}>
-            <boxGeometry args={[w, 0.06, 0.05]} />
-          </mesh>
-          <mesh position={[0, 0.04, 0]} material={mats.frame}>
-            <boxGeometry args={[w, 0.08, 0.05]} />
-          </mesh>
-          {[-1, 1].map((k) => (
-            <mesh key={k} position={[(k * w) / 2, h / 2, 0]} material={mats.frame}>
-              <boxGeometry args={[0.05, h, 0.05]} />
-            </mesh>
-          ))}
-          <mesh position={[-s * (w / 2 - 0.12), 1.1, 0.04]} material={mats.frame}>
-            <boxGeometry args={[0.03, 0.6, 0.03]} />
-          </mesh>
-          </StaticMerge>
-        </group>
-      ))}
+      {glass &&
+        [-1, 1].map((s) => (
+          <group key={s} ref={s < 0 ? left : right} position={[s * (w / 2), 0, s * 0.03]} userData={{ noMerge: true }}>
+            <StaticMerge>
+              <DoorLeaf w={w - 0.01} h={h - 0.01} glass={glass} frame={mats.frame} />
+            </StaticMerge>
+          </group>
+        ))}
     </group>
   );
 }
@@ -453,7 +449,7 @@ function Totems() {
   const map = useMemo(() => siteMapTexture(), []);
   useEffect(() => () => map.dispose(), [map]);
   const content = {
-    welcome: { title: "Welcome", color: "#3DA9FC", lines: [] as string[] },
+    welcome: { title: "Welcome", color: "#E8B67E", lines: [] as string[] },
     wallet: { title: "Wallet Kiosk", color: "#F5B301", lines: ["Practice with Stars today", "Coins arrive with the", "licensed real-money pilot"] },
   } as const;
   return (
@@ -464,7 +460,7 @@ function Totems() {
           <group key={t.id} position={[t.x, 0, t.z]} rotation={[0, t.rotY, 0]}>
             <mesh position={[0, 1.95, 0.158]}>
               <planeGeometry args={[2.2, 3.2]} />
-              <meshBasicMaterial color="#14183f" toneMapped={false} />
+              <meshBasicMaterial color="#1e130c" toneMapped={false} />
             </mesh>
             <Text font={FONT} fontSize={0.3} color={c.color} position={[0, 3.1, 0.17]} anchorX="center">
               {c.title}

@@ -103,7 +103,7 @@ for (const g of halls) {
     Object.assign(window.__gkPlayer.pos, { x, z });
   }, [stand[0], stand[2]]);
   await waitFor(([x, z]) => Math.hypot(window.__gkProbe.self.x - x, window.__gkProbe.self.z - z) < 1.5 && window.__gkProbe.view === "plaza", 30000, [stand[0], stand[2]]);
-  if (has) await waitFor((h) => window.__gkGlass.interiors.includes(h) && window.__gkGlass.reflections.includes(h), 60000, g);
+  if (has) await waitFor((h) => window.__gkGlass.reflections.includes(h), 60000, g);
   await sleep(has ? 2500 : 8000);
   const T = [b.x, b.y, b.zf];
   const views = {

@@ -7,6 +7,8 @@ export const W = {
   closedTitle: (place: string) => `${place} is closed`,
   closedFallback: "Please come back later.",
   closedSign: "CLOSED",
+  /** door plaque of a hall that has not opened yet (its feature flag off) */
+  openingSoonSign: "OPENING SOON",
   closedAction: "Closed",
   closedPrompt: (place: string, msg: string) => `${place} is closed${msg ? ` · ${msg}` : ""}`,
   dismiss: "Close",
