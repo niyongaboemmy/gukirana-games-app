@@ -19,9 +19,14 @@ import { buildGlove, headgearSeam, headgearThickness, HEADGEAR_V5, HEADGEAR_V6, 
 import { bakeDetail, bandHeight, encodePng } from "./anatomy-bake.mjs";
 import { measureBody } from "./measure.mjs";
 import { bakeVertexAo } from "./vertex-ao.mjs";
+import { V8_GENDERS, v8Positions } from "./v8-body.mjs";
+import { boundaryVerts, decimate, edgeDistance, mhNameMap, normalsOf as kitNormals, readProtoCloth, readProtoKit } from "./v8-kit.mjs";
+import { closestSurface, signedDistances, transferWeights, triGrid } from "./garment-skin.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const OUT = join(HERE, "../../public/assets/characters");
+/** P3-FGT-19B (docs/FIGHT-REALISM-V8.md): V8=1 builds the v8 fighters into characters/v8/ (v7 stays the fallback) */
+const V8_BUILD = process.env.V8 === "1";
+const OUT = join(HERE, "../../public/assets/characters", V8_BUILD ? "v8" : "");
 const MH = process.env.MH_DIR;
 if (!MH) throw new Error("set MH_DIR to makehuman/makehuman/data");
 
@@ -301,7 +306,17 @@ const PROPORTION_V7 = {
     ["head/head-scale-depth-incr", 0.15],
   ],
 };
+/** P3-FGT-19B: per vertex, MakeHuman bone name → weight (the v8 sculpt limits its volumes by these) */
+const VW_MH = (() => {
+  const a = Array.from({ length: BASE.length / 3 }, () => new Map());
+  for (const [bone, list] of Object.entries(MHW)) for (const [vi, w] of list) a[vi].set(bone, (a[vi].get(bone) ?? 0) + w);
+  return a;
+})();
 function variantPositions(params) {
+  if (params.v8) {
+    const bodyFaces = GROUPS.get("body");
+    return v8Positions({ MH, base: BASE, bodyFaces, bodyVerts: [...new Set(bodyFaces.flat())], vw: VW_MH }, params);
+  }
   const g = params.gender >= 0.5 ? "m" : "f";
   const sets = ATHLETIC_ON ? [...(ATHLETIC[g] ?? []), ...(V7_BUILD ? (PROPORTION_V7[g] ?? []) : [])] : [];
   const extra = sets.map(([f, w]) => [join(MH, "targets", `${f}.target`), w * (params.athletic ?? 1)]);
@@ -736,7 +751,497 @@ function buildVariant(key, base, morphParams) {
     const p = V(i);
     return p[1] < waistY + 0.01 && p[1] > ankleL[1] + 0.03 && !isArm(i) && footW(i) < 0.3;
   };
+  /* ---------------- P3-FGT-19B: the v8 garments and kit (v8-kit.mjs; docs/FIGHT-REALISM-V8.md §Garments) ---------------- */
+  let v8CoverCache = null;
+  const v8 = V8_BUILD ? buildV8Kit() : null;
+  function buildV8Kit() {
+    const fighter = key === "m" ? "mW" : "fL";
+    const PROTO = process.env.V8_PROTO ?? join(HERE, "../../../../qa/fighter-v8/out");
+    const kitSrc = readProtoKit(join(PROTO, `${fighter}.glb`));
+    const cloth = readProtoCloth(join(PROTO, "cloth", `${fighter}-rest.json`), Object.keys(skel.bones));
+    const names = mhNameMap(Object.keys(skel.bones));
+    const toFinal = (name) => {
+      const n = names.get(name) ?? name;
+      return /^lowerarm02\./.test(n) ? FINAL_INDEX.get(`Bip01_${n.endsWith(".L") ? "L" : "R"}_ForearmTwist`) : finalOf(n);
+    };
+    const finalSkin = (mhMap) => {
+      const acc = new Map();
+      for (const [b, w] of mhMap) acc.set(toFinal(b), (acc.get(toFinal(b)) ?? 0) + w);
+      return acc;
+    };
+    const pelvisB = FINAL_INDEX.get("Bip01_Pelvis");
+    const legB = new Set(["L", "R"].flatMap((S) => ["Thigh", "Calf", "Foot", "Toe0"].map((b) => FINAL_INDEX.get(`Bip01_${S}_${b}`))));
+    const armB = new Set(FB.map((b, i) => [b[0], i]).filter(([n]) => /_(UpperArm|Forearm|Hand|Finger|ShoulderTwist|UpperArmTwist|ForearmTwist|ShoulderHelper)/.test(n)).map(([, i]) => i));
+    // the body surface (bind pose) for the morph source of each garment vertex
+    const bodyTriList = tri(bodyFaces);
+    const bodyGrid = triGrid(P, bodyTriList, 0.04);
+    const nearestBody = (p) => {
+      const h = closestSurface(bodyGrid, p, 0.25);
+      if (!h) return -1;
+      const t = bodyTriList[h.t];
+      return h.u >= h.v && h.u >= h.w ? t[0] : h.v >= h.w ? t[1] : t[2];
+    };
+    const stats = {};
+    /** decimate a source mesh into a MeshBuilder: positions / normals / uvs / skin of the kept source vertices */
+    const into = (mb, label, mesh, target, mat, { follow = "body", rule = null, lock = !!mesh.panel, xf = null } = {}) => {
+      const N0 = mesh.N ?? kitNormals(mesh.P, mesh.tris);
+      const d = decimate(mesh, process.env.V8_NODECIM === "1" ? Infinity : target, { lockBorder: lock, error: lock ? 0.02 : 0.08 });
+      const base = mb.count;
+      const rigidB = (m) => [...m.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? pelvisB;
+      for (let k = 0; k < d.src.length; k++) {
+        const s0 = d.src[k];
+        let p = [mesh.P[s0 * 3], mesh.P[s0 * 3 + 1], mesh.P[s0 * 3 + 2]];
+        if (xf) p = xf(p);
+        let sk = finalSkin(mesh.skin[s0]);
+        if (rule) sk = rule(sk, s0, p);
+        const m = typeof mat === "function" ? mat(s0, k, p) : mat;
+        mb.vert(p, [N0[s0 * 3], N0[s0 * 3 + 1], N0[s0 * 3 + 2]], top4(sk), m, { src: follow === "body" ? nearestBody(p) : -1, uv: [mesh.UV[s0 * 2], mesh.UV[s0 * 2 + 1]], ao: 0.85 });
+        void rigidB;
+      }
+      for (let t = 0; t < d.tris.length; t += 3) mb.face(base + d.tris[t], base + d.tris[t + 1], base + d.tris[t + 2]);
+      stats[label] = { tris: d.tris.length / 3, verts: d.src.length, srcTris: mesh.tris.length / 3, error: +d.error.toFixed(4) };
+      return { base, d };
+    };
+
+    // singlet: the cloth's own skin (no arm bone: SPEC §7b); a 1.1 cm binding along the arm holes and the neck
+    const vest = new MeshBuilder("kit_vest");
+    const vm = cloth.meshes.get("vest");
+    const noArm = (sk) => {
+      const o = new Map();
+      for (const [b, w] of sk) {
+        const t = armB.has(b) ? FINAL_INDEX.get("Bip01_Spine2") : b;
+        o.set(t, (o.get(t) ?? 0) + w);
+      }
+      return o;
+    };
+    into(vest, "vest", vm, Number(process.env.V8_VEST ?? 3500), MAT.vest, { rule: noArm });
+    {
+      const P3 = Float64Array.from(vest.p);
+      const bnd = boundaryVerts(vest.idx, vest.count);
+      let minY = Infinity;
+      for (let k = 0; k < vest.count; k++) minY = Math.min(minY, vest.p[k * 3 + 1]);
+      // the tucked hem is not bound (it sits under the band); the arm holes and the neck are
+      for (let k = 0; k < vest.count; k++) if (bnd[k] && vest.p[k * 3 + 1] < minY + 0.05) bnd[k] = 0;
+      const ed = edgeDistance(P3, vest.idx, bnd);
+      for (let k = 0; k < vest.count; k++) if (ed[k] < 0.011) vest.mat[k] = MAT.vestTrim;
+      // (the body's cull distance is measured from the arm holes and the neck only: the hem is tucked under the band)
+      vest.edgeDist = ed;
+      // the arm-hole ring rides on the shoulder girdle (SPEC §7b keeps the arm out of the cloth; the binding still has
+      // to rise with the deltoid and the shrugged clavicle in a guard, or the shoulder skin comes through it): within
+      // 7 cm of the arm hole the singlet blends to the body's own weights at its closest point, the arm bones replaced
+      // by the shoulder helper (half the arm's turn) — never the upper arm, forearm or hand
+      const J4 = new Uint16Array(NV * 4),
+        W4 = new Float32Array(NV * 4);
+      VW.forEach((list, i) => list.forEach(([b, w], q) => ((J4[i * 4 + q] = b), (W4[i * 4 + q] = w))));
+      const hole = boundaryVerts(vest.idx, vest.count);
+      let hy = Infinity;
+      for (let k = 0; k < vest.count; k++) hy = Math.min(hy, vest.p[k * 3 + 1]);
+      for (let k = 0; k < vest.count; k++) if (hole[k] && (vest.p[k * 3 + 1] < hy + 0.05 || Math.abs(vest.p[k * 3]) < shoulderX * 0.45)) hole[k] = 0; // arm holes only (not the hem, not the neck)
+      const eh = edgeDistance(P3, vest.idx, hole);
+      const tw = transferWeights({ P, tris: bodyTriList, J: J4, W: W4 }, Float64Array.from(vest.p), { smoothIters: 2, grid: bodyGrid, faces: Array.from({ length: vest.idx.length / 3 }, (_, t) => [vest.idx[t * 3], vest.idx[t * 3 + 1], vest.idx[t * 3 + 2]]) });
+      const helperOf = (b) => {
+        const n = FB[b]?.[0] ?? "";
+        const m = /^Bip01_([LR])_(UpperArm|UpperArmTwist|ShoulderTwist|Forearm|ForearmTwist|Hand|Finger)/.exec(n);
+        return m ? (FINAL_INDEX.get(`Bip01_${m[1]}_ShoulderHelper`) ?? FINAL_INDEX.get(`Bip01_${m[1]}_Clavicle`)) : b;
+      };
+      for (let k = 0; k < vest.count; k++) {
+        // (the whole jersey follows the chest / lat skin it lies on — V8_VEST_FOLLOW of the body's own weights, 0.6 — and
+        // the top of the arm hole fully; never the armpit / side seam below it, which would drag behind the arm)
+        const holeTop = (1 - smooth(0.0, 0.07, eh[k])) * smooth(shoulderL[1] - 0.1, shoulderL[1] - 0.03, vest.p[k * 3 + 1]);
+        const under = smooth(shoulderL[1] - 0.1, shoulderL[1] - 0.16, vest.p[k * 3 + 1]) * (1 - smooth(0.0, 0.05, eh[k]));
+        const t = Math.max(holeTop, Number(process.env.V8_VEST_FOLLOW ?? 0.6) * (1 - under));
+        if (t <= 0.001) continue;
+        const mix = new Map();
+        for (let q = 0; q < 4; q++) {
+          if (vest.w[k * 4 + q] > 0) mix.set(vest.j[k * 4 + q], (mix.get(vest.j[k * 4 + q]) ?? 0) + vest.w[k * 4 + q] * (1 - t));
+          if (tw.W[k * 4 + q] > 0) {
+            const b = helperOf(tw.J[k * 4 + q]);
+            mix.set(b, (mix.get(b) ?? 0) + tw.W[k * 4 + q] * t);
+          }
+        }
+        const top = top4(mix);
+        for (let q = 0; q < 4; q++) ((vest.j[k * 4 + q] = top[q]?.[0] ?? 0), (vest.w[k * 4 + q] = top[q]?.[1] ?? 0));
+      }
+    }
+    // trunks (each leg follows its own leg; 18 % of the leg's weight on the pelvis so the cloth lags) + the band
+    const trunks = new MeshBuilder("kit_trunks");
+    const lag = (sk, y = -Infinity) => {
+      // (P3-FGT-19B: none above the crotch — the cloth on the hip crease moves like the skin — rising to 18 % 12 cm below)
+      const k = 0.18 * smooth(thighL[1] - 0.05, thighL[1] - 0.17, y);
+      const o = new Map();
+      for (const [b, w] of sk) {
+        if (legB.has(b)) {
+          o.set(b, (o.get(b) ?? 0) + w * (1 - k));
+          o.set(pelvisB, (o.get(pelvisB) ?? 0) + w * k);
+        } else o.set(b, (o.get(b) ?? 0) + w);
+      }
+      return o;
+    };
+    // each leg panel follows its own leg only (the solver's weights diffuse across the crotch seam: in a wide stance
+    // the inner panels then stretched between the legs like a skirt): weights from the body's closest point, the other
+    // leg's bones moved onto the pelvis, then the lag
+    const tm = cloth.meshes.get("trunks");
+    {
+      const sumX = new Map();
+      tm.panel.forEach((pn, i) => {
+        const a = sumX.get(pn) ?? [0, 0];
+        a[0] += tm.P[i * 3];
+        a[1]++;
+        sumX.set(pn, a);
+      });
+      const sideOf = new Map([...sumX].map(([pn, [x, c]]) => [pn, x / c > 0 ? "L" : "R"]));
+      const J4 = new Uint16Array(NV * 4),
+        W4 = new Float32Array(NV * 4);
+      VW.forEach((list, i) => list.forEach(([b, w], q) => ((J4[i * 4 + q] = b), (W4[i * 4 + q] = w))));
+      const tw = transferWeights({ P, tris: bodyTriList, J: J4, W: W4 }, tm.P, { faces: Array.from({ length: tm.tris.length / 3 }, (_, t) => [tm.tris[t * 3], tm.tris[t * 3 + 1], tm.tris[t * 3 + 2]]), smoothIters: 3, grid: bodyGrid });
+      const other = { L: new Set(["Thigh", "Calf", "Foot", "Toe0"].map((b) => FINAL_INDEX.get(`Bip01_R_${b}`))), R: new Set(["Thigh", "Calf", "Foot", "Toe0"].map((b) => FINAL_INDEX.get(`Bip01_L_${b}`))) };
+      tm.finalSkin = Array.from({ length: tm.P.length / 3 }, (_, i) => {
+        const o = new Map();
+        const bad = other[sideOf.get(tm.panel[i])];
+        for (let q = 0; q < 4; q++) {
+          const w = tw.W[i * 4 + q];
+          if (!w) continue;
+          const b = bad.has(tw.J[i * 4 + q]) ? pelvisB : tw.J[i * 4 + q];
+          o.set(b, (o.get(b) ?? 0) + w);
+        }
+        return o;
+      });
+    }
+    into(trunks, "trunks", tm, Number(process.env.V8_TRUNKS ?? 2800), MAT.trunks, { rule: (_sk, s0, p) => lag(tm.finalSkin[s0], p[1]) });
+    const bandStart = trunks.count;
+    // (the elastic band rides on the pelvis and waist — it never follows a thigh)
+    const noLeg = (sk) => {
+      const o = new Map();
+      for (const [b, w] of sk) {
+        const t = legB.has(b) ? pelvisB : b;
+        o.set(t, (o.get(t) ?? 0) + w);
+      }
+      return o;
+    };
+    into(trunks, "band", cloth.meshes.get("band"), Number(process.env.V8_BAND ?? 1200), MAT.belt, { rule: noLeg });
+    {
+      // the cull distance runs from the leg hems only (the waist edges are sewn into the band, the band's top sits
+      // over the tucked singlet)
+      const seeds = boundaryVerts(trunks.idx, trunks.count);
+      const crotch = thighL[1] - 0.05;
+      for (let k = 0; k < trunks.count; k++) if (seeds[k] && trunks.p[k * 3 + 1] > crotch) seeds[k] = 0;
+      trunks.edgeDist = edgeDistance(Float64Array.from(trunks.p), trunks.idx, seeds);
+    }
+    // the singlet's tucked part moves with the band (garment–garment, checklist 7): below the band top it takes the
+    // nearest band vertex's skin, blending back to its own over the 6 cm above it
+    {
+      let bTop = -Infinity;
+      for (let k = bandStart; k < trunks.count; k++) bTop = Math.max(bTop, trunks.p[k * 3 + 1]);
+      const bp3 = (k) => [trunks.p[k * 3], trunks.p[k * 3 + 1], trunks.p[k * 3 + 2]];
+      for (let k = 0; k < vest.count; k++) {
+        const y = vest.p[k * 3 + 1];
+        const t = 1 - smooth(bTop - 0.005, bTop + 0.06, y);
+        if (t <= 0) continue;
+        const p = [vest.p[k * 3], vest.p[k * 3 + 1], vest.p[k * 3 + 2]];
+        let best = -1,
+          bd = Infinity;
+        for (let q = bandStart; q < trunks.count; q++) {
+          const d = len(sub(bp3(q), p));
+          if (d < bd) ((bd = d), (best = q));
+        }
+        const mix = new Map();
+        for (let q = 0; q < 4; q++) {
+          if (vest.w[k * 4 + q] > 0) mix.set(vest.j[k * 4 + q], (mix.get(vest.j[k * 4 + q]) ?? 0) + vest.w[k * 4 + q] * (1 - t));
+          if (trunks.w[best * 4 + q] > 0) mix.set(trunks.j[best * 4 + q], (mix.get(trunks.j[best * 4 + q]) ?? 0) + trunks.w[best * 4 + q] * t);
+        }
+        top4(mix).forEach(([b, w], q) => ((vest.j[k * 4 + q] = b), (vest.w[k * 4 + q] = w)));
+        for (let q = top4(mix).length; q < 4; q++) ((vest.j[k * 4 + q] = 0), (vest.w[k * 4 + q] = 0));
+      }
+    }
+    // the singlet is tucked into the band (SPEC §7, checklist 9): within the band's height every singlet vertex sits at
+    // least 2.5 mm inside the band's radius at its azimuth (round the band's own axis)
+    {
+      let bx = 0,
+        bz = 0,
+        nb = 0,
+        bLo = Infinity,
+        bHi = -Infinity;
+      for (let k = bandStart; k < trunks.count; k++) {
+        bx += trunks.p[k * 3];
+        bz += trunks.p[k * 3 + 2];
+        nb++;
+        bLo = Math.min(bLo, trunks.p[k * 3 + 1]);
+        bHi = Math.max(bHi, trunks.p[k * 3 + 1]);
+      }
+      bx /= nb;
+      bz /= nb;
+      let pulled = 0;
+      for (let k = 0; k < vest.count; k++) {
+        const y = vest.p[k * 3 + 1];
+        if (y < bLo - 0.01 || y > bHi + 0.004) continue;
+        const x = vest.p[k * 3],
+          z = vest.p[k * 3 + 2];
+        // the nearest band vertex: the singlet sits 3 mm inside its radius (round the band's centroid)
+        let nb = -1,
+          nd = Infinity;
+        for (let q = bandStart; q < trunks.count; q++) {
+          const d = Math.hypot(trunks.p[q * 3] - x, trunks.p[q * 3 + 1] - y, trunks.p[q * 3 + 2] - z);
+          if (d < nd) ((nd = d), (nb = q));
+        }
+        const lim = Math.hypot(trunks.p[nb * 3] - bx, trunks.p[nb * 3 + 2] - bz) - 0.004;
+        const r = Math.hypot(x - bx, z - bz);
+        if (r <= lim) continue;
+        vest.p[k * 3] = bx + ((x - bx) * lim) / r;
+        vest.p[k * 3 + 2] = bz + ((z - bz) * lim) / r;
+        pulled++;
+      }
+      stats.tuckPulled = pulled;
+      // the trunks' gathered top edge is sewn under the band (the two rings coincided and z-fought into a ragged edge):
+      // every trunks vertex within 1.2 cm of the band's bottom sits 2.5 mm inside the band
+      let under = 0;
+      for (let k = 0; k < bandStart; k++) {
+        const y = trunks.p[k * 3 + 1];
+        if (y < bLo - 0.012) continue;
+        const x = trunks.p[k * 3],
+          z = trunks.p[k * 3 + 2];
+        let nb = -1,
+          nd = Infinity;
+        for (let q = bandStart; q < trunks.count; q++) {
+          const d = Math.hypot(trunks.p[q * 3] - x, trunks.p[q * 3 + 1] - y, trunks.p[q * 3 + 2] - z);
+          if (d < nd) ((nd = d), (nb = q));
+        }
+        const lim = Math.hypot(trunks.p[nb * 3] - bx, trunks.p[nb * 3 + 2] - bz) - 0.0025;
+        const r = Math.hypot(x - bx, z - bz);
+        if (r <= lim) continue;
+        trunks.p[k * 3] = bx + ((x - bx) * lim) / r;
+        trunks.p[k * 3 + 2] = bz + ((z - bz) * lim) / r;
+        under++;
+      }
+      stats.trunksUnderBand = under;
+    }
+    // gloves (rigid to the hand, the cuff blended into the forearm twist by the prototype), tape and white panel
+    const gloves = new MeshBuilder("kit_gloves");
+    for (const S of ["L", "R"]) {
+      const g = gloveFit(S);
+      const before = gloves.count;
+      into(gloves, `glove${S}_leather`, kitSrc.get(`glove${S}_leather`), 1000, MAT.glove, { follow: "rigid", xf: g.xf });
+      into(gloves, `glove${S}_target`, kitSrc.get(`glove${S}_target`), 300, MAT.gloveTarget, { follow: "rigid", xf: g.xf });
+      into(gloves, `glove${S}_tape`, kitSrc.get(`glove${S}_tape`), 200, MAT.gloveCuff, { follow: "rigid", xf: g.xf });
+      // the white scoring panel on the knuckle face only (SPEC §8, checklist 15): never more than 6 cm behind the
+      // striking face (the prototype's panel ran back over the top of the hand)
+      for (let k = before; k < gloves.count; k++) if (gloves.mat[k] === MAT.gloveTarget && g.along([gloves.p[k * 3], gloves.p[k * 3 + 1], gloves.p[k * 3 + 2]]) < g.face - 0.054) gloves.mat[k] = MAT.glove;
+    }
+    /**
+     * The 10 oz glove to the spec's numbers (SPEC §7a, §8): the prototype's fist block measures 13.8 × 13.3 cm across /
+     * deep and its cuff runs 12.5 cm behind the wrist; the spec asks 11.8 ± 0.5 × 11–12.5 and a 10.4 cm cuff. In the
+     * glove's own frame (its principal axis from the cuff to the striking face; radial = index → little finger), the
+     * fist block's section is narrowed about its centre (fading to none at the wrist, so the cuff still hugs it) and
+     * the cuff is shortened towards the wrist.
+     */
+    function gloveFit(S) {
+      const src = ["leather", "target", "tape"].flatMap((k) => {
+        const m = kitSrc.get(`glove${S}_${k}`);
+        const out = [];
+        for (let i = 0; i < m.P.length; i += 9) out.push([m.P[i], m.P[i + 1], m.P[i + 2]]);
+        return out;
+      });
+      const wrist = bp(`Bip01_${S}_Hand`),
+        elbow = bp(`Bip01_${S}_Forearm`);
+      const c0 = [0, 1, 2].map((k) => src.reduce((s2, q) => s2 + q[k], 0) / src.length);
+      const C = new Array(9).fill(0);
+      for (const q of src) {
+        const d = sub(q, c0);
+        for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) C[i * 3 + j] += d[i] * d[j];
+      }
+      let a = norm(sub(wrist, elbow));
+      for (let it = 0; it < 60; it++) a = norm([0, 1, 2].map((i) => C[i * 3] * a[0] + C[i * 3 + 1] * a[1] + C[i * 3 + 2] * a[2]));
+      if (dot(a, sub(wrist, elbow)) < 0) a = scl(a, -1);
+      let r = sub(bp(`Bip01_${S}_Finger1`), bp(`Bip01_${S}_Finger4`));
+      r = norm(sub(r, scl(a, dot(r, a))));
+      const d = cross(a, r);
+      const loc = (q) => {
+        const v = sub(q, wrist);
+        return [dot(v, a), dot(v, r), dot(v, d)];
+      };
+      const L = src.map(loc);
+      const face = Math.max(...L.map((x) => x[0]));
+      const blk = L.filter((x) => x[0] > face - 0.04 && x[0] < face - 0.015);
+      const cr = blk.reduce((s2, x) => s2 + x[1], 0) / blk.length,
+        cd = blk.reduce((s2, x) => s2 + x[2], 0) / blk.length;
+      const wr = Math.max(...blk.map((x) => x[1])) - Math.min(...blk.map((x) => x[1]));
+      const wd = Math.max(...blk.map((x) => x[2])) - Math.min(...blk.map((x) => x[2]));
+      const kr = Math.min(1, 0.122 / wr),
+        kd = Math.min(1, 0.124 / wd);
+      const back = -Math.min(...L.map((x) => x[0]));
+      // the cuff behind the tape shortens (the 5 cm tape band keeps its width): back → 10.4 cm
+      const tm = kitSrc.get(`glove${S}_tape`);
+      let t0 = Infinity;
+      for (let i = 0; i < tm.P.length; i += 3) t0 = Math.min(t0, loc([tm.P[i], tm.P[i + 1], tm.P[i + 2]])[0]);
+      const kc = Math.min(1, Math.max(0.3, (0.104 + t0) / Math.max(1e-3, back + t0)));
+      const xf = (q) => {
+        let [s2, rr, dd] = loc(q);
+        const t = Math.min(1, Math.max(0, (s2 - 0.0) / 0.04));
+        rr = cr + (rr - cr) * (1 + (kr - 1) * t);
+        dd = cd + (dd - cd) * (1 + (kd - 1) * t);
+        if (s2 < t0) s2 = t0 + (s2 - t0) * kc;
+        return add(add(add(wrist, scl(a, s2)), scl(r, rr)), scl(d, dd));
+      };
+      return { xf, along: (q) => dot(sub(q, wrist), a), face };
+    }
+    const headgear = new MeshBuilder("kit_headgear");
+    into(headgear, "headgear_shell", kitSrc.get("headgear_shell"), 3100, MAT.headgear);
+    into(headgear, "headgear_chinstrap", kitSrc.get("headgear_chinstrap"), 150, MAT.headgearTrim);
+    into(headgear, "headgear_velcro", kitSrc.get("headgear_velcro"), 250, MAT.headgearTrim);
+    const boots = new MeshBuilder("kit_boots");
+    for (const S of ["L", "R"]) {
+      into(boots, `boot${S}_upper`, kitSrc.get(`boot${S}_upper`), 850, MAT.boot);
+      into(boots, `boot${S}_sole`, kitSrc.get(`boot${S}_sole`), 250, MAT.sole);
+      into(boots, `boot${S}_lace`, kitSrc.get(`boot${S}_lace`), 150, MAT.lace);
+    }
+    const wraps = new MeshBuilder("kit_wraps");
+    for (const S of ["L", "R"]) into(wraps, `wraps${S}`, kitSrc.get(`wraps${S}`), 400, MAT.wrap, { follow: "rigid" });
+
+    // the body under each garment core (SPEC §7: > 3 cm inside the cut edges; never the arm-hole band), inside the
+    // boots and gloves, and under the headgear's padding
+    const gridOf = (mb) => {
+      const t = [];
+      for (let k = 0; k < mb.idx.length; k += 3) t.push([mb.idx[k], mb.idx[k + 1], mb.idx[k + 2]]);
+      return { grid: triGrid(Float64Array.from(mb.p), t, 0.03), tris: t };
+    };
+    const gV = gridOf(vest),
+      gT = gridOf(trunks),
+      gH = gridOf(headgear);
+    const sdBoots = signedDistances({ P: Float64Array.from(boots.p), tris: gridOf(boots).tris }, P, { maxDist: 0.08 });
+    const sdGloves = signedDistances({ P: Float64Array.from(gloves.p), tris: gridOf(gloves).tris }, P, { maxDist: 0.08 });
+    const edgeAt = (g, mb, h) => {
+      const t = g.tris[h.t];
+      return mb.edgeDist[t[0]] * h.u + mb.edgeDist[t[1]] * h.v + mb.edgeDist[t[2]] * h.w;
+    };
+    const under = (g, mb, i, maxD) => {
+      const p = V(i);
+      const h = closestSurface(g.grid, p, maxD);
+      if (!h) return -1;
+      const n = Nv(i);
+      const dq = sub(h.q, p);
+      if (dot(dq, n) < -0.004) return -1; // the garment is behind the skin here
+      return edgeAt(g, mb, h);
+    };
+    const cover = (i) => {
+      let c = 0;
+      const arm = isArm(i);
+      const ev = arm ? -1 : under(gV, vest, i, 0.06);
+      if (ev > 0.03) c |= COVER.vest;
+      if (ev > 0.045) c |= COVER.vestCore;
+      const et = under(gT, trunks, i, 0.07);
+      if (et > 0.03) c |= COVER.trunks;
+      if (sdBoots[i] < -0.002) c |= COVER.boots;
+      // (the prototype's cuff runs 10.4 cm past the wrist: the v7 hand + 6 cm rule is always inside it)
+      if (sdGloves[i] < -0.002 || glovesCover(i)) c |= COVER.gloves;
+      if (isHeadV(i)) {
+        const h = closestSurface(gH.grid, V(i), 0.04);
+        if (h) {
+          const dq = sub(h.q, V(i));
+          if (dot(norm(dq), Nv(i)) > 0.7) c |= COVER.headgear;
+        }
+      }
+      if (hairCover(i)) c |= COVER.hair;
+      return c;
+    };
+    // every cloth triangle faces out (the sewing panels are cut mirrored: the solver's back panel was wound inwards, so
+    // half the singlet showed its inner face and the seams averaged opposite normals), then the normals are rebuilt
+    for (const mb of [vest, trunks]) {
+      let flipped = 0;
+      for (let t = 0; t < mb.idx.length; t += 3) {
+        const [a, b2, c] = [mb.idx[t], mb.idx[t + 1], mb.idx[t + 2]];
+        const pa = [mb.p[a * 3], mb.p[a * 3 + 1], mb.p[a * 3 + 2]],
+          pb = [mb.p[b2 * 3], mb.p[b2 * 3 + 1], mb.p[b2 * 3 + 2]],
+          pc = [mb.p[c * 3], mb.p[c * 3 + 1], mb.p[c * 3 + 2]];
+        const cen = scl(add(add(pa, pb), pc), 1 / 3);
+        const nt = cross(sub(pb, pa), sub(pc, pa));
+        const h = closestSurface(bodyGrid, cen, 0.2);
+        if (!h) continue;
+        const bt = bodyTriList[h.t];
+        const nb = [0, 1, 2].map((ax) => Nv(bt[0])[ax] * h.u + Nv(bt[1])[ax] * h.v + Nv(bt[2])[ax] * h.w);
+        if (dot(nt, nb) < 0) {
+          mb.idx[t + 1] = c;
+          mb.idx[t + 2] = b2;
+          flipped++;
+        }
+      }
+      const N2 = kitNormals(Float64Array.from(mb.p), mb.idx);
+      for (let i = 0; i < mb.n.length; i++) mb.n[i] = N2[i];
+      stats[`${mb.name}Flipped`] = flipped;
+    }
+    // the cloth outside the body that is DRAWN (low-poly, culled for the kit): the solver draped on the subdivided body,
+    // whose limit surface lies a little inside this control mesh — every singlet / trunks / band vertex is pushed out
+    // along the drawn skin's interpolated normal to 2.5 mm (closest point on a triangle; the runtime does not repeat it)
+    {
+      const KIT = COVER.vest | COVER.trunks | COVER.boots | COVER.gloves | COVER.headgear;
+      const cv = new Uint16Array(NV);
+      for (const i of new Set(bodyFaces.flat())) cv[i] = cover(i);
+      const drawn = bodyTriList.filter(([a, b2, c]) => !(cv[a] & cv[b2] & cv[c] & KIT) && !(((cv[a] & cv[b2]) | (cv[b2] & cv[c]) | (cv[a] & cv[c])) & COVER.vestCore));
+      const g2 = triGrid(P, drawn, 0.03);
+      let pushed = 0;
+      let bandTopV8 = -Infinity;
+      for (let k = bandStart; k < trunks.count; k++) bandTopV8 = Math.max(bandTopV8, trunks.p[k * 3 + 1]);
+      for (const mb of [vest, trunks]) {
+        for (let k = 0; k < mb.count; k++) {
+          const p = [mb.p[k * 3], mb.p[k * 3 + 1], mb.p[k * 3 + 2]];
+          const h = closestSurface(g2, p, 0.03);
+          if (!h) continue;
+          const [a, b2, c] = drawn[h.t];
+          const nn = norm([0, 1, 2].map((ax) => Nv(a)[ax] * h.u + Nv(b2)[ax] * h.v + Nv(c)[ax] * h.w));
+          const sd = dot(sub(p, h.q), nn);
+          // (a vertex far "inside" is beside another part: an arm against the chest — left alone). The margin is the
+          // cloth's working room over skin that moves under it: 5 mm for the jersey, 6 mm for the satin above the crotch
+          // (not the tucked singlet in the band's height: it stays inside the band, never pushed back out through it)
+          if (mb === vest && p[1] < bandTopV8 + 0.003) continue;
+          const margin = mb === vest ? 0.005 : p[1] > thighL[1] - 0.05 ? 0.006 : 0.0035;
+          if (sd >= margin || sd < -0.03) continue;
+          const k2 = margin - sd;
+          for (let ax = 0; ax < 3; ax++) mb.p[k * 3 + ax] += nn[ax] * k2;
+          pushed++;
+        }
+      }
+      stats.pushedOut = pushed;
+      // the tuck again, against the band as the push-out left it (the band moved out a little; its centroid with it)
+      {
+        let bx = 0,
+          bz = 0,
+          bLo = Infinity,
+          bHi = -Infinity;
+        const nbv = trunks.count - bandStart;
+        for (let k = bandStart; k < trunks.count; k++) {
+          bx += trunks.p[k * 3] / nbv;
+          bz += trunks.p[k * 3 + 2] / nbv;
+          bLo = Math.min(bLo, trunks.p[k * 3 + 1]);
+          bHi = Math.max(bHi, trunks.p[k * 3 + 1]);
+        }
+        let again = 0;
+        for (let k = 0; k < vest.count; k++) {
+          const y = vest.p[k * 3 + 1];
+          if (y < bLo - 0.01 || y > bHi + 0.004) continue;
+          const x = vest.p[k * 3],
+            z = vest.p[k * 3 + 2];
+          let nb = -1,
+            nd = Infinity;
+          for (let q = bandStart; q < trunks.count; q++) {
+            const d = Math.hypot(trunks.p[q * 3] - x, trunks.p[q * 3 + 1] - y, trunks.p[q * 3 + 2] - z);
+            if (d < nd) ((nd = d), (nb = q));
+          }
+          const lim = Math.hypot(trunks.p[nb * 3] - bx, trunks.p[nb * 3 + 2] - bz) - 0.004;
+          const r = Math.hypot(x - bx, z - bz);
+          if (r <= lim) continue;
+          vest.p[k * 3] = bx + ((x - bx) * lim) / r;
+          vest.p[k * 3 + 2] = bz + ((z - bz) * lim) / r;
+          again++;
+        }
+        stats.tuckAgain = again;
+      }
+      v8CoverCache = cv;
+    }
+    let bandTop = -Infinity;
+    for (let k = bandStart; k < trunks.count; k++) bandTop = Math.max(bandTop, trunks.p[k * 3 + 1]);
+    console.log(`  v8 kit ${key}: ${JSON.stringify(stats)}`);
+    return { vest, trunks, gloves, headgear, boots, wraps, cover, bandTop, stats };
+  }
   const coverBits = (i) =>
+    v8 ? v8CoverCache[i] :
     // (P3-FGT-16: at the front neckline the skin slides under the cloth as the chin tucks: the body is kept 3 cm further
     // in there; at the back it would rise through the cloth instead, so not behind the neck)
     (vestField(i) > 0.004 + 0.03 * smooth(0.02, 0.15, wOf(i, "Bip01_Neck") + wOf(i, "Bip01_Head")) * smooth(spine2[2] + 0.05, spine2[2] + 0.09, V(i)[2]) ? COVER.vest : 0) |
@@ -2178,8 +2683,8 @@ function buildVariant(key, base, morphParams) {
       }
     };
     push(bodyMesh);
-    push(vest);
-    push(trunks);
+    push(v8 ? v8.vest : vest);
+    push(v8 ? v8.trunks : trunks);
     const skinV = [];
     for (let v = 0; v < bodyMesh.count; v++) if (bodyMesh.mat[v] === MAT.skin) skinV.push(v);
     const pts = new Float64Array(skinV.length * 3), nrm = new Float64Array(skinV.length * 3);
@@ -2193,8 +2698,35 @@ function buildVariant(key, base, morphParams) {
     skinV.forEach((v, k) => (bodyMesh.ao[v] = ao[k]));
   }
 
-  const meshes = [bodyMesh, vest, trunks, boots, socks, gloves, headgear, wraps, shirt, refCollar, bowtie, trousers, shoes, polo, poloCollar, hairCap];
-  return { key, G, meshes, landmarks: { headC, eyeL, eyeR, kit: [Math.abs(thighL[0]), pelvis[1] - 0.07, trunksTop, hemY], torso: G.torso }, morphParams };
+  // (P3-FGT-19B: the v8 GLB carries the fighters only; the referee, corner staff and judges keep the v7 GLB)
+  const meshes = v8 ? [bodyMesh, v8.vest, v8.trunks, v8.boots, v8.gloves, v8.headgear, v8.wraps, hairCap] : [bodyMesh, vest, trunks, boots, socks, gloves, headgear, wraps, shirt, refCollar, bowtie, trousers, shoes, polo, poloCollar, hairCap];
+  // (P3-FGT-19B: kit.z = the v8 band's top — the shader draws the band's stripes from it; caps = the cone radii of the
+  // upper arm (shoulder → elbow) and thigh (hip → knee) from the skin, for the runtime cloth push: boxer-material.ts)
+  const caps = v8 ? v8Caps() : null;
+  return { key, G, meshes, landmarks: { headC, eyeL, eyeR, kit: [Math.abs(thighL[0]), pelvis[1] - 0.07, v8 ? v8.bandTop : trunksTop, hemY], torso: G.torso, ...(caps ? { caps } : {}) }, morphParams };
+  function v8Caps() {
+    // mean distance of the segment's skin from its bone axis, near each end (12 % / 85 % along it)
+    const cone = (from, to, bones) => {
+      const a = bp(from),
+        b = bp(to);
+      const ax = sub(b, a);
+      const L = len(ax);
+      const u = scl(ax, 1 / L);
+      const near = [0.12, 0.85].map(() => []);
+      for (const i of new Set(bodyFaces.flat())) {
+        if (wSum(i, bones) < 0.6) continue;
+        const d = sub(V(i), a);
+        const t = dot(d, u) / L;
+        const r = len(sub(d, scl(u, dot(d, u))));
+        [0.12, 0.85].forEach((tt, k) => {
+          if (Math.abs(t - tt) < 0.05) near[k].push(r);
+        });
+      }
+      // (the 90th percentile: a limb is oval and the sculpt bulges — the quads above the knee, the deltoid)
+      return near.map((rs) => +(rs.sort((x, y) => x - y)[Math.floor(rs.length * 0.9)] ?? 0.05).toFixed(4));
+    };
+    return { arm: cone("Bip01_L_UpperArm", "Bip01_L_Forearm", ["Bip01_L_UpperArm", "Bip01_L_UpperArmTwist", "Bip01_L_ShoulderHelper"]), thigh: cone("Bip01_L_Thigh", "Bip01_L_Calf", ["Bip01_L_Thigh"]) };
+  }
 }
 
 /* ------------------------------------------------------------ the player's face on the boxer head (P3-FGT-14) ------------------------------------------------------------ */
@@ -2313,7 +2845,7 @@ const GENDERS = {
 };
 
 mkdirSync(OUT, { recursive: true });
-for (const [key, spec] of Object.entries(GENDERS)) {
+for (const [key, spec] of Object.entries(V8_BUILD ? V8_GENDERS : GENDERS)) {
   const base = buildVariant(key, spec.base);
   // P3-FGT-18: anthropometric audit of the bind-pose body (docs/FIGHT-REALISM-V7.md §2)
   if (process.env.MEASURE === "1") {

@@ -1,7 +1,15 @@
 import * as THREE from "three";
 import { curl, reach, type ArmBones } from "../procedural";
 import { ARM, ARM_SIZE, P, type Pose } from "./pose";
-import { aimArm, ArmFk, ARM_R, armPoints, clampArm, keepOut, newPoints, type Obstacle } from "./arm-fk";
+import { aimArm, ArmFk, ARM_R, armPoints, clampArm, DEG, keepOut, newPoints, type Obstacle } from "./arm-fk";
+
+/** P3-FGT-19B: keyed-arm angles (radians, arm-fk ARM layout) added to one body near the guard, and the guard they apply at */
+export interface ArmBias {
+  lead: ArrayLike<number>;
+  rear: ArrayLike<number>;
+  guardLead: ArrayLike<number>;
+  guardRear: ArrayLike<number>;
+}
 
 /**
  * Boxing rig layer (P3-FGT-02): puts a boxing pose (pose.ts) on a Rocketbox body, after the mixer. The pose fully
@@ -202,6 +210,8 @@ export class BoxingRig {
   readonly armFk: ArmFk | null;
   /** the opponent's body parts (world: head, chest, belly, arms) to keep the arms out of; set every frame by the owner */
   readonly opponent: Obstacle[] = [];
+  /** P3-FGT-19B: this body's guard correction (keyed-arm angles added near the guard; pose.ts V8_GUARD_BIAS_F) */
+  private readonly armBias: ArmBias | null;
   /** the last keyed angles applied (lead, rear; for tests and the lab) */
   readonly lastArms = new Float32Array(ARM_SIZE * 2);
   private readonly obs: Obstacle[] = Array.from({ length: 16 }, () => ({ a: new THREE.Vector3(), b: null as THREE.Vector3 | null, r: 0 }));
@@ -212,8 +222,9 @@ export class BoxingRig {
   constructor(
     private readonly root: THREE.Object3D,
     arms: ArmBones[],
-    opts: { torso?: TorsoSlices | null } = {},
+    opts: { torso?: TorsoSlices | null; armBias?: ArmBias | null } = {},
   ) {
+    this.armBias = opts.armBias ?? null;
     const bone = (n: string) => (root.getObjectByName(n) as THREE.Bone | undefined) ?? null;
     const { bind } = bindData(root);
     const mk = (n: string): Chain | null => {
@@ -428,6 +439,19 @@ export class BoxingRig {
       A[k] = p[P.la + k]!;
       A[ARM_SIZE + k] = p[P.ra + k]!;
     }
+    // P3-FGT-19B: a body's guard correction, in full at the guard and fading out as the arm leaves it (≥ 40° RMS away:
+    // a punch at impact keeps its fitted angles)
+    const bias = this.armBias;
+    if (bias)
+      for (const [o, g, b] of [
+        [0, bias.guardLead, bias.lead],
+        [ARM_SIZE, bias.guardRear, bias.rear],
+      ] as const) {
+        let d = 0;
+        for (let k = 0; k < 5; k++) d += (A[o + k]! - g[k]!) ** 2;
+        const near = Math.max(0, 1 - Math.sqrt(d / 5) / (40 * DEG));
+        if (near > 0) for (let k = 0; k < ARM_SIZE; k++) A[o + k] = A[o + k]! + b[k]! * near;
+      }
     // the shrug (chin behind the shoulder) lifts the clavicle
     A[ARM.elev] = A[ARM.elev]! + 0.2 * p[P.shrugL]!;
     A[ARM_SIZE + ARM.elev] = A[ARM_SIZE + ARM.elev]! + 0.2 * p[P.shrugR]!;

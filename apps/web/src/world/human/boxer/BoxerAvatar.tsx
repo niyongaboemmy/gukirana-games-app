@@ -1,15 +1,17 @@
 "use client";
 import { useEffect, useMemo } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { OUTFITS, type AvatarLook } from "@/world/outfits";
 import { BoxingRig } from "../boxing/rig";
 import type { Obstacle } from "../boxing/arm-fk";
 import type { BoxingMotion } from "../boxing/motion";
-import { P } from "../boxing/pose";
-import { BOXER_URL, buildOf, facePickOf, makeBoxer, type BoxerGender, type BoxerInstance, type BoxerOutfit } from "./boxer-body";
+import { armRad, GUARD_V8_LEAD_ARM, GUARD_V8_REAR_ARM, P, V8_GUARD_BIAS_F } from "../boxing/pose";
+import { BOXER_URL, boxerUrlFor, buildOf, facePickOf, makeBoxer, type BoxerGender, type BoxerInstance, type BoxerOutfit } from "./boxer-body";
 import { BoxerFace } from "./boxer-face";
+import { BOXER_V8 } from "./generation";
+import { registerKtx2Renderer } from "./v8/ktx2";
 import { driveHelpers, fingerRig, helperRig, signFingers } from "./helpers";
 import type { CountSign } from "../boxing/count-signs";
 
@@ -28,6 +30,9 @@ export interface BoxerProbe {
   body(out: THREE.Vector3): THREE.Vector3;
   /** a glove's centre (world) */
   glove(lead: boolean, out: THREE.Vector3): THREE.Vector3;
+  /** P3-FGT-19B (dev labs / the fighter-v8 harness's pose fitter): pose the body NOW from a pose vector (bind restored,
+   * the rig applied in full, helpers driven, world matrices updated); the next frame re-poses it from its motion */
+  poseNow?(pose: Float32Array): void;
 }
 
 export interface BoxerAvatarProps {
@@ -116,13 +121,18 @@ function casualBottom(look: AvatarLook): string {
 const BEARD: Record<string, number> = { none: 0, stubble: 0.45, shadow: 0.35, moustache: 0.55, goatee: 0.6, chinstrap: 0.6, short: 0.78, full: 0.95 };
 const BROW: Record<string, number> = { thin: 0.55, natural: 0.85, arched: 0.85, straight: 0.9, full: 1, bold: 1 };
 const _v = new THREE.Vector3();
+const _pa = new THREE.Vector3();
+const _pb = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const FWD = new THREE.Vector3(0, 0, 1);
 const COARSE = typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches;
 
 export function BoxerAvatar(props: BoxerAvatarProps) {
   const gender: BoxerGender = props.look.bodyType === "feminine" ? "f" : "m";
-  const gltf = useGLTF(props.src ?? BOXER_URL[gender], false);
+  const gl = useThree((s) => s.gl);
+  // P3-FGT-19B: the v8 textures are KTX2 (the loader picks the GPU's block format from the renderer)
+  if (BOXER_V8) registerKtx2Renderer(gl);
+  const gltf = useGLTF(props.src ?? boxerUrlFor(gender, props.outfit), false);
   const { look, outfit, kit, polo, seed, klass = 0, lite = false, noHeadgear = false, noGloves = false, bare = false } = props;
   const fadeable = !!props.fade;
   const inst = useMemo(() => {
@@ -131,7 +141,8 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
     return makeBoxer(gltf.scene, extras, {
       outfit,
       colors: { skin: look.skinTone, hair: look.hairColor, iris: look.face?.eyeColor ?? "#3d2314", kit, polo: polo ?? (outfit === "casual" ? casualTop(look) : undefined), trousers: outfit === "casual" ? casualBottom(look) : undefined },
-      build: buildOf(outfit === "boxer" ? klass : 0.1, seed, look.age),
+      // (P3-FGT-19B: the v8 fighters are adult athletes of 25–27 (SPEC checklist 25): no mature morph in the ring)
+      build: buildOf(outfit === "boxer" ? klass : 0.1, seed, BOXER_V8 && outfit === "boxer" && !props.src ? undefined : look.age),
       noHeadgear,
       noGloves,
       fadeable,
@@ -146,7 +157,12 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
     });
   }, [gltf, gender, look, outfit, kit, polo, seed, klass, lite, noHeadgear, noGloves, fadeable, bare, props.v5, props.v6]);
   useEffect(() => () => inst.dispose(), [inst]);
-  const rig = useMemo(() => new BoxingRig(inst.root, inst.arms, { torso: inst.torso }), [inst]);
+  // (P3-FGT-19B: the v8 female fighter carries her guard correction: pose.ts V8_GUARD_BIAS_F)
+  const v8Female = BOXER_V8 && outfit === "boxer" && gender === "f" && !props.src;
+  const rig = useMemo(
+    () => new BoxingRig(inst.root, inst.arms, { torso: inst.torso, armBias: v8Female ? { lead: armRad(V8_GUARD_BIAS_F.lead), rear: armRad(V8_GUARD_BIAS_F.rear), guardLead: armRad(GUARD_V8_LEAD_ARM), guardRear: armRad(GUARD_V8_REAR_ARM) } : null }),
+    [inst, v8Female],
+  );
   const face = useMemo(() => new BoxerFace(inst.bone, seed), [inst, seed]);
   const helpers = useMemo(() => helperRig(inst.bone), [inst]);
   const fingerBones = useMemo(() => fingerRig(inst.bone), [inst]);
@@ -174,12 +190,21 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
       glove(lead, out) {
         return rig.gloveCentre(lead, false, out);
       },
+      poseNow(pose) {
+        for (const x of bind) {
+          x.b.quaternion.copy(x.q);
+          x.b.position.copy(x.p);
+        }
+        rig.apply(pose, 1, false, true);
+        driveHelpers(helpers);
+        inst.root.updateMatrixWorld(true);
+      },
     };
     props.probe.current = p;
     return () => {
       if (props.probe?.current === p) props.probe.current = null;
     };
-  }, [inst, rig, parts, props.probe]);
+  }, [inst, rig, parts, props.probe, bind, helpers]);
 
   useFrame(({ camera }, dt) => {
     if (props.fade) {
@@ -221,6 +246,27 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
     const sw = props.sweat?.current ?? 0;
     u.uFlush.value += (Math.min(1, Math.max(0, (sw - 0.3) / 0.6) * 0.7 + pose[P.effort]! * 0.3) - u.uFlush.value) * Math.min(1, dt * 2);
     u.uDetail.value = near ? 1 : 0;
+    // P3-FGT-19B: the cloth push cones from this frame's bones (the mesh's space)
+    const caps = inst.caps;
+    u.uPush.value = caps && near ? 1 : 0;
+    if (caps && near) {
+      const L = (n: string, out: THREE.Vector3) => {
+        const b = inst.bone(n);
+        return b ? inst.root.worldToLocal(b.getWorldPosition(out)) : out;
+      };
+      const set = (k: number, a: string, b: string, r: number[]) => {
+        L(a, _pa);
+        L(b, _pb);
+        u.uCapA.value[k]!.set(_pa.x, _pa.y, _pa.z, r[0]!);
+        u.uCapB.value[k]!.set(_pb.x, _pb.y, _pb.z, r[1]!);
+      };
+      set(0, "Bip01_L_UpperArm", "Bip01_L_Forearm", caps.arm);
+      set(1, "Bip01_R_UpperArm", "Bip01_R_Forearm", caps.arm);
+      set(2, "Bip01_L_Thigh", "Bip01_L_Calf", caps.thigh);
+      set(3, "Bip01_R_Thigh", "Bip01_R_Calf", caps.thigh);
+      L("Bip01_Pelvis", u.uAxisA.value);
+      L("Bip01_Neck", u.uAxisB.value);
+    }
   });
   return <primitive object={inst.root} />;
 }
@@ -229,4 +275,8 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
 export function preloadBoxers() {
   useGLTF.preload(BOXER_URL.m, false);
   useGLTF.preload(BOXER_URL.f, false);
+  if (BOXER_V8) {
+    useGLTF.preload(boxerUrlFor("m", "referee"), false);
+    useGLTF.preload(boxerUrlFor("f", "referee"), false);
+  }
 }

@@ -62,7 +62,9 @@ function singletPanel(front) {
   return { poly, W, Wh, Lt, arm, xi, xo, nd };
 }
 function legPanel() {
-  const yc = L.crotchY - (L.kneeL[1] + 0.1) + 0.012; // inseam length (hem 10 cm above the knee)
+  // inseam length (hem 10 cm above the knee). P3-FGT-19B: draped, the rise's ease let the hem settle at the knee top
+  // (checklist 11 asks between mid-thigh and the knee top): the inseam is 7 cm shorter (INSEAM_SHORTEN, m)
+  const yc = L.crotchY - (L.kneeL[1] + 0.1) + 0.012 - Number(process.env.INSEAM_SHORTEN ?? 0.07);
   const rise = bandBot - L.crotchY + 0.05 * sc;
   const Ht = yc + rise;
   const ef = 0.055 * sc, eb = 0.1 * sc;
@@ -426,8 +428,11 @@ const skins = [];
 }
 const restX = Float64Array.from(cloth.x);
 const restState = cloth.x.slice();
+// P3-FGT-19B: the rest (bind-pose) drape as the game's garment source: single layer, seams welded, with its skin
+// weights (MakeHuman bone names) — scripts/boxer/build.mjs (V8) re-meshes, skins and bakes it
+if (poses.includes("rest")) writeFile("rest", true);
 
-for (const pose of poses) {
+for (const pose of poses.filter((p) => p !== "rest")) {
   t0 = Date.now();
   // carry the cloth into the pose in stages: skin it to each partial pose, relax against that body
   const STAGES = [0.34, 0.67, 1];
@@ -489,7 +494,7 @@ for (const pose of poses) {
 }
 
 /* ------------------------------------------------------------------------------------------- export */
-function writeFile(pose) {
+function writeFile(pose, single = false) {
   const n = cloth.x.length / 3;
   // weld the seam pairs
   const parent = Int32Array.from({ length: n }, (_, i) => i);
@@ -521,6 +526,14 @@ function writeFile(pose) {
         return remap.get(r);
       });
       if (t2[0] !== t2[1] && t2[1] !== t2[2] && t2[0] !== t2[2]) tris.push(t2);
+    }
+    if (single) {
+      // per welded vertex: its skin weights (MakeHuman bone name → weight) from the first source particle
+      const first = new Map();
+      for (let v = 0; v < n; v++) if (!first.has(find(v))) first.set(find(v), v);
+      const sk = [...remap.keys()].map((r) => Object.fromEntries([...skins[first.get(r)]].filter(([, w]) => w > 1e-4).map(([b, w]) => [rest.bones[b].name, +w.toFixed(5)])));
+      out.meshes.push({ name, P: P.map((x) => +x.toFixed(5)), UV: UV.map((x) => +x.toFixed(5)), panel: PAN, tris, skin: sk });
+      continue;
     }
     const thick = name === "band" ? 0.0026 : name === "vest" ? 0.0014 : 0.0012;
     const sol = solidify(Float64Array.from(P), tris, thick, { rimSteps: 5, bead: name === "band" ? 0.0008 : 0.0012 });

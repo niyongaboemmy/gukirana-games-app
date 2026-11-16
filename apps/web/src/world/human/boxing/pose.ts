@@ -9,6 +9,7 @@
  * moves (see clips.ts `travel`). Pure data + maths, no three.js: unit-testable and the same on every screen.
  */
 import { BOXER_V7 } from "../boxer/body-v6";
+import { BOXER_V8 } from "../boxer/generation";
 
 export const P = {
   /** hips (Bip01) position: x, absolute height above the floor, z */
@@ -340,7 +341,53 @@ const GUARD_V7: Pose = pose(GUARD_V6, {
   shrugLead: 0.48,
   shrugRear: 0.16,
 });
-export const GUARD: Pose = BOXER_V7 ? GUARD_V7 : GUARD_V6;
+/**
+ * P3-FGT-19B (docs/design/fighter-v8/SPEC.md §9, flag BOXER_V8): the v8 guard — sat 2 cm deeper than v7, bladed 36°
+ * with the chest turned a further 6°, the shoulders raised and rolled forward (clavicles: lead up 11° / forward 13°,
+ * rear up 7° / forward 10°), the rear heel well up and the rear foot turned out 58°. The arms are the keyed-arm angles
+ * fitted on the real rig and body (qa/e2e/fighter-v8/fit-pose.mjs; first pass arm-fit-v8.dev.test.ts) to the spec's glove and elbow targets: the rear glove on the cheekbone beside the face,
+ * the lead fist in front between eye and chin height, both elbows down and in over the ribs, the forearms rising at
+ * 55–75°, the wrists straight (wrist 0: the glove continues the forearm), the eyes clear over the gloves.
+ */
+export const GUARD_V8_LEAD_ARM: Required<ArmSpec> = { flex: 58, abd: 8, rot: -36, elbow: 132, pron: 49, wrist: 0, elev: 11, prot: 13 };
+export const GUARD_V8_REAR_ARM: Required<ArmSpec> = { flex: 36, abd: -17, rot: 55, elbow: 133, pron: -16, wrist: 0, elev: 7, prot: 30 };
+/**
+ * P3-FGT-19B: the female body's guard correction (degrees, added by the rig near the guard: rig.ts ArmBias). One set of
+ * clip angles serves every body, but the lighter, shorter female fighter (1.65 m, narrower shoulders) put the lead glove
+ * 3 cm lower against her eyes and the elbows less far down; fitted on her own body (fit-pose.mjs --genders f): the lead
+ * clavicle raised and drawn back, the elbow a little more open; the rear arm a touch higher and closer.
+ */
+export const V8_GUARD_BIAS_F = {
+  lead: { flex: -8, abd: 10, rot: 0, elbow: -13, pron: 0, wrist: 0, elev: 16, prot: -25 },
+  rear: { flex: 7, abd: -12, rot: -3, elbow: -9, pron: 0, wrist: 0, elev: 0, prot: 0 },
+} as const;
+/** an arm spec (degrees) as radians in the ARM layout */
+export function armRad(a: ArmSpec): Float32Array {
+  const out = new Float32Array(ARM_SIZE);
+  for (const [k, i] of Object.entries(ARM) as [keyof typeof ARM, number][]) out[i] = ((a[k] ?? 0) * Math.PI) / 180;
+  return out;
+}
+const GUARD_V8: Pose = pose(GUARD_V7, {
+  hips: [0.01, 0.775, -0.03],
+  yaw: -0.63,
+  chest: -0.105,
+  lean: 0.22,
+  bend: 0.03,
+  head: [0.26, 0.12, 0.02],
+  // (the feet keep the v7 positions every footwork / pivot clip is authored round — 1–2 cm from the spec's — with the
+  // spec's toe angles and heel lifts)
+  leadFootYaw: -0.31,
+  leadHeel: 0.07,
+  rearFootYaw: -1.01,
+  rearHeel: 0.45,
+  leadKnee: [0.4, 0, 1],
+  rearKnee: [-0.05, 0, 1],
+  shrugLead: 0.5,
+  shrugRear: 0.25,
+  leadArm: GUARD_V8_LEAD_ARM,
+  rearArm: GUARD_V8_REAR_ARM,
+});
+export const GUARD: Pose = BOXER_V8 ? GUARD_V8 : BOXER_V7 ? GUARD_V7 : GUARD_V6;
 
 /**
  * The clips are authored round GUARD_AUTHOR (the P3-FGT-02 stance); P3-FGT-09 deepened the stance. clips.ts moves an

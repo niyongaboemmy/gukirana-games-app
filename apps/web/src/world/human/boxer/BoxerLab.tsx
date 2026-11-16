@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { DEFAULT_LOOK, SKIN_TONES, HAIR_COLORS, type AvatarLook } from "../../outfits";
-import { BOXING_CLIPS, type BoxingClipName } from "../boxing/clips";
+import { BOXING_CLIPS, sampleClip, type BoxingClipName } from "../boxing/clips";
+import { ARM, P } from "../boxing/pose";
 import { BoxingMotion } from "../boxing/motion";
 import { boxingLayer } from "../boxing/layer";
 import { boxingKitOverride } from "../boxing/kit";
@@ -197,7 +198,8 @@ export function BoxerLab({ q, setInfo }: { q: URLSearchParams; setInfo: (s: stri
           m.depthWrite = false;
         }
       }
-      (window as unknown as { __gkBoxer?: object }).__gkBoxer = { ready: true, bones: p.inst.mesh.skeleton.bones.length, probe: p, scene };
+      // (P3-FGT-19B: the clip sampler and the pose layout for the fighter-v8 harness's pose fitter)
+      (window as unknown as { __gkBoxer?: object }).__gkBoxer = { ready: true, bones: p.inst.mesh.skeleton.bones.length, probe: p, scene, sampleClip, P, ARM };
     }, 50);
     return () => {
       clearInterval(id);

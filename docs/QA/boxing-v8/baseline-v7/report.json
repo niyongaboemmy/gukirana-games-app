@@ -1,0 +1,4795 @@
+{
+ "label": "baseline",
+ "web": "http://localhost:3971",
+ "git": "da543b7",
+ "at": "2026-11-16T16:38:30.984Z",
+ "phases": {
+  "v7": {
+   "generation": {
+    "requested": "v7",
+    "loaded": "v7",
+    "v8Requested": false
+   },
+   "perf": {
+    "desktop": {
+     "fps": 60,
+     "calls": 19,
+     "tris": 183042,
+     "textureMB": 29.33,
+     "fighterCalls": 1,
+     "fighterTris": 28347,
+     "textures": [
+      {
+       "name": "skin-m.webp",
+       "kind": "image",
+       "w": 2048,
+       "h": 2048,
+       "mb": 21.33
+      },
+      {
+       "name": "human-detail.webp",
+       "kind": "image",
+       "w": 512,
+       "h": 512,
+       "mb": 1.33
+      },
+      {
+       "name": "eye-iris.webp",
+       "kind": "image",
+       "w": 512,
+       "h": 512,
+       "mb": 1.33
+      },
+      {
+       "name": "body-detail-m.webp",
+       "kind": "image",
+       "w": 1024,
+       "h": 1024,
+       "mb": 5.33
+      }
+     ]
+    },
+    "phone": {
+     "fps": 60,
+     "calls": 19,
+     "tris": 183042,
+     "textureMB": 13.33,
+     "fighterCalls": 1,
+     "fighterTris": 28347,
+     "textures": [
+      {
+       "name": "skin-m-1k.webp",
+       "kind": "image",
+       "w": 1024,
+       "h": 1024,
+       "mb": 5.33
+      },
+      {
+       "name": "human-detail.webp",
+       "kind": "image",
+       "w": 512,
+       "h": 512,
+       "mb": 1.33
+      },
+      {
+       "name": "eye-iris.webp",
+       "kind": "image",
+       "w": 512,
+       "h": 512,
+       "mb": 1.33
+      },
+      {
+       "name": "body-detail-m.webp",
+       "kind": "image",
+       "w": 1024,
+       "h": 1024,
+       "mb": 5.33
+      }
+     ]
+    }
+   },
+   "proportions": {
+    "m": {
+     "stature": 1.757,
+     "headHeight": 0.238,
+     "headsTall": 7.39,
+     "headBreadth": 0.174,
+     "neckLength_chinToNotch": 0.087,
+     "neckLengthPerH": 0.05,
+     "neckBreadth": 0.147,
+     "neckGirth": 0.418,
+     "neckToHeadBreadth": 0.84,
+     "biacromial": 0.487,
+     "bideltoid": 0.61,
+     "bideltoidPerH": 0.347,
+     "chestGirth": 1.029,
+     "waistGirth": 0.802,
+     "waistY": 1.127,
+     "hipGirth": 0.959,
+     "hipY": 0.827,
+     "waistToHip": 0.84,
+     "upperArmGirth": [
+      44.6,
+      34,
+      33.7,
+      28.3
+     ],
+     "forearmGirth": [
+      26.8,
+      25.5,
+      18.8,
+      14.4
+     ],
+     "thighGirth": [
+      55,
+      40.4,
+      39.3
+     ],
+     "calfGirth": [
+      37,
+      0,
+      21.3
+     ]
+    },
+    "f": {
+     "stature": 1.666,
+     "headHeight": 0.227,
+     "headsTall": 7.35,
+     "headBreadth": 0.17,
+     "neckLength_chinToNotch": 0.088,
+     "neckLengthPerH": 0.053,
+     "neckBreadth": 0.145,
+     "neckGirth": 0.395,
+     "neckToHeadBreadth": 0.85,
+     "biacromial": 0.394,
+     "bideltoid": 0.507,
+     "bideltoidPerH": 0.305,
+     "chestGirth": 0.885,
+     "waistGirth": 0.649,
+     "waistY": 1.119,
+     "hipGirth": 0.926,
+     "hipY": 0.799,
+     "waistToHip": 0.7,
+     "upperArmGirth": [
+      35.9,
+      28.5,
+      26.6,
+      24.3
+     ],
+     "forearmGirth": [
+      24.4,
+      10.8,
+      18.1,
+      12.9
+     ],
+     "thighGirth": [
+      51.1,
+      51,
+      39.8
+     ],
+     "calfGirth": [
+      34,
+      23.3,
+      19.1
+     ]
+    }
+   },
+   "triangles": {
+    "m": 28347,
+    "mByMesh": {
+     "body": 11578,
+     "kit_vest": 6638,
+     "kit_trunks": 1135,
+     "kit_boots": 2268,
+     "kit_socks": 560,
+     "kit_gloves": 3616,
+     "kit_headgear": 1848,
+     "kit_wraps": 704
+    },
+    "f": 28064,
+    "fByMesh": {
+     "body": 11604,
+     "kit_vest": 6794,
+     "kit_trunks": 1083,
+     "kit_boots": 2272,
+     "kit_socks": 207,
+     "kit_gloves": 3616,
+     "kit_headgear": 1848,
+     "kit_wraps": 640
+    }
+   },
+   "garments": {
+    "byPose": {
+     "broadcast": 0.0753,
+     "turn-m-0": 0.0325,
+     "turn-m-90": 0.0325,
+     "turn-m-180": 0.0325,
+     "turn-m--90": 0.0325,
+     "turn-f-0": 0.0408,
+     "turn-f-90": 0.0408,
+     "turn-f-180": 0.0408,
+     "turn-f--90": 0.0408,
+     "cu-armhole": 0.0124,
+     "act-guard": 0.0405,
+     "act-jab": 0.0242,
+     "act-cross": 0.0266,
+     "act-hook": 0.0402,
+     "act-uppercut": 0.045,
+     "act-body": 0.0402,
+     "act-block": 0.0376,
+     "act-clinch": 0.0118,
+     "act-hit": 0.0347,
+     "act-knockdown": 0.0404
+    },
+    "worst": 0.0753,
+    "summary": {
+     "mean": 0.0361,
+     "worst": 0.0753,
+     "min": 0.0118,
+     "n": 20
+    }
+   },
+   "cavity": {
+    "skinBack": {
+     "byShot": {
+      "broadcast": 0.00132,
+      "broadcast-later": 0.00089,
+      "duel-f": 0.00184,
+      "duel-m": 0.00174,
+      "duel-close": 0.00026,
+      "cu-shoulder": 0.00208,
+      "cu-armhole": 0.00101,
+      "cu-waistband": 0.00001,
+      "act-guard": 0.00184,
+      "act-jab": 0.00224,
+      "act-cross": 0.0031,
+      "act-hook": 0.00157,
+      "act-uppercut": 0.00197,
+      "act-body": 0.00136,
+      "act-block": 0.00167,
+      "act-clinch": 0.00222,
+      "act-hit": 0.00364,
+      "act-knockdown": 0.00132
+     },
+     "worst": 0.00364,
+     "broadcast": 0.00132
+    },
+    "garmentBack": {
+     "byShot": {
+      "broadcast": 0.00228,
+      "broadcast-later": 0.00353,
+      "duel-f": 0.00302,
+      "duel-m": 0.00182,
+      "duel-close": 0.00388,
+      "cu-shoulder": 0.00414,
+      "cu-armhole": 0.00443,
+      "cu-waistband": 0.00421,
+      "act-guard": 0.00302,
+      "act-jab": 0.00421,
+      "act-cross": 0.00326,
+      "act-hook": 0.00992,
+      "act-uppercut": 0.00549,
+      "act-body": 0.01078,
+      "act-block": 0.00325,
+      "act-clinch": 0.00632,
+      "act-hit": 0.00243,
+      "act-knockdown": 0.01092
+     },
+     "worst": 0.01092,
+     "broadcast": 0.00228
+    }
+   },
+   "joints": {
+    "violations": 0,
+    "byShot": {
+     "broadcast-desktop": 0,
+     "broadcast-phone": 0,
+     "broadcast-later-desktop": 0,
+     "broadcast-later-phone": 0,
+     "turn-m-0-desktop": 0,
+     "turn-m-90-desktop": 0,
+     "turn-m-180-desktop": 0,
+     "turn-m--90-desktop": 0,
+     "turn-f-0-desktop": 0,
+     "turn-f-90-desktop": 0,
+     "turn-f-180-desktop": 0,
+     "turn-f--90-desktop": 0,
+     "act-guard-desktop": 0,
+     "act-guard-phone": 0,
+     "act-jab-desktop": 0,
+     "act-jab-phone": 0,
+     "act-cross-desktop": 0,
+     "act-hook-desktop": 0,
+     "act-uppercut-desktop": 0,
+     "act-body-desktop": 0,
+     "act-block-desktop": 0,
+     "act-clinch-desktop": 0,
+     "act-hit-desktop": 0,
+     "act-knockdown-desktop": 0
+    },
+    "list": []
+   },
+   "feet": {
+    "maxSlideCm": 15.22,
+    "slideCmPerS": 2.34,
+    "byJob": {
+     "steps": [
+      {
+       "maxSlideCm": 7.36,
+       "slideCmPerS": 2.34,
+       "plants": 8,
+       "plantedS": 11.3,
+       "frames": 361
+      },
+      {
+       "maxSlideCm": 15.22,
+       "slideCmPerS": 1.84,
+       "plants": 2,
+       "plantedS": 12,
+       "frames": 361
+      }
+     ],
+     "library": [
+      {
+       "maxSlideCm": 0,
+       "slideCmPerS": 0,
+       "plants": 2,
+       "plantedS": 18.22,
+       "frames": 542
+      },
+      {
+       "maxSlideCm": 0,
+       "slideCmPerS": 0,
+       "plants": 2,
+       "plantedS": 20,
+       "frames": 555
+      }
+     ]
+    }
+   }
+  }
+ },
+ "raw": {
+  "v7": {
+   "shots": {
+    "broadcast": {
+     "desktop": {
+      "people": 3,
+      "generation": "v7",
+      "v8Requested": false,
+      "fps": 60,
+      "calls": 19,
+      "tris": 183042,
+      "textureMB": 29.33,
+      "textures": [
+       {
+        "name": "skin-m.webp",
+        "kind": "image",
+        "w": 2048,
+        "h": 2048,
+        "mb": 21.33
+       },
+       {
+        "name": "human-detail.webp",
+        "kind": "image",
+        "w": 512,
+        "h": 512,
+        "mb": 1.33
+       },
+       {
+        "name": "eye-iris.webp",
+        "kind": "image",
+        "w": 512,
+        "h": 512,
+        "mb": 1.33
+       },
+       {
+        "name": "body-detail-m.webp",
+        "kind": "image",
+        "w": 1024,
+        "h": 1024,
+        "mb": 5.33
+       }
+      ],
+      "fighterCalls": 1,
+      "fighterTris": 28347,
+      "cavity": {
+       "personPx": 124803,
+       "skinBackPx": 165,
+       "garmentBackPx": 284,
+       "skinBackShare": 0.00132,
+       "garmentBackShare": 0.00228,
+       "w": 1280,
+       "h": 720
+      },
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 129.356,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 56.27,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.161,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 112.197,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 62.739,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.195,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 15.687,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 129.41,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 59.544,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.164,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 93.057,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 58.962,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.19,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.085,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 0.381,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 10.442,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 38.243,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.135,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 10.158,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 39.772,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.14,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 24.359,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 0,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0607,
+        "worstMm": 29.9,
+        "bySlot": {
+         "1": 139,
+         "2": 164,
+         "10": 3,
+         "11": 10,
+         "12": 30
+        }
+       },
+       {
+        "fraction": 0.0518,
+        "worstMm": 29.7,
+        "bySlot": {
+         "1": 133,
+         "2": 112,
+         "5": 6,
+         "7": 9,
+         "10": 1,
+         "11": 6,
+         "12": 10
+        }
+       },
+       {
+        "fraction": 0.0753,
+        "worstMm": 38.7,
+        "bySlot": {
+         "14": 195
+        }
+       }
+      ]
+     },
+     "phone": {
+      "people": 3,
+      "generation": "v7",
+      "v8Requested": false,
+      "fps": 60,
+      "calls": 19,
+      "tris": 183042,
+      "textureMB": 13.33,
+      "textures": [
+       {
+        "name": "skin-m-1k.webp",
+        "kind": "image",
+        "w": 1024,
+        "h": 1024,
+        "mb": 5.33
+       },
+       {
+        "name": "human-detail.webp",
+        "kind": "image",
+        "w": 512,
+        "h": 512,
+        "mb": 1.33
+       },
+       {
+        "name": "eye-iris.webp",
+        "kind": "image",
+        "w": 512,
+        "h": 512,
+        "mb": 1.33
+       },
+       {
+        "name": "body-detail-m.webp",
+        "kind": "image",
+        "w": 1024,
+        "h": 1024,
+        "mb": 5.33
+       }
+      ],
+      "fighterCalls": 1,
+      "fighterTris": 28347,
+      "cavity": {
+       "personPx": 86963,
+       "skinBackPx": 49,
+       "garmentBackPx": 561,
+       "skinBackShare": 0.00056,
+       "garmentBackShare": 0.00645,
+       "w": 1266,
+       "h": 585
+      },
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 130.002,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 56.348,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.161,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 123.264,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 62.422,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.194,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 14.068,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 120.372,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 64.449,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.17,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 119.979,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 67.554,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.199,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 30.694,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 5.02,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 10.412,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 39.375,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.139,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 10.187,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 36.594,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.129,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 24.364,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 0,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0541,
+        "worstMm": 34.6,
+        "bySlot": {
+         "1": 130,
+         "2": 164,
+         "11": 7,
+         "12": 14
+        }
+       },
+       {
+        "fraction": 0.0548,
+        "worstMm": 28.3,
+        "bySlot": {
+         "1": 144,
+         "2": 113,
+         "5": 4,
+         "7": 11,
+         "10": 3,
+         "11": 12,
+         "12": 10
+        }
+       },
+       {
+        "fraction": 0.0786,
+        "worstMm": 38,
+        "bySlot": {
+         "14": 204
+        }
+       }
+      ]
+     }
+    },
+    "broadcast-later": {
+     "desktop": {
+      "people": 3,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 121804,
+       "skinBackPx": 108,
+       "garmentBackPx": 430,
+       "skinBackShare": 0.00089,
+       "garmentBackShare": 0.00353,
+       "w": 1280,
+       "h": 720
+      },
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 122.873,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 59.091,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.164,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 101.306,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 66.119,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.209,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 15.127,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 6.306,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 121.138,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 82.488,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.219,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 99.34,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 78.69,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.253,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 26.8,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 3.098,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 10.344,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 40.845,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.144,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 10.285,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 35.342,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.125,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 24.716,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 0,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ]
+     },
+     "phone": {
+      "people": 3,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 84084,
+       "skinBackPx": 57,
+       "garmentBackPx": 359,
+       "skinBackShare": 0.00068,
+       "garmentBackShare": 0.00427,
+       "w": 1266,
+       "h": 585
+      },
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 130,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 60.985,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.163,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 123.148,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 66.839,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.218,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 14.763,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 7.61,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 128.93,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 60.434,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.155,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 121.784,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 63.962,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.191,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 32.124,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 5.612,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 10.362,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 41.125,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.145,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 10.278,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 35.619,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.126,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 24.869,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 0,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ]
+     }
+    },
+    "duel-f": {
+     "desktop": {
+      "people": 2,
+      "generation": "v7",
+      "v8Requested": false,
+      "fps": 60,
+      "calls": 1,
+      "tris": 1,
+      "textureMB": 29.33,
+      "textures": [
+       {
+        "name": "skin-f.webp",
+        "kind": "image",
+        "w": 2048,
+        "h": 2048,
+        "mb": 21.33
+       },
+       {
+        "name": "human-detail.webp",
+        "kind": "image",
+        "w": 512,
+        "h": 512,
+        "mb": 1.33
+       },
+       {
+        "name": "eye-iris.webp",
+        "kind": "image",
+        "w": 512,
+        "h": 512,
+        "mb": 1.33
+       },
+       {
+        "name": "body-detail-f.webp",
+        "kind": "image",
+        "w": 1024,
+        "h": 1024,
+        "mb": 5.33
+       }
+      ],
+      "fighterCalls": 1,
+      "fighterTris": 28064,
+      "cavity": {
+       "personPx": 77519,
+       "skinBackPx": 143,
+       "garmentBackPx": 234,
+       "skinBackShare": 0.00184,
+       "garmentBackShare": 0.00302,
+       "w": 1280,
+       "h": 720
+      }
+     },
+     "phone": {
+      "people": 2,
+      "generation": "v7",
+      "v8Requested": false,
+      "fps": 60,
+      "calls": 1,
+      "tris": 1,
+      "textureMB": 13.33,
+      "textures": [
+       {
+        "name": "skin-f-1k.webp",
+        "kind": "image",
+        "w": 1024,
+        "h": 1024,
+        "mb": 5.33
+       },
+       {
+        "name": "human-detail.webp",
+        "kind": "image",
+        "w": 512,
+        "h": 512,
+        "mb": 1.33
+       },
+       {
+        "name": "eye-iris.webp",
+        "kind": "image",
+        "w": 512,
+        "h": 512,
+        "mb": 1.33
+       },
+       {
+        "name": "body-detail-f.webp",
+        "kind": "image",
+        "w": 1024,
+        "h": 1024,
+        "mb": 5.33
+       }
+      ],
+      "fighterCalls": 1,
+      "fighterTris": 28064,
+      "cavity": {
+       "personPx": 69640,
+       "skinBackPx": 128,
+       "garmentBackPx": 226,
+       "skinBackShare": 0.00184,
+       "garmentBackShare": 0.00325,
+       "w": 1477,
+       "h": 682
+      }
+     }
+    },
+    "duel-m": {
+     "desktop": {
+      "people": 2,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 91292,
+       "skinBackPx": 159,
+       "garmentBackPx": 166,
+       "skinBackShare": 0.00174,
+       "garmentBackShare": 0.00182,
+       "w": 1280,
+       "h": 720
+      }
+     }
+    },
+    "duel-close": {
+     "desktop": {
+      "people": 2,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 158662,
+       "skinBackPx": 42,
+       "garmentBackPx": 616,
+       "skinBackShare": 0.00026,
+       "garmentBackShare": 0.00388,
+       "w": 1280,
+       "h": 720
+      }
+     }
+    },
+    "turn-m-0": {
+     "desktop": {
+      "people": 1,
+      "generation": "v7",
+      "v8Requested": false,
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 130,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 55.182,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.162,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 123.079,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 61.041,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.195,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 13.431,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0325,
+        "worstMm": 23.2,
+        "bySlot": {
+         "1": 92,
+         "2": 79,
+         "11": 6,
+         "12": 10
+        }
+       }
+      ]
+     }
+    },
+    "turn-m-90": {
+     "desktop": {
+      "people": 1,
+      "generation": "v7",
+      "v8Requested": false,
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 130,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 55.182,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.162,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 123.079,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 61.041,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.195,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 13.431,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0325,
+        "worstMm": 23.2,
+        "bySlot": {
+         "1": 92,
+         "2": 79,
+         "11": 6,
+         "12": 10
+        }
+       }
+      ]
+     }
+    },
+    "turn-m-180": {
+     "desktop": {
+      "people": 1,
+      "generation": "v7",
+      "v8Requested": false,
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 130,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 55.182,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.162,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 123.079,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 61.041,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.195,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 13.431,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0325,
+        "worstMm": 23.2,
+        "bySlot": {
+         "1": 92,
+         "2": 79,
+         "11": 6,
+         "12": 10
+        }
+       }
+      ]
+     }
+    },
+    "turn-m--90": {
+     "desktop": {
+      "people": 1,
+      "generation": "v7",
+      "v8Requested": false,
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 130,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 55.182,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.162,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 123.079,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 61.041,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.195,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 13.431,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0325,
+        "worstMm": 23.2,
+        "bySlot": {
+         "1": 92,
+         "2": 79,
+         "11": 6,
+         "12": 10
+        }
+       }
+      ]
+     }
+    },
+    "turn-f-0": {
+     "desktop": {
+      "people": 1,
+      "generation": "v7",
+      "v8Requested": false,
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 129.348,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 56.454,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.154,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 121.918,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 60.009,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.179,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.141,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0408,
+        "worstMm": 29.7,
+        "bySlot": {
+         "1": 146,
+         "2": 52,
+         "5": 4,
+         "7": 5,
+         "11": 7,
+         "12": 8
+        }
+       }
+      ]
+     }
+    },
+    "turn-f-90": {
+     "desktop": {
+      "people": 1,
+      "generation": "v7",
+      "v8Requested": false,
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 129.348,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 56.454,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.154,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 121.918,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 60.009,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.179,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.141,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0408,
+        "worstMm": 29.7,
+        "bySlot": {
+         "1": 146,
+         "2": 52,
+         "5": 4,
+         "7": 5,
+         "11": 7,
+         "12": 8
+        }
+       }
+      ]
+     }
+    },
+    "turn-f-180": {
+     "desktop": {
+      "people": 1,
+      "generation": "v7",
+      "v8Requested": false,
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 129.348,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 56.454,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.154,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 121.918,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 60.009,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.179,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.141,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0408,
+        "worstMm": 29.7,
+        "bySlot": {
+         "1": 146,
+         "2": 52,
+         "5": 4,
+         "7": 5,
+         "11": 7,
+         "12": 8
+        }
+       }
+      ]
+     }
+    },
+    "turn-f--90": {
+     "desktop": {
+      "people": 1,
+      "generation": "v7",
+      "v8Requested": false,
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 129.348,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 56.454,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.154,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 121.918,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 60.009,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.179,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.141,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0408,
+        "worstMm": 29.7,
+        "bySlot": {
+         "1": 146,
+         "2": 52,
+         "5": 4,
+         "7": 5,
+         "11": 7,
+         "12": 8
+        }
+       }
+      ]
+     }
+    },
+    "cu-shoulder": {
+     "desktop": {
+      "people": 1,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 182860,
+       "skinBackPx": 380,
+       "garmentBackPx": 757,
+       "skinBackShare": 0.00208,
+       "garmentBackShare": 0.00414,
+       "w": 600,
+       "h": 600
+      }
+     }
+    },
+    "cu-armhole": {
+     "desktop": {
+      "people": 1,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 266857,
+       "skinBackPx": 270,
+       "garmentBackPx": 1183,
+       "skinBackShare": 0.00101,
+       "garmentBackShare": 0.00443,
+       "w": 600,
+       "h": 600
+      },
+      "garments": [
+       {
+        "fraction": 0.0124,
+        "worstMm": 30.3,
+        "bySlot": {
+         "1": 37,
+         "2": 20,
+         "13": 6
+        }
+       }
+      ]
+     }
+    },
+    "cu-waistband": {
+     "desktop": {
+      "people": 1,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 195044,
+       "skinBackPx": 2,
+       "garmentBackPx": 822,
+       "skinBackShare": 0.00001,
+       "garmentBackShare": 0.00421,
+       "w": 600,
+       "h": 600
+      }
+     }
+    },
+    "cu-gloves": {
+     "desktop": {
+      "people": 1,
+      "generation": "v7",
+      "v8Requested": false
+     }
+    },
+    "cu-headgear": {
+     "desktop": {
+      "people": 1,
+      "generation": "v7",
+      "v8Requested": false
+     }
+    },
+    "cu-face": {
+     "desktop": {
+      "people": 1,
+      "generation": "v7",
+      "v8Requested": false
+     }
+    },
+    "cu-face-m": {
+     "desktop": {
+      "people": 1,
+      "generation": "v7",
+      "v8Requested": false
+     }
+    },
+    "act-guard": {
+     "desktop": {
+      "people": 2,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 77519,
+       "skinBackPx": 143,
+       "garmentBackPx": 234,
+       "skinBackShare": 0.00184,
+       "garmentBackShare": 0.00302,
+       "w": 1280,
+       "h": 720
+      },
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 129.348,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 56.454,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.154,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 121.918,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 60.009,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.179,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.14,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 129.31,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 63.208,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.169,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 121.909,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 64.299,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.196,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.39,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0405,
+        "worstMm": 35.6,
+        "bySlot": {
+         "1": 147,
+         "2": 52,
+         "5": 4,
+         "7": 4,
+         "11": 7,
+         "12": 8
+        }
+       },
+       {
+        "fraction": 0.0402,
+        "worstMm": 29.8,
+        "bySlot": {
+         "1": 148,
+         "2": 50,
+         "5": 4,
+         "7": 3,
+         "11": 7,
+         "12": 8
+        }
+       }
+      ]
+     },
+     "phone": {
+      "people": 2,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 69640,
+       "skinBackPx": 128,
+       "garmentBackPx": 226,
+       "skinBackShare": 0.00184,
+       "garmentBackShare": 0.00325,
+       "w": 1477,
+       "h": 682
+      },
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 129.348,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 56.454,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.154,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 121.918,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 60.009,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.179,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.14,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 129.31,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 63.208,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.169,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 121.909,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 64.299,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.196,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.39,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0405,
+        "worstMm": 35.6,
+        "bySlot": {
+         "1": 147,
+         "2": 52,
+         "5": 4,
+         "7": 4,
+         "11": 7,
+         "12": 8
+        }
+       },
+       {
+        "fraction": 0.0402,
+        "worstMm": 29.8,
+        "bySlot": {
+         "1": 148,
+         "2": 50,
+         "5": 4,
+         "7": 3,
+         "11": 7,
+         "12": 8
+        }
+       }
+      ]
+     }
+    },
+    "act-jab": {
+     "desktop": {
+      "people": 2,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 79090,
+       "skinBackPx": 177,
+       "garmentBackPx": 333,
+       "skinBackShare": 0.00224,
+       "garmentBackShare": 0.00421,
+       "w": 1280,
+       "h": 720
+      },
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 74.292,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 64.371,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.174,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 116.924,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 61.81,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.192,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.53,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 8.021,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 119.653,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 61.358,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.165,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 122.661,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 63.083,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.191,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.315,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0217,
+        "worstMm": 29,
+        "bySlot": {
+         "1": 58,
+         "2": 38,
+         "5": 4,
+         "7": 5,
+         "11": 3,
+         "12": 6
+        }
+       },
+       {
+        "fraction": 0.0242,
+        "worstMm": 26.6,
+        "bySlot": {
+         "1": 64,
+         "2": 43,
+         "5": 4,
+         "7": 4,
+         "11": 7,
+         "12": 8
+        }
+       }
+      ]
+     },
+     "phone": {
+      "people": 2,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 71035,
+       "skinBackPx": 174,
+       "garmentBackPx": 295,
+       "skinBackShare": 0.00245,
+       "garmentBackShare": 0.00415,
+       "w": 1477,
+       "h": 682
+      },
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 74.292,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 64.371,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.174,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 116.924,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 61.81,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.192,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.53,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 8.021,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 119.653,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 61.358,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.165,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 122.661,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 63.083,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.191,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.315,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0217,
+        "worstMm": 29,
+        "bySlot": {
+         "1": 58,
+         "2": 38,
+         "5": 4,
+         "7": 5,
+         "11": 3,
+         "12": 6
+        }
+       },
+       {
+        "fraction": 0.0242,
+        "worstMm": 26.6,
+        "bySlot": {
+         "1": 64,
+         "2": 43,
+         "5": 4,
+         "7": 4,
+         "11": 7,
+         "12": 8
+        }
+       }
+      ]
+     }
+    },
+    "act-cross": {
+     "desktop": {
+      "people": 2,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 78467,
+       "skinBackPx": 243,
+       "garmentBackPx": 256,
+       "skinBackShare": 0.0031,
+       "garmentBackShare": 0.00326,
+       "w": 1280,
+       "h": 720
+      },
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 119.329,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 67.415,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.197,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 76.766,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 50.881,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.161,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 29.384,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 8.594,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 118.501,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 63.209,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.169,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 122.504,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 64.3,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.196,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.39,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.022,
+        "worstMm": 22.4,
+        "bySlot": {
+         "1": 52,
+         "2": 44,
+         "3": 10,
+         "5": 5,
+         "7": 3
+        }
+       },
+       {
+        "fraction": 0.0266,
+        "worstMm": 26.6,
+        "bySlot": {
+         "1": 73,
+         "2": 47,
+         "5": 4,
+         "7": 3,
+         "11": 8,
+         "12": 8
+        }
+       }
+      ]
+     }
+    },
+    "act-hook": {
+     "desktop": {
+      "people": 2,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 78894,
+       "skinBackPx": 124,
+       "garmentBackPx": 783,
+       "skinBackShare": 0.00157,
+       "garmentBackShare": 0.00992,
+       "w": 1280,
+       "h": 720
+      },
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 118.383,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 77.093,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.024,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 102.282,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 63.101,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.196,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 34.051,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 16.043,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 129.309,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 63.344,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.169,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 121.908,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 64.389,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.196,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.395,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0309,
+        "worstMm": 30.4,
+        "bySlot": {
+         "1": 47,
+         "2": 73,
+         "5": 6,
+         "7": 3,
+         "11": 10,
+         "12": 22
+        }
+       },
+       {
+        "fraction": 0.0402,
+        "worstMm": 29.8,
+        "bySlot": {
+         "1": 148,
+         "2": 50,
+         "5": 4,
+         "7": 3,
+         "11": 7,
+         "12": 8
+        }
+       }
+      ]
+     }
+    },
+    "act-uppercut": {
+     "desktop": {
+      "people": 2,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 79055,
+       "skinBackPx": 156,
+       "garmentBackPx": 434,
+       "skinBackShare": 0.00197,
+       "garmentBackShare": 0.00549,
+       "w": 1280,
+       "h": 720
+      },
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 150,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 70.874,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.177,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 112.964,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 47.98,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.153,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.711,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 10.313,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 129.31,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 63.206,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.169,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 121.909,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 64.298,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.196,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.39,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.045,
+        "worstMm": 29.5,
+        "bySlot": {
+         "1": 97,
+         "2": 74,
+         "5": 3,
+         "7": 4,
+         "10": 24,
+         "11": 18,
+         "12": 26
+        }
+       },
+       {
+        "fraction": 0.0402,
+        "worstMm": 29.8,
+        "bySlot": {
+         "1": 148,
+         "2": 50,
+         "5": 4,
+         "7": 3,
+         "11": 7,
+         "12": 8
+        }
+       }
+      ]
+     }
+    },
+    "act-body": {
+     "desktop": {
+      "people": 2,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 78949,
+       "skinBackPx": 107,
+       "garmentBackPx": 851,
+       "skinBackShare": 0.00136,
+       "garmentBackShare": 0.01078,
+       "w": 1280,
+       "h": 720
+      },
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 81.665,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 101.253,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.077,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 100.171,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 82.899,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.256,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 30.21,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 14.324,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 129.31,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 63.206,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.169,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 121.909,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 64.298,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.196,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.39,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0295,
+        "worstMm": 31.6,
+        "bySlot": {
+         "1": 45,
+         "2": 62,
+         "5": 7,
+         "7": 4,
+         "11": 13,
+         "12": 22
+        }
+       },
+       {
+        "fraction": 0.0402,
+        "worstMm": 29.8,
+        "bySlot": {
+         "1": 148,
+         "2": 50,
+         "5": 4,
+         "7": 3,
+         "11": 7,
+         "12": 8
+        }
+       }
+      ]
+     }
+    },
+    "act-block": {
+     "desktop": {
+      "people": 2,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 77763,
+       "skinBackPx": 130,
+       "garmentBackPx": 253,
+       "skinBackShare": 0.00167,
+       "garmentBackShare": 0.00325,
+       "w": 1280,
+       "h": 720
+      },
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 122.54,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 60.718,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.164,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 99.107,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 63.445,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.19,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 33.913,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 124.591,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 57.616,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.157,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 121.012,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 60.992,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.184,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 30.835,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.837,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0376,
+        "worstMm": 27.6,
+        "bySlot": {
+         "1": 91,
+         "2": 83,
+         "5": 4,
+         "7": 2,
+         "11": 6,
+         "12": 10
+        }
+       },
+       {
+        "fraction": 0.0352,
+        "worstMm": 32.8,
+        "bySlot": {
+         "1": 119,
+         "2": 48,
+         "5": 4,
+         "7": 4,
+         "11": 7,
+         "12": 8
+        }
+       }
+      ]
+     }
+    },
+    "act-clinch": {
+     "desktop": {
+      "people": 3,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 89180,
+       "skinBackPx": 198,
+       "garmentBackPx": 564,
+       "skinBackShare": 0.00222,
+       "garmentBackShare": 0.00632,
+       "w": 1280,
+       "h": 720
+      },
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 119.988,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 63.146,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.174,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 101.952,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 58.313,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.18,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 28.401,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 0,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 119.993,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 63.145,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.174,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 101.951,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 58.311,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.18,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 28.398,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 0,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 120.625,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 23.257,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.089,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 120.625,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 16.376,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.063,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 0.751,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 0,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0118,
+        "worstMm": 24,
+        "bySlot": {
+         "1": 35,
+         "2": 20,
+         "5": 5,
+         "7": 2
+        }
+       },
+       {
+        "fraction": 0.0118,
+        "worstMm": 24,
+        "bySlot": {
+         "1": 35,
+         "2": 20,
+         "5": 5,
+         "7": 2
+        }
+       },
+       {
+        "fraction": 0.0106,
+        "worstMm": 11.3,
+        "bySlot": {
+         "14": 21,
+         "16": 3
+        }
+       }
+      ]
+     }
+    },
+    "act-hit": {
+     "desktop": {
+      "people": 2,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 79128,
+       "skinBackPx": 288,
+       "garmentBackPx": 192,
+       "skinBackShare": 0.00364,
+       "garmentBackShare": 0.00243,
+       "w": 1280,
+       "h": 720
+      },
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 120.806,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 62.229,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.178,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 73.152,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 54.041,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.185,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 29.086,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 1.964,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 116.172,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 43.635,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.115,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 111,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 66.707,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.191,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 25.857,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 6.875,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0347,
+        "worstMm": 27.6,
+        "bySlot": {
+         "1": 127,
+         "2": 47,
+         "5": 4,
+         "7": 3,
+         "11": 1,
+         "12": 2
+        }
+       },
+       {
+        "fraction": 0.0254,
+        "worstMm": 22.2,
+        "bySlot": {
+         "1": 83,
+         "2": 47,
+         "5": 4,
+         "7": 2
+        }
+       }
+      ]
+     }
+    },
+    "act-knockdown": {
+     "desktop": {
+      "people": 3,
+      "generation": "v7",
+      "v8Requested": false,
+      "cavity": {
+       "personPx": 103468,
+       "skinBackPx": 137,
+       "garmentBackPx": 1130,
+       "skinBackShare": 0.00132,
+       "garmentBackShare": 0.01092,
+       "w": 1280,
+       "h": 720
+      },
+      "joints": [
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 53.846,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 89.995,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.255,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 25.539,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 70.256,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.234,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 30.336,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 3.757,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 129.342,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 58.775,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.157,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 121.913,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 62.127,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.183,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 31.203,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 4.584,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       },
+       {
+        "checks": [
+         {
+          "joint": "L.elbowFlex",
+          "value": 65.212,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeFlex",
+          "value": 39.816,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "L.kneeBehind",
+          "value": -0.15,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "R.elbowFlex",
+          "value": 66.826,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.wristDev",
+          "value": 0,
+          "limit": 35,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeFlex",
+          "value": 36.268,
+          "limit": 155,
+          "ok": true
+         },
+         {
+          "joint": "R.kneeBehind",
+          "value": -0.137,
+          "limit": 0.015,
+          "ok": true
+         },
+         {
+          "joint": "neckBend",
+          "value": 0.95,
+          "limit": 55,
+          "ok": true
+         },
+         {
+          "joint": "spineTwist",
+          "value": 0,
+          "limit": 75,
+          "ok": true
+         }
+        ],
+        "violations": 0
+       }
+      ],
+      "garments": [
+       {
+        "fraction": 0.0217,
+        "worstMm": 21.9,
+        "bySlot": {
+         "1": 36,
+         "2": 18,
+         "3": 38,
+         "5": 4,
+         "7": 4,
+         "10": 2,
+         "11": 3,
+         "12": 6
+        }
+       },
+       {
+        "fraction": 0.0404,
+        "worstMm": 29.8,
+        "bySlot": {
+         "1": 147,
+         "2": 52,
+         "5": 4,
+         "7": 3,
+         "11": 7,
+         "12": 8
+        }
+       },
+       {
+        "fraction": 0.0202,
+        "worstMm": 20.7,
+        "bySlot": {
+         "14": 45,
+         "16": 4
+        }
+       }
+      ]
+     }
+    }
+   },
+   "feet": {
+    "steps": [
+     {
+      "maxSlideCm": 7.36,
+      "slideCmPerS": 2.34,
+      "plants": 8,
+      "plantedS": 11.3,
+      "frames": 361
+     },
+     {
+      "maxSlideCm": 15.22,
+      "slideCmPerS": 1.84,
+      "plants": 2,
+      "plantedS": 12,
+      "frames": 361
+     }
+    ],
+    "library": [
+     {
+      "maxSlideCm": 0,
+      "slideCmPerS": 0,
+      "plants": 2,
+      "plantedS": 18.22,
+      "frames": 542
+     },
+     {
+      "maxSlideCm": 0,
+      "slideCmPerS": 0,
+      "plants": 2,
+      "plantedS": 20,
+      "frames": 555
+     }
+    ]
+   },
+   "generation": "v7",
+   "v8Requested": false
+  }
+ },
+ "scores": {
+  "v7": {
+   "items": [
+    {
+     "id": "gen",
+     "label": "the v8 people are loaded (not the v7 fallback)",
+     "metric": "generation.loaded",
+     "value": "v7",
+     "min": null,
+     "max": null,
+     "equals": "v8",
+     "status": "fail",
+     "source": "P3-FGT-19B brief"
+    },
+    {
+     "id": "tris-m",
+     "label": "triangles per fighter, LOD0 (m)",
+     "metric": "triangles.m",
+     "value": 28347,
+     "min": null,
+     "max": 30000,
+     "status": "pass",
+     "source": "P3-FGT-19B brief: about 30k"
+    },
+    {
+     "id": "tris-f",
+     "label": "triangles per fighter, LOD0 (f)",
+     "metric": "triangles.f",
+     "value": 28064,
+     "min": null,
+     "max": 30000,
+     "status": "pass",
+     "source": "P3-FGT-19B brief: about 30k"
+    },
+    {
+     "id": "fps-desktop",
+     "label": "fps, broadcast, 1280x720",
+     "metric": "perf.desktop.fps",
+     "value": 60,
+     "min": 58,
+     "max": null,
+     "status": "pass",
+     "source": "P3-FGT-19B brief: 60 fps (2 fps headless tolerance)"
+    },
+    {
+     "id": "fps-phone",
+     "label": "fps, broadcast, 844x390 DPR 2",
+     "metric": "perf.phone.fps",
+     "value": 60,
+     "min": 58,
+     "max": null,
+     "status": "pass",
+     "source": "P3-FGT-19B brief: 60 fps (2 fps headless tolerance)"
+    },
+    {
+     "id": "calls-desktop",
+     "label": "draw calls, broadcast frame (desktop)",
+     "metric": "perf.desktop.calls",
+     "value": 19,
+     "min": null,
+     "max": null,
+     "status": "unset"
+    },
+    {
+     "id": "fighter-calls",
+     "label": "draw calls of one fighter alone",
+     "metric": "perf.desktop.fighterCalls",
+     "value": 1,
+     "min": null,
+     "max": null,
+     "status": "unset"
+    },
+    {
+     "id": "tex-mb",
+     "label": "texture MB per fighter (desktop)",
+     "metric": "perf.desktop.textureMB",
+     "value": 29.33,
+     "min": null,
+     "max": null,
+     "status": "unset"
+    },
+    {
+     "id": "heads-m",
+     "label": "heads tall (m)",
+     "metric": "proportions.m.headsTall",
+     "value": 7.39,
+     "min": 7.2,
+     "max": 7.9,
+     "status": "pass",
+     "source": "rubric / de Leva 1996"
+    },
+    {
+     "id": "heads-f",
+     "label": "heads tall (f)",
+     "metric": "proportions.f.headsTall",
+     "value": 7.35,
+     "min": 7.2,
+     "max": 7.9,
+     "status": "pass",
+     "source": "rubric / de Leva 1996"
+    },
+    {
+     "id": "neck-m",
+     "label": "neck chin-to-notch / stature (m)",
+     "metric": "proportions.m.neckLengthPerH",
+     "value": 0.05,
+     "min": 0.045,
+     "max": 0.06,
+     "status": "pass",
+     "source": "Drillis & Contini (0.052)"
+    },
+    {
+     "id": "neck-f",
+     "label": "neck chin-to-notch / stature (f)",
+     "metric": "proportions.f.neckLengthPerH",
+     "value": 0.053,
+     "min": 0.045,
+     "max": 0.06,
+     "status": "pass",
+     "source": "Drillis & Contini (0.052)"
+    },
+    {
+     "id": "whr-m",
+     "label": "waist-to-hip (m)",
+     "metric": "proportions.m.waistToHip",
+     "value": 0.84,
+     "min": 0.83,
+     "max": 0.88,
+     "status": "pass",
+     "source": "v7 §2 athlete reference"
+    },
+    {
+     "id": "whr-f",
+     "label": "waist-to-hip (f)",
+     "metric": "proportions.f.waistToHip",
+     "value": 0.7,
+     "min": 0.7,
+     "max": 0.75,
+     "status": "pass",
+     "source": "v7 §2 athlete reference"
+    },
+    {
+     "id": "neckgirth-m",
+     "label": "neck girth m (boxers 0.40+)",
+     "metric": "proportions.m.neckGirth",
+     "value": 0.418,
+     "min": 0.4,
+     "max": null,
+     "status": "pass",
+     "source": "v7 §2"
+    },
+    {
+     "id": "waist-m",
+     "label": "waist girth (m)",
+     "metric": "proportions.m.waistGirth",
+     "value": 0.802,
+     "min": 0.78,
+     "max": 0.84,
+     "status": "pass",
+     "source": "v7 §2"
+    },
+    {
+     "id": "waist-f",
+     "label": "waist girth (f)",
+     "metric": "proportions.f.waistGirth",
+     "value": 0.649,
+     "min": 0.65,
+     "max": 0.7,
+     "status": "fail",
+     "source": "v7 §2"
+    },
+    {
+     "id": "hip-m",
+     "label": "hip girth (m)",
+     "metric": "proportions.m.hipGirth",
+     "value": 0.959,
+     "min": 0.95,
+     "max": 1,
+     "status": "pass",
+     "source": "v7 §2"
+    },
+    {
+     "id": "hip-f",
+     "label": "hip girth (f)",
+     "metric": "proportions.f.hipGirth",
+     "value": 0.926,
+     "min": 0.92,
+     "max": 0.97,
+     "status": "pass",
+     "source": "v7 §2"
+    },
+    {
+     "id": "garment-inside",
+     "label": "garment vertices inside the skin, worst pose (share)",
+     "metric": "garments.worst",
+     "value": 0.0753,
+     "min": null,
+     "max": null,
+     "status": "unset",
+     "source": "v7 worst 0.076; set by the design"
+    },
+    {
+     "id": "garment-inside-guard",
+     "label": "garment vertices inside the skin, guard (share)",
+     "metric": "garments.byPose.act-guard",
+     "value": 0.0405,
+     "min": null,
+     "max": null,
+     "status": "unset"
+    },
+    {
+     "id": "cavity-skin",
+     "label": "inside of the body visible (share of the person's pixels), worst shot",
+     "metric": "cavity.skinBack.worst",
+     "value": 0.00364,
+     "min": null,
+     "max": null,
+     "status": "unset"
+    },
+    {
+     "id": "cavity-garment-broadcast",
+     "label": "inside of the garments visible from the broadcast camera (share)",
+     "metric": "cavity.garmentBack.broadcast",
+     "value": 0.00228,
+     "min": null,
+     "max": null,
+     "status": "unset"
+    },
+    {
+     "id": "cavity-garment",
+     "label": "inside of the garments visible, worst shot (share)",
+     "metric": "cavity.garmentBack.worst",
+     "value": 0.01092,
+     "min": null,
+     "max": null,
+     "status": "unset"
+    },
+    {
+     "id": "joints",
+     "label": "joint-limit violations, all measured poses",
+     "metric": "joints.violations",
+     "value": 0,
+     "min": null,
+     "max": 0,
+     "status": "pass",
+     "source": "a violated joint limit is never acceptable"
+    },
+    {
+     "id": "feet-max",
+     "label": "foot sliding: worst single plant (cm)",
+     "metric": "feet.maxSlideCm",
+     "value": 15.22,
+     "min": null,
+     "max": null,
+     "status": "unset"
+    },
+    {
+     "id": "feet-rate",
+     "label": "foot sliding: planted travel per second (cm/s)",
+     "metric": "feet.slideCmPerS",
+     "value": 2.34,
+     "min": null,
+     "max": null,
+     "status": "unset"
+    }
+   ],
+   "pass": 15,
+   "fail": 2,
+   "unset": 10,
+   "missing": 0,
+   "ok": false
+  }
+ }
+}

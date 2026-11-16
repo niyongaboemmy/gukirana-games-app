@@ -9,6 +9,7 @@ import { RingMood } from "@/fight/ring-lights";
 import { EffectComposer, N8AO, ToneMapping } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
 import { BOXER_V7 } from "../boxer/body-v6";
+import { BOXER_GENERATION, BOXER_V8_REQUESTED } from "../boxer/generation";
 import { fightSpots, PUNCH_RANGE, RING, refereeSpot, stoolSpot, toHall, type RingSpec, type Spot } from "@/rooms/fight/ring-kit-core";
 import { BOXING_CLIPS, BOXING_CLIP_NAMES, REF_RAISE, TOUCH_DISTANCE, type BoxingClipName } from "./clips";
 import { boxingKitOverride, refereeLook, type Corner } from "./kit";
@@ -28,7 +29,8 @@ import { canvasGapOf, refereeSpot as presentRefereeSpot } from "@/fight/present"
  * at=impact|<s> (freeze there) · dt=<s> (offset from that) · red / blue = feminine|masculine|neutral ·
  * southpaw=red|blue · headgear=1 · corner=red|blue (kit) · cam=side|front|back|close|low|corner|ring|top|field|kit|
  * gloves|head|boots · tier=lite|standard · ref=1 · rate=<x> (slow motion)
- * window.__gkProbe: { calls, tris, rings: { near, far, culled, drawCalls, triangles }, clip, t }.
+ * window.__gkProbe: { calls, tris, rings: { near, far, culled, drawCalls, triangles }, clip, t, scene, camera, gl, three,
+ * generation, v8Requested } · boxer=v7|v8 (P3-FGT-19B: which ring people, world/human/boxer/generation.ts).
  */
 
 const LOOKS: Record<BodyType, AvatarLook> = {
@@ -80,8 +82,9 @@ function cuesFor(clip: BoxingClipName, t: number): { cues: Cue[]; length: number
     const r = REACTION_FOR[clip];
     if (r) cues.push({ who: "blue", clip: r, start: t + info.impact! });
   } else if (info.kind === "defence") {
-    const p = DEFENCE_FOR[clip]!;
-    cues.push({ who: "blue", clip: p, start: t + info.impact! - BOXING_CLIPS[p].impact! });
+    // (a defence without a scripted partner punch, e.g. parry, plays alone: the library cycle used to crash on it)
+    const p = DEFENCE_FOR[clip];
+    if (p) cues.push({ who: "blue", clip: p, start: t + (info.impact ?? 0) - (BOXING_CLIPS[p].impact ?? 0) });
   } else if (["hitHeadLight", "hitHeadHeavy", "hitBodyLight", "hitBodyHeavy", "stagger", "knockdown"].includes(clip)) {
     const p: BoxingClipName = clip.startsWith("hitBody") ? "rearBody" : clip === "hitHeadLight" ? "jab" : "cross";
     cues[0]!.start = t + BOXING_CLIPS[p].impact!;
@@ -403,7 +406,11 @@ function CameraRig({ preset, mode }: { preset: string; mode: string }) {
 
 function Probe({ ringStats }: { ringStats: React.RefObject<RingKitStats | null> }) {
   const gl = useThree((s) => s.gl);
-  const probe = useMemo(() => ({ calls: 0, tris: 0, frames: 0, rings: null as RingKitStats | null }), []);
+  const scene = useThree((s) => s.scene);
+  const camera = useThree((s) => s.camera);
+  // (P3-FGT-19B: the scene, camera, renderer and three itself for the fighter-v8 harness's in-page probes:
+  // qa/e2e/fighter-v8/inpage.js — dev-only lab)
+  const probe = useMemo(() => ({ calls: 0, tris: 0, frames: 0, rings: null as RingKitStats | null, scene, camera, gl, three: THREE, generation: BOXER_GENERATION, v8Requested: BOXER_V8_REQUESTED }), [scene, camera, gl]);
   useEffect(() => {
     (window as unknown as { __gkProbe?: typeof probe }).__gkProbe = probe;
   }, [probe]);
