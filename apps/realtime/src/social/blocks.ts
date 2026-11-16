@@ -36,6 +36,11 @@ export class BlockGraph {
     this.sets.get(sid)?.delete(key);
   }
 
+  /** this session's block keys (cross-room checks, P2-MM-05) */
+  keys(sid: string): ReadonlySet<string> {
+    return this.sets.get(sid) ?? new Set();
+  }
+
   forget(sid: string): void {
     this.sets.delete(sid);
   }

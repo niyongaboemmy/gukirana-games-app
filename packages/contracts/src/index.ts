@@ -42,3 +42,4 @@ export * from "./console.js";
 export * from "./identity.js";
 export * from "./games.js";
 export * from "./boxing.js";
+export * from "./matchmaking.js";

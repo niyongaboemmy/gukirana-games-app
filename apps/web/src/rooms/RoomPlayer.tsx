@@ -16,7 +16,8 @@ import { useDoorway } from "@/world/doorway";
 import { useWalletSheet } from "@/wallet/WalletSheet";
 import { clearHandoff, peekHandoff } from "@/world/stage";
 import type { HallLayout, Seat } from "./layouts";
-import { freeChair, tableAt } from "./table-status";
+import { freeChair, reservedForMe, tableAt } from "./table-status";
+import { useSession } from "@/lib/session";
 import { SEAT_BACK, seatProfileFor, type SeatProfile } from "@/world/human/seat-profiles";
 import { hallHooks, hiddenPeople, SELF_ID, walkQueue, type HallHooks } from "./hall-hooks";
 import { bodyDetour, softBodies } from "./soft-bodies";
@@ -26,6 +27,8 @@ import { CAM_RATE, damp, PROMPT, stickyNearest, stickyZone } from "./stability";
 import { eye, EYE_NEAR, eyeDrag, eyePose, reducedMotion, smooth01, stepBlend, useCamMode, zoomEye } from "@/world/eye-view";
 
 const SIT_ANIM = 13;
+/** my account id (a chair reserved for me by the matchmaker is mine to take, P2-MM-05) */
+const myUid = () => useSession.getState().me?.id ?? null;
 const wrapA = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 const ease = (t: number) => t * t * (3 - 2 * t);
 /** staged sit: walk to the stand point in front of the chair, turn, then lower onto it while the clip plays */
@@ -316,7 +319,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     const t = layout.tables.find((x) => x.id === tableId);
     if (!t) return clearPick();
     const W = useWorld.getState();
-    const s = freeChair(layout, t.id, W.seats, W.you, pos.current.x, pos.current.z);
+    const s = freeChair(layout, t.id, W.seats, W.you, pos.current.x, pos.current.z, myUid());
     pick.table = t.id;
     /** halls with cross aisles (Ludo): walk along the cross aisle on that side of the table (nearest to z) */
     const laneOf = (z: number, side: number) => {
@@ -363,7 +366,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
     if (pick.seat) {
       const s = layout.seats.find((x) => x.id === pick.seat);
       const holder = s ? W.seats[s.id] : undefined;
-      if (s && holder && holder !== W.you) {
+      if (s && holder && holder !== W.you && !reservedForMe(holder, myUid())) {
         // someone sat there first: the other chair of that table, else watch
         const t = pick.table!;
         clearPick();
@@ -964,7 +967,7 @@ export function RoomPlayer({ layout, onExit, tier }: { layout: HallLayout; onExi
               // cheap reject first (1,224 arena seats)
               if (Math.abs(s.x - px) > 2 || Math.abs(s.z - pz) > 2) return null;
               const holder = W.seats[id];
-              if (holder && holder !== W.you) return null;
+              if (holder && holder !== W.you && !reservedForMe(holder, myUid())) return null;
               if (hooks?.seatOk && !hooks.seatOk(id)) return null; // e.g. an office chair you may not take
               return Math.hypot(s.x - px, s.z - pz);
             },

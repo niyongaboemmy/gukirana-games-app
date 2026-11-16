@@ -431,6 +431,12 @@ export class BoxingHall {
       best = gap;
       otherIdx = i;
     });
+    // P2-MM-05: nobody in the queue fits, but someone already stands in a ring waiting at this stake (an open
+    // challenge from "Wait for an opponent"): take them on (before, the two waited side by side for ever)
+    if (otherIdx < 0) {
+      const waiting = this.waitingRingFor(sid, stake);
+      if (waiting) return this.joinWaiting(sid, waiting);
+    }
     const free = this.freeRing();
     if (otherIdx < 0 || !free) {
       q.push(sid);
@@ -488,6 +494,38 @@ export class BoxingHall {
     await this.startFight(free, "quick");
   }
 
+  /** the longest-waiting ring at this stake whose fighter is someone else (still here, not held) */
+  private waitingRingFor(sid: string, stake: number): RingState | undefined {
+    const me = this.host.uidOf(sid);
+    let best: RingState | undefined;
+    for (const r of this.rings.values()) {
+      if (r.status !== "waiting" || !r.red || r.blue || (r.stake ?? 0) !== stake || this.heldUntil.has(r.id)) continue;
+      if (r.red.sid === sid || (me && r.red.userId === me) || !this.host.has(r.red.sid)) continue;
+      if (!best || r.since < best.since) best = r;
+    }
+    return best;
+  }
+
+  /** quick fight into a waiting ring: the blue corner, then the fight (the server walks both there) */
+  private async joinWaiting(sid: string, r: RingState): Promise<void> {
+    this.unqueue(sid);
+    this.unqueue(r.red!.sid);
+    r.blue = this.fighter(sid, "blue");
+    this.holding.set(sid, r.id);
+    this.host.send(sid, BoxingHallEvt.quick, { status: "idle" });
+    this.host.send(sid, BoxingHallEvt.assigned, { ring: r.id, corner: "blue" });
+    await this.startFight(r, "join");
+  }
+
+  /** P2-MM-05: ring → status for the Quick Play picker (free / waiting / playing / held) */
+  statuses(): Record<string, "free" | "waiting" | "playing" | "held"> {
+    const out: Record<string, "free" | "waiting" | "playing" | "held"> = {};
+    for (const r of this.rings.values()) {
+      if (r.status === "free") continue;
+      out[r.id] = this.heldUntil.has(r.id) ? "held" : r.status === "waiting" ? "waiting" : "playing";
+    }
+    return out;
+  }
   /** the client asks for the registry again (its Boxing client started after the hall join): rings + my ring */
   onSync(sid: string): void {
     if (!this.host.has(sid) || !this.rate.allow(`${sid}:sync`, 4, 10_000, Date.now())) return;

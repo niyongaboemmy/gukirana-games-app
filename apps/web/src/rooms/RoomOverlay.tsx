@@ -1,9 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Armchair, Bot, DoorOpen, Loader2, Mic, Swords, Users, X, Zap } from "lucide-react";
+import { Armchair, Bot, DoorOpen, LayoutGrid, Loader2, Mic, Swords, Users, X, Zap } from "lucide-react";
 import { useWorld } from "@/lib/world-store";
-import { useMatch } from "@/lib/match-store";
+import { GAME_LABEL, useMatch } from "@/lib/match-store";
+import { askVenues, cancelSearch, findOpponent, MM_V2, openChallenge, openQuickPlay, useMm } from "@/lib/mm-store";
+import { mf } from "@/match/mm-strings";
+import { M } from "@/match/strings";
+import { stakeWords } from "@/match/quick-play";
+import { reservedForMe } from "./table-status";
 import { StakeChips } from "@/match/StakeChips";
 import { propose, quickMatchJoin, quickMatchLeave } from "@/lib/realtime";
 import { useVoice } from "@/voice/voice";
@@ -21,6 +26,78 @@ import { R } from "./strings";
 import { useTablePlaceSync } from "./place-restore";
 
 const glass = "glass rounded-card";
+
+/**
+ * The seat panel's play options with matchmaking v2 (P2-MM-05): Practice vs AI, Find an opponent (anyone looking for
+ * this game at this stake, anywhere: this table is offered as the place), Challenge someone, Quick Play; who waits at
+ * this table and how many people look per stake; accurate guidance instead of the old "stand near" tip.
+ */
+function SeatPanelV2(p: {
+  game: "pool" | "ludo" | "igisoro";
+  table: string | null;
+  stake: number;
+  setStake: (s: number) => void;
+  authed: boolean;
+  searching: boolean;
+  waitsHere?: { name: string; stakes: number[] };
+  looking: Record<string, number>;
+  onPractice: () => void;
+}) {
+  const label = GAME_LABEL[p.game];
+  const lookLine = Object.entries(p.looking)
+    .filter(([, n]) => n > 0)
+    .map(([s, n]) => `${s === "0" ? M.friendly : `${s} Stars`} ${n}`)
+    .join(" · ");
+  return (
+    <>
+      {p.authed && p.waitsHere && !p.searching && (
+        <button
+          type="button"
+          onClick={() => findOpponent(p.game, [p.waitsHere!.stakes[0] ?? 0], p.table ?? undefined)}
+          className="pbtn pbtn-primary mb-2 w-full phone:mb-1.5 phone:text-sm"
+        >
+          <Swords size={18} /> {mf("seat.playThem", { name: p.waitsHere.name })} · {stakeWords(p.waitsHere.stakes.slice(0, 1), M.friendly)}
+        </button>
+      )}
+      {p.searching ? (
+        <button type="button" onClick={() => cancelSearch()} className="pbtn pbtn-secondary w-full phone:text-sm">
+          <Loader2 size={18} className="animate-spin" /> {mf("search.title", { game: label })} · {mf("search.cancel")}
+        </button>
+      ) : (
+        <div className="grid grid-cols-2 gap-2 phone:gap-1.5">
+          <button type="button" onClick={p.onPractice} className="pbtn pbtn-secondary min-h-12! phone:min-h-10! phone:text-sm">
+            <Bot size={18} /> {mf("qp.practice")}
+          </button>
+          {p.authed ? (
+            <button type="button" onClick={() => findOpponent(p.game, [p.stake], p.table ?? undefined)} className="pbtn pbtn-primary min-h-12! phone:min-h-10! phone:text-sm">
+              <Zap size={18} /> {mf("seat.find")}
+            </button>
+          ) : (
+            <div className="pnote grid place-items-center text-center text-xs">Sign in at the gate to play people</div>
+          )}
+          {p.authed && (
+            <>
+              <button type="button" onClick={() => openChallenge({ game: p.game, stake: p.stake, ...(p.table ? { place: p.table } : {}) })} className="pbtn pbtn-secondary min-h-11! phone:min-h-9! phone:text-sm">
+                <Swords size={16} /> {mf("seat.challenge")}
+              </button>
+              <button type="button" onClick={() => openQuickPlay({ game: p.game })} className="pbtn pbtn-secondary min-h-11! phone:min-h-9! phone:text-sm">
+                <LayoutGrid size={16} /> {mf("seat.quick")}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+      {p.authed && !p.searching && (
+        <div className="mt-3 text-sm phone:mt-2 phone:text-xs">
+          <span className="plabel mb-1 block phone:text-[10px]">{R.stake}</span>
+          <StakeChips game={p.game} value={p.stake} onChange={p.setStake} compact />
+          {lookLine && <p className="pmuted mt-1 text-xs">{mf("seat.looking")}: {lookLine}</p>}
+        </div>
+      )}
+      <p className="pmuted mt-2 text-xs phone:hidden">{mf("seat.tip", { game: label })}</p>
+    </>
+  );
+}
 
 /** Hall HUD: room title, sit prompt, seat panel (practice / find opponent here / stand). */
 export function RoomOverlay({ layout }: { layout: HallLayout }) {
@@ -58,10 +135,23 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
   const people = Object.values(players).sort((a, b) => a.name.localeCompare(b.name));
   const livePlay = true; // all three halls support live matches (Pool via the deterministic integer engine)
 
-  // the server refused our chair (someone sat first) → stand back up
+  // the server refused our chair (someone sat first) → stand back up (a chair kept for me by the matchmaker is mine)
+  const myUid = useSession((s) => s.me?.id ?? null);
   useEffect(() => {
-    if (seated && seats[seated] && seats[seated] !== you) getUp();
-  }, [seatTaken, seats, seated, you]);
+    if (seated && seats[seated] && seats[seated] !== you && !reservedForMe(seats[seated], myUid)) getUp();
+  }, [seatTaken, seats, seated, you, myUid]);
+  // P2-MM-05: who waits at this table, how many look for this game per stake (asked while seated)
+  const tableId = seated ? (layout.seats.find((s) => s.id === seated)?.table ?? null) : null;
+  const mmGame = isGameHall(layout.game) ? layout.game : null;
+  const venues = useMm((s) => (mmGame ? s.venues[mmGame] : undefined));
+  const search = useMm((s) => s.search);
+  useEffect(() => {
+    if (!MM_V2 || !seated || !mmGame || !authed) return;
+    askVenues(mmGame);
+    const id = setInterval(() => askVenues(mmGame), 4000);
+    return () => clearInterval(id);
+  }, [seated, mmGame, authed]);
+  const waitsHere = tableId ? venues?.waits?.[tableId] : undefined;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -121,7 +211,7 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
                     <p className="text-[11px] text-on-glass-muted">Lvl {p.level} · {table ? `seated at table ${table}` : "walking"}</p>
                   </button>
                   {p.verified && authed && (
-                    <button type="button" onClick={() => setChallenge({ id: p.id, name: p.name })} className="press flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold ring-1 ring-white/10" style={{ background: `${layout.color}33`, color: "#fff" }}>
+                    <button type="button" onClick={() => (MM_V2 && p.uid ? openChallenge({ uid: p.uid, name: p.name, ...(mmGame ? { game: mmGame } : {}) }) : setChallenge({ id: p.id, name: p.name }))} className="press flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold ring-1 ring-white/10" style={{ background: `${layout.color}33`, color: "#fff" }}>
                       <Swords size={12} /> Play
                     </button>
                   )}
@@ -211,7 +301,22 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
               </button>
             }
           >
-            {quick.status === "waiting" ? (
+            {MM_V2 && mmGame ? (
+              <SeatPanelV2
+                game={mmGame}
+                table={tableId}
+                stake={stake}
+                setStake={setStake}
+                authed={authed}
+                searching={search.status === "searching" && "game" in search && search.game === mmGame}
+                waitsHere={waitsHere}
+                looking={venues?.searching ?? {}}
+                onPractice={() => {
+                  rememberBeforeGame(seated);
+                  router.push(`/play/${layout.game}`);
+                }}
+              />
+            ) : quick.status === "waiting" ? (
               <button type="button" onClick={quickMatchLeave} className="pbtn pbtn-secondary w-full phone:text-sm">
                 <Loader2 size={18} className="animate-spin" /> Waiting for an opponent at your table… (cancel)
               </button>
@@ -232,13 +337,13 @@ export function RoomOverlay({ layout }: { layout: HallLayout }) {
                 )}
               </div>
             )}
-            {livePlay && authed && quick.status !== "waiting" && (
+            {!MM_V2 && livePlay && authed && quick.status !== "waiting" && (
               <div className="mt-3 text-sm phone:mt-2 phone:text-xs">
                 <span className="plabel mb-1 block phone:text-[10px]">{R.stake}</span>
                 {isGameHall(layout.game) && <StakeChips game={layout.game} value={stake} onChange={setStake} compact />}
               </div>
             )}
-            <p className="pmuted mt-2 text-xs phone:hidden">Tip: stand near another player and use Challenge to play them directly.</p>
+            {!MM_V2 && <p className="pmuted mt-2 text-xs phone:hidden">Tip: stand near another player and use Challenge to play them directly.</p>}
           </PaperCard>
         </div>
       )}

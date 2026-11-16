@@ -19,6 +19,8 @@ import { CORNER_COLORS } from "@gukirana/contracts";
 import { gameFightActions } from "@/fight/game/actions";
 import { M } from "./strings";
 import { defaultStake, StakeChips, stakeNote, useStakeChoices } from "./StakeChips";
+import { MM_V2 } from "@/lib/mm-store";
+import { MatchmakingV2 } from "./MatchmakingV2";
 
 const GAMES: { id: GameId; icon: typeof DieIcon; color: string }[] = [
   { id: "igisoro", icon: SeedsIcon, color: "#27AE60" },
@@ -99,8 +101,13 @@ function IncomingCard({ p }: { p: ReturnType<typeof useMatch.getState>["incoming
   );
 }
 
-/** Challenges, incoming proposals and Quick Match inside the 3D world (SRS §8.4.2, FR-MM-*). */
+/** Matchmaking in the world: v2 (P2-MM-05, match/MatchmakingV2) unless NEXT_PUBLIC_FF_MATCH_V2=0 brings back v1. */
 export function MatchmakingPanel() {
+  return MM_V2 ? <MatchmakingV2 /> : <MatchmakingPanelV1 />;
+}
+
+/** v1: challenges, incoming proposals and Quick Match inside the 3D world (SRS §8.4.2, FR-MM-*). */
+function MatchmakingPanelV1() {
   const router = useRouter();
   const authed = useSession((s) => s.status === "authenticated");
   const { incoming, outgoing, quick, ready, notice } = useMatch();

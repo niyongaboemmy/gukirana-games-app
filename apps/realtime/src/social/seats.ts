@@ -1,8 +1,10 @@
-import { HELD_SEAT, isValidSeat, type HallId } from "@gukirana/contracts";
+import { HELD_SEAT, isValidSeat, RESERVED_SEAT_PREFIX, type HallId } from "@gukirana/contracts";
 
 export type ClaimResult = "ok" | "taken" | "invalid";
 const HELD_PREFIX = `${HELD_SEAT}:`;
 const heldKey = (uid: string) => `${HELD_PREFIX}${uid}`;
+/** P2-MM-05: a chair kept for a matched player on their way to the table (`~res:<uid>`, shown as-is in the map) */
+const resKey = (uid: string) => `${RESERVED_SEAT_PREFIX}${uid}`;
 
 /**
  * Server-claimed seats (hall chairs + plaza bench places): one person per seat, one seat per person.
@@ -14,10 +16,16 @@ export class SeatRegistry {
 
   constructor(private readonly place: "plaza" | HallId) {}
 
-  claim(seat: unknown, sessionId: string): ClaimResult {
+  claim(seat: unknown, sessionId: string, uid?: string): ClaimResult {
     if (!isValidSeat(this.place, seat)) return "invalid";
     const holder = this.bySeat.get(seat);
-    if (holder && holder !== sessionId) return "taken";
+    // a chair reserved for this account (matched, walking here) is theirs to take; nobody else's
+    const mine = !!uid && holder === resKey(uid);
+    if (holder && holder !== sessionId && !mine) return "taken";
+    if (mine) {
+      this.bySession.delete(resKey(uid));
+      this.bySeat.delete(seat);
+    }
     this.release(sessionId);
     this.bySeat.set(seat, sessionId);
     this.bySession.set(sessionId, seat);
@@ -65,6 +73,25 @@ export class SeatRegistry {
   /** the hold ran out: the chair is free again (true when something changed) */
   releaseHeld(uid: string): boolean {
     return this.release(heldKey(uid));
+  }
+
+  /** P2-MM-05: keep `seat` for `uid` (only a free chair, or the one already kept for them) */
+  reserve(seat: string, uid: string): boolean {
+    if (!isValidSeat(this.place, seat)) return false;
+    const holder = this.bySeat.get(seat);
+    if (holder && holder !== resKey(uid)) return false;
+    this.release(resKey(uid));
+    this.bySeat.set(seat, resKey(uid));
+    this.bySession.set(resKey(uid), seat);
+    return true;
+  }
+  /** the reservation ended (match started / called off): the chair is free again unless its player sits on it */
+  releaseReserved(uid: string): boolean {
+    return this.release(resKey(uid));
+  }
+  /** who holds `seat`: a session id, `~held:<uid>`, `~res:<uid>` or undefined */
+  holderOf(seat: string): string | undefined {
+    return this.bySeat.get(seat);
   }
 
   /** seat → holder session (a held chair shows HELD_SEAT, never the account id) */
