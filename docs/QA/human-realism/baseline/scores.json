@@ -1,0 +1,55 @@
+{
+  "plaza": {
+    "proportions": [
+      4,
+      "reads as an adult from all sides; upper arm bone short (joint placement), visually fine"
+    ],
+    "face": [
+      2,
+      "photo-textured but low-poly head (5k tris), flat profile, painted moles / lines read as decals"
+    ],
+    "eyes": [
+      2,
+      "textured iris and catchlight, but no wet line or lid occlusion; eyes sit flat in the socket"
+    ],
+    "skin": [
+      2,
+      "single roughness 0.8 everywhere, baked photo light in the albedo; darkest tone crushed (cheek L* 8.8 vs albedo ~15 in daylight)"
+    ],
+    "hair": [
+      2,
+      "braids as floating ribbon cards, short hair a shell with a soft edge; helmet-like silhouette from the back"
+    ],
+    "hands": [
+      2,
+      "5 fingers present but faceted paddles at close range; a pink wedge at the wrist under the cuff"
+    ],
+    "clothing": [
+      2,
+      "clothes are the body surface (Rocketbox single mesh, painted detail); a 'tee' shows as the base model's jacket"
+    ],
+    "motion": [3, "speed-matched gait, idle sway and blinks; feet still skate at slow walking"],
+    "expressions": [2, "jaw / blink / gaze only; no brows, cheeks or mouth corners in conversation"],
+    "lighting": [3, "consistent in day / sunset / night rigs, dark skin loses form at sunset and night"],
+    "lod": [4, "head detail switch at 9 m is not visible in the sweep"],
+    "perf": [4, "12–29k tris, 3 body meshes + props per person, 24 MB textures per body type"]
+  },
+  "boxer": {
+    "face": [2, "generic MakeHuman head, flat colour skin, procedural disc eyes"],
+    "eyes": [1, "procedural disc on the helper ball, no wetness"],
+    "skin": [1, "one flat colour per person, noise bump, rim light: plastic"],
+    "hair": [1, "1–2 cm bowl from the head envelope: helmet hair"],
+    "hands": [3, "fingers rigged, gloves procedural shells"],
+    "clothing": [2, "vest a shell 5–11 mm along the body normals: the chest prints through"],
+    "expressions": [3, "focus / effort / wince channels exist"],
+    "motion": [3, "IK boxing motion, frozen in the lab (not measured)"]
+  },
+  "ring": {
+    "face": [2, "same base as the boxers"],
+    "skin": [1, "flat colour"],
+    "clothing": [
+      2,
+      "referee shirt and judges' polos as body-offset shells; clipping 3–8 % of garment vertices"
+    ]
+  }
+}
