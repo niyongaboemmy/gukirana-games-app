@@ -92,8 +92,12 @@ shirt), tiled ×70. Faded with distance (`uDetail` off beyond 16 m).
 **Garments are real geometry** (`build.mjs`):
 - the vest now hangs as cloth: the referee shirt's drape (per height slice the body's outer envelope, the cleavage and
   the spine groove bridged, small bumps never printed: 1.4 cm over the smoothed body; at most 0.22 m/m of inward
-  slope below the chest), tucked under the trunks' waistband; 5 mm of fabric, a 6 mm bound edge at the neckline and arm
-  holes; the body under it is not drawn. Draped garments no longer take the body's muscle-cavity bump (`flatAo`);
+  slope below the chest), tucked under the trunks' waistband; 5–9 mm of fabric (more over the straps), a 6 mm bound
+  edge at the neckline and arm holes; the body under it is not drawn. The cloth rests on a plain-Laplacian-smoothed
+  body with the nipple cones pressed flat (MakeHuman's are ≈ 2 cm proud and survive ordinary smoothing), the chest
+  radius is evened out and relaxed, and the cloth normals are smoothed over the base mesh's very dense nipple / navel
+  faces (which otherwise folded over and printed dots). The referee shirt, staff polo and everyday tee share this
+  drape. Draped garments no longer take the body's muscle-cavity bump (`flatAo`);
 - the everyday person (`outfit="casual"`): a draped tee in the look's top colour, trousers in its bottom colour
   (catalogue colours), shoes.
 

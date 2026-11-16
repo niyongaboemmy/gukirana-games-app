@@ -27,17 +27,17 @@ export const HIDE_R = 0.16;
 /** vertical field of view in first person (wider than the broadcast lens: the gloves fill the lower frame) at most */
 export const FPV_FOV = 72;
 /** the first-person lens for an aspect: a ~100° horizontal view (a VR headset's), so a wide phone screen does not turn
- * into a fish-eye; between 52° and FPV_FOV vertical */
+ * into a fish-eye; between 60° and FPV_FOV vertical */
 export function fpvFov(aspect: number): number {
   const v = (2 * Math.atan(Math.tan((50 * Math.PI) / 180) / Math.max(0.5, aspect)) * 180) / Math.PI;
-  return Math.max(52, Math.min(FPV_FOV, v));
+  return Math.max(60, Math.min(FPV_FOV, v));
 }
 /** how much the head's own turn (hit reactions, slips) steers the view against the aim at the opponent */
 export const HEAD_FOLLOW = 0.4;
 /** with reduced motion the head's snaps barely move the view */
 export const HEAD_FOLLOW_REDUCED = 0.08;
 /** the resting aim: a little under the opponent's eyes (their chin, my gloves in the lower third) */
-export const AIM_DROP = 0.28;
+export const AIM_DROP = 0.2;
 /** free-look limits */
 export const LOOK_YAW = 1.0;
 export const LOOK_DOWN = 1.15;

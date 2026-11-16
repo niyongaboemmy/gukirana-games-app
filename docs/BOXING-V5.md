@@ -77,11 +77,11 @@ Result: the winner's arms go up and the referee raises the winner's hand; the lo
   small camera push.
 - **Getting hit:** my head's hit reaction turns my view (40 % of the head's turn steers the view; 8 % with reduced
   motion), on top of the existing reduced-motion-aware shake.
-- **Aim:** the view aims a little under the opponent's eyes (their chin, my gloves in the lower third), blended with my
+- **Aim:** the view aims 20 cm under the opponent's face (their chin, my gloves in the lower third), blended with my
   head's own direction (slips and ducks move the view as in a real slip).
 - **Free look:** right-drag (mouse; a left click is a jab), drag on the open view (touch), right stick (gamepad); eased
   back to centre when released; limits ±57° sideways, 66° down, 20° up.
-- **Lens:** ~100° horizontal (a headset's) — 72° vertical at 16:9, narrower on wide phones (52–72°), near plane 3 cm.
+- **Lens:** ~100° horizontal (a headset's) — 68° vertical at 16:9, 60° on wide phones (60–72° allowed), near plane 3 cm. On a 844×390 phone the opponent at boxing range fills most of the frame (it is that close); the side camera stays one tap away.
 - **When:** the round, the countdown and the other fighter's count; the corner, my own knockdown and the result use the
   broadcast shots (and blend back in 0.45 s).
 - **Choice:** the HUD camera button cycles My eyes → Side → Behind → Auto; flag `NEXT_PUBLIC_FF_FIGHT_FPV` (on unless 0);
@@ -119,6 +119,10 @@ player picks); no paid item affects a live fight; no bots in cash rooms (unchang
 | Corner (rest, + corner team), 1280×720 | 9 | 126.7k | 60 |
 | First person, round, 844×390 DPR 2 | 8 | 96.7k | 60 |
 | Corner, 844×390 DPR 2 | 9 | 127.6k | 60 |
+
+The real boxing hall on the worktree stack (web 3980, API 4980 on a scratch PGlite DB, realtime 3247): a practice
+fight at R1 in first person (`hall-*` evidence); `qa/e2e/zscan.mjs hall:boxing`: **0** flat z-fighting pairs, **0**
+wall-face pairs. The plaza renderer and the plaza avatar are untouched by this task (no plaza draw-call change).
 
 Per person one draw call (+ shadow); 56–60k triangles close up; shared textures: skin 2K (1K on phones / Lite), detail
 512, iris 512. Download added: skin textures 1.5 + 1.8 MB (2K) or 0.37 + 0.48 MB (1K), detail 0.24 MB, iris 0.02 MB;
