@@ -29,6 +29,8 @@ import { EmotePicker } from "@/social/ActionPrompts";
 import { useRoom } from "@/rooms/room-store";
 import { useMatch } from "@/lib/match-store";
 import { quickMatchLeave } from "@/lib/realtime";
+import { cancelSearch, MM_V2, useMm } from "@/lib/mm-store";
+import { mf } from "@/match/mm-strings";
 import { useSession } from "@/lib/session";
 import { KeyHint, PROMPT_BTN, promptWrap } from "./Prompt";
 import { openQuickMatch, usePhoneHud } from "./usePhoneHud";
@@ -90,7 +92,10 @@ export function WorldHud() {
   const phone = usePhoneHud();
   const [more, setMore] = useState(false);
   const authed = useSession((s) => s.status === "authenticated");
-  const quickWaiting = useMatch((s) => s.quick.status === "waiting");
+  const quickWaitingV1 = useMatch((s) => s.quick.status === "waiting");
+  // P2-MM-05: with matchmaking v2 the search is the matchmaker's (lib/mm-store)
+  const mmSearching = useMm((s) => s.search.status === "searching");
+  const quickWaiting = MM_V2 ? mmSearching : quickWaitingV1;
   const portal = PORTALS.find((p) => p.id === nearPortal);
   // a door shut for you (closed by staff, the arena not letting you in): the prompt and a notice say why (GAP-004)
   const refusal = useDoorRefusal(portal?.href ? portal.id : null);
@@ -305,12 +310,12 @@ export function WorldHud() {
               <div className="menu pointer-events-auto absolute bottom-14 right-0 flex w-max flex-col gap-1 p-1.5 text-sm font-bold">
                 {authed &&
                   (quickWaiting ? (
-                    <button type="button" onClick={() => (quickMatchLeave(), setMore(false))} className="menu-item flex items-center gap-2 px-3 py-2 text-left">
-                      <Loader2 size={16} className="animate-spin" /> Cancel matching
+                    <button type="button" onClick={() => ((MM_V2 ? cancelSearch() : quickMatchLeave()), setMore(false))} className="menu-item flex items-center gap-2 px-3 py-2 text-left">
+                      <Loader2 size={16} className="animate-spin" /> {MM_V2 ? mf("search.cancel") : "Cancel matching"}
                     </button>
                   ) : (
-                    <button type="button" onClick={() => (openQuickMatch(), setMore(false))} className="menu-item flex items-center gap-2 px-3 py-2 text-left">
-                      <Zap size={16} className="text-gold" /> Quick Match
+                    <button type="button" onClick={() => (openQuickMatch(), setMore(false))} className="menu-item flex min-h-11 items-center gap-2 px-3 py-2 text-left">
+                      <Zap size={16} className="text-gold" /> {MM_V2 ? mf("hud.quickPlay") : "Quick Match"}
                     </button>
                   ))}
                 {connected && !inHall && (

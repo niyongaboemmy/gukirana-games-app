@@ -1,0 +1,56 @@
+PASS  1.A in the Ludo Lounge
+PASS  1.A seated at table 8
+PASS  1.seat panel: accurate guidance, no misleading tip
+PASS  1.A presses Find an opponent
+PASS  1.A sees the search card
+PASS  1.B on the plaza
+PASS  1.B Quick Play sheet open
+PASS  1.B Quick Play shows the hall and live tables
+PASS  1.B Go and find an opponent
+PASS  1.B searching (Friendly)
+PASS  1.A sees someone looking at another stake
+PASS  1.A asked to widen the stake (after 30 s)
+PASS  1.A: Opponent found
+PASS  1.B: Opponent found
+PASS  1.found card names the opponent
+PASS  1.A waiting for B to accept
+PASS  1.B taken into the Ludo Lounge
+PASS  1.B told where to go
+PASS  1.both reach the table and the match starts  — http://localhost:3947/match/ZlCQltQ-d?game=ludo&stake=0 | http://localhost:3947/match/ZlCQltQ-d?game=ludo&stake=0
+PASS  1.the same match for both
+PASS  1.at the widened shared stake (Friendly)
+PASS  2.C in the Igisoro Court
+PASS  2.D on the plaza
+PASS  2.D challenge sheet lists C (online elsewhere)
+PASS  2.D sends the challenge
+PASS  2.D waits for the answer
+PASS  2.C sees the challenge (in another room)
+PASS  2.challenge card shows game, stake and place
+PASS  2.D told it was accepted / walked into the Igisoro Court
+PASS  2.both walk to the same table and the game starts  — http://localhost:3947/match/raM8JzFqn?game=igisoro&stake=0 | http://localhost:3947/match/raM8JzFqn?game=igisoro&stake=0
+PASS  3.E and F on the plaza
+PASS  3.E challenges F
+PASS  3.F sees it
+PASS  3.E told F said no
+PASS  3.E challenges F again
+PASS  3.F sees the second one
+PASS  3.nobody answers: E told it expired
+PASS  3.F's card is gone
+PASS  4.G on the plaza
+PASS  4.Quick Play in the HUD
+PASS  4.sheet open
+PASS  4.a free table is preselected
+PASS  4.Go and practise
+PASS  4.walked into the Igisoro Court
+PASS  4.seated → the practice game opens  — http://localhost:3947/play/igisoro
+
+45/45 passed
+exit 0
+PASS  1.same Boxing hall
+PASS  1.Opponent found on both  — {"id":"f7","game":"boxing","stake":0,"opponent":{"uid":"fd164c9d-f0e6-4b1f-96f5-0e25d89663dd","name":"Player6605","level":1,"color":"#2F80ED"},"ttlMs":20000}
+PASS  1.both assigned the same ring  — {"ring":"R3","corner":"red"} {"ring":"R3","corner":"blue"}
+PASS  1.fight room ready  — {"ring":"R3","roomId":"6BAzXqcsT","matchId":"5a6a929b-dafa-48b0-b8d4-8c359bbdf1fd","corner":"red","stake":0,"rules":{"rounds":3,"roundSeconds":60,"restSeconds":15,"idleSeconds":20,"judges":5,"cautions":1,"warningsToDq":3,"openScoring":true,"drawTiebreak":"staked"}}
+PASS  2.A waits in ring R5  — {"ring":"R5","corner":"red"}
+PASS  2.B's Quick Fight joins A's ring (blue corner)  — {"ring":"R5","corner":"blue"}
+
+6/6 passed

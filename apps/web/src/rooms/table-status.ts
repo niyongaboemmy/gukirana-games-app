@@ -1,4 +1,4 @@
-import { HELD_SEAT } from "@gukirana/contracts";
+import { HELD_SEAT, reservedFor } from "@gukirana/contracts";
 import type { HallLayout, Seat, Table } from "./layouts";
 
 /**
@@ -37,8 +37,16 @@ export function tableStatuses(layout: HallLayout, seats: Record<string, string>)
   return out;
 }
 
-/** The free chair of `table` closest to (x, z), or null when all are taken (your own chair counts as free). */
-export function freeChair(layout: HallLayout, table: string, seats: Record<string, string>, you: string | null, x: number, z: number): Seat | null {
+/** a chair the server keeps for this account (matched, on the way to the table, P2-MM-05) */
+export const reservedForMe = (holder: string | undefined, uid: string | null | undefined) => !!uid && reservedFor(holder) === uid;
+
+/**
+ * The free chair of `table` closest to (x, z), or null when all are taken (your own chair counts as free). A chair
+ * reserved for you (`uid`, P2-MM-05) is always the one.
+ */
+export function freeChair(layout: HallLayout, table: string, seats: Record<string, string>, you: string | null, x: number, z: number, uid?: string | null): Seat | null {
+  const kept = seatsOf(layout, table).find((s) => reservedForMe(seats[s.id], uid));
+  if (kept) return kept;
   let best: Seat | null = null;
   let bd = Infinity;
   for (const s of seatsOf(layout, table)) {

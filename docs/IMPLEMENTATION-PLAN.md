@@ -417,6 +417,7 @@ pnpm build:wasm  # build crates/pool-physics → packages/games/pool/wasm
 - [ ] **P1-MM-03** Private challenge by link / QR / username (Stars in P1) · *est 2d* · refs: FR-MM-04
 - [ ] **P1-MM-04** Rematch flow · *est 1d* · refs: FR-MM-05
 - [ ] **P1-MM-05** Anti-collusion pairing rules (same device / IP / household block list) · *est 2d* · refs: FR-MM-06 · 🛡️
+- [x] **P2-MM-05** Matchmaking v2: Find an opponent per game with a stake set (process-wide, plaza + every hall), "Opponent found" accept window, live searching counts + widen (asked first) + practice hint; account-level challenges reaching any hall / the plaza (busy / offline / blocked / duplicate / crossed / rate-limited / can't-afford handled); a table / ring reserved for the pair, both walked there, the match starts once both are seated (escrow only then); guided Quick Play (game → hall → nearest free table / ring → mode → stake); Boxing Quick Fight now meets a ring already waiting · flags FF_MATCH_V2 / NEXT_PUBLIC_FF_MATCH_V2 · refs: FR-MM-01/04, docs/MATCHMAKING-V2.md
 
 ### Epic P1-IGI — Igisoro (first game: no randomness, simplest)
 - [ ] 🔴 **P1-IGI-01** Rules engine (`packages/games/igisoro`), validated rule set document from cultural advisers (X8), relay sowing, captures, end conditions · *est 5d* · refs: FR-G3-01..04

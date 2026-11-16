@@ -15,6 +15,7 @@ import { onPairStart } from "@/social/people";
 import { useSession } from "./session";
 import { heldRoomFor, onPlaceMsg, onSeatHolds, usePlace } from "./place-hold";
 import type { PlaceMsg, SeatHolds } from "@gukirana/contracts";
+import { mmRoomFor } from "./mm-target";
 
 /** Realtime connection to the plaza / hall room (plan P1-WLD-01/02, P1-COM-01). Works over LAN for phone testing. */
 let room: Room | null = null;
@@ -105,7 +106,8 @@ export async function connectPlaza(
     const options = { ...profile, look, blocks };
     // P2-NET-06: a place held for me lives in one hall instance: rejoin that one first (gone / full: the normal join)
     const opts = target.name === "hall" ? { ...options, game: target.game } : options;
-    const held = target.name === "hall" ? heldRoomFor(target.game) : null;
+    // (P2-MM-05: or the instance the matchmaker reserved my table in)
+    const held = target.name === "hall" ? (heldRoomFor(target.game) ?? mmRoomFor(target.game)) : null;
     room = held ? await client.joinById(held, opts).catch(() => client.joinOrCreate(target.name, opts)) : await client.joinOrCreate(target.name, opts);
     w.set({ connected: true, roomId: room.roomId });
     retries = 0;

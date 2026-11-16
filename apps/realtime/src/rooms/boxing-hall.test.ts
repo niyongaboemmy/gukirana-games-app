@@ -268,3 +268,28 @@ describe("quick fight, practice, leave, watch", () => {
     await expect(t.hall.assignProposal("a", "b", 100)).rejects.toThrow("ALREADY_IN_MATCH");
   });
 });
+
+describe("quick fight meets a ring that is already waiting (P2-MM-05)", () => {
+  it("Quick Fight at the stake of a waiting ring takes the blue corner there (far away is fine: both are walked)", async () => {
+    const t = setup();
+    t.add("a", "ua", "R5");
+    t.add("b", "ub", "R20");
+    await t.hall.onClaim("a", { ring: "R5", stake: 0 });
+    expect(t.hall.ring("R5")?.status).toBe("waiting");
+    await t.hall.onQuick("b", { stake: 0 });
+    expect(t.last("b", BoxingHallEvt.assigned)).toEqual({ ring: "R5", corner: "blue" });
+    expect(t.started[0]).toMatchObject({ ring: "R5", red: { userId: "ua" }, blue: { userId: "ub" }, stake: 0 });
+    expect(t.hall.queued(0)).toBe(0);
+  });
+
+  it("another stake, or my own ring, is never taken", async () => {
+    const t = setup();
+    t.add("a", "ua", "R5");
+    t.add("b", "ub", "R6");
+    await t.hall.onClaim("a", { ring: "R5", stake: 25 });
+    await t.hall.onQuick("b", { stake: 0 });
+    expect(t.started).toHaveLength(0);
+    expect(t.last("b", BoxingHallEvt.quick)).toEqual({ status: "waiting", stake: 0 });
+    expect(t.hall.statuses()).toEqual({ R5: "waiting" });
+  });
+});

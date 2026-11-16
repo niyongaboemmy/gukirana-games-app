@@ -26,6 +26,10 @@ import {
   WorldMoveSchema,
   PERSONAL_REFUSALS,
   HOLD_SEAT_HALLS,
+  HALL_SEATING,
+  MmMsg,
+  reservedFor,
+  type VenueStatus,
   type HallId,
   type PlaceMsg,
   type SeatHolds,
@@ -48,6 +52,17 @@ import { BoxingHall, boxingHallConfig, type RingKeep } from "./boxing-hall.js";
 import { boxingRoomOf, startBoxing } from "./boxing-room.js";
 import { arenaConfig } from "../social/arena-access.js";
 import { holdMsFor, info, placeHoldConfig, placeHolds, type Hold } from "../social/place-holds.js";
+import { matchMaker } from "@colyseus/core";
+import { matchService, mmConfig } from "../matchmaker-v2.js";
+import type { HallPort, Reservation, SessionPort } from "../social/mm-hub.js";
+
+// P2-MM-05: the matchmaking service asks the API like the v1 flows do, and opens a hall when none is open yet
+matchService.setDeps({
+  eligibility: (uid, stake, game) => eligibilityOf(uid, stake, game),
+  startMatch: (game, stake, uids) => startMatch(game as GameId, stake, uids),
+  createHall: async (game) => (await matchMaker.createRoom("hall", { game })).roomId,
+});
+const TABLE_HALLS = ["pool", "ludo", "igisoro"] as const;
 
 /**
  * Farthest position a player may report (centimetres from the fountain, each axis). The campus (P2-WLD-12) reaches
@@ -143,6 +158,10 @@ export class WorldRoom extends Room {
   private tracked = new Map<string, () => void>();
   /** P2-NET-06: the places this room keeps for players who lost their connection (uid → hold; social/place-holds.ts) */
   private heldHere = new Map<string, Hold>();
+  /** P2-MM-05: sessionId → unregister from the matchmaking hub; this hall's port; kept alive for a reservation */
+  private mmSessions = new Map<string, () => void>();
+  private mmHall: (() => void) | null = null;
+  private mmKeep = false;
 
   override async onAuth(_c: Client, options: { token?: unknown }): Promise<UserClaims | true> {
     if (!options?.token) return true; // guest
@@ -228,6 +247,9 @@ export class WorldRoom extends Room {
         this.endCallBetween(sid, other, "BLOCKED");
         this.pairs.forget(sid, other);
         this.dms.forget(sid, other);
+        const ua = this.users.get(sid)?.sub;
+        const ub = this.users.get(other)?.sub;
+        if (ua && ub && mmConfig.enabled) matchService.blocked(ua, ub);
         for (const [id, p] of this.proposals)
           if ((p.from === sid && p.to === other) || (p.from === other && p.to === sid)) {
             this.proposals.delete(id);
@@ -338,10 +360,18 @@ export class WorldRoom extends Room {
     // ---- seats (hall chairs + plaza bench places): one person per seat, one seat per person
     this.onMessage("sit", (client, raw: { seat?: unknown }) => {
       if (this.desk) return void this.desk.sit(client, raw?.seat); // admin chairs: who is inside / role checks
-      const r = this.seats.claim(raw?.seat, client.sessionId);
+      const uid = this.users.get(client.sessionId)?.sub;
+      // (a chair reserved for this account by the matchmaker is theirs, P2-MM-05)
+      const r = this.seats.claim(raw?.seat, client.sessionId, uid);
       if (r === "taken") return client.send("seat-taken", { seat: raw.seat });
-      if (r === "ok") this.broadcastSeats();
+      if (r === "ok") {
+        this.broadcastSeats();
+        if (uid && mmConfig.enabled) void matchService.seated(uid, this.roomId, raw.seat as string);
+      }
     });
+
+    // ---- matchmaking v2 (P2-MM-05): find an opponent / challenges / venues, process-wide (matchmaker-v2.ts)
+    if (mmConfig.enabled) this.mountMatchmaking();
     this.onMessage("stand", (client) => {
       if (this.seats.release(client.sessionId)) this.broadcastSeats();
     });
@@ -665,6 +695,137 @@ export class WorldRoom extends Room {
     }
   }
 
+  // ---------------------------------------------------------------- P2-MM-05: matchmaking v2
+
+  private mountMatchmaking(): void {
+    const on = (type: string, max: number, fn: (uid: string, raw: unknown, client: Client) => unknown) =>
+      this.onMessage(type, (client, raw: unknown) => {
+        const uid = this.users.get(client.sessionId)?.sub;
+        if (!uid) return client.send(type === MmMsg.invite ? "invite-closed" : "mm-status", { id: null, status: "error", reason: "LOGIN_REQUIRED" });
+        if (!this.rate.allow(`${client.sessionId}:${type}`, max, 10_000, Date.now())) return;
+        void fn(uid, raw, client);
+      });
+    on(MmMsg.find, 6, (uid, raw, c) => matchService.find(uid, raw, this.mmPort(c.sessionId, uid)));
+    on(MmMsg.cancel, 10, (uid) => matchService.cancel(uid));
+    on(MmMsg.widen, 6, (uid, raw) => matchService.widen(uid, raw));
+    on(MmMsg.respond, 10, (uid, raw) => matchService.respond(uid, raw));
+    on(MmMsg.invite, 8, (uid, raw) => matchService.invite(uid, raw));
+    on(MmMsg.inviteRespond, 10, (uid, raw) => matchService.inviteRespond(uid, raw));
+    on(MmMsg.inviteCancel, 10, (uid, raw) => matchService.inviteCancel(uid, raw));
+    on(MmMsg.venues, 20, (uid, raw) => matchService.venues(uid, raw));
+    on(MmMsg.online, 10, (uid) => matchService.online(uid));
+    if (!this.hallGame || (!(TABLE_HALLS as readonly string[]).includes(this.hallGame) && this.hallGame !== "boxing")) return;
+    this.mmHall = matchService.addHall(this.hallPort());
+  }
+
+  /** what the hub knows about one signed-in session of this room */
+  private mmPort(sid: string, uid: string): SessionPort {
+    return {
+      sid,
+      roomId: this.roomId,
+      hall: this.hallGame,
+      send: (type, msg) => this.client(sid)?.send(type, msg),
+      blocks: () => this.blocks.keys(sid),
+      person: () => {
+        const p = this.players.get(sid);
+        return { uid, name: p?.name ?? "Player", ...(p ? { level: p.level, color: p.color } : {}) };
+      },
+    };
+  }
+
+  private sidOf(uid: string): string | undefined {
+    for (const [sid, u] of this.users) if (u.sub === uid && this.players.has(sid)) return sid;
+    return undefined;
+  }
+
+  /** this hall as the matchmaker sees it: table / ring statuses, reservations, the Boxing ring assignment */
+  private hallPort(): HallPort {
+    const game = this.hallGame as HallPort["game"];
+    const port: HallPort = {
+      roomId: this.roomId,
+      game,
+      places: () => (this.boxing ? this.boxing.statuses() : this.tablePlaces()),
+      keepAlive: (on) => {
+        this.mmKeep = on;
+        this.holdsChanged();
+      },
+    };
+    if (this.boxing) {
+      const boxing = this.boxing;
+      port.assignBoxing = async (a, b, stake) => {
+        const sa = this.sidOf(a);
+        const sb = this.sidOf(b);
+        if (!sa || !sb) throw new Error("PLAYER_LEFT");
+        return boxing.assignProposal(sa, sb, stake);
+      };
+    } else {
+      port.reserve = (uids, want) => this.reserveTable(uids, want);
+      port.release = (uids) => {
+        let changed = false;
+        for (const u of uids) changed = this.seats.releaseReserved(u) || changed;
+        if (changed) this.broadcastSeats();
+      };
+    }
+    return port;
+  }
+
+  private tableIds(): string[] {
+    const n = this.hallGame ? HALL_SEATING[this.hallGame].tables : 0;
+    return Array.from({ length: n }, (_, i) => `t${i}`);
+  }
+  private chairsOf(table: string): string[] {
+    const n = this.hallGame ? HALL_SEATING[this.hallGame].chairs : 0;
+    return Array.from({ length: n }, (_, i) => `${table}s${i}`);
+  }
+  private tablePlaces(): Record<string, VenueStatus> {
+    const out: Record<string, VenueStatus> = {};
+    for (const t of this.tableIds()) {
+      const holders = this.chairsOf(t).map((s) => this.seats.holderOf(s));
+      const taken = holders.filter(Boolean) as string[];
+      if (!taken.length) continue;
+      out[t] = taken.some((h) => reservedFor(h)) ? "reserved" : taken.every((h) => h.startsWith("~held")) ? "held" : taken.length === holders.length ? "playing" : "waiting";
+    }
+    return out;
+  }
+
+  /**
+   * Keep a table for two matched accounts: `want` when it can take them, else the table one of them already sits at
+   * (its other chairs free), else the first empty table. A chair a player already sits on stays theirs.
+   */
+  private reserveTable(uids: string[], want?: string): Reservation | null {
+    const sidToUid = (h: string | undefined) => (h ? (this.users.get(h)?.sub ?? reservedFor(h) ?? undefined) : undefined);
+    const usable = (t: string) => this.chairsOf(t).every((s) => {
+      const h = this.seats.holderOf(s);
+      return !h || uids.includes(sidToUid(h) ?? "");
+    });
+    const mine = (t: string) => this.chairsOf(t).some((s) => uids.includes(sidToUid(this.seats.holderOf(s)) ?? ""));
+    const tables = this.tableIds();
+    const order = [...(want && tables.includes(want) ? [want] : []), ...tables.filter(mine), ...tables.filter((t) => !this.chairsOf(t).some((s) => this.seats.holderOf(s)))];
+    const table = order.find(usable);
+    if (!table) return null;
+    const seats: Record<string, string> = {};
+    const seated: string[] = [];
+    const chairs = this.chairsOf(table);
+    for (const u of uids) {
+      const own = chairs.find((s) => this.users.get(this.seats.holderOf(s) ?? "")?.sub === u);
+      if (own) {
+        seats[u] = own;
+        seated.push(u);
+      }
+    }
+    for (const u of uids) {
+      if (seats[u]) continue;
+      const free = chairs.find((s) => !this.seats.holderOf(s) && !Object.values(seats).includes(s)) ?? chairs.find((s) => reservedFor(this.seats.holderOf(s)) === u);
+      if (!free || !this.seats.reserve(free, u)) {
+        for (const x of uids) this.seats.releaseReserved(x);
+        return null;
+      }
+      seats[u] = free;
+    }
+    this.broadcastSeats();
+    return { table, seats, seated };
+  }
+
   private onTick(): void {
     this.tick++;
     const now = Date.now();
@@ -744,6 +905,8 @@ export class WorldRoom extends Room {
     if (this.arena) await this.arena.joined(client.sessionId);
     this.boxing?.joined(client.sessionId, back?.kind === "ring" ? back : undefined);
     if (claims) this.tellPlace(client, claims.sub, back);
+    // P2-MM-05: reachable by the matchmaker wherever this account is (its search / challenges / meeting follow it)
+    if (claims && mmConfig.enabled) this.mmSessions.set(client.sessionId, matchService.register(claims.sub, this.mmPort(client.sessionId, claims.sub)));
     if (back?.kind === "seat" && back.state === "waiting" && isGame(back.game) && back.stake !== undefined) void this.joinQuick(client, back.game, back.stake, back.since);
     this.presenceSoon();
   }
@@ -815,7 +978,7 @@ export class WorldRoom extends Room {
 
   /** the room stays alive while it keeps a place, and closes when the last hold ends with nobody inside */
   private holdsChanged(): void {
-    this.autoDispose = this.heldHere.size === 0;
+    this.autoDispose = this.heldHere.size === 0 && !this.mmKeep;
   }
 
   private presenceTimer: { clear(): void } | null = null;
@@ -836,6 +999,9 @@ export class WorldRoom extends Room {
     const sid = client.sessionId;
     this.tracked.get(sid)?.();
     this.tracked.delete(sid);
+    // (a hall change is a leave + a join: the matchmaker waits a short grace before it treats the account as gone)
+    this.mmSessions.get(sid)?.();
+    this.mmSessions.delete(sid);
     const me = this.users.get(sid);
     // P2-NET-06: a chair at a game table is kept for its player when the connection ended without a deliberate leave
     // (the Quick Match ticket is paused, not lost: nothing can start while they are away)
@@ -903,6 +1069,9 @@ export class WorldRoom extends Room {
   }
 
   override onDispose(): void {
+    this.mmHall?.();
+    for (const off of this.mmSessions.values()) off();
+    this.mmSessions.clear();
     for (const h of this.heldHere.values()) placeHolds.drop(h.uid, h);
     this.heldHere.clear();
     void api.reportPresence(this.roomId, this.hallGame ? `hall:${this.hallGame}` : "plaza", 0, 0);
