@@ -12,6 +12,8 @@ import { boxingLayer } from "./layer";
 import { BoxingMotion } from "./motion";
 import { BX } from "./strings";
 import { BoxerLab } from "../boxer/BoxerLab";
+import { BoxerAvatar, type BoxerProbe } from "../boxer/BoxerAvatar";
+import { canvasGapOf, refereeSpot as presentRefereeSpot } from "@/fight/present";
 
 /**
  * Dev-only boxing lab (/play/boxing-lab, development builds; P3-FGT-02): two fighters in kit in a feature ring cycling
@@ -66,10 +68,10 @@ const REACTION_FOR: Partial<Record<BoxingClipName, BoxingClipName>> = {
 };
 
 /** cues for one clip shown with its partner, starting at `t` (red is the one showing the clip) */
-function cuesFor(clip: BoxingClipName, t: number): { cues: Cue[]; length: number; scene: "fight" | "touch" | "corner" | "result" } {
+function cuesFor(clip: BoxingClipName, t: number): { cues: Cue[]; length: number; scene: "fight" | "touch" | "corner" | "result" | "clinch" } {
   const info = BOXING_CLIPS[clip];
   const cues: Cue[] = [{ who: "red", clip, start: t }];
-  let scene: "fight" | "touch" | "corner" | "result" = "fight";
+  let scene: "fight" | "touch" | "corner" | "result" | "clinch" = "fight";
   if (info.kind === "punch") {
     const r = REACTION_FOR[clip];
     if (r) cues.push({ who: "blue", clip: r, start: t + info.impact! });
@@ -83,6 +85,10 @@ function cuesFor(clip: BoxingClipName, t: number): { cues: Cue[]; length: number
     if (clip === "knockdown") cues.push({ who: "ref", clip: "refCount", start: t + 1.6 });
   } else if (clip === "count" || clip === "getUp") {
     cues.push({ who: "ref", clip: "refCount", start: t });
+  } else if (clip === "clinch") {
+    // both tie up; the referee steps in to break it (fight/present.ts refereeSpot, breaking)
+    cues.push({ who: "blue", clip, start: t }, { who: "ref", clip: "refBreak", start: t + 1.1 });
+    scene = "clinch";
   } else if (clip === "touchGloves") {
     cues.push({ who: "blue", clip, start: t });
     scene = "touch";
@@ -107,7 +113,7 @@ function cuesFor(clip: BoxingClipName, t: number): { cues: Cue[]; length: number
 
 /* ---------------- one fighter ---------------- */
 
-function Fighter({ look, corner, motion, clock, at, kitOn, headgear, referee, resetKey = 0 }: { look: AvatarLook; corner: Corner; motion: BoxingMotion; clock: LabClock; at: Spot; kitOn: boolean; headgear: boolean; referee?: boolean; resetKey?: number }) {
+function Fighter({ look, corner, motion, clock, at, kitOn, headgear, referee, resetKey = 0, probe, opponent }: { look: AvatarLook; corner: Corner; motion: BoxingMotion; clock: LabClock; at: Spot; kitOn: boolean; headgear: boolean; referee?: boolean; resetKey?: number; probe?: React.MutableRefObject<BoxerProbe | null>; opponent?: React.MutableRefObject<BoxerProbe | null> }) {
   const kit = useMemo(() => (kitOn && !referee ? boxingKitOverride(look, corner, { headgear }) : null), [look, corner, kitOn, headgear, referee]);
   const shown = useMemo(() => (referee ? refereeLook(look) : (kit?.look ?? look)), [kit, look, referee]);
   const weight = useMemo(() => ({ current: Number(new URLSearchParams(location.search).get("w") ?? 1) }), []);
@@ -149,9 +155,15 @@ function Fighter({ look, corner, motion, clock, at, kitOn, headgear, referee, re
       g.current.rotation.set(0, b.yaw + tr[2], 0);
     }
   });
+  // body=boxer: the ring people's realistic body (BoxerAvatar), the one the hall and the fight lab use
+  const boxerBody = useMemo(() => new URLSearchParams(location.search).get("body") === "boxer", []);
   return (
     <group ref={g} position={[at.x, at.y, at.z]} rotation={[0, at.yaw, 0]}>
-      <Avatar look={shown} animRef={anim} showTag={false} shadows rigLayer={layer} seedId={`lab-${corner}-${look.bodyType}`} />
+      {boxerBody ? (
+        <BoxerAvatar look={look} outfit={referee ? "referee" : "boxer"} kit={corner === "red" ? "#b3242b" : "#1f4fb0"} motion={motion} clock={clock.now} weight={weight} seed={corner === "red" ? 11 : 23} noHeadgear={!headgear} probe={probe} opponent={opponent} />
+      ) : (
+        <Avatar look={shown} animRef={anim} showTag={false} shadows rigLayer={layer} seedId={`lab-${corner}-${look.bodyType}`} />
+      )}
     </group>
   );
 }
@@ -197,6 +209,24 @@ function Duel({ q, setInfo }: { q: URLSearchParams; setInfo: (s: string) => void
   const [seg, setSeg] = useState(0);
   const st = useRef({ played: -1, loop: 0, lastT: 0 });
   // feed the cues (stamped with their own start times: frame timing never matters)
+  const probeRed = useRef<BoxerProbe | null>(null);
+  const probeBlue = useRef<BoxerProbe | null>(null);
+  const aimed = useRef(false);
+  /** contact IK as the hall does it (fighters.tsx aimFor): the other's face / body, a glove radius short, in my root frame */
+  const aimOf = (who: "red" | "blue", clip: BoxingClipName): [number, number, number] | undefined => {
+    const att = (who === "red" ? probeRed : probeBlue).current;
+    const def = (who === "red" ? probeBlue : probeRed).current;
+    const info = BOXING_CLIPS[clip];
+    if (!att || !def || info.kind !== "punch") return undefined;
+    const w = info.target === "body" ? def.body(new THREE.Vector3()) : def.head(new THREE.Vector3());
+    const r = att.inst.root;
+    r.updateMatrixWorld(true);
+    const from = r.getWorldPosition(new THREE.Vector3()).setY(w.y);
+    w.addScaledVector(w.clone().sub(from).normalize(), -0.1);
+    r.worldToLocal(w);
+    const k = att.rig.kArm || 1;
+    return [w.x / k, w.y / k, w.z / k];
+  };
   const feed = (t: number) => {
     const s = st.current;
     const loopT = freeze !== null ? t : t % plan.total;
@@ -217,7 +247,8 @@ function Duel({ q, setInfo }: { q: URLSearchParams; setInfo: (s: string) => void
       }
       for (const c of [...sg.cues].sort((a, b) => a.start - b.start)) {
         const m = motions[c.who];
-        m.play({ clip: c.clip, start: off + c.start, hold: c.hold, mirrored: c.who === "red" ? southpaw === "red" : c.who === "blue" ? southpaw === "blue" : false });
+        const aim = c.who === "ref" ? undefined : aimOf(c.who, c.clip);
+        m.play({ clip: c.clip, start: off + c.start, hold: c.hold, mirrored: c.who === "red" ? southpaw === "red" : c.who === "blue" ? southpaw === "blue" : false, ...(aim ? { aim } : {}) });
       }
     });
   };
@@ -228,13 +259,20 @@ function Duel({ q, setInfo }: { q: URLSearchParams; setInfo: (s: string) => void
   useFrame(() => {
     const t = clock.now();
     if (freeze === null) feed(t);
+    else if (!aimed.current && probeRed.current && probeBlue.current) {
+      // frozen: replay the segment once both bodies exist, with the contact targets
+      aimed.current = true;
+      st.current.played = -1;
+      feed(freeze);
+    }
     const cur = motions.red.current(t);
     (window as unknown as { __gkLab?: object }).__gkLab = { clip: plan.segs[seg]?.clip, red: cur.clip, blue: motions.blue.current(t).clip, t: Number(t.toFixed(3)) };
   });
   const sg = plan.segs[seg] ?? plan.segs[0]!;
   useEffect(() => setInfo(`${BX.clip}: ${sg.clip}`), [sg.clip, setInfo]);
   const scene = sg.scene;
-  const gap = scene === "touch" ? TOUCH_DISTANCE : Number(q.get("gap") ?? PUNCH_RANGE);
+  // (a clinch stands at the engine's tie-up distance: fight/present.ts canvasGapOf(640 mm))
+  const gap = scene === "touch" ? TOUCH_DISTANCE : scene === "clinch" ? Number(q.get("gap") ?? canvasGapOf(640)) : Number(q.get("gap") ?? PUNCH_RANGE);
   const spots = useMemo(() => {
     if (scene === "corner") return { red: stoolSpot(LAB_RING, "red"), blue: stoolSpot(LAB_RING, "blue") };
     if (scene === "result") {
@@ -255,14 +293,31 @@ function Duel({ q, setInfo }: { q: URLSearchParams; setInfo: (s: string) => void
     const x = red.x - 0.85,
       z = red.z + 0.45;
     if (sg.cues.some((c) => c.clip === "refCount")) return { x, y: RING.deck, z, yaw: Math.atan2(red.x - x, red.z - z) };
+    if (scene === "clinch") {
+      // the hall's own rule (fight/present.ts refereeSpot while breaking): off the pair line on the far side from the
+      // side camera, facing the pair
+      const blue = spots.blue;
+      const mx = (red.x + blue.x) / 2,
+        mz = (red.z + blue.z) / 2;
+      const s = presentRefereeSpot("round", { dist: 640, down: -1, winner: null, breaking: true, half: RING.post, gap });
+      const ax = (blue.x - red.x) / gap,
+        az = (blue.z - red.z) / gap;
+      // perpendicular, away from the side camera (+x, −z)
+      const px = -az,
+        pz = ax;
+      const sgn = px * 1 + pz * -1 > 0 ? -1 : 1;
+      const rx = mx + s.x * ax + sgn * s.z * px,
+        rz = mz + s.x * az + sgn * s.z * pz;
+      return { x: rx, y: RING.deck, z: rz, yaw: Math.atan2(mx - rx, mz - rz) };
+    }
     const s = refereeSpot(LAB_RING);
     return { ...s, x: s.x - 2.2, z: s.z + 2.2, yaw: s.yaw + Math.PI };
   }, [scene, spots, sg]);
   const showRef = q.get("ref") === "1" || sg.cues.some((c) => c.who === "ref");
   return (
     <>
-      <Fighter look={LOOKS[redBody] ?? LOOKS.masculine} corner="red" motion={motions.red} clock={clock} at={spots.red} kitOn headgear={headgear} resetKey={seg} />
-      <Fighter look={LOOKS[blueBody] ?? LOOKS.neutral} corner="blue" motion={motions.blue} clock={clock} at={spots.blue} kitOn headgear={headgear} resetKey={seg} />
+      <Fighter look={LOOKS[redBody] ?? LOOKS.masculine} corner="red" motion={motions.red} clock={clock} at={spots.red} kitOn headgear={headgear} resetKey={seg} probe={probeRed} opponent={probeBlue} />
+      <Fighter look={LOOKS[blueBody] ?? LOOKS.neutral} corner="blue" motion={motions.blue} clock={clock} at={spots.blue} kitOn headgear={headgear} resetKey={seg} probe={probeBlue} opponent={probeRed} />
       {showRef && <Fighter look={{ ...LOOKS.masculine, skinTone: SKIN_TONES[1]!, hairStyle: "buzz" }} corner="red" motion={motions.ref} clock={clock} at={refAt} kitOn={false} headgear={false} referee resetKey={seg} />}
     </>
   );

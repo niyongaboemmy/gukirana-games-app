@@ -5,6 +5,7 @@ import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { OUTFITS, type AvatarLook } from "@/world/outfits";
 import { BoxingRig } from "../boxing/rig";
+import type { Obstacle } from "../boxing/arm-fk";
 import type { BoxingMotion } from "../boxing/motion";
 import { P } from "../boxing/pose";
 import { BOXER_URL, buildOf, facePickOf, makeBoxer, type BoxerGender, type BoxerInstance, type BoxerOutfit } from "./boxer-body";
@@ -59,7 +60,43 @@ export interface BoxerAvatarProps {
   src?: string;
   /** finger signs over the pose (the referee's count, P3-FGT-14): first = the right hand, second = the left */
   fingers?: { current: CountSign | null };
+  /** P3-FGT-16: the other fighter: my arms are kept out of their head, trunk and arms (keyed-arm keep-out) */
+  opponent?: React.MutableRefObject<BoxerProbe | null>;
 }
+
+/**
+ * The other fighter's body as obstacles for my keyed arms (world space, refreshed every frame from their bones as last
+ * posed): the head (with headgear), the chest and belly as a capsule, and their arms (upper arm, forearm, glove).
+ */
+function opponentObstacles(o: BoxerProbe, out: Obstacle[]) {
+  const b = (n: string, v: THREE.Vector3) => {
+    const x = o.inst.bone(n);
+    return x ? x.getWorldPosition(v) : null;
+  };
+  let n = 0;
+  const put = (a: THREE.Vector3 | null, c: THREE.Vector3 | null, r: number) => {
+    if (!a) return;
+    if (!out[n]) out[n] = { a: new THREE.Vector3(), b: null, r: 0 };
+    const ob = out[n]!;
+    ob.a.copy(a);
+    ob.b = c ? (ob.b ?? new THREE.Vector3()).copy(c) : null;
+    ob.r = r;
+    n++;
+  };
+  const h = b("Bip01_Head", _oa);
+  if (h) put(h.add(_ob.set(0, 0.06, 0)), null, 0.13);
+  put(b("Bip01_Spine1", _oa), b("Bip01_Spine2", _ob)?.add(_oc.set(0, 0.1, 0)) ?? null, 0.15);
+  put(b("Bip01_Pelvis", _oa)?.add(_oc.set(0, 0.08, 0)) ?? null, b("Bip01_Spine1", _ob), 0.14);
+  for (const S of ["L", "R"]) {
+    put(b(`Bip01_${S}_UpperArm`, _oa), b(`Bip01_${S}_Forearm`, _ob), 0.05);
+    put(b(`Bip01_${S}_Forearm`, _oa), b(`Bip01_${S}_Hand`, _ob), 0.045);
+    put(o.glove(S === "L", _oa), null, 0.07);
+  }
+  out.length = n;
+}
+const _oa = new THREE.Vector3();
+const _ob = new THREE.Vector3();
+const _oc = new THREE.Vector3();
 
 /** an everyday person's colours from their look (world/outfits.ts catalogue): the top's colour (accent-coloured tops take
  * the player's top / accent colour), the bottom's colour (prints and wraps read as a dark neutral here) */
@@ -155,6 +192,9 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
     const pose = props.motion.sample(t);
     inst.root.getWorldPosition(_v);
     const near = camera.position.distanceTo(_v) < 16;
+    const opp = props.opponent?.current;
+    if (opp && near) opponentObstacles(opp, rig.opponent);
+    else rig.opponent.length = 0;
     rig.apply(pose, w, !!props.motion.current().mirrored, near && !lite);
     driveHelpers(helpers);
     const sign = props.fingers?.current;

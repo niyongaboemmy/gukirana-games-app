@@ -318,6 +318,12 @@ export function fitAim(clip: BoxingClipName, out: Pose, aim: readonly [number, n
   out[i] = out[i]! + ox * k;
   out[i + 1] = out[i + 1]! + oy * k;
   out[i + 2] = out[i + 2]! + oz * k;
+  // P3-FGT-16 keyed arms: the contact point and how far along the punch is (arm-fk.ts aimArm bends the keyed arm)
+  out[P.aimK] = k;
+  out[P.ax] = imp[0] + ox;
+  out[P.ay] = imp[1] + oy;
+  out[P.az] = imp[2] + oz;
+  out[P.aimRear] = i === P.rx ? 1 : 0;
   // a lower target takes the body down with it (knees and waist), a farther one leans in after it
   if (oy < 0) {
     out[P.hy] = out[P.hy]! + oy * 0.35 * k;

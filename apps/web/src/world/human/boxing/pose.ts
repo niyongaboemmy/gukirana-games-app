@@ -77,13 +77,36 @@ export const P = {
   /** lead / rear shoulder shrug (0…1: the shoulder comes up to protect the chin) */
   shrugL: 51,
   shrugR: 52,
+  /**
+   * P3-FGT-16 keyed arms (arm-fk.ts): 1 = the arms are driven by the joint angles below (forward kinematics from
+   * anatomical angles, joint limits applied), 0 = by the wrist targets above (the older IK path: referee, ceremony).
+   * Blends like every other channel, so a hand-over between the two is a cross-fade.
+   */
+  fk: 53,
+  /** the striking glove's contact target (root frame, orthodox): weight 0…1 (0 at the guard, 1 at impact), x, y, z,
+   * which hand (0 lead, 1 rear). Written by motion.ts fitAim / fitReach; arm-fk.ts bends the keyed arm onto it */
+  aimK: 54,
+  ax: 55,
+  ay: 56,
+  az: 57,
+  aimRear: 58,
+  /** lead arm angles (rad): shoulder flexion, abduction, internal rotation, elbow flexion, forearm pronation, wrist
+   * flexion, clavicle elevation, clavicle protraction (arm-fk.ts ARM) */
+  la: 59,
+  /** rear arm angles (same layout) */
+  ra: 67,
 } as const;
 export type PoseKey = keyof typeof P;
-export const POSE_SIZE = 53;
+export const POSE_SIZE = 75;
+/** the 8 angles of one keyed arm (offsets from P.la / P.ra) */
+export const ARM = { flex: 0, abd: 1, rot: 2, elbow: 3, pron: 4, wrist: 5, elev: 6, prot: 7 } as const;
+export const ARM_SIZE = 8;
+/** an arm's angles for authoring, in DEGREES (any subset) */
+export type ArmSpec = Partial<Record<keyof typeof ARM, number>>;
 export type Pose = Float32Array;
 
 /** channels whose sign flips when a pose is mirrored (southpaw): x positions / directions and yaw-like angles */
-export const MIRROR_FLIP: readonly number[] = [P.hx, P.yaw, P.chest, P.bend, P.hyaw, P.hroll, P.lx, P.lpx, P.lnx, P.rx, P.rpx, P.rnx, P.fLx, P.fLyaw, P.fRx, P.fRyaw, P.kLx, P.kRx];
+export const MIRROR_FLIP: readonly number[] = [P.hx, P.yaw, P.chest, P.bend, P.hyaw, P.hroll, P.lx, P.lpx, P.lnx, P.rx, P.rpx, P.rnx, P.fLx, P.fLyaw, P.fRx, P.fRyaw, P.kLx, P.kRx, P.ax];
 const FLIP = new Set(MIRROR_FLIP);
 /** channels holding foot data (the only ones travel compensation touches) */
 export const FOOT_CHANNELS: readonly number[] = [P.fLx, P.fLz, P.fLyaw, P.fRx, P.fRz, P.fRyaw];
@@ -142,6 +165,10 @@ export interface PoseSpec {
   eyes?: number;
   shrugLead?: number;
   shrugRear?: number;
+  /** P3-FGT-16 keyed arms: angles in degrees (unset ones keep the previous key's) and the FK weight */
+  leadArm?: ArmSpec;
+  rearArm?: ArmSpec;
+  fk?: number;
 }
 
 const V3_FIELDS: [keyof PoseSpec, number][] = [
@@ -193,7 +220,26 @@ export function pose(base: Pose, spec: PoseSpec): Pose {
     const v = spec[k] as number | undefined;
     if (v !== undefined) out[i] = v;
   }
+  if (spec.fk !== undefined) out[P.fk] = spec.fk;
+  for (const [a, at] of [
+    [spec.leadArm, P.la],
+    [spec.rearArm, P.ra],
+  ] as const) {
+    if (!a) continue;
+    for (const [name, off] of Object.entries(ARM) as [keyof typeof ARM, number][]) {
+      const v = a[name];
+      if (v !== undefined) out[at + off] = (v * Math.PI) / 180;
+    }
+  }
   return out;
+}
+
+/** an arm's angles of a pose back in degrees (authoring helpers, tests) */
+export function armOf(p: Pose, rear: boolean): Required<ArmSpec> {
+  const at = rear ? P.ra : P.la;
+  const o = {} as Required<ArmSpec>;
+  for (const [name, off] of Object.entries(ARM) as [keyof typeof ARM, number][]) o[name] = (p[at + off]! * 180) / Math.PI;
+  return o;
 }
 
 /**
@@ -201,6 +247,10 @@ export function pose(base: Pose, spec: PoseSpec): Pose {
  * hand's length in front of the face, the rear glove by the chin, elbows down over the ribs, palms turned in.
  * Rear heel slightly up (ready to push off).
  */
+/** the keyed guard arms (degrees; arm-fk.ts conventions) */
+export const GUARD_LEAD_ARM: Required<ArmSpec> = { flex: 52, abd: -19, rot: 6, elbow: 130, pron: 29, wrist: 0, elev: 4, prot: 6 };
+export const GUARD_REAR_ARM: Required<ArmSpec> = { flex: 48, abd: -19, rot: 36, elbow: 125, pron: -13, wrist: 0, elev: 4, prot: 4 };
+
 export const GUARD_AUTHOR: Pose = pose(newPose(), {
   hips: [0, 0.855, -0.01],
   yaw: -0.46,
@@ -231,6 +281,11 @@ export const GUARD_AUTHOR: Pose = pose(newPose(), {
   eyes: 0,
   shrugLead: 0.15,
   shrugRear: 0,
+  // P3-FGT-16 keyed arms: the guard measured as joint angles (elbows in front of the lower ribs, forearms rising to the
+  // gloves at the cheekbones, palms turned in; arm-fit.dev.test.ts fitted to chest-frame glove / elbow positions)
+  fk: 1,
+  leadArm: GUARD_LEAD_ARM,
+  rearArm: GUARD_REAR_ARM,
 });
 
 export const GUARD: Pose = pose(GUARD_AUTHOR, {
@@ -281,6 +336,7 @@ export function stanceWeight(p: Pose): number {
 
 /** Standing relaxed (referee, a boxer out of the ring stance): feet under the hips, hands loose. */
 export const STAND: Pose = pose(GUARD_AUTHOR, {
+  fk: 0,
   hips: [0, 0.9, 0],
   yaw: 0,
   chest: 0,
@@ -306,6 +362,7 @@ export const STAND: Pose = pose(GUARD_AUTHOR, {
 
 /** Down on one knee after a knockdown (rear knee on the canvas, lead foot planted, lead glove on the lead knee). */
 export const KNEEL: Pose = pose(GUARD_AUTHOR, {
+  fk: 0,
   hips: [0.02, 0.56, -0.08],
   yaw: -0.3,
   chest: -0.05,
@@ -339,6 +396,7 @@ export const KNEEL: Pose = pose(GUARD_AUTHOR, {
  */
 export const STOOL_HEIGHT = 0.55;
 export const SIT: Pose = pose(GUARD_AUTHOR, {
+  fk: 0,
   hips: [0, STOOL_HEIGHT + 0.1, -0.06],
   yaw: 0,
   chest: 0,

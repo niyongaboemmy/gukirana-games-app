@@ -1,4 +1,4 @@
-import { GUARD, GUARD_AUTHOR, KNEEL, P, pose, POSE_SIZE, SIT, STAND, newPose, stanceWeight, type Pose, type PoseSpec, type V3 } from "./pose";
+import { armOf, GUARD, GUARD_AUTHOR, GUARD_LEAD_ARM as GL, GUARD_REAR_ARM as GR, KNEEL, P, pose, POSE_SIZE, SIT, STAND, newPose, stanceWeight, type ArmSpec, type Pose, type PoseSpec, type V3 } from "./pose";
 
 /**
  * Boxing motion library (P3-FGT-02): procedural, licence-safe, deterministic clips on the Rocketbox rig. Each clip
@@ -139,6 +139,14 @@ const gLF = (): V3 => [GUARD_AUTHOR[P.fLx]!, 0, GUARD_AUTHOR[P.fLz]!];
 const gRF = (): V3 => [GUARD_AUTHOR[P.fRx]!, 0, GUARD_AUTHOR[P.fRz]!];
 /** both guard gloves shifted by d */
 const hands = (d: V3): PoseSpec => ({ lead: add(gL(), d), rear: add(gR(), d) });
+
+/** P3-FGT-16 keyed arms: the guard's angles plus per-arm offsets (degrees) */
+const addArm = (base: Required<ArmSpec>, d: ArmSpec): ArmSpec => {
+  const o: ArmSpec = { ...base };
+  for (const k of Object.keys(d) as (keyof ArmSpec)[]) o[k] = base[k] + d[k]!;
+  return o;
+};
+const arms = (l: ArmSpec = {}, r: ArmSpec = {}): PoseSpec => ({ leadArm: addArm(GL, l), rearArm: addArm(GR, r) });
 
 /** keys: each spec overrides the previous key (the first one overrides `base`) */
 function keys(base: Pose, list: [number, PoseSpec][]): Key[] {
@@ -294,10 +302,10 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     reach: 0.78,
     keys: keys(G, [
       [0, {}],
-      [0.05, { lead: [0.08, 1.41, 0.42], leadPalm: [-0.5, -0.5, -0.4], hips: [0.005, 0.85, 0.005], yaw: -0.5, shrugLead: 0.4 }],
-      [0.14, { lead: [0.035, 1.46, 0.76], leadPalm: [0, -1, 0.05], leadPole: [0.9, -0.5, 0], hips: [0.01, 0.848, 0.03], yaw: -0.58, chest: -0.14, lean: 0.17, head: [0.2, 0.14, 0.06], rearHeel: 0.32, effort: 0.8, shrugLead: 1 }],
-      [0.22, { lead: [0.08, 1.42, 0.5], leadPalm: [-0.4, -0.6, -0.5], leadPole: [0.5, -1, -0.1], hips: [0.005, 0.852, 0.01], yaw: -0.52, chest: -0.1, head: [0.17, 0.1, 0.02], effort: 0.3, shrugLead: 0.5 }],
-      [0.4, { lead: gL(), leadPalm: [-0.55, -0.1, -0.83], leadPole: [0.35, -1, -0.15], hips: [0, 0.855, -0.01], yaw: -0.46, chest: -0.08, lean: 0.13, head: [0.16, 0.08, 0], rearHeel: 0.22, effort: 0, shrugLead: 0.15 }],
+      [0.05, { leadArm: { flex: 58, abd: 6, rot: -3, elbow: 119, pron: 12 }, rearArm: { flex: 49, abd: -19, rot: 37, elbow: 124, pron: -15 }, lead: [0.08, 1.41, 0.42], leadPalm: [-0.5, -0.5, -0.4], hips: [0.005, 0.85, 0.005], yaw: -0.5, shrugLead: 0.4 }],
+      [0.14, { leadArm: { flex: 99, abd: 82, rot: 49, elbow: 62, pron: 22 }, rearArm: { flex: 54, abd: -19, rot: 38, elbow: 120, pron: -21 }, lead: [0.035, 1.46, 0.76], leadPalm: [0, -1, 0.05], leadPole: [0.9, -0.5, 0], hips: [0.01, 0.848, 0.03], yaw: -0.58, chest: -0.14, lean: 0.17, head: [0.2, 0.14, 0.06], rearHeel: 0.32, effort: 0.8, shrugLead: 1 }],
+      [0.22, { leadArm: { flex: 60, abd: 7, rot: -4, elbow: 119, pron: 12 }, rearArm: { flex: 52, abd: -18, rot: 36, elbow: 122, pron: -17 }, lead: [0.08, 1.42, 0.5], leadPalm: [-0.4, -0.6, -0.5], leadPole: [0.5, -1, -0.1], hips: [0.005, 0.852, 0.01], yaw: -0.52, chest: -0.1, head: [0.17, 0.1, 0.02], effort: 0.3, shrugLead: 0.5 }],
+      [0.4, { leadArm: GL, rearArm: GR, lead: gL(), leadPalm: [-0.55, -0.1, -0.83], leadPole: [0.35, -1, -0.15], hips: [0, 0.855, -0.01], yaw: -0.46, chest: -0.08, lean: 0.13, head: [0.16, 0.08, 0], rearHeel: 0.22, effort: 0, shrugLead: 0.15 }],
     ]),
   },
   cross: {
@@ -309,10 +317,10 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     reach: 0.84,
     keys: keys(G, [
       [0, {}],
-      [0.07, { rear: [-0.08, 1.4, 0.3], rearPalm: [0.4, -0.6, -0.4], yaw: -0.25, hips: [0.02, 0.845, 0.02], rearHeel: 0.6, rearFootYaw: -0.55, lead: [0.1, 1.4, 0.24] }],
-      [0.2, { rear: [-0.005, 1.47, 0.82], rearPalm: [0, -1, 0.05], rearPole: [-0.9, -0.5, 0], yaw: 0.3, chest: 0.15, lean: 0.22, bend: 0.08, hips: [0.05, 0.84, 0.07], rearHeel: 1.0, rearFootYaw: -0.25, lead: [0.09, 1.43, 0.19], leadPalm: [-0.7, 0, -0.7], head: [0.2, 0.0, 0.05], effort: 1, shrugRear: 1 }],
-      [0.3, { rear: [-0.06, 1.43, 0.5], rearPalm: [0.4, -0.6, -0.5], rearPole: [-0.5, -1, -0.1], yaw: 0.02, chest: 0.05, lean: 0.17, bend: 0.03, hips: [0.03, 0.848, 0.03], rearHeel: 0.6, rearFootYaw: -0.5, effort: 0.3, shrugRear: 0.4 }],
-      [0.52, { rear: gR(), rearPalm: [0.45, -0.1, -0.88], rearPole: [-0.3, -1, -0.2], yaw: -0.46, chest: -0.08, lean: 0.13, bend: 0, hips: [0, 0.855, -0.01], rearHeel: 0.22, rearFootYaw: -0.72, lead: gL(), leadPalm: [-0.55, -0.1, -0.83], head: [0.16, 0.08, 0], effort: 0, shrugRear: 0 }],
+      [0.07, { leadArm: { flex: 50, abd: -23, rot: 17, elbow: 128, pron: 27 }, rearArm: { flex: 47, abd: -10, rot: 37, elbow: 121, pron: -1 }, rear: [-0.08, 1.4, 0.3], rearPalm: [0.4, -0.6, -0.4], yaw: -0.25, hips: [0.02, 0.845, 0.02], rearHeel: 0.6, rearFootYaw: -0.55, lead: [0.1, 1.4, 0.24] }],
+      [0.2, { leadArm: { flex: 61, abd: -15, rot: 34, elbow: 124, pron: -10 }, rearArm: { flex: 121, abd: 57, rot: 79, elbow: 72, pron: 0 }, rear: [-0.005, 1.47, 0.82], rearPalm: [0, -1, 0.05], rearPole: [-0.9, -0.5, 0], yaw: 0.3, chest: 0.15, lean: 0.22, bend: 0.08, hips: [0.05, 0.84, 0.07], rearHeel: 1.0, rearFootYaw: -0.25, lead: [0.09, 1.43, 0.19], leadPalm: [-0.7, 0, -0.7], head: [0.2, 0.0, 0.05], effort: 1, shrugRear: 1 }],
+      [0.3, { leadArm: { flex: 52, abd: -22, rot: 29, elbow: 125, pron: 13 }, rearArm: { flex: 69, abd: -8, rot: 20, elbow: 96, pron: 9 }, rear: [-0.06, 1.43, 0.5], rearPalm: [0.4, -0.6, -0.5], rearPole: [-0.5, -1, -0.1], yaw: 0.02, chest: 0.05, lean: 0.17, bend: 0.03, hips: [0.03, 0.848, 0.03], rearHeel: 0.6, rearFootYaw: -0.5, effort: 0.3, shrugRear: 0.4 }],
+      [0.52, { leadArm: GL, rearArm: GR, rear: gR(), rearPalm: [0.45, -0.1, -0.88], rearPole: [-0.3, -1, -0.2], yaw: -0.46, chest: -0.08, lean: 0.13, bend: 0, hips: [0, 0.855, -0.01], rearHeel: 0.22, rearFootYaw: -0.72, lead: gL(), leadPalm: [-0.55, -0.1, -0.83], head: [0.16, 0.08, 0], effort: 0, shrugRear: 0 }],
     ]),
   },
   leadHook: {
@@ -324,10 +332,10 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     reach: 0.55,
     keys: keys(G, [
       [0, {}],
-      [0.09, { lead: [0.27, 1.42, 0.3], leadPole: [1, 0.15, -0.3], leadPalm: [-0.6, -0.6, -0.2], yaw: -0.22, chest: 0, hips: [0.04, 0.84, 0.01], leadHeel: 0, bend: 0.06 }],
-      [0.24, { lead: [-0.06, 1.47, 0.52], leadPole: [0.6, 1, -0.2], leadPalm: [-0.15, -1, 0.1], yaw: -1.08, chest: -0.28, lean: 0.16, bend: -0.04, hips: [0.02, 0.842, 0.02], leadHeel: 0.55, leadFootYaw: -0.75, head: [0.2, -0.05, -0.04], effort: 1, shrugLead: 1 }],
-      [0.34, { lead: [0.12, 1.43, 0.4], leadPole: [0.8, -0.2, -0.2], leadPalm: [-0.5, -0.5, -0.5], yaw: -0.72, chest: -0.14, bend: 0, leadHeel: 0.25, leadFootYaw: -0.4, effort: 0.3, shrugLead: 0.4 }],
-      [0.58, { lead: gL(), leadPole: [0.35, -1, -0.15], leadPalm: [-0.55, -0.1, -0.83], yaw: -0.46, chest: -0.08, lean: 0.13, hips: [0, 0.855, -0.01], leadHeel: 0, leadFootYaw: -0.22, head: [0.16, 0.08, 0], effort: 0, shrugLead: 0.15 }],
+      [0.09, { leadArm: { flex: 56, abd: 30, rot: 2, elbow: 133, pron: -23 }, rearArm: { flex: 41, abd: -20, rot: 34, elbow: 133, pron: 4 }, lead: [0.27, 1.42, 0.3], leadPole: [1, 0.15, -0.3], leadPalm: [-0.6, -0.6, -0.2], yaw: -0.22, chest: 0, hips: [0.04, 0.84, 0.01], leadHeel: 0, bend: 0.06 }],
+      [0.24, { leadArm: { flex: 10, abd: 85, rot: 5, elbow: 95, pron: 70 }, rearArm: { flex: 55, abd: -32, rot: 53, elbow: 106, pron: -30 }, lead: [-0.06, 1.47, 0.52], leadPole: [0.6, 1, -0.2], leadPalm: [-0.15, -1, 0.1], yaw: -1.08, chest: -0.28, lean: 0.16, bend: -0.04, hips: [0.02, 0.842, 0.02], leadHeel: 0.55, leadFootYaw: -0.75, head: [0.2, -0.05, -0.04], effort: 1, shrugLead: 1 }],
+      [0.34, { leadArm: { flex: 38, abd: 35, rot: -27, elbow: 141, pron: -4 }, rearArm: { flex: 54, abd: -21, rot: 40, elbow: 117, pron: -26 }, lead: [0.12, 1.43, 0.4], leadPole: [0.8, -0.2, -0.2], leadPalm: [-0.5, -0.5, -0.5], yaw: -0.72, chest: -0.14, bend: 0, leadHeel: 0.25, leadFootYaw: -0.4, effort: 0.3, shrugLead: 0.4 }],
+      [0.58, { leadArm: GL, rearArm: GR, lead: gL(), leadPole: [0.35, -1, -0.15], leadPalm: [-0.55, -0.1, -0.83], yaw: -0.46, chest: -0.08, lean: 0.13, hips: [0, 0.855, -0.01], leadHeel: 0, leadFootYaw: -0.22, head: [0.16, 0.08, 0], effort: 0, shrugLead: 0.15 }],
     ]),
   },
   rearHook: {
@@ -339,10 +347,10 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     reach: 0.58,
     keys: keys(G, [
       [0, {}],
-      [0.1, { rear: [-0.27, 1.41, 0.2], rearPole: [-1, 0.15, -0.3], rearPalm: [0.6, -0.6, -0.2], yaw: -0.62, hips: [-0.02, 0.84, -0.02], bend: -0.05 }],
-      [0.27, { rear: [0.08, 1.47, 0.55], rearPole: [-0.6, 1, -0.2], rearPalm: [0.15, -1, 0.1], yaw: 0.42, chest: 0.24, lean: 0.18, bend: 0.06, hips: [0.04, 0.84, 0.04], rearHeel: 1.0, rearFootYaw: -0.15, lead: [0.1, 1.43, 0.2], leadPalm: [-0.7, 0, -0.7], head: [0.2, 0.12, 0.04], effort: 1, shrugRear: 1 }],
-      [0.38, { rear: [-0.12, 1.43, 0.38], rearPole: [-0.8, -0.2, -0.2], rearPalm: [0.5, -0.5, -0.5], yaw: 0.0, chest: 0.08, bend: 0.02, rearHeel: 0.55, rearFootYaw: -0.45, effort: 0.3, shrugRear: 0.4 }],
-      [0.64, { rear: gR(), rearPole: [-0.3, -1, -0.2], rearPalm: [0.45, -0.1, -0.88], yaw: -0.46, chest: -0.08, lean: 0.13, bend: 0, hips: [0, 0.855, -0.01], rearHeel: 0.22, rearFootYaw: -0.72, lead: gL(), leadPalm: [-0.55, -0.1, -0.83], head: [0.16, 0.08, 0], effort: 0, shrugRear: 0 }],
+      [0.1, { leadArm: { flex: 46, abd: -24, rot: 8, elbow: 140, pron: 40 }, rearArm: { flex: 68, abd: 10, rot: 31, elbow: 113, pron: -30 }, rear: [-0.27, 1.41, 0.2], rearPole: [-1, 0.15, -0.3], rearPalm: [0.6, -0.6, -0.2], yaw: -0.62, hips: [-0.02, 0.84, -0.02], bend: -0.05 }],
+      [0.27, { leadArm: { flex: 59, abd: -18, rot: 37, elbow: 120, pron: -17 }, rearArm: { flex: 20, abd: 88, rot: 8, elbow: 98, pron: 70 }, rear: [0.08, 1.47, 0.55], rearPole: [-0.6, 1, -0.2], rearPalm: [0.15, -1, 0.1], yaw: 0.42, chest: 0.24, lean: 0.18, bend: 0.06, hips: [0.04, 0.84, 0.04], rearHeel: 1.0, rearFootYaw: -0.15, lead: [0.1, 1.43, 0.2], leadPalm: [-0.7, 0, -0.7], head: [0.2, 0.12, 0.04], effort: 1, shrugRear: 1 }],
+      [0.38, { leadArm: { flex: 54, abd: -23, rot: 27, elbow: 121, pron: 12 }, rearArm: { flex: 66, abd: 15, rot: 21, elbow: 115, pron: -5 }, rear: [-0.12, 1.43, 0.38], rearPole: [-0.8, -0.2, -0.2], rearPalm: [0.5, -0.5, -0.5], yaw: 0.0, chest: 0.08, bend: 0.02, rearHeel: 0.55, rearFootYaw: -0.45, effort: 0.3, shrugRear: 0.4 }],
+      [0.64, { leadArm: GL, rearArm: GR, rear: gR(), rearPole: [-0.3, -1, -0.2], rearPalm: [0.45, -0.1, -0.88], yaw: -0.46, chest: -0.08, lean: 0.13, bend: 0, hips: [0, 0.855, -0.01], rearHeel: 0.22, rearFootYaw: -0.72, lead: gL(), leadPalm: [-0.55, -0.1, -0.83], head: [0.16, 0.08, 0], effort: 0, shrugRear: 0 }],
     ]),
   },
   leadUppercut: {
@@ -354,10 +362,10 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     reach: 0.6,
     keys: keys(G, [
       [0, {}],
-      [0.1, { hips: [0.04, 0.8, 0.0], bend: 0.14, yaw: -0.3, lean: 0.18, lead: [0.16, 1.17, 0.24], leadPole: [0.6, -1, -0.3], leadPalm: [-0.3, 0.6, -0.7], head: [0.2, 0.06, 0.08] }],
-      [0.25, { hips: [0.03, 0.875, 0.07], bend: -0.04, yaw: -0.78, chest: -0.18, lean: 0.12, lead: [0.0, 1.5, 0.56], leadPole: [0.4, -1, 0.1], leadPalm: [-0.2, 0, -1], leadHeel: 0.3, head: [0.18, 0.04, -0.02], effort: 1, shrugLead: 0.9 }],
-      [0.35, { hips: [0.01, 0.86, 0.0], bend: 0, yaw: -0.6, chest: -0.12, lead: [0.09, 1.42, 0.36], leadPalm: [-0.5, -0.2, -0.8], leadHeel: 0.1, effort: 0.3, shrugLead: 0.4 }],
-      [0.58, { hips: [0, 0.855, -0.01], yaw: -0.46, chest: -0.08, lean: 0.13, lead: gL(), leadPole: [0.35, -1, -0.15], leadPalm: [-0.55, -0.1, -0.83], leadHeel: 0, head: [0.16, 0.08, 0], effort: 0, shrugLead: 0.15 }],
+      [0.1, { leadArm: { flex: -6, abd: 4, rot: -3, elbow: 141, pron: -21 }, rearArm: { flex: 44, abd: -23, rot: 34, elbow: 128, pron: -1 }, hips: [0.04, 0.8, 0.0], bend: 0.14, yaw: -0.3, lean: 0.18, lead: [0.16, 1.17, 0.24], leadPole: [0.6, -1, -0.3], leadPalm: [-0.3, 0.6, -0.7], head: [0.2, 0.06, 0.08] }],
+      [0.25, { leadArm: { flex: 35, abd: 12, rot: 10, elbow: 95, pron: -30 }, rearArm: { flex: 54, abd: -21, rot: 43, elbow: 116, pron: -30 }, hips: [0.03, 0.875, 0.07], bend: -0.04, yaw: -0.78, chest: -0.18, lean: 0.12, lead: [0.0, 1.5, 0.56], leadPole: [0.4, -1, 0.1], leadPalm: [-0.2, 0, -1], leadHeel: 0.3, head: [0.18, 0.04, -0.02], effort: 1, shrugLead: 0.9 }],
+      [0.35, { leadArm: { flex: 39, abd: -1, rot: -8, elbow: 139, pron: 2 }, rearArm: { flex: 50, abd: -20, rot: 39, elbow: 121, pron: -20 }, hips: [0.01, 0.86, 0.0], bend: 0, yaw: -0.6, chest: -0.12, lead: [0.09, 1.42, 0.36], leadPalm: [-0.5, -0.2, -0.8], leadHeel: 0.1, effort: 0.3, shrugLead: 0.4 }],
+      [0.58, { leadArm: GL, rearArm: GR, hips: [0, 0.855, -0.01], yaw: -0.46, chest: -0.08, lean: 0.13, lead: gL(), leadPole: [0.35, -1, -0.15], leadPalm: [-0.55, -0.1, -0.83], leadHeel: 0, head: [0.16, 0.08, 0], effort: 0, shrugLead: 0.15 }],
     ]),
   },
   rearUppercut: {
@@ -369,10 +377,10 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     reach: 0.62,
     keys: keys(G, [
       [0, {}],
-      [0.11, { hips: [-0.03, 0.795, -0.02], bend: -0.14, yaw: -0.6, lean: 0.2, rear: [-0.14, 1.14, 0.18], rearPole: [-0.6, -1, -0.3], rearPalm: [0.3, 0.6, -0.7], head: [0.2, 0.1, -0.06] }],
-      [0.28, { hips: [0.05, 0.875, 0.08], bend: 0.06, yaw: 0.28, chest: 0.16, lean: 0.14, rear: [0.0, 1.5, 0.58], rearPole: [-0.4, -1, 0.1], rearPalm: [0.2, 0, -1], rearHeel: 0.95, rearFootYaw: -0.3, lead: [0.1, 1.43, 0.2], leadPalm: [-0.7, 0, -0.7], head: [0.18, 0.1, 0.03], effort: 1, shrugRear: 0.9 }],
-      [0.39, { hips: [0.02, 0.86, 0.01], bend: 0.02, yaw: -0.05, chest: 0.05, rear: [-0.08, 1.42, 0.34], rearPalm: [0.5, -0.2, -0.8], rearHeel: 0.55, rearFootYaw: -0.5, effort: 0.3, shrugRear: 0.4 }],
-      [0.64, { hips: [0, 0.855, -0.01], bend: 0, yaw: -0.46, chest: -0.08, lean: 0.13, rear: gR(), rearPole: [-0.3, -1, -0.2], rearPalm: [0.45, -0.1, -0.88], rearHeel: 0.22, rearFootYaw: -0.72, lead: gL(), leadPalm: [-0.55, -0.1, -0.83], head: [0.16, 0.08, 0], effort: 0, shrugRear: 0 }],
+      [0.11, { leadArm: { flex: 44, abd: -21, rot: 10, elbow: 140, pron: 40 }, rearArm: { flex: 38, abd: 17, rot: 55, elbow: 111, pron: -30 }, hips: [-0.03, 0.795, -0.02], bend: -0.14, yaw: -0.6, lean: 0.2, rear: [-0.14, 1.14, 0.18], rearPole: [-0.6, -1, -0.3], rearPalm: [0.3, 0.6, -0.7], head: [0.2, 0.1, -0.06] }],
+      [0.28, { leadArm: { flex: 54, abd: -20, rot: 34, elbow: 122, pron: -6 }, rearArm: { flex: 38, abd: 10, rot: 8, elbow: 100, pron: -30 }, hips: [0.05, 0.875, 0.08], bend: 0.06, yaw: 0.28, chest: 0.16, lean: 0.14, rear: [0.0, 1.5, 0.58], rearPole: [-0.4, -1, 0.1], rearPalm: [0.2, 0, -1], rearHeel: 0.95, rearFootYaw: -0.3, lead: [0.1, 1.43, 0.2], leadPalm: [-0.7, 0, -0.7], head: [0.18, 0.1, 0.03], effort: 1, shrugRear: 0.9 }],
+      [0.39, { leadArm: { flex: 52, abd: -25, rot: 23, elbow: 121, pron: 16 }, rearArm: { flex: 46, abd: -11, rot: 25, elbow: 118, pron: -11 }, hips: [0.02, 0.86, 0.01], bend: 0.02, yaw: -0.05, chest: 0.05, rear: [-0.08, 1.42, 0.34], rearPalm: [0.5, -0.2, -0.8], rearHeel: 0.55, rearFootYaw: -0.5, effort: 0.3, shrugRear: 0.4 }],
+      [0.64, { leadArm: GL, rearArm: GR, hips: [0, 0.855, -0.01], bend: 0, yaw: -0.46, chest: -0.08, lean: 0.13, rear: gR(), rearPole: [-0.3, -1, -0.2], rearPalm: [0.45, -0.1, -0.88], rearHeel: 0.22, rearFootYaw: -0.72, lead: gL(), leadPalm: [-0.55, -0.1, -0.83], head: [0.16, 0.08, 0], effort: 0, shrugRear: 0 }],
     ]),
   },
   // lead hook to the body: level change (knees, not the waist), elbow in tight, the head off the centre line
@@ -385,10 +393,10 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     reach: 0.55,
     keys: keys(G, [
       [0, {}],
-      [0.1, { hips: [0.05, 0.76, 0.02], lean: 0.26, bend: 0.12, yaw: -0.24, lead: [0.24, 1.15, 0.24], leadPole: [1, -0.4, -0.3], leadPalm: [-0.5, -0.4, -0.5], rear: [-0.07, 1.3, 0.2], head: [0.15, 0.06, 0.1] }],
-      [0.25, { hips: [0.04, 0.75, 0.03], lean: 0.3, bend: 0.02, yaw: -1.0, chest: -0.25, lead: [-0.04, 1.1, 0.52], leadPole: [1, 0.1, -0.2], leadPalm: [-0.2, -0.5, -0.2], leadHeel: 0.5, leadFootYaw: -0.7, head: [0.16, -0.02, 0.06], effort: 1, shrugLead: 0.9 }],
-      [0.36, { hips: [0.02, 0.8, 0.0], lean: 0.2, yaw: -0.7, chest: -0.15, lead: [0.12, 1.25, 0.36], leadPole: [0.7, -0.6, -0.2], leadPalm: [-0.5, -0.3, -0.6], leadHeel: 0.2, leadFootYaw: -0.4, effort: 0.3, shrugLead: 0.3 }],
-      [0.6, { hips: [0, 0.855, -0.01], lean: 0.13, bend: 0, yaw: -0.46, chest: -0.08, lead: gL(), leadPole: [0.35, -1, -0.15], leadPalm: [-0.55, -0.1, -0.83], rear: gR(), leadHeel: 0, leadFootYaw: -0.22, head: [0.16, 0.08, 0], effort: 0, shrugLead: 0.15 }],
+      [0.1, { leadArm: { flex: -2, abd: 14, rot: -7, elbow: 147, pron: -1 }, rearArm: { flex: 48, abd: -21, rot: 32, elbow: 128, pron: -1 }, hips: [0.05, 0.76, 0.02], lean: 0.26, bend: 0.12, yaw: -0.24, lead: [0.24, 1.15, 0.24], leadPole: [1, -0.4, -0.3], leadPalm: [-0.5, -0.4, -0.5], rear: [-0.07, 1.3, 0.2], head: [0.15, 0.06, 0.1] }],
+      [0.25, { leadArm: { flex: 12, abd: 70, rot: 10, elbow: 92, pron: 60 }, rearArm: { flex: 65, abd: -29, rot: 47, elbow: 104, pron: -30 }, hips: [0.04, 0.75, 0.03], lean: 0.3, bend: 0.02, yaw: -1.0, chest: -0.25, lead: [-0.04, 1.1, 0.52], leadPole: [1, 0.1, -0.2], leadPalm: [-0.2, -0.5, -0.2], leadHeel: 0.5, leadFootYaw: -0.7, head: [0.16, -0.02, 0.06], effort: 1, shrugLead: 0.9 }],
+      [0.36, { leadArm: { flex: 32, abd: 12, rot: 0, elbow: 128, pron: 20 }, rearArm: { flex: 56, abd: -21, rot: 39, elbow: 116, pron: -26 }, hips: [0.02, 0.8, 0.0], lean: 0.2, yaw: -0.7, chest: -0.15, lead: [0.12, 1.25, 0.36], leadPole: [0.7, -0.6, -0.2], leadPalm: [-0.5, -0.3, -0.6], leadHeel: 0.2, leadFootYaw: -0.4, effort: 0.3, shrugLead: 0.3 }],
+      [0.6, { leadArm: GL, rearArm: GR, hips: [0, 0.855, -0.01], lean: 0.13, bend: 0, yaw: -0.46, chest: -0.08, lead: gL(), leadPole: [0.35, -1, -0.15], leadPalm: [-0.55, -0.1, -0.83], rear: gR(), leadHeel: 0, leadFootYaw: -0.22, head: [0.16, 0.08, 0], effort: 0, shrugLead: 0.15 }],
     ]),
   },
   // straight rear hand to the body
@@ -401,10 +409,10 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     reach: 0.8,
     keys: keys(G, [
       [0, {}],
-      [0.08, { hips: [0.02, 0.78, 0.02], lean: 0.24, yaw: -0.3, rear: [-0.08, 1.25, 0.26], rearPalm: [0.4, -0.6, -0.4], lead: [0.1, 1.32, 0.22], rearHeel: 0.55, head: [0.14, 0.08, 0.04] }],
-      [0.22, { hips: [0.06, 0.76, 0.07], lean: 0.32, bend: 0.1, yaw: 0.25, chest: 0.14, rear: [0.0, 1.1, 0.76], rearPalm: [0, -1, 0.05], rearPole: [-0.9, -0.5, 0], lead: [0.1, 1.33, 0.18], leadPalm: [-0.7, 0, -0.7], rearHeel: 1.0, rearFootYaw: -0.25, head: [0.14, 0.02, 0.1], effort: 1, shrugRear: 0.9 }],
-      [0.32, { hips: [0.03, 0.8, 0.03], lean: 0.22, bend: 0.04, yaw: -0.05, chest: 0.04, rear: [-0.06, 1.25, 0.45], rearPalm: [0.4, -0.6, -0.5], rearPole: [-0.5, -1, -0.1], rearHeel: 0.6, rearFootYaw: -0.5, effort: 0.3, shrugRear: 0.3 }],
-      [0.56, { hips: [0, 0.855, -0.01], lean: 0.13, bend: 0, yaw: -0.46, chest: -0.08, rear: gR(), rearPalm: [0.45, -0.1, -0.88], rearPole: [-0.3, -1, -0.2], lead: gL(), leadPalm: [-0.55, -0.1, -0.83], rearHeel: 0.22, rearFootYaw: -0.72, head: [0.16, 0.08, 0], effort: 0, shrugRear: 0 }],
+      [0.08, { leadArm: { flex: 58, abd: -20, rot: 11, elbow: 123, pron: 25 }, rearArm: { flex: 35, abd: 6, rot: 40, elbow: 123, pron: -1 }, hips: [0.02, 0.78, 0.02], lean: 0.24, yaw: -0.3, rear: [-0.08, 1.25, 0.26], rearPalm: [0.4, -0.6, -0.4], lead: [0.1, 1.32, 0.22], rearHeel: 0.55, head: [0.14, 0.08, 0.04] }],
+      [0.22, { leadArm: { flex: 67, abd: -11, rot: 32, elbow: 123, pron: -11 }, rearArm: { flex: 41, abd: 59, rot: 13, elbow: 107, pron: 24 }, hips: [0.06, 0.76, 0.07], lean: 0.32, bend: 0.1, yaw: 0.25, chest: 0.14, rear: [0.0, 1.1, 0.76], rearPalm: [0, -1, 0.05], rearPole: [-0.9, -0.5, 0], lead: [0.1, 1.33, 0.18], leadPalm: [-0.7, 0, -0.7], rearHeel: 1.0, rearFootYaw: -0.25, head: [0.14, 0.02, 0.1], effort: 1, shrugRear: 0.9 }],
+      [0.32, { leadArm: { flex: 56, abd: -23, rot: 25, elbow: 122, pron: 15 }, rearArm: { flex: 41, abd: -7, rot: 28, elbow: 112, pron: 23 }, hips: [0.03, 0.8, 0.03], lean: 0.22, bend: 0.04, yaw: -0.05, chest: 0.04, rear: [-0.06, 1.25, 0.45], rearPalm: [0.4, -0.6, -0.5], rearPole: [-0.5, -1, -0.1], rearHeel: 0.6, rearFootYaw: -0.5, effort: 0.3, shrugRear: 0.3 }],
+      [0.56, { leadArm: GL, rearArm: GR, hips: [0, 0.855, -0.01], lean: 0.13, bend: 0, yaw: -0.46, chest: -0.08, rear: gR(), rearPalm: [0.45, -0.1, -0.88], rearPole: [-0.3, -1, -0.2], lead: gL(), leadPalm: [-0.55, -0.1, -0.83], rearHeel: 0.22, rearFootYaw: -0.72, head: [0.16, 0.08, 0], effort: 0, shrugRear: 0 }],
     ]),
   },
 
@@ -416,9 +424,9 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     hold: [0.12, 0.36],
     keys: keys(G, [
       [0, {}],
-      [0.12, { lead: [0.08, 1.55, 0.17], rear: [-0.08, 1.55, 0.15], leadPole: [0.15, -1, 0.5], rearPole: [-0.15, -1, 0.5], leadPalm: [-0.2, 0, -1], rearPalm: [0.2, 0, -1], head: [0.32, 0.04, 0], lean: 0.18, hips: [0, 0.84, -0.015], yaw: -0.35, effort: 0.6, shrugLead: 0.6, shrugRear: 0.6 }],
+      [0.12, { leadArm: { flex: 81, abd: -11, rot: 13, elbow: 124, pron: -22 }, rearArm: { flex: 77, abd: -35, rot: 21, elbow: 103, pron: -30 }, lead: [0.08, 1.55, 0.17], rear: [-0.08, 1.55, 0.15], leadPole: [0.15, -1, 0.5], rearPole: [-0.15, -1, 0.5], leadPalm: [-0.2, 0, -1], rearPalm: [0.2, 0, -1], head: [0.32, 0.04, 0], lean: 0.18, hips: [0, 0.84, -0.015], yaw: -0.35, effort: 0.6, shrugLead: 0.6, shrugRear: 0.6 }],
       [0.36, { lead: [0.08, 1.55, 0.17], rear: [-0.08, 1.55, 0.15] }],
-      [0.5, { lead: gL(), rear: gR(), leadPole: [0.35, -1, -0.15], rearPole: [-0.3, -1, -0.2], leadPalm: [-0.55, -0.1, -0.83], rearPalm: [0.45, -0.1, -0.88], head: [0.16, 0.08, 0], lean: 0.13, hips: [0, 0.855, -0.01], yaw: -0.46, effort: 0, shrugLead: 0.15, shrugRear: 0 }],
+      [0.5, { ...arms(), lead: gL(), rear: gR(), leadPole: [0.35, -1, -0.15], rearPole: [-0.3, -1, -0.2], leadPalm: [-0.55, -0.1, -0.83], rearPalm: [0.45, -0.1, -0.88], head: [0.16, 0.08, 0], lean: 0.13, hips: [0, 0.855, -0.01], yaw: -0.46, effort: 0, shrugLead: 0.15, shrugRear: 0 }],
     ]),
   },
   // elbows in over the ribs, forearms covering the body, a small crunch
@@ -429,9 +437,9 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     hold: [0.12, 0.36],
     keys: keys(G, [
       [0, {}],
-      [0.12, { lead: [0.07, 1.34, 0.17], rear: [-0.07, 1.33, 0.15], leadPole: [0.05, -1, 0.35], rearPole: [-0.05, -1, 0.35], leadPalm: [-0.3, 0, -1], rearPalm: [0.3, 0, -1], lean: 0.3, hips: [0, 0.81, -0.03], yaw: -0.3, head: [0.3, 0.05, 0], effort: 0.7, shrugLead: 0.5, shrugRear: 0.5 }],
+      [0.12, { leadArm: { flex: 46, abd: -11, rot: 18, elbow: 136, pron: -15 }, rearArm: { flex: 51, abd: -20, rot: 33, elbow: 115, pron: -30 }, lead: [0.07, 1.34, 0.17], rear: [-0.07, 1.33, 0.15], leadPole: [0.05, -1, 0.35], rearPole: [-0.05, -1, 0.35], leadPalm: [-0.3, 0, -1], rearPalm: [0.3, 0, -1], lean: 0.3, hips: [0, 0.81, -0.03], yaw: -0.3, head: [0.3, 0.05, 0], effort: 0.7, shrugLead: 0.5, shrugRear: 0.5 }],
       [0.36, { lead: [0.07, 1.34, 0.17], rear: [-0.07, 1.33, 0.15] }],
-      [0.5, { lead: gL(), rear: gR(), leadPole: [0.35, -1, -0.15], rearPole: [-0.3, -1, -0.2], leadPalm: [-0.55, -0.1, -0.83], rearPalm: [0.45, -0.1, -0.88], lean: 0.13, hips: [0, 0.855, -0.01], yaw: -0.46, head: [0.16, 0.08, 0], effort: 0, shrugLead: 0.15, shrugRear: 0 }],
+      [0.5, { ...arms(), lead: gL(), rear: gR(), leadPole: [0.35, -1, -0.15], rearPole: [-0.3, -1, -0.2], leadPalm: [-0.55, -0.1, -0.83], rearPalm: [0.45, -0.1, -0.88], lean: 0.13, hips: [0, 0.855, -0.01], yaw: -0.46, head: [0.16, 0.08, 0], effort: 0, shrugLead: 0.15, shrugRear: 0 }],
     ]),
   },
   // head off the line to the person's left (outside a jab), from the knees and the waist, gloves stay up
@@ -478,9 +486,9 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     impact: 0,
     keys: keys(G, [
       [0, {}],
-      [0.06, { head: [-0.16, 0.24, -0.1], lean: 0.05, hips: [0, 0.85, -0.035], ...hands([0, 0.02, -0.06]), wince: 1, eyes: 0.4, focus: 0 }],
+      [0.06, { ...arms({ flex: -4, abd: 4, elbow: -5 }, { flex: -4, abd: 4, elbow: -5 }), head: [-0.16, 0.24, -0.1], lean: 0.05, hips: [0, 0.85, -0.035], ...hands([0, 0.02, -0.06]), wince: 1, eyes: 0.4, focus: 0 }],
       [0.16, { head: [0.05, 0.14, -0.03], lean: 0.1, hips: [0, 0.852, -0.02], ...hands([0, 0.01, -0.02]), wince: 0.6, eyes: 0.1 }],
-      [0.36, { head: [0.16, 0.08, 0], lean: 0.13, hips: [0, 0.855, -0.01], ...hands([0, 0, 0]), wince: 0, eyes: 0, focus: 0.6 }],
+      [0.36, { ...arms(), head: [0.16, 0.08, 0], lean: 0.13, hips: [0, 0.855, -0.01], ...hands([0, 0, 0]), wince: 0, eyes: 0, focus: 0.6 }],
     ]),
   },
   hitHeadHeavy: {
@@ -492,12 +500,12 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     events: [{ t: 0.3, kind: "step" }, { t: 0.52, kind: "step" }],
     keys: keys(G, [
       [0, {}],
-      [0.07, { head: [-0.42, 0.42, -0.24], lean: -0.12, chest: 0.12, bend: -0.08, hips: [0, 0.86, -0.06], ...hands([0.03, -0.06, -0.08]), wince: 1, eyes: 0.7, jaw: 0.3, focus: 0 }],
+      [0.07, { ...arms({ flex: -10, abd: 8, elbow: -14 }, { flex: -10, abd: 8, elbow: -14 }), head: [-0.42, 0.42, -0.24], lean: -0.12, chest: 0.12, bend: -0.08, hips: [0, 0.86, -0.06], ...hands([0.03, -0.06, -0.08]), wince: 1, eyes: 0.7, jaw: 0.3, focus: 0 }],
       [0.2, { head: [-0.2, 0.3, -0.12], lean: -0.05, rearFoot: add(gRF(), [0, 0.04, -0.12]) }],
       [0.3, { rearFoot: add(gRF(), [0, 0, -0.22]), hips: [0, 0.83, -0.18], lean: 0.05 }],
-      [0.44, { leadFoot: add(gLF(), [0, 0.03, -0.12]), head: [0.0, 0.18, -0.04], ...hands([0, -0.04, -0.03]), wince: 0.6, eyes: 0.2 }],
+      [0.44, { ...arms({ flex: -3 }, { flex: -3 }), leadFoot: add(gLF(), [0, 0.03, -0.12]), head: [0.0, 0.18, -0.04], ...hands([0, -0.04, -0.03]), wince: 0.6, eyes: 0.2 }],
       [0.52, { leadFoot: add(gLF(), [0, 0, -0.22]), bend: 0 }],
-      [0.8, { head: [0.16, 0.08, 0], lean: 0.13, chest: -0.08, hips: [0, 0.855, -0.01], ...hands([0, 0, 0]), wince: 0, eyes: 0, jaw: 0, focus: 0.6 }],
+      [0.8, { ...arms(), head: [0.16, 0.08, 0], lean: 0.13, chest: -0.08, hips: [0, 0.855, -0.01], ...hands([0, 0, 0]), wince: 0, eyes: 0, jaw: 0, focus: 0.6 }],
     ]),
   },
   hitBodyLight: {
@@ -506,9 +514,9 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     impact: 0,
     keys: keys(G, [
       [0, {}],
-      [0.07, { lean: 0.34, hips: [0, 0.83, -0.04], head: [0.28, 0.06, 0], lead: [0.08, 1.26, 0.2], rear: [-0.08, 1.25, 0.15], leadPole: [0.1, -1, 0.3], rearPole: [-0.1, -1, 0.3], wince: 0.8, effort: 0.4, jaw: 0.15 }],
-      [0.2, { lean: 0.22, hips: [0, 0.845, -0.02], ...hands([0, -0.04, -0.02]), wince: 0.4 }],
-      [0.42, { lean: 0.13, hips: [0, 0.855, -0.01], head: [0.16, 0.08, 0], ...hands([0, 0, 0]), leadPole: [0.35, -1, -0.15], rearPole: [-0.3, -1, -0.2], wince: 0, effort: 0, jaw: 0 }],
+      [0.07, { ...arms({ flex: -14, abd: -4, elbow: 8 }, { flex: -14, abd: -4, elbow: 8 }), lean: 0.34, hips: [0, 0.83, -0.04], head: [0.28, 0.06, 0], lead: [0.08, 1.26, 0.2], rear: [-0.08, 1.25, 0.15], leadPole: [0.1, -1, 0.3], rearPole: [-0.1, -1, 0.3], wince: 0.8, effort: 0.4, jaw: 0.15 }],
+      [0.2, { ...arms({ flex: -5 }, { flex: -5 }), lean: 0.22, hips: [0, 0.845, -0.02], ...hands([0, -0.04, -0.02]), wince: 0.4 }],
+      [0.42, { ...arms(), lean: 0.13, hips: [0, 0.855, -0.01], head: [0.16, 0.08, 0], ...hands([0, 0, 0]), leadPole: [0.35, -1, -0.15], rearPole: [-0.3, -1, -0.2], wince: 0, effort: 0, jaw: 0 }],
     ]),
   },
   hitBodyHeavy: {
@@ -520,12 +528,12 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     events: [{ t: 0.34, kind: "step" }, { t: 0.58, kind: "step" }],
     keys: keys(G, [
       [0, {}],
-      [0.08, { lean: 0.55, bend: -0.12, hips: [0, 0.77, -0.05], head: [0.42, 0.04, -0.06], lead: [0.08, 1.12, 0.22], rear: [-0.1, 1.08, 0.12], leadPole: [0.1, -1, 0.3], rearPole: [-0.1, -1, 0.35], wince: 1, effort: 0.6, jaw: 0.3, eyes: 0.3 }],
+      [0.08, { ...arms({ flex: -24, abd: 8, elbow: 12 }, { flex: -26, abd: 8, elbow: 12 }), lean: 0.55, bend: -0.12, hips: [0, 0.77, -0.05], head: [0.42, 0.04, -0.06], lead: [0.08, 1.12, 0.22], rear: [-0.1, 1.08, 0.12], leadPole: [0.1, -1, 0.3], rearPole: [-0.1, -1, 0.35], wince: 1, effort: 0.6, jaw: 0.3, eyes: 0.3 }],
       [0.34, { rearFoot: add(gRF(), [0, 0, -0.16]), hips: [0, 0.79, -0.14], lean: 0.45 }],
       [0.48, { leadFoot: add(gLF(), [0, 0.03, -0.08]) }],
       [0.58, { leadFoot: add(gLF(), [0, 0, -0.16]) }],
       [0.64, { lean: 0.3, bend: -0.05, hips: [0, 0.83, -0.02], head: [0.28, 0.06, -0.02], ...hands([0, -0.08, -0.02]), wince: 0.5, eyes: 0.1 }],
-      [0.9, { lean: 0.13, bend: 0, hips: [0, 0.855, -0.01], head: [0.16, 0.08, 0], ...hands([0, 0, 0]), leadPole: [0.35, -1, -0.15], rearPole: [-0.3, -1, -0.2], wince: 0, effort: 0, jaw: 0, eyes: 0 }],
+      [0.9, { ...arms(), lean: 0.13, bend: 0, hips: [0, 0.855, -0.01], head: [0.16, 0.08, 0], ...hands([0, 0, 0]), leadPole: [0.35, -1, -0.15], rearPole: [-0.3, -1, -0.2], wince: 0, effort: 0, jaw: 0, eyes: 0 }],
     ]),
   },
   // rocked: two uneven steps back, gloves low, wobbling, then the guard comes back up
@@ -538,12 +546,12 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     events: [{ t: 0.32, kind: "step" }, { t: 0.66, kind: "step" }, { t: 0.95, kind: "step" }],
     keys: keys(G, [
       [0, {}],
-      [0.1, { head: [-0.3, 0.3, -0.25], lean: -0.15, bend: -0.12, hips: [-0.02, 0.84, -0.08], ...hands([0, -0.22, -0.06]), wince: 0.8, eyes: 0.5, jaw: 0.35, focus: 0 }],
+      [0.1, { ...arms({ flex: -22, abd: 10, elbow: -22 }, { flex: -22, abd: 10, elbow: -22 }), head: [-0.3, 0.3, -0.25], lean: -0.15, bend: -0.12, hips: [-0.02, 0.84, -0.08], ...hands([0, -0.22, -0.06]), wince: 0.8, eyes: 0.5, jaw: 0.35, focus: 0 }],
       [0.32, { rearFoot: add(gRF(), [-0.03, 0, -0.24]), hips: [-0.03, 0.8, -0.2], bend: 0.1, head: [0.1, 0.1, 0.18] }],
       [0.5, { leadFoot: add(gLF(), [-0.04, 0.04, -0.16]), lean: 0.25, head: [0.3, -0.05, 0.05] }],
       [0.66, { leadFoot: add(gLF(), [-0.06, 0, -0.32]), hips: [-0.05, 0.79, -0.36], bend: -0.1, head: [0.15, 0.15, -0.12], eyes: 0.35 }],
       [0.95, { rearFoot: add(gRF(), [-0.08, 0, -0.48]), hips: [-0.07, 0.82, -0.47], bend: 0.04, lean: 0.18, ...hands([0, -0.1, -0.03]) }],
-      [1.4, { leadFoot: add(gLF(), [-0.08, 0, -0.5]), rearFoot: add(gRF(), [-0.08, 0, -0.5]), hips: [0, 0.855, -0.01], bend: 0, lean: 0.13, head: [0.16, 0.08, 0], ...hands([0, 0, 0]), wince: 0, eyes: 0, jaw: 0, focus: 0.6 }],
+      [1.4, { ...arms(), leadFoot: add(gLF(), [-0.08, 0, -0.5]), rearFoot: add(gRF(), [-0.08, 0, -0.5]), hips: [0, 0.855, -0.01], bend: 0, lean: 0.13, head: [0.16, 0.08, 0], ...hands([0, 0, 0]), wince: 0, eyes: 0, jaw: 0, focus: 0.6 }],
     ]),
   },
   // legs give, down onto the rear knee, a glove touches the canvas; ends kneeling (→ count)
@@ -556,7 +564,7 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     keys: keys(G, [
       [0, {}],
       [0.1, { head: [-0.35, 0.35, -0.2], lean: -0.15, hips: [0, 0.84, -0.06], ...hands([0, -0.1, -0.08]), wince: 1, eyes: 0.8, jaw: 0.4, focus: 0 }],
-      [0.35, { hips: [0.01, 0.72, -0.08], lean: 0.05, head: [0.1, 0.2, 0.1], lead: [0.18, 1.05, 0.25], rear: [-0.18, 1.02, 0.12], leadPole: [0.8, -0.5, -0.4], rearPole: [-0.8, -0.5, -0.4], rearFoot: [-0.14, 0.03, -0.38], rearHeel: 0.8, rearKnee: [-0.05, -0.4, 1], eyes: 0.6 }],
+      [0.35, { fk: 0, hips: [0.01, 0.72, -0.08], lean: 0.05, head: [0.1, 0.2, 0.1], lead: [0.18, 1.05, 0.25], rear: [-0.18, 1.02, 0.12], leadPole: [0.8, -0.5, -0.4], rearPole: [-0.8, -0.5, -0.4], rearFoot: [-0.14, 0.03, -0.38], rearHeel: 0.8, rearKnee: [-0.05, -0.4, 1], eyes: 0.6 }],
       [0.72, { hips: [0.02, 0.55, -0.08], lean: 0.42, head: [0.5, 0.05, 0.08], lead: [0.18, 0.64, 0.32], rear: [-0.24, 0.12, 0.12], leadPalm: [0, -1, 0.1], rearPalm: [0, -1, 0], rearPole: [-1, 0.2, -0.5], leadFoot: [0.15, 0, 0.36], leadFootYaw: -0.1, rearFoot: [-0.14, 0.04, -0.56], rearFootYaw: -0.25, rearHeel: 1.05, leadKnee: [0.2, 0.2, 1], yaw: -0.3, eyes: 0.4 }],
       [1.5, { ...specOf(KNEEL) }],
     ]),
@@ -596,7 +604,7 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     loop: true,
     impact: null,
     keys: keys(G, [
-      [0, { hips: [0, 0.84, 0.02], yaw: -0.15, chest: 0, lean: 0.3, head: [0.25, -0.35, -0.15], lead: [0.25, 1.32, 0.42], rear: [-0.22, 1.28, 0.4], leadPole: [1, -0.2, -0.3], rearPole: [-1, -0.2, -0.3], leadPalm: [-0.6, -0.3, 0.2], rearPalm: [0.6, -0.3, 0.2], fist: 0.9, effort: 0.6, jaw: 0.2 }],
+      [0, { leadArm: { flex: 104, abd: 48, rot: 70, elbow: 124, pron: -10, elev: 8 }, rearArm: { flex: 58, abd: -6, rot: 52, elbow: 102, pron: 10 }, hips: [0, 0.84, 0.02], yaw: -0.15, chest: 0, lean: 0.3, head: [0.25, -0.35, -0.15], lead: [0.25, 1.32, 0.42], rear: [-0.22, 1.28, 0.4], leadPole: [1, -0.2, -0.3], rearPole: [-1, -0.2, -0.3], leadPalm: [-0.6, -0.3, 0.2], rearPalm: [0.6, -0.3, 0.2], fist: 0.4, effort: 0.6, jaw: 0.2 }],
       [0.8, { hips: [0.01, 0.835, 0.03], lean: 0.32, head: [0.27, -0.33, -0.14] }],
       [1.6, { hips: [0, 0.84, 0.02], lean: 0.3, head: [0.25, -0.35, -0.15] }],
     ]),
@@ -610,7 +618,7 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     impact: 0.5,
     keys: keys(G, [
       [0, {}],
-      [0.3, { yaw: -0.1, chest: 0, hips: [0, 0.88, 0], lead: [0.07, 1.3, 0.4], rear: [-0.07, 1.3, 0.4], leadPole: [0.6, -1, -0.3], rearPole: [-0.6, -1, -0.3], leadPalm: [0, -1, 0], rearPalm: [0, -1, 0], head: [0.2, 0, 0], smile: 0.35, focus: 0.2 }],
+      [0.3, { fk: 0, yaw: -0.1, chest: 0, hips: [0, 0.88, 0], lead: [0.07, 1.3, 0.4], rear: [-0.07, 1.3, 0.4], leadPole: [0.6, -1, -0.3], rearPole: [-0.6, -1, -0.3], leadPalm: [0, -1, 0], rearPalm: [0, -1, 0], head: [0.2, 0, 0], smile: 0.35, focus: 0.2 }],
       [0.5, { lead: [0.065, 1.3, 0.46], rear: [-0.065, 1.3, 0.46], head: [0.3, 0, 0] }],
       [0.75, { lead: [0.08, 1.32, 0.36], rear: [-0.08, 1.32, 0.36], head: [0.18, 0, 0] }],
       [1.2, { ...specOf(GUARD_AUTHOR) }],
@@ -624,7 +632,7 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     then: "cornerRest",
     keys: keys(G, [
       [0, {}],
-      [0.35, { hips: [0, 0.78, -0.04], lean: 0.3, yaw: -0.15, chest: 0, leadFoot: [0.2, 0.03, 0.32], rearFoot: [-0.2, 0.03, 0.3], leadFootYaw: 0.1, rearFootYaw: -0.3, rearHeel: 0.1, ...hands([0, -0.25, 0.05]) }],
+      [0.35, { fk: 0, hips: [0, 0.78, -0.04], lean: 0.3, yaw: -0.15, chest: 0, leadFoot: [0.2, 0.03, 0.32], rearFoot: [-0.2, 0.03, 0.3], leadFootYaw: 0.1, rearFootYaw: -0.3, rearHeel: 0.1, ...hands([0, -0.25, 0.05]) }],
       [0.9, { ...specOf(SIT) }],
     ]),
   },
@@ -874,9 +882,9 @@ const MORE_DEFS: Partial<Record<BoxingClipName, Def>> = {
     impact: 0,
     keys: keys(G, [
       [0, {}],
-      [0.06, { head: [0.02, 0.62, 0.34], bend: 0.12, chest: 0.12, yaw: -0.34, hips: [0.03, 0.85, -0.02], lead: [0.17, 1.38, 0.24], rear: [-0.02, 1.4, 0.13], wince: 1, eyes: 0.6, jaw: 0.25, focus: 0 }],
+      [0.06, { ...arms({ flex: -6, abd: 6, elbow: -8 }, { flex: -6, abd: 6, elbow: -8 }), head: [0.02, 0.62, 0.34], bend: 0.12, chest: 0.12, yaw: -0.34, hips: [0.03, 0.85, -0.02], lead: [0.17, 1.38, 0.24], rear: [-0.02, 1.4, 0.13], wince: 1, eyes: 0.6, jaw: 0.25, focus: 0 }],
       [0.18, { head: [0.08, 0.36, 0.18], bend: 0.06, chest: 0.04, yaw: -0.4, hips: [0.02, 0.85, -0.015], wince: 0.6, eyes: 0.2, jaw: 0.1 }],
-      [0.55, { head: [0.16, 0.08, 0], bend: 0, chest: -0.08, yaw: -0.46, hips: [0, 0.855, -0.01], lead: gL(), rear: gR(), wince: 0, eyes: 0, jaw: 0, focus: 0.6 }],
+      [0.55, { ...arms(), head: [0.16, 0.08, 0], bend: 0, chest: -0.08, yaw: -0.46, hips: [0, 0.855, -0.01], lead: gL(), rear: gR(), wince: 0, eyes: 0, jaw: 0, focus: 0.6 }],
     ]),
   },
   // a rear hook (the other's right) lands on my left cheek: the head snaps to my right
@@ -886,9 +894,9 @@ const MORE_DEFS: Partial<Record<BoxingClipName, Def>> = {
     impact: 0,
     keys: keys(G, [
       [0, {}],
-      [0.06, { head: [0.02, -0.5, -0.36], bend: -0.12, chest: -0.2, yaw: -0.62, hips: [-0.03, 0.85, -0.02], lead: [0.04, 1.4, 0.24], rear: [-0.16, 1.38, 0.1], wince: 1, eyes: 0.6, jaw: 0.25, focus: 0 }],
+      [0.06, { ...arms({ flex: -6, abd: 6, elbow: -8 }, { flex: -6, abd: 6, elbow: -8 }), head: [0.02, -0.5, -0.36], bend: -0.12, chest: -0.2, yaw: -0.62, hips: [-0.03, 0.85, -0.02], lead: [0.04, 1.4, 0.24], rear: [-0.16, 1.38, 0.1], wince: 1, eyes: 0.6, jaw: 0.25, focus: 0 }],
       [0.18, { head: [0.08, -0.22, -0.18], bend: -0.06, chest: -0.12, yaw: -0.54, hips: [-0.02, 0.85, -0.015], wince: 0.6, eyes: 0.2, jaw: 0.1 }],
-      [0.55, { head: [0.16, 0.08, 0], bend: 0, chest: -0.08, yaw: -0.46, hips: [0, 0.855, -0.01], lead: gL(), rear: gR(), wince: 0, eyes: 0, jaw: 0, focus: 0.6 }],
+      [0.55, { ...arms(), head: [0.16, 0.08, 0], bend: 0, chest: -0.08, yaw: -0.46, hips: [0, 0.855, -0.01], lead: gL(), rear: gR(), wince: 0, eyes: 0, jaw: 0, focus: 0.6 }],
     ]),
   },
   // an uppercut under the chin: the head snaps up and back, up onto the toes, gloves fly apart
@@ -898,9 +906,9 @@ const MORE_DEFS: Partial<Record<BoxingClipName, Def>> = {
     impact: 0,
     keys: keys(G, [
       [0, {}],
-      [0.07, { head: [-0.62, 0.06, 0.04], lean: -0.1, chest: 0.05, hips: [0, 0.88, -0.04], leadHeel: 0.35, rearHeel: 0.55, lead: [0.2, 1.48, 0.2], rear: [-0.18, 1.46, 0.1], wince: 1, eyes: 0.7, jaw: 0.35, focus: 0 }],
+      [0.07, { ...arms({ flex: -6, abd: 6, elbow: -8 }, { flex: -6, abd: 6, elbow: -8 }), head: [-0.62, 0.06, 0.04], lean: -0.1, chest: 0.05, hips: [0, 0.88, -0.04], leadHeel: 0.35, rearHeel: 0.55, lead: [0.2, 1.48, 0.2], rear: [-0.18, 1.46, 0.1], wince: 1, eyes: 0.7, jaw: 0.35, focus: 0 }],
       [0.22, { head: [-0.2, 0.08, 0.02], lean: 0.04, hips: [0, 0.86, -0.03], leadHeel: 0.1, rearHeel: 0.3, wince: 0.6, eyes: 0.25, jaw: 0.1 }],
-      [0.62, { head: [0.16, 0.08, 0], lean: 0.13, chest: -0.08, hips: [0, 0.855, -0.01], leadHeel: 0, rearHeel: 0.22, lead: gL(), rear: gR(), wince: 0, eyes: 0, jaw: 0, focus: 0.6 }],
+      [0.62, { ...arms(), head: [0.16, 0.08, 0], lean: 0.13, chest: -0.08, hips: [0, 0.855, -0.01], leadHeel: 0, rearHeel: 0.22, lead: gL(), rear: gR(), wince: 0, eyes: 0, jaw: 0, focus: 0.6 }],
     ]),
   },
   // a straight (jab / cross) on the chin: the head snaps straight back, the weight rocks onto the rear foot
@@ -910,9 +918,9 @@ const MORE_DEFS: Partial<Record<BoxingClipName, Def>> = {
     impact: 0,
     keys: keys(G, [
       [0, {}],
-      [0.05, { head: [-0.36, 0.1, 0.02], lean: -0.04, hips: [0, 0.853, -0.05], lead: [0.11, 1.42, 0.22], rear: [-0.07, 1.41, 0.11], leadHeel: 0.15, rearHeel: 0.05, wince: 1, eyes: 0.5, focus: 0 }],
+      [0.05, { ...arms({ flex: -6, abd: 6, elbow: -8 }, { flex: -6, abd: 6, elbow: -8 }), head: [-0.36, 0.1, 0.02], lean: -0.04, hips: [0, 0.853, -0.05], lead: [0.11, 1.42, 0.22], rear: [-0.07, 1.41, 0.11], leadHeel: 0.15, rearHeel: 0.05, wince: 1, eyes: 0.5, focus: 0 }],
       [0.16, { head: [-0.04, 0.09, 0.01], lean: 0.08, hips: [0, 0.854, -0.03], wince: 0.5, eyes: 0.1 }],
-      [0.45, { head: [0.16, 0.08, 0], lean: 0.13, hips: [0, 0.855, -0.01], lead: gL(), rear: gR(), leadHeel: 0, rearHeel: 0.22, wince: 0, eyes: 0, focus: 0.6 }],
+      [0.45, { ...arms(), head: [0.16, 0.08, 0], lean: 0.13, hips: [0, 0.855, -0.01], lead: gL(), rear: gR(), leadHeel: 0, rearHeel: 0.22, wince: 0, eyes: 0, focus: 0.6 }],
     ]),
   },
   // ---- body shots: the torso folds over the side that was hit, the elbow on that side clamps down, a breath out
@@ -923,9 +931,9 @@ const MORE_DEFS: Partial<Record<BoxingClipName, Def>> = {
     impact: 0,
     keys: keys(G, [
       [0, {}],
-      [0.08, { lean: 0.46, bend: -0.26, chest: -0.1, hips: [-0.02, 0.79, -0.04], head: [0.38, 0.1, -0.16], rear: [-0.13, 1.1, 0.08], rearPole: [-0.4, -1, 0.1], lead: [0.12, 1.3, 0.2], wince: 1, effort: 0.5, jaw: 0.45, eyes: 0.35, focus: 0 }],
-      [0.3, { lean: 0.34, bend: -0.16, hips: [-0.01, 0.81, -0.03], head: [0.3, 0.1, -0.08], rear: [-0.11, 1.2, 0.1], wince: 0.7, jaw: 0.35 }],
-      [0.8, { lean: 0.13, bend: 0, chest: -0.08, hips: [0, 0.855, -0.01], head: [0.16, 0.08, 0], lead: gL(), rear: gR(), rearPole: [-0.3, -1, -0.2], wince: 0, effort: 0, jaw: 0, eyes: 0, focus: 0.6 }],
+      [0.08, { ...arms({ flex: -4 }, { flex: -26, abd: 8, elbow: 12 }), lean: 0.46, bend: -0.26, chest: -0.1, hips: [-0.02, 0.79, -0.04], head: [0.38, 0.1, -0.16], rear: [-0.13, 1.1, 0.08], rearPole: [-0.4, -1, 0.1], lead: [0.12, 1.3, 0.2], wince: 1, effort: 0.5, jaw: 0.45, eyes: 0.35, focus: 0 }],
+      [0.3, { ...arms({}, { flex: -15, elbow: 6 }), lean: 0.34, bend: -0.16, hips: [-0.01, 0.81, -0.03], head: [0.3, 0.1, -0.08], rear: [-0.11, 1.2, 0.1], wince: 0.7, jaw: 0.35 }],
+      [0.8, { ...arms(), lean: 0.13, bend: 0, chest: -0.08, hips: [0, 0.855, -0.01], head: [0.16, 0.08, 0], lead: gL(), rear: gR(), rearPole: [-0.3, -1, -0.2], wince: 0, effort: 0, jaw: 0, eyes: 0, focus: 0.6 }],
     ]),
   },
   // the other's rear hand to my left side / the solar plexus: fold forward and to the left, the lead elbow clamps
@@ -935,9 +943,9 @@ const MORE_DEFS: Partial<Record<BoxingClipName, Def>> = {
     impact: 0,
     keys: keys(G, [
       [0, {}],
-      [0.08, { lean: 0.48, bend: 0.22, chest: 0.02, hips: [0.02, 0.79, -0.05], head: [0.4, 0.04, 0.14], lead: [0.13, 1.1, 0.1], leadPole: [0.4, -1, 0.1], rear: [-0.1, 1.28, 0.16], wince: 1, effort: 0.5, jaw: 0.45, eyes: 0.35, focus: 0 }],
+      [0.08, { ...arms({ flex: -26, abd: 8, elbow: 12 }, { flex: -4 }), lean: 0.48, bend: 0.22, chest: 0.02, hips: [0.02, 0.79, -0.05], head: [0.4, 0.04, 0.14], lead: [0.13, 1.1, 0.1], leadPole: [0.4, -1, 0.1], rear: [-0.1, 1.28, 0.16], wince: 1, effort: 0.5, jaw: 0.45, eyes: 0.35, focus: 0 }],
       [0.3, { lean: 0.35, bend: 0.13, hips: [0.01, 0.81, -0.03], head: [0.3, 0.06, 0.07], lead: [0.12, 1.2, 0.14], wince: 0.7, jaw: 0.35 }],
-      [0.8, { lean: 0.13, bend: 0, chest: -0.08, hips: [0, 0.855, -0.01], head: [0.16, 0.08, 0], lead: gL(), rear: gR(), leadPole: [0.35, -1, -0.15], wince: 0, effort: 0, jaw: 0, eyes: 0, focus: 0.6 }],
+      [0.8, { ...arms(), lean: 0.13, bend: 0, chest: -0.08, hips: [0, 0.855, -0.01], head: [0.16, 0.08, 0], lead: gL(), rear: gR(), leadPole: [0.35, -1, -0.15], wince: 0, effort: 0, jaw: 0, eyes: 0, focus: 0.6 }],
     ]),
   },
   // ---- contact on the guard and the hands
@@ -948,9 +956,9 @@ const MORE_DEFS: Partial<Record<BoxingClipName, Def>> = {
     impact: 0.04,
     keys: keys(G, [
       [0, {}],
-      [0.04, { lead: [0.09, 1.5, 0.14], rear: [-0.08, 1.5, 0.1], leadPalm: [-0.2, 0, -1], rearPalm: [0.2, 0, -1], leadPole: [0.15, -1, 0.4], rearPole: [-0.15, -1, 0.4], head: [0.36, 0.05, 0], hips: [0, 0.835, -0.04], lean: 0.1, effort: 0.7, shrugLead: 0.7, shrugRear: 0.7 }],
+      [0.04, { leadArm: { flex: 76, abd: -15, rot: 16, elbow: 130, pron: -11 }, rearArm: { flex: 68, abd: -38, rot: 25, elbow: 107, pron: -30 }, lead: [0.09, 1.5, 0.14], rear: [-0.08, 1.5, 0.1], leadPalm: [-0.2, 0, -1], rearPalm: [0.2, 0, -1], leadPole: [0.15, -1, 0.4], rearPole: [-0.15, -1, 0.4], head: [0.36, 0.05, 0], hips: [0, 0.835, -0.04], lean: 0.1, effort: 0.7, shrugLead: 0.7, shrugRear: 0.7 }],
       [0.14, { lead: [0.09, 1.52, 0.17], rear: [-0.08, 1.52, 0.13], hips: [0, 0.845, -0.025] }],
-      [0.34, { lead: gL(), rear: gR(), leadPalm: [-0.55, -0.1, -0.83], rearPalm: [0.45, -0.1, -0.88], leadPole: [0.35, -1, -0.15], rearPole: [-0.3, -1, -0.2], head: [0.16, 0.08, 0], hips: [0, 0.855, -0.01], lean: 0.13, effort: 0, shrugLead: 0.15, shrugRear: 0 }],
+      [0.34, { ...arms(), lead: gL(), rear: gR(), leadPalm: [-0.55, -0.1, -0.83], rearPalm: [0.45, -0.1, -0.88], leadPole: [0.35, -1, -0.15], rearPole: [-0.3, -1, -0.2], head: [0.16, 0.08, 0], hips: [0, 0.855, -0.01], lean: 0.13, effort: 0, shrugLead: 0.15, shrugRear: 0 }],
     ]),
   },
   // the parry: the rear glove taps the straight across, off the centre line, and comes straight back
@@ -960,9 +968,9 @@ const MORE_DEFS: Partial<Record<BoxingClipName, Def>> = {
     impact: 0.08,
     keys: keys(G, [
       [0, {}],
-      [0.08, { rear: [0.07, 1.46, 0.33], rearPalm: [0.9, 0, -0.3], rearPole: [-0.6, -1, -0.2], yaw: -0.58, head: [0.2, 0.14, 0], focus: 1, shrugRear: 0.4 }],
-      [0.16, { rear: [0.04, 1.45, 0.26] }],
-      [0.34, { rear: gR(), rearPalm: [0.45, -0.1, -0.88], rearPole: [-0.3, -1, -0.2], yaw: -0.46, head: [0.16, 0.08, 0], focus: 0.6, shrugRear: 0 }],
+      [0.08, { rearArm: { flex: 78, abd: -45, rot: 48, elbow: 64, pron: -16 }, rear: [0.07, 1.46, 0.33], rearPalm: [0.9, 0, -0.3], rearPole: [-0.6, -1, -0.2], yaw: -0.58, head: [0.2, 0.14, 0], focus: 1, shrugRear: 0.4 }],
+      [0.16, { rearArm: { flex: 64, abd: -32, rot: 42, elbow: 95, pron: -14 }, rear: [0.04, 1.45, 0.26] }],
+      [0.34, { ...arms(), rear: gR(), rearPalm: [0.45, -0.1, -0.88], rearPole: [-0.3, -1, -0.2], yaw: -0.46, head: [0.16, 0.08, 0], focus: 0.6, shrugRear: 0 }],
     ]),
   },
   // parried: my punch knocked off line — the arm swept across, the weight carried past, back to the guard late
@@ -972,9 +980,9 @@ const MORE_DEFS: Partial<Record<BoxingClipName, Def>> = {
     impact: 0,
     keys: keys(G, [
       [0, {}],
-      [0.08, { lead: [-0.12, 1.38, 0.58], rear: [-0.16, 1.35, 0.5], leadPalm: [0, -1, 0], rearPalm: [0, -1, 0], yaw: -0.2, chest: 0.12, lean: 0.24, hips: [-0.03, 0.84, 0.04], rearHeel: 0.5, wince: 0.3, focus: 0.3 }],
+      [0.08, { leadArm: { flex: 62, abd: -39, rot: 14, elbow: 89, pron: 103 }, rearArm: { flex: 50, abd: -13, rot: 24, elbow: 125, pron: 0 }, lead: [-0.12, 1.38, 0.58], rear: [-0.16, 1.35, 0.5], leadPalm: [0, -1, 0], rearPalm: [0, -1, 0], yaw: -0.2, chest: 0.12, lean: 0.24, hips: [-0.03, 0.84, 0.04], rearHeel: 0.5, wince: 0.3, focus: 0.3 }],
       [0.25, { lead: [0.0, 1.4, 0.4], rear: [-0.12, 1.4, 0.3], yaw: -0.34, lean: 0.18, hips: [-0.01, 0.85, 0.01] }],
-      [0.55, { lead: gL(), rear: gR(), leadPalm: [-0.55, -0.1, -0.83], rearPalm: [0.45, -0.1, -0.88], yaw: -0.46, chest: -0.08, lean: 0.13, hips: [0, 0.855, -0.01], rearHeel: 0.22, wince: 0, focus: 0.6 }],
+      [0.55, { ...arms(), lead: gL(), rear: gR(), leadPalm: [-0.55, -0.1, -0.83], rearPalm: [0.45, -0.1, -0.88], yaw: -0.46, chest: -0.08, lean: 0.13, hips: [0, 0.855, -0.01], rearHeel: 0.22, wince: 0, focus: 0.6 }],
     ]),
   },
 
@@ -1056,6 +1064,7 @@ Object.assign(DEFS, MORE_DEFS);
 
 function VICTORY_SPEC(): PoseSpec {
   return {
+    fk: 0,
     hips: [0, 0.905, 0],
     yaw: -0.12,
     chest: 0,
@@ -1082,6 +1091,7 @@ function VICTORY_SPEC(): PoseSpec {
 }
 function DEFEAT_SPEC(): PoseSpec {
   return {
+    fk: 0,
     hips: [0, 0.9, 0],
     yaw: -0.1,
     chest: 0,
@@ -1107,6 +1117,7 @@ function DEFEAT_SPEC(): PoseSpec {
 }
 function WINNER_SPEC(): PoseSpec {
   return {
+    fk: 0,
     hips: [0, 0.905, 0],
     yaw: 0,
     chest: 0,
@@ -1189,6 +1200,9 @@ function specOf(p: Pose): PoseSpec {
     eyes: p[P.eyes]!,
     shrugLead: p[P.shrugL]!,
     shrugRear: p[P.shrugR]!,
+    fk: p[P.fk]!,
+    leadArm: armOf(p, false),
+    rearArm: armOf(p, true),
   };
 }
 
@@ -1232,6 +1246,8 @@ for (const [name, d] of Object.entries(DEFS as Record<BoxingClipName, Def>) as [
 /** Public clip table: name → duration, impact, recovery, loop, travel, events … */
 export const BOXING_CLIPS: Readonly<Record<BoxingClipName, Readonly<BoxingClipInfo>>> = CLIPS;
 export const BOXING_CLIP_NAMES = Object.keys(CLIPS) as BoxingClipName[];
+/** a clip's key times (authoring tools, tests) */
+export const clipKeyTimes = (name: BoxingClipName): number[] => CLIPS[name].keys.map((k) => k.t);
 export const PUNCHES: readonly BoxingClipName[] = BOXING_CLIP_NAMES.filter((n) => CLIPS[n].kind === "punch");
 
 /* ---------------- sampling ---------------- */

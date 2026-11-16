@@ -557,12 +557,12 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
     <group>
       {showRed && (
         <group ref={g[0]}>
-          <FightAvatar look={red} corner="red" body={bodies[0]} lite={lite} seed={hashOf(`${slot.ring}-red-${entry?.red?.sid ?? ""}`)} klass={klassOf(slot.ring)} probe={probes[0]} />
+          <FightAvatar look={red} corner="red" body={bodies[0]} lite={lite} seed={hashOf(`${slot.ring}-red-${entry?.red?.sid ?? ""}`)} klass={klassOf(slot.ring)} probe={probes[0]} opponent={probes[1]} />
         </group>
       )}
       {showBlue && (
         <group ref={g[1]}>
-          <FightAvatar look={blue} corner="blue" body={bodies[1]} lite={lite} seed={hashOf(`${slot.ring}-blue-${entry?.blue?.sid ?? ""}`)} klass={klassOf(slot.ring)} probe={probes[1]} />
+          <FightAvatar look={blue} corner="blue" body={bodies[1]} lite={lite} seed={hashOf(`${slot.ring}-blue-${entry?.blue?.sid ?? ""}`)} klass={klassOf(slot.ring)} probe={probes[1]} opponent={probes[0]} />
         </group>
       )}
       {withRef && (
