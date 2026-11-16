@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fighter v8 prototype (dev only)</title>
+    <style>
+      html, body { margin: 0; background: #111; overflow: hidden; }
+      canvas { display: block; }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/node_modules/three/build/three.module.js",
+          "three/": "/node_modules/three/",
+          "three/examples/jsm/": "/node_modules/three/examples/jsm/",
+          "three/addons/": "/node_modules/three/examples/jsm/",
+          "three-mesh-bvh": "/node_modules/three-mesh-bvh/src/index.js",
+          "three-gpu-pathtracer": "/node_modules/three-gpu-pathtracer/src/index.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <script type="module" src="/page/proto.js"></script>
+  </body>
+</html>

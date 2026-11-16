@@ -204,6 +204,44 @@ See docs/PEOPLE-BEHAVIOUR.md.
   texture (jacket / jeans: no bare arm and leg skin to show under a vest and trunks) and a boxing kit cannot be layered
   on it without re-texturing; the MPFB2 skin system — the same hm08 base and CC0 skins as ours, its gain is Blender's
   node shader, which does not port to WebGL.
+- **P3-FGT-19A** (docs/design/fighter-v8/SPEC.md): the fighter v8 design prototype. It is dev only: `qa/fighter-v8/`
+  is never shipped, and the game's runtime assets are unchanged.
+  - **MakeHuman.** Built from the same commit (`a8bc2d54…`, CC0 1.0). Newly used CC0 files from that repository:
+    - face targets: `data/targets/cheek/{l,r}-cheek-bones-incr`, `{l,r}-cheek-volume-decr`, `data/targets/head/head-fat-decr`,
+      `head-square`, `head-oval`, `data/targets/chin/chin-width-incr`, `chin-prominent-incr`,
+      `data/targets/mouth/mouth-{upper,lower}lip-volume-decr`, `mouth-scale-horiz-decr`,
+      `data/targets/nose/nose-flaring-decr`, `nose-scale-horiz-decr`;
+    - `data/eyes/high-poly` (eye geometry) and `data/eyes/materials/brown_eye.png`, re-toned to a dark brown iris.
+  - **Repo assets.** Skin detail comes from the repo's CC0 MakeHuman skins (`skin-{m,f}.webp`) and the anatomy bake
+    (`body-detail-{m,f}.webp`).
+  - **Skin-tone targets.** The Monk Skin Tone scale swatches 6–9 (Google, **CC BY 4.0**, https://skintone.google;
+    attribution: "Monk Skin Tone Scale by Dr. Ellis Monk, Google"). Only their colour values are used; no file is
+    copied.
+  - **Rules.** Kit dimensions follow the IBA Technical & Competition Rules (text facts, not assets).
+  - **Original work.** Everything else is ours, nothing was bought, and no reference photo was committed:
+    - the sculpt layer, sewing patterns and cloth simulation;
+    - the SDF headgear, gloves and boots;
+    - lashes and brow hair;
+    - procedural fabric textures;
+    - all renders.
+  - **Dev-only npm dependencies** (`qa/fighter-v8/package.json`, not a workspace package, not in the app bundle):
+
+    | Package | Licence |
+    | --- | --- |
+    | three-gpu-pathtracer 0.0.28 | MIT, Garrett Johnson |
+    | three-mesh-bvh 0.9.18 | MIT |
+    | three 0.187.0 | MIT |
+    | puppeteer-core 24.10.0 | Apache-2.0 |
+    | sharp 0.35.5 | Apache-2.0 |
+
+  | File | Source | Author | Licence |
+  | --- | --- | --- | --- |
+  | `apps/web/scripts/boxer/source-v8/shape-targets.json` | macro / regional / face target sets per weight class and the sculpt volumes (MakeHuman target names, CC0) | Gukirana | original work (CC0 sources) |
+  | `apps/web/scripts/boxer/source-v8/patterns-{mW,fL,mH,fM}.json` | sewing patterns of the singlet, trunks and band | Gukirana | original work |
+  | `apps/web/scripts/boxer/source-v8/garments-{mW,fL}-guard.glb` | simulated garments in the guard pose (bake / retopology source) | Gukirana | original work |
+  | `apps/web/scripts/boxer/source-v8/skin-{m,f}-*.webp` | prototype skin maps (4 tone albedos, normal, roughness, sweat) in MakeHuman UV, derived from the CC0 MakeHuman skins | MakeHuman team; Gukirana | CC0 1.0 (sources) / original work |
+  | `docs/design/fighter-v8/*.jpg` | path-traced design sheets | Gukirana | original work |
+
 - Evaluated, not shipped: MakeHuman community "Toigo" light skins (CC0, OpenGameArt mirror) — superseded by the system
   dark-skinned skins; MakeHuman system hair / brows / lashes / clothes proxies (CC0) — not used yet (alpha cards cost a
   second draw call per person; the close crop is the scalp texture plus a shell).
