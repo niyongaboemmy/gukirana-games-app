@@ -1,0 +1,16 @@
+{
+  "plaza": {
+    "proportions": [4, "unchanged Rocketbox bodies"],
+    "face": [3, "real eyeballs, cleaner brows, expressions; base topology still 1.4k-triangle heads with facets on the nose bridge; a pale strip above the feminine base's brows remains"],
+    "eyes": [4, "fitted eyeballs: cornea bulge, parallax iris with fibres / collarette / limbal ring, warm sclera darker in the corners, lid occlusion, ambient-scaled catchlight, blinks and saccades kept"],
+    "skin": [3, "pore detail normal, roughness breakup, ear transmission, warm light tones; no SSS blur, 1K head maps"],
+    "hair": [3, "nothing pokes through caps / bucket hats any more, flatter crowns; braids / locs still tubes, some front root ends flick up"],
+    "hands": [3, "unchanged geometry; fingers keep the clips' / hand-rest poses; wrist colour band on the feminine base"],
+    "clothing": [3, "weave + cloth sheen per fabric, skirt with drape / hem; the garment shape still follows the base body (a 'tee' renders as a jacket)"],
+    "motion": [5, "speed-matched gait + foot lock, lean into curves, start / stop spring, jump with anticipation / flight / landing, running jump holds the stride"],
+    "expressions": [4, "joy / surprise / sadness / jaw on every emote, startle, bump reaction with a glance; bone-driven (no teeth / creases)"],
+    "lighting": [3, "day / sunset / night consistent; skin transmission at sunset; night faces dark under the moon (scene lighting)"],
+    "lod": [4, "unchanged two-level LOD with hysteresis; eyes and sheen only on the near level"],
+    "perf": [4, "30-person crowd: -11 % fps (M2 Pro headless, uncapped: 349 -> 310 desktop, 331 -> 290 phone DPR 2), +17 draw calls, +42k triangles; real-phone profiling pending"]
+  }
+}

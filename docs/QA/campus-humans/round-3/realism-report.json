@@ -1,0 +1,131 @@
+{
+ "at": "2026-11-16T11:05:42.934Z",
+ "pass": 4,
+ "subjects": {
+  "plaza": [
+   {
+    "id": "proportions",
+    "label": "Proportions",
+    "auto": 3,
+    "visual": 4,
+    "score": 3,
+    "pass": false,
+    "autoNote": "6.86 heads, worst segment 9 % off; 7.46 heads, worst segment 12 % off",
+    "visualNote": "unchanged Rocketbox bodies"
+   },
+   {
+    "id": "face",
+    "label": "Face",
+    "auto": null,
+    "visual": 3,
+    "score": 3,
+    "pass": false,
+    "autoNote": "",
+    "visualNote": "real eyeballs, cleaner brows, expressions; base topology still 1.4k-triangle heads with facets on the nose bridge; a pale strip above the feminine base's brows remains"
+   },
+   {
+    "id": "eyes",
+    "label": "Eyes",
+    "auto": 5,
+    "visual": 4,
+    "score": 4,
+    "pass": true,
+    "autoNote": "18 blinks/min, 12 saccades/min (range 12.8°); 18 blinks/min, 12 saccades/min (range 12.9°)",
+    "visualNote": "fitted eyeballs: cornea bulge, parallax iris with fibres / collarette / limbal ring, warm sclera darker in the corners, lid occlusion, ambient-scaled catchlight, blinks and saccades kept"
+   },
+   {
+    "id": "skin",
+    "label": "Skin",
+    "auto": 3,
+    "visual": 3,
+    "score": 3,
+    "pass": false,
+    "autoNote": "9 of 84 patches off: desktop/f-tee/day skin/reference L 0.56, desktop/f-tee/sunset skin/reference L 1.37, desktop/m-tee/sunset skin/reference L 1.36, sunset/masculine/young/s3 skin/reference L 1.41, sunset/masculine/adult/s3 skin/reference L 1.57, sunset/masculine/senior/s3 skin/reference L 1.57 …",
+    "visualNote": "pore detail normal, roughness breakup, ear transmission, warm light tones; no SSS blur, 1K head maps"
+   },
+   {
+    "id": "hair",
+    "label": "Hair",
+    "auto": null,
+    "visual": 3,
+    "score": 3,
+    "pass": false,
+    "autoNote": "",
+    "visualNote": "nothing pokes through caps / bucket hats any more, flatter crowns; braids / locs still tubes, some front root ends flick up"
+   },
+   {
+    "id": "hands",
+    "label": "Hands and fingers",
+    "auto": 5,
+    "visual": 3,
+    "score": 3,
+    "pass": false,
+    "autoNote": "5 fingers × 3 segments on both hands",
+    "visualNote": "unchanged geometry; fingers keep the clips' / hand-rest poses; wrist colour band on the feminine base"
+   },
+   {
+    "id": "clothing",
+    "label": "Clothing",
+    "auto": 2,
+    "visual": 3,
+    "score": 2,
+    "pass": false,
+    "autoNote": "clothes are the body surface (no separate garments); clothes are the body surface (no separate garments)",
+    "visualNote": "weave + cloth sheen per fabric, skirt with drape / hem; the garment shape still follows the base body (a 'tee' renders as a jacket)"
+   },
+   {
+    "id": "motion",
+    "label": "Motion",
+    "auto": 5,
+    "visual": 5,
+    "score": 5,
+    "pass": true,
+    "autoNote": "foot slide worst mean 0.2 cm / max 0.2 cm per step; snap 13.8°/frame; idle sway 9.1/3.3 mm; arms 6.6/9.5° from vertical",
+    "visualNote": "speed-matched gait + foot lock, lean into curves, start / stop spring, jump with anticipation / flight / landing, running jump holds the stride"
+   },
+   {
+    "id": "expressions",
+    "label": "Expressions",
+    "auto": null,
+    "visual": 4,
+    "score": 4,
+    "pass": true,
+    "autoNote": "",
+    "visualNote": "joy / surprise / sadness / jaw on every emote, startle, bump reaction with a glance; bone-driven (no teeth / creases)"
+   },
+   {
+    "id": "lighting",
+    "label": "Lighting response",
+    "auto": null,
+    "visual": 3,
+    "score": 3,
+    "pass": false,
+    "autoNote": "",
+    "visualNote": "day / sunset / night consistent; skin transmission at sunset; night faces dark under the moon (scene lighting)"
+   },
+   {
+    "id": "lod",
+    "label": "LOD transitions",
+    "auto": 5,
+    "visual": 4,
+    "score": 4,
+    "pass": true,
+    "autoNote": "8.5→9 m: 60272→18530 tris at 258 px, pop -1.8; 12.5→13 m: 18502→16710 tris at 180 px, pop -1.67",
+    "visualNote": "unchanged two-level LOD with hysteresis; eyes and sheen only on the near level"
+   },
+   {
+    "id": "perf",
+    "label": "Performance",
+    "auto": 3,
+    "visual": 4,
+    "score": 3,
+    "pass": false,
+    "autoNote": "≤ 60272 tris, ≤ 12 calls (incl. shadow), ≤ 25.3 MB textures per person",
+    "visualNote": "30-person crowd: -11 % fps (M2 Pro headless, uncapped: 349 -> 310 desktop, 331 -> 290 phone DPR 2), +17 draw calls, +42k triangles; real-phone profiling pending"
+   }
+  ],
+  "boxer": [],
+  "fpv": [],
+  "ring": []
+ }
+}

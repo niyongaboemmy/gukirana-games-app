@@ -1,0 +1,16 @@
+{
+  "plaza": {
+    "proportions": [4, "Rocketbox bodies"],
+    "face": [2, "painted eye caps, grainy grey brows, faceted nose bridge, blank face in every emote"],
+    "eyes": [2, "painted on the head mesh: flat iris, smeared catchlight, no occlusion"],
+    "skin": [2, "photo albedo, no pore-scale normal detail, one roughness per zone, no transmission; light tones grey"],
+    "hair": [3, "fitted strands / shells bare-headed; braids and locs come through caps and bucket hats"],
+    "hands": [2, "low-poly hands, wrist colour band"],
+    "clothing": [2, "painted garments, no weave or cloth response, flat plastic skirt cone"],
+    "motion": [4, "speed-matched gait + foot lock; no lean, no start / stop weight, no jump"],
+    "expressions": [2, "only the jaw while talking; no face in emotes, no surprise / bump reactions"],
+    "lighting": [3, "consistent across day / sunset / night"],
+    "lod": [4, "two-level LOD with hysteresis"],
+    "perf": [4, "30-person crowd: 349 fps desktop / 331 fps phone DPR 2 (M2 Pro headless, uncapped)"]
+  }
+}

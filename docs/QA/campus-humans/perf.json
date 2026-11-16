@@ -1,0 +1,183 @@
+{
+ "at": "2026-11-16T10:55:26.373Z",
+ "n": 30,
+ "runs": {
+  "v1/desktop": {
+   "fps": 348.8,
+   "calls": 203,
+   "triangles": 316723,
+   "geometries": 133,
+   "textures": 118,
+   "programs": 15,
+   "fpsSamples": [
+    337.8,
+    348.8,
+    363.5
+   ]
+  },
+  "v1/phone": {
+   "fps": 330.6,
+   "calls": 207,
+   "triangles": 316731,
+   "geometries": 134,
+   "textures": 118,
+   "programs": 15,
+   "fpsSamples": [
+    318.2,
+    330.6,
+    347.3
+   ]
+  },
+  "v2/desktop": {
+   "fps": 310.4,
+   "calls": 220,
+   "triangles": 358419,
+   "geometries": 136,
+   "textures": 119,
+   "programs": 17,
+   "fpsSamples": [
+    268.9,
+    310.4,
+    324.8
+   ]
+  },
+  "v2/phone": {
+   "fps": 289.8,
+   "calls": 225,
+   "triangles": 358429,
+   "geometries": 137,
+   "textures": 119,
+   "programs": 17,
+   "fpsSamples": [
+    241.2,
+    289.8,
+    313.6
+   ]
+  }
+ },
+ "samples": {
+  "v1/desktop": [
+   {
+    "fps": 363.5,
+    "calls": 203,
+    "triangles": 316723,
+    "geometries": 133,
+    "textures": 118,
+    "programs": 15
+   },
+   {
+    "fps": 337.8,
+    "calls": 203,
+    "triangles": 316723,
+    "geometries": 133,
+    "textures": 118,
+    "programs": 15
+   },
+   {
+    "fps": 348.8,
+    "calls": 203,
+    "triangles": 316723,
+    "geometries": 133,
+    "textures": 118,
+    "programs": 15
+   }
+  ],
+  "v1/phone": [
+   {
+    "fps": 347.3,
+    "calls": 208,
+    "triangles": 316733,
+    "geometries": 134,
+    "textures": 120,
+    "programs": 15
+   },
+   {
+    "fps": 330.6,
+    "calls": 207,
+    "triangles": 316731,
+    "geometries": 134,
+    "textures": 118,
+    "programs": 15
+   },
+   {
+    "fps": 318.2,
+    "calls": 207,
+    "triangles": 316731,
+    "geometries": 134,
+    "textures": 118,
+    "programs": 15
+   }
+  ],
+  "v2/desktop": [
+   {
+    "fps": 310.4,
+    "calls": 220,
+    "triangles": 358419,
+    "geometries": 136,
+    "textures": 119,
+    "programs": 17
+   },
+   {
+    "fps": 324.8,
+    "calls": 220,
+    "triangles": 358419,
+    "geometries": 136,
+    "textures": 119,
+    "programs": 17
+   },
+   {
+    "fps": 268.9,
+    "calls": 220,
+    "triangles": 358419,
+    "geometries": 136,
+    "textures": 119,
+    "programs": 17
+   }
+  ],
+  "v2/phone": [
+   {
+    "fps": 289.8,
+    "calls": 224,
+    "triangles": 358427,
+    "geometries": 137,
+    "textures": 119,
+    "programs": 17
+   },
+   {
+    "fps": 313.6,
+    "calls": 224,
+    "triangles": 358427,
+    "geometries": 137,
+    "textures": 119,
+    "programs": 17
+   },
+   {
+    "fps": 241.2,
+    "calls": 225,
+    "triangles": 358429,
+    "geometries": 137,
+    "textures": 119,
+    "programs": 17
+   }
+  ]
+ },
+ "assets": {
+  "LICENSE-Rocketbox.txt": 1066,
+  "anim-f.glb": 969300,
+  "anim-m.glb": 982508,
+  "boxer-f.glb": 3158840,
+  "boxer-m.glb": 3221544,
+  "eye-iris.webp": 18698,
+  "feminine.glb": 800692,
+  "guard.glb": 689464,
+  "human-detail.webp": 240518,
+  "life-f.glb": 609908,
+  "life-m.glb": 610336,
+  "masculine.glb": 585604,
+  "neutral.glb": 573024,
+  "skin-f-1k.webp": 636026,
+  "skin-f.webp": 2494214,
+  "skin-m-1k.webp": 568306,
+  "skin-m.webp": 2003054
+ }
+}
