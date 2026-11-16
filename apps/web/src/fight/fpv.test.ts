@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { AIM_DROP, EYE_OFFSET, LOOK_DOWN, LOOK_YAW, easeLook, eyeFrom, fpvPhase, hideSphere, HIDE_R, HIDE_UP, viewDir } from "./fpv";
+import { AIM_DROP, EYE_OFFSET, FPV_FOV, fpvFov, LOOK_DOWN, LOOK_YAW, easeLook, eyeFrom, fpvPhase, hideSphere, HIDE_R, HIDE_UP, viewDir } from "./fpv";
 
 const ID = new THREE.Quaternion();
 
@@ -61,5 +61,15 @@ describe("first-person view maths (P3-FGT-15)", () => {
     expect(fpvPhase("knockdown", true)).toBe(false);
     expect(fpvPhase("rest", false)).toBe(false);
     expect(fpvPhase("over", false)).toBe(false);
+  });
+});
+
+describe("first-person lens", () => {
+  it("keeps a ~100° horizontal view: narrower vertically on a wide phone than at 16:9, never a fish-eye", () => {
+    const desk = fpvFov(16 / 9);
+    const phone = fpvFov(844 / 390);
+    expect(desk).toBeLessThanOrEqual(FPV_FOV);
+    expect(phone).toBeLessThan(desk);
+    expect(phone).toBeGreaterThanOrEqual(52);
   });
 });

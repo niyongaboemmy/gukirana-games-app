@@ -24,8 +24,14 @@ export const EYE_OFFSET = new THREE.Vector3(0, 0.07, 0.05);
 /** the hide sphere round the head (bind space): centre above the head joint, radius covering the headgear */
 export const HIDE_UP = 0.075;
 export const HIDE_R = 0.16;
-/** vertical field of view in first person (wider than the broadcast lens: the gloves fill the lower frame) */
-export const FPV_FOV = 76;
+/** vertical field of view in first person (wider than the broadcast lens: the gloves fill the lower frame) at most */
+export const FPV_FOV = 72;
+/** the first-person lens for an aspect: a ~100° horizontal view (a VR headset's), so a wide phone screen does not turn
+ * into a fish-eye; between 52° and FPV_FOV vertical */
+export function fpvFov(aspect: number): number {
+  const v = (2 * Math.atan(Math.tan((50 * Math.PI) / 180) / Math.max(0.5, aspect)) * 180) / Math.PI;
+  return Math.max(52, Math.min(FPV_FOV, v));
+}
 /** how much the head's own turn (hit reactions, slips) steers the view against the aim at the opponent */
 export const HEAD_FOLLOW = 0.4;
 /** with reduced motion the head's snaps barely move the view */

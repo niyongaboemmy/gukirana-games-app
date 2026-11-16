@@ -1,0 +1,98 @@
+[
+  {
+    "name": "fpv-guard",
+    "calls": 8,
+    "tris": 96407,
+    "fps": 60
+  },
+  {
+    "name": "fpv-jab",
+    "calls": 8,
+    "tris": 96407,
+    "fps": 60
+  },
+  {
+    "name": "fpv-cross",
+    "calls": 8,
+    "tris": 96407,
+    "fps": 60
+  },
+  {
+    "name": "fpv-lead-hook",
+    "calls": 8,
+    "tris": 96407,
+    "fps": 60
+  },
+  {
+    "name": "fpv-rear-hook",
+    "calls": 8,
+    "tris": 96407,
+    "fps": 60
+  },
+  {
+    "name": "fpv-uppercut",
+    "calls": 8,
+    "tris": 96407,
+    "fps": 60
+  },
+  {
+    "name": "fpv-body-jab",
+    "calls": 8,
+    "tris": 96407,
+    "fps": 60
+  },
+  {
+    "name": "fpv-block",
+    "calls": 8,
+    "tris": 96407,
+    "fps": 60
+  },
+  {
+    "name": "fpv-look-down",
+    "calls": 8,
+    "tris": 96407,
+    "fps": 60
+  },
+  {
+    "name": "side-jab",
+    "calls": 8,
+    "tris": 96407,
+    "fps": 60
+  },
+  {
+    "name": "side-lead-hook",
+    "calls": 8,
+    "tris": 96407,
+    "fps": 60
+  },
+  {
+    "name": "side-uppercut",
+    "calls": 8,
+    "tris": 96407,
+    "fps": 60
+  },
+  {
+    "name": "rest-corner",
+    "calls": 9,
+    "tris": 126679,
+    "fps": 60
+  },
+  {
+    "name": "knockdown-count",
+    "calls": 8,
+    "tris": 96407,
+    "fps": 60
+  },
+  {
+    "name": "after-count-round",
+    "calls": 8,
+    "tris": 96407,
+    "fps": 60
+  },
+  {
+    "name": "result",
+    "calls": 8,
+    "tris": 96407,
+    "fps": 60
+  }
+]

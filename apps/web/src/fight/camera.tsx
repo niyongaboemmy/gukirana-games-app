@@ -13,7 +13,7 @@ import { clampInRing, layoutOf, ringSeed, shakeFor } from "./present";
 import { cameraKick } from "./ring-clock";
 import { replaySnap } from "./game/replay";
 import { RING_SIZES } from "@/rooms/fight/ring-kit-core";
-import { bindPosition, easeLook, eyeFrom, FPV_FOV, HIDE_UP, fpvLook, fpvPhase, fpvProbes, HEAD_FOLLOW, HEAD_FOLLOW_REDUCED, headPose, hideSphere, viewDir } from "./fpv";
+import { bindPosition, easeLook, eyeFrom, fpvFov, HIDE_UP, fpvLook, fpvPhase, fpvProbes, HEAD_FOLLOW, HEAD_FOLLOW_REDUCED, headPose, hideSphere, viewDir } from "./fpv";
 import type { BoxerProbe } from "@/world/human/boxer/BoxerAvatar";
 
 const _hp = new THREE.Vector3();
@@ -438,7 +438,7 @@ export function FightCamera() {
       }
       const pc = camera as THREE.PerspectiveCamera;
       if (!baseLens.current) baseLens.current = { fov: pc.fov, near: pc.near };
-      pc.fov = baseLens.current.fov + (FPV_FOV - baseLens.current.fov) * fs;
+      pc.fov = baseLens.current.fov + (fpvFov(pc.aspect) - baseLens.current.fov) * fs;
       pc.near = fs > 0.5 ? 0.03 : baseLens.current.near;
       pc.updateProjectionMatrix();
       if (hidden.current !== meP) setHidden(hidden.current, false);

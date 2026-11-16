@@ -171,6 +171,9 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
     const u = inst.uniforms;
     if (props.sweat) u.uSweat.value = props.sweat.current;
     if (props.red) u.uRed.value.set(props.red.current[0], props.red.current[1]);
+    // P3-FGT-15: the face flushes with the work done and with effort (blood to the skin; separate from hit redness)
+    const sw = props.sweat?.current ?? 0;
+    u.uFlush.value += (Math.min(1, Math.max(0, (sw - 0.3) / 0.6) * 0.7 + pose[P.effort]! * 0.3) - u.uFlush.value) * Math.min(1, dt * 2);
     u.uDetail.value = near ? 1 : 0;
   });
   return <primitive object={inst.root} />;
