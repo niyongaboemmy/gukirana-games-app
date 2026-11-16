@@ -1,7 +1,11 @@
 {
   "_doc": "QA-HUM-01 shot list (assess.mjs). Looks are plaza look codes (world/outfits.ts encodeLook, '|' as %7C). Boxer jobs are /play/boxing-lab queries; cams are BoxerLab VIEWS. world.tod = minutes after midnight for window.__gkTod.pin. hall.fpv = an expression evaluated in the page to switch the fight camera to first person (empty until it exists).",
   "lab": {
-    "lights": ["day", "sunset", "night"],
+    "lights": [
+      "day",
+      "sunset",
+      "night"
+    ],
     "looks": [
       {
         "id": "f-tee",
@@ -29,15 +33,42 @@
       "handL",
       "feet"
     ],
-    "phoneViews": ["full", "face", "handR", "torso34", "feet", "back"],
-    "walkSpeeds": [1.4, 2.2, 3.2]
+    "phoneViews": [
+      "full",
+      "face",
+      "handR",
+      "torso34",
+      "feet",
+      "back"
+    ],
+    "walkSpeeds": [
+      1.4,
+      2.2,
+      3.2
+    ]
   },
   "matrix": {
     "base": "look=1%7Cn%7C6E4530%7Cshort%7C141010%7Ctee%7Cjeans%7Csneakers%7Cnone%7Cno-hat%7C7a4a2a%7C5a6a5a",
-    "lights": ["day", "night"],
-    "bodies": ["feminine", "masculine"],
-    "ages": ["young", "adult", "senior"],
-    "skins": [0, 3, 6, 10]
+    "lights": [
+      "day",
+      "sunset",
+      "night"
+    ],
+    "bodies": [
+      "feminine",
+      "masculine"
+    ],
+    "ages": [
+      "young",
+      "adult",
+      "senior"
+    ],
+    "skins": [
+      0,
+      3,
+      6,
+      10
+    ]
   },
   "boxer": {
     "jobs": [
@@ -62,8 +93,21 @@
         "query": "mode=boxer&gender=m&outfit=referee&clip=guard&tone=3"
       }
     ],
-    "cams": ["full", "fullSide", "fullBack", "front", "face", "face34", "shoulderL", "armpitL"],
-    "phoneCams": ["full", "face", "front"]
+    "cams": [
+      "full",
+      "fullSide",
+      "fullBack",
+      "front",
+      "face",
+      "face34",
+      "shoulderL",
+      "armpitL"
+    ],
+    "phoneCams": [
+      "full",
+      "face",
+      "front"
+    ]
   },
   "world": {
     "tod": {
@@ -81,10 +125,127 @@
   "fpv": {
     "query": "scene=1&auto=1&level=1&rounds=2&secs=20&name=Aline&fcam=first",
     "punches": [
-      ["j", "jab", 170],
-      ["k", "cross", 230],
-      ["u", "lead-hook", 260],
-      ["o", "uppercut", 260]
+      [
+        "j",
+        "jab",
+        170
+      ],
+      [
+        "k",
+        "cross",
+        230
+      ],
+      [
+        "u",
+        "lead-hook",
+        260
+      ],
+      [
+        "o",
+        "uppercut",
+        260
+      ]
     ]
+  },
+  "campus": {
+    "_doc": "P2-AVA-12 campus people: headwear, clothing close-ups, motion strips (walk / run / jump / start-stop) and reactions in the human lab. Action codes: packages/contracts ACT (jump 32, surprise 33, bumped 34 are P2-AVA-12).",
+    "caps": [
+      {
+        "id": "m-cap",
+        "query": "look=1%7Cm%7C3B2219%7Cshort%7C141010%7Choodie%7Cjoggers%7Csneakers%7Cnone%7Ccap%7C7a4a2a"
+      },
+      {
+        "id": "f-cap",
+        "query": "look=1%7Cf%7C6E4530%7Cbraids%7C141010%7Ctee%7Cjeans%7Csneakers%7Cnone%7Ccap%7C7a4a2a"
+      },
+      {
+        "id": "m-beanie",
+        "query": "look=1%7Cm%7C5C3A26%7Cafro%7C141010%7Choodie%7Cjeans%7Cboots%7Cnone%7Cbeanie%7C7a4a2a"
+      },
+      {
+        "id": "f-bucket",
+        "query": "look=1%7Cf%7C8D5A3B%7Clocs%7C141010%7Ctee%7Cjeans%7Csneakers%7Cnone%7Cbucket%7C7a4a2a"
+      },
+      {
+        "id": "m-kufi",
+        "query": "look=1%7Cm%7C2E1B12%7Cbuzz%7C141010%7Ckitenge-sun%7Cchinos%7Cloafers%7Cnone%7Ckufi%7C7a4a2a"
+      },
+      {
+        "id": "f-wrap",
+        "query": "look=1%7Cf%7C4A2C1D%7Cbun%7C141010%7Ctee-white%7Cskirt%7Csandals%7Cnone%7Cheadwrap-kitenge%7C7a4a2a"
+      }
+    ],
+    "capViews": [
+      "face34",
+      "faceSide",
+      "headBack",
+      "headTop"
+    ],
+    "clothes": [
+      {
+        "id": "n-hoodie",
+        "query": "look=1%7Cn%7C6E4530%7Cshort%7C141010%7Choodie%7Cjoggers%7Csneakers%7Cnone%7Cno-hat%7C7a4a2a"
+      },
+      {
+        "id": "m-tee-jeans",
+        "query": "look=1%7Cm%7C3B2219%7Cfade%7C141010%7Ctee%7Cjeans%7Csneakers%7Cnone%7Cno-hat%7C7a4a2a%7C6a6f5a"
+      },
+      {
+        "id": "m-blazer",
+        "query": "look=1%7Cm%7C5C3A26%7Cshort%7C141010%7Cblazer%7Cchinos%7Cloafers%7Cnone%7Cno-hat%7C7a4a2a"
+      },
+      {
+        "id": "f-kitenge-skirt",
+        "query": "look=1%7Cf%7C6E4530%7Cbraids%7C141010%7Ckitenge-leaf%7Cskirt%7Csandals%7Cnone%7Cno-hat%7C7a4a2a"
+      },
+      {
+        "id": "f-track-shorts",
+        "query": "look=1%7Cf%7C3B2219%7Cpuffs%7C141010%7Ctrack%7Cshorts%7Crunners%7Cnone%7Cno-hat%7C7a4a2a"
+      }
+    ],
+    "clothViews": [
+      "torso34",
+      "torsoBack",
+      "waist",
+      "feet",
+      "handR"
+    ],
+    "motionLooks": [
+      {
+        "id": "m-tee",
+        "query": "look=1%7Cm%7C3B2219%7Cshort%7C141010%7Ctee%7Cjeans%7Csneakers%7Cnone%7Cno-hat%7C7a4a2a"
+      },
+      {
+        "id": "f-tee",
+        "query": "look=1%7Cf%7C5C3A26%7Cbraids%7C141010%7Ctee%7Cjeans%7Csneakers%7Cnone%7Cno-hat%7C7a4a2a"
+      }
+    ],
+    "reactions": [
+      [
+        10,
+        "wave"
+      ],
+      [
+        20,
+        "cheer"
+      ],
+      [
+        25,
+        "disappointed"
+      ],
+      [
+        33,
+        "surprise"
+      ],
+      [
+        34,
+        "bumped"
+      ],
+      [
+        16,
+        "laugh"
+      ]
+    ],
+    "jump": 32
   }
 }

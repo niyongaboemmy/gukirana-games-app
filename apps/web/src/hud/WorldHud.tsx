@@ -15,7 +15,9 @@ import { nav } from "@/world/navigation";
 import { useWorld } from "@/lib/world-store";
 import { levelForXp, totalXpForLevel, useProfile } from "@/lib/profile-store";
 import { xrStore } from "@/world/xr-store";
-import { Armchair, DoorClosed, DoorOpen, Ellipsis, Glasses, Hand, Loader2, MessageCircle, Settings, Shirt, Smile, Star, UserRound, Users, Zap, type LucideIcon } from "lucide-react";
+import { Armchair, ChevronsUp, DoorClosed, DoorOpen, Ellipsis, Glasses, Hand, Loader2, MessageCircle, Settings, Shirt, Smile, Star, UserRound, Users, Zap, type LucideIcon } from "lucide-react";
+import { requestJump } from "@/world/jump";
+import { JUMP_ON } from "@/world/human/realism-flag";
 // modals load on first open (not on the critical path of the first frame)
 const AvatarCreator = dynamic(() => import("@/components/AvatarCreator").then((m) => m.AvatarCreator), { ssr: false });
 const SettingsModal = dynamic(() => import("@/components/SettingsModal").then((m) => m.SettingsModal), { ssr: false });
@@ -297,6 +299,7 @@ export function WorldHud() {
       {phone ? (
         <div className="absolute bottom-[max(12px,env(safe-area-inset-bottom))] right-[max(12px,env(safe-area-inset-right))] flex items-end gap-2">
           <RoundButton compact icon={MessageCircle} label="Chat" badge={unread} hint={unread ? 0 : nearby} active={chatOpen} onPress={() => setChatOpen((v) => !v)} />
+          {JUMP_ON && !inHall && <RoundButton compact icon={ChevronsUp} label={W.jump} onPress={requestJump} />}
           <div className="relative">
             {more && (
               <div className="menu pointer-events-auto absolute bottom-14 right-0 flex w-max flex-col gap-1 p-1.5 text-sm font-bold">
@@ -330,6 +333,7 @@ export function WorldHud() {
           <RoundButton icon={MessageCircle} label="Chat" badge={unread} active={chatOpen} keycap="T" onPress={() => setChatOpen((v) => !v)} />
         </div>
         <RoundButton icon={Zap} label="Run" keycap="Shift" onPress={() => setRun(true)} onRelease={() => setRun(false)} />
+        {JUMP_ON && !inHall && <RoundButton icon={ChevronsUp} label={W.jump} keycap="Space" onPress={requestJump} />}
         <div className="relative">
           {emotesOpen && (
             <div className="absolute bottom-20 left-1/2 -translate-x-1/2">

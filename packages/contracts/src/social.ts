@@ -214,6 +214,10 @@ export const ACT = {
   photo: 29,
   lean: 30,
   watch: 31,
+  /** P2-AVA-12: a jump (cosmetic: the avatar's pose; position stays the server's) */
+  jump: 32,
+  /** P2-AVA-12: a startled reaction */
+  surprise: 33,
 } as const;
 export type ActCode = (typeof ACT)[keyof typeof ACT];
 

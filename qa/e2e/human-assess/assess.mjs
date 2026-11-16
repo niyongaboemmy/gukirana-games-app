@@ -21,7 +21,7 @@ const arg = (k, d) => {
 };
 const WEB = arg("web", process.env.QA_WEB ?? "http://localhost:3995");
 const OUT = arg("out", join(tmpdir(), "gk-human-assess", "out"));
-const ONLY = new Set((arg("only", "lab,matrix,lod,boxer,world,hall,fpv") ?? "").split(","));
+const ONLY = new Set((arg("only", "lab,matrix,lod,campus,boxer,world,hall,fpv") ?? "").split(","));
 const QUICK = process.argv.includes("--quick");
 const CFG = JSON.parse(readFileSync(arg("config", join(HERE, "shots.json")), "utf8"));
 const RAW = join(tmpdir(), "gk-human-assess", String(Date.now()));
@@ -917,8 +917,134 @@ async function sectionFpv() {
   }
 }
 
+/* ------------------------------------------------------------------ campus people (P2-AVA-12) */
+const setAct = (page, a) => page.evaluate((a) => (window.__gkHuman.act = a), a);
+/** a strip of `n` frames `gap` ms apart */
+async function strip(page, name, n, gap) {
+  const files = [];
+  for (let i = 0; i < n; i++) {
+    files.push(await snap(page, `${name}-${i}`));
+    await sleep(gap);
+  }
+  return files;
+}
+async function sectionCampus() {
+  const C = CFG.campus;
+  const res = { caps: {}, clothes: {}, motion: {}, reactions: {} };
+  metrics.sections.campus = res;
+  for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
+    const page = await newPage(vp);
+    // headwear: day + night on desktop, day on the phone
+    for (const light of vpName === "desktop" ? ["day", "night"] : ["day"]) {
+      const files = [];
+      for (const look of C.caps) {
+        await openLab(page, `${look.query}&light=${light}&cam=face34`);
+        for (const v of C.capViews) {
+          await labView(page, v);
+          files.push(await snap(page, `cap-${vpName}-${light}-${look.id}-${v}`));
+        }
+      }
+      res.caps[`${vpName}/${light}`] = sheet(`caps-${vpName}-${light}`, files, { cols: C.capViews.length, tile: vpName === "phone" ? "360x" : "300x" });
+      save();
+    }
+    // clothing close-ups (day, sunset on desktop)
+    for (const light of vpName === "desktop" ? ["day", "sunset"] : ["day"]) {
+      const files = [];
+      for (const look of C.clothes) {
+        await openLab(page, `${look.query}&light=${light}&cam=torso34`);
+        for (const v of C.clothViews) {
+          await labView(page, v);
+          files.push(await snap(page, `cloth-${vpName}-${light}-${look.id}-${v}`));
+        }
+      }
+      res.clothes[`${vpName}/${light}`] = sheet(`clothes-${vpName}-${light}`, files, { cols: C.clothViews.length, tile: vpName === "phone" ? "360x" : "300x" });
+      save();
+    }
+    if (vpName === "phone") {
+      await page.close();
+      continue;
+    }
+    // motion strips: walk, run, start → stop, standing jump, running jump (side view, the camera tracks)
+    for (const look of C.motionLooks) {
+      await openLab(page, `${look.query}&light=day&cam=walk`);
+      const go = async (speed, act = null) =>
+        page.evaluate(
+          (s, a) => {
+            window.__gkHuman.person.position.set(s > 0 ? -10 : 0, 0, 0);
+            window.__gkHuman.person.rotation.y = s > 0 ? Math.PI / 2 : 0;
+            window.__gkHuman.walk.speed = s;
+            window.__gkHuman.act = a;
+          },
+          speed,
+          act,
+        );
+      for (const [name, speed] of [
+        ["walk", 1.4],
+        ["run", 3.4],
+      ]) {
+        await go(speed);
+        await labView(page, "walk");
+        await sleep(1800);
+        res.motion[`${look.id}/${name}`] = sheet(`motion-${look.id}-${name}`, await strip(page, `m-${look.id}-${name}`, 10, 60), { cols: 10, tile: "200x" });
+        res.motion[`${look.id}/${name}/sample`] = await labSample(page, 3);
+      }
+      // start → stop: walk 1.2 s, stop, the settle frames
+      await go(0);
+      await labView(page, "walk");
+      await sleep(800);
+      await go(1.6);
+      const ss = await strip(page, `m-${look.id}-start`, 5, 120);
+      await sleep(600);
+      await page.evaluate(() => (window.__gkHuman.walk.speed = 0));
+      ss.push(...(await strip(page, `m-${look.id}-stop`, 7, 110)));
+      res.motion[`${look.id}/startstop`] = sheet(`motion-${look.id}-startstop`, ss, { cols: 12, tile: "200x" });
+      // standing jump
+      await go(0);
+      await labView(page, "jump");
+      await sleep(900);
+      await setAct(page, C.jump);
+      res.motion[`${look.id}/jump`] = sheet(`motion-${look.id}-jump`, await strip(page, `m-${look.id}-jump`, 12, 70), { cols: 12, tile: "200x" });
+      await setAct(page, null);
+      await sleep(1200);
+      // running jump
+      await go(3.4);
+      await labView(page, "jump");
+      await sleep(1600);
+      await setAct(page, C.jump);
+      res.motion[`${look.id}/runjump`] = sheet(`motion-${look.id}-runjump`, await strip(page, `m-${look.id}-runjump`, 12, 70), { cols: 12, tile: "200x" });
+      await go(0);
+      save();
+    }
+    // reactions (full 3/4 view, three moments each) and their faces
+    for (const look of C.motionLooks) {
+      await openLab(page, `${look.query}&light=day&cam=full34`);
+      const files = [];
+      const faces = [];
+      for (const [code, name] of C.reactions) {
+        await setAct(page, null);
+        await labView(page, "full34");
+        await sleep(1500);
+        await setAct(page, code);
+        for (const t of [350, 650, 900]) {
+          await sleep(t);
+          files.push(await snap(page, `r-${look.id}-${name}-${t}`));
+        }
+        await labView(page, "face34");
+        await sleep(200);
+        faces.push(await snap(page, `rf-${look.id}-${name}`));
+      }
+      await setAct(page, null);
+      res.reactions[look.id] = sheet(`reactions-${look.id}`, files, { cols: 9, tile: "220x" });
+      res.reactions[`${look.id}/faces`] = sheet(`reactions-${look.id}-faces`, faces, { cols: 6, tile: "260x" });
+      save();
+    }
+    await page.close();
+  }
+}
+
 try {
   for (const [k, fn] of Object.entries({
+    campus: sectionCampus,
     fpv: sectionFpv,
     lab: sectionLab,
     matrix: sectionMatrix,

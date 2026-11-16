@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { GK_SKIN_GLSL } from "./skin/skin-shading";
+import { campusHumansOn } from "./realism-flag";
 import { fabricTexture } from "../textures";
 import { itemById, type AvatarLook } from "../outfits";
 
@@ -110,17 +112,21 @@ export function buildAttachments(look: AvatarLook, a: Anchors, shadows: boolean)
       map.needsUpdate = true;
     }
     const h = long ? 0.86 : 0.5;
-    const geo = new THREE.CylinderGeometry(0.17, long ? 0.24 : 0.3, h, 40, 6, true);
-    // soft folds
+    const v2 = campusHumansOn();
+    const geo = new THREE.CylinderGeometry(0.17, long ? 0.24 : 0.3, h, v2 ? 72 : 40, v2 ? 12 : 6, true);
+    // soft folds (P2-AVA-12: irregular drape folds that deepen towards the hem, not a regular star)
     const p = geo.getAttribute("position") as THREE.BufferAttribute;
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), z = p.getZ(i), y = p.getY(i);
       const ang = Math.atan2(z, x);
-      const k = 1 + 0.035 * Math.sin(ang * 14) * (0.5 - y / h);
+      const down = 0.5 - y / h;
+      const k = v2
+        ? 1 + (0.03 * Math.sin(ang * 9 + 0.7) + 0.018 * Math.sin(ang * 17 + 2.1) + 0.012 * Math.sin(ang * 5 + 4.0)) * down * down * 1.6
+        : 1 + 0.035 * Math.sin(ang * 14) * down;
       p.setXYZ(i, x * k, y, z * k * 0.86);
     }
     geo.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({ color: map ? "#ffffff" : color, map, roughness: 0.86, side: THREE.DoubleSide });
+    const mat = v2 ? skirtMaterial(map ? "#ffffff" : color, map) : new THREE.MeshStandardMaterial({ color: map ? "#ffffff" : color, map, roughness: 0.86, side: THREE.DoubleSide });
     const skinned = a.body ? skinToLegs(geo, a.pelvis, new THREE.Vector3(0, 0.06 - h / 2, -0.005), a.body, mat) : null;
     if (skinned) {
       skinned.castShadow = shadows;
@@ -252,4 +258,43 @@ export function neutralFrame(bone: THREE.Object3D, root: THREE.Object3D): THREE.
   helper.scale.set(rs.x / s.x, rs.y / s.y, rs.z / s.z);
   bone.add(helper);
   return helper;
+}
+
+/**
+ * Skirt / wrap cloth (P2-AVA-12): cotton twill weave (micro-normal), a cloth sheen lobe, a turned hem (a stitched band
+ * with a little relief at the bottom edge) and the inside a shade darker — instead of a flat, plastic-looking cone.
+ */
+function skirtMaterial(color: string, map: THREE.Texture | null): THREE.MeshPhysicalMaterial {
+  const m = new THREE.MeshPhysicalMaterial({ color, map, roughness: 0.84, side: THREE.DoubleSide, sheen: 1, sheenRoughness: 0.6 });
+  m.sheenColor.set(color).multiplyScalar(0.3).lerp(new THREE.Color(0.3, 0.3, 0.3), 0.4);
+  m.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", `#include <common>\n${GK_SKIN_GLSL.detailNormal}\n${GK_SKIN_GLSL.breakup}`)
+      .replace(
+        "#include <map_fragment>",
+        `#include <map_fragment>
+{
+  // hem: a 2 cm turned band, its stitch line; inside of the cloth darker
+  float hem = 1.0 - smoothstep(0.03, 0.045, vUv.y);
+  float stitch = (1.0 - smoothstep(0.0, 0.004, abs(vUv.y - 0.038))) * step(0.5, fract(vUv.x * 260.0));
+  diffuseColor.rgb *= (1.0 - 0.08 * hem) * (1.0 - 0.25 * stitch) * (gl_FrontFacing ? 1.0 : 0.62);
+}`,
+      )
+      .replace(
+        "#include <normal_fragment_maps>",
+        `#include <normal_fragment_maps>
+{
+  vec2 p = vUv * vec2(260.0, 120.0);
+  float w = sin((p.x + p.y) * 6.2832);
+  float lod = gkDetailLod(vUv, 260.0, 4.0);
+  normal = gkDetailN(normal, -vViewPosition, p, vec2(w, w) * 0.3 * lod, 0.35);
+  // the hem's fold: a rounded ridge at the bottom edge
+  float hr = smoothstep(0.0, 0.012, vUv.y) * (1.0 - smoothstep(0.012, 0.03, vUv.y));
+  normal = normalize(normal + vec3(0.0, -0.35, 0.0) * hr);
+}`,
+      );
+  };
+  m.defines = { ...(m.defines ?? {}), USE_UV: "" };
+  m.customProgramCacheKey = () => "gk-skirt-1";
+  return m;
 }

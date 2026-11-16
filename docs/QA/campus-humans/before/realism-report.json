@@ -1,0 +1,131 @@
+{
+ "at": "2026-11-16T11:05:55.264Z",
+ "pass": 4,
+ "subjects": {
+  "plaza": [
+   {
+    "id": "proportions",
+    "label": "Proportions",
+    "auto": 4,
+    "visual": 4,
+    "score": 4,
+    "pass": true,
+    "autoNote": "7.51 heads, worst segment 10 % off; 7.46 heads, worst segment 12 % off",
+    "visualNote": "Rocketbox bodies"
+   },
+   {
+    "id": "face",
+    "label": "Face",
+    "auto": null,
+    "visual": 2,
+    "score": 2,
+    "pass": false,
+    "autoNote": "",
+    "visualNote": "painted eye caps, grainy grey brows, faceted nose bridge, blank face in every emote"
+   },
+   {
+    "id": "eyes",
+    "label": "Eyes",
+    "auto": 5,
+    "visual": 2,
+    "score": 2,
+    "pass": false,
+    "autoNote": "18 blinks/min, 18 saccades/min (range 12.9°); 18 blinks/min, 18 saccades/min (range 12.9°)",
+    "visualNote": "painted on the head mesh: flat iris, smeared catchlight, no occlusion"
+   },
+   {
+    "id": "skin",
+    "label": "Skin",
+    "auto": 3,
+    "visual": 2,
+    "score": 2,
+    "pass": false,
+    "autoNote": "8 of 84 patches off: desktop/m-tee/sunset skin/reference L 1.39, day/feminine/young/s0 skin/reference L 0.74, sunset/masculine/young/s3 skin/reference L 1.51, sunset/masculine/adult/s3 skin/reference L 1.55, sunset/masculine/senior/s3 skin/reference L 1.56, night/feminine/young/s0 night L 3.4 …",
+    "visualNote": "photo albedo, no pore-scale normal detail, one roughness per zone, no transmission; light tones grey"
+   },
+   {
+    "id": "hair",
+    "label": "Hair",
+    "auto": null,
+    "visual": 3,
+    "score": 3,
+    "pass": false,
+    "autoNote": "",
+    "visualNote": "fitted strands / shells bare-headed; braids and locs come through caps and bucket hats"
+   },
+   {
+    "id": "hands",
+    "label": "Hands and fingers",
+    "auto": 5,
+    "visual": 2,
+    "score": 2,
+    "pass": false,
+    "autoNote": "5 fingers × 3 segments on both hands",
+    "visualNote": "low-poly hands, wrist colour band"
+   },
+   {
+    "id": "clothing",
+    "label": "Clothing",
+    "auto": 2,
+    "visual": 2,
+    "score": 2,
+    "pass": false,
+    "autoNote": "clothes are the body surface (no separate garments); clothes are the body surface (no separate garments)",
+    "visualNote": "painted garments, no weave or cloth response, flat plastic skirt cone"
+   },
+   {
+    "id": "motion",
+    "label": "Motion",
+    "auto": 5,
+    "visual": 4,
+    "score": 4,
+    "pass": true,
+    "autoNote": "foot slide worst mean 0 cm / max 0.1 cm per step; snap 13.6°/frame; idle sway 8.7/4.4 mm; arms 6.2/9.6° from vertical",
+    "visualNote": "speed-matched gait + foot lock; no lean, no start / stop weight, no jump"
+   },
+   {
+    "id": "expressions",
+    "label": "Expressions",
+    "auto": null,
+    "visual": 2,
+    "score": 2,
+    "pass": false,
+    "autoNote": "",
+    "visualNote": "only the jaw while talking; no face in emotes, no surprise / bump reactions"
+   },
+   {
+    "id": "lighting",
+    "label": "Lighting response",
+    "auto": null,
+    "visual": 3,
+    "score": 3,
+    "pass": false,
+    "autoNote": "",
+    "visualNote": "consistent across day / sunset / night"
+   },
+   {
+    "id": "lod",
+    "label": "LOD transitions",
+    "auto": 5,
+    "visual": 4,
+    "score": 4,
+    "pass": true,
+    "autoNote": "8.5→9 m: 58452→16710 tris at 260 px, pop -1.76",
+    "visualNote": "two-level LOD with hysteresis"
+   },
+   {
+    "id": "perf",
+    "label": "Performance",
+    "auto": 4,
+    "visual": 4,
+    "score": 4,
+    "pass": true,
+    "autoNote": "≤ 58452 tris, ≤ 7 calls (incl. shadow), ≤ 23.9 MB textures per person",
+    "visualNote": "30-person crowd: 349 fps desktop / 331 fps phone DPR 2 (M2 Pro headless, uncapped)"
+   }
+  ],
+  "boxer": [],
+  "fpv": [],
+  "ring": []
+ }
+}

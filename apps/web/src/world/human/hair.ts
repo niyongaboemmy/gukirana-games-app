@@ -4,6 +4,7 @@ import { weldGroups } from "./head-geometry";
 import { EAR_LANDMARKS, SKULL_FITS, skullNormal, skullPoint, skullStandoff } from "./skull";
 import { bandY, clippedLength, HAT_CLEARANCE, SHELL, skullAzimuth } from "./head-fit";
 import { dirAt, elevationAt } from "./headwear";
+import { campusHumansOn } from "./realism-flag";
 
 /**
  * Real hair geometry for the realistic avatars (P2-AVA-10). Before this, close hair was paint on the scalp and only a
@@ -345,6 +346,9 @@ function hairSurface(
     _p.fromBufferAttribute(pos, i).sub(frame.o).applyMatrix3(frame.R);
     F.set([_p.x, _p.y, _p.z], i * 3);
     hw[i] = hairAt(mask, uv.getX(i), uv.getY(i));
+    // P2-AVA-12: the brows are not scalp (some base masks mark the photo brows as hair: a short-hair shell grew over
+    // them, a pale furry bar above each brow)
+    if (BROWS_OFF && _p.y < 0.062 && _p.z > -0.004 && Math.abs(_p.x) < 0.078) hw[i] = 0;
   }
   const weld = weldGroups(pos);
   let groups = 0;
@@ -394,6 +398,7 @@ function hairSurface(
 }
 
 const smooth = THREE.MathUtils.smoothstep;
+const BROWS_OFF = campusHumansOn();
 const V = () => new THREE.Vector3();
 
 /** Stacked close-hair shells from the hair-region triangles of `geo`. */
@@ -749,6 +754,7 @@ function addStrands(
     const front = smooth(surf.z - c[2], 0.02, 0.08);
     const standing = spec.stiff > 0.85;
     const gather = style === "braidtail";
+    const flatTop = campusHumansOn();
     sweep
       .set(Math.sign(surf.x || 1) * 0.6, 0, -1)
       .normalize()
@@ -786,7 +792,13 @@ function addStrands(
       // stay on / outside the hair surface
       const sd = skullStandoff(body, p, surf);
       const min = lift + spec.r0 * 0.9;
-      if (sd < min) {
+      // P2-AVA-12: over the upper head long strands lie on the scalp (braids pulled back hug it): no strand lifts off
+      // the crown in a spike before it falls
+      if (flatTop && !standing && sd > min && p.y > c[1] - 0.015) {
+        q.set(surf.x - c[0], surf.y - c[1], surf.z - c[2]);
+        const rr = q.length();
+        p.set(c[0], c[1], c[2]).addScaledVector(q, (rr + min) / rr);
+      } else if (sd < min) {
         q.set(surf.x - c[0], surf.y - c[1], surf.z - c[2]);
         const rr = q.length();
         p.set(c[0], c[1], c[2]).addScaledVector(q, (rr + min) / rr);
@@ -824,6 +836,28 @@ function addStrands(
       }
       pts.push(p.clone());
     }
+    // under headwear (P2-AVA-12): the strands inside the crown are pressed flat against the scalp (thinner, inside the
+    // hat's clearance), so no braid / loc ever pokes through the cap, the bucket hat or the kufi; they come out below
+    // the band at full thickness (a 2 cm blend below it)
+    const press: number[] = pts.map(() => 0);
+    if (hat !== "none" && campusHumansOn()) {
+      pts.forEach((pt, k) => {
+        const by = bandY(hat, body, skullAzimuth(body, pt.x, pt.z));
+        const tp = smooth(pt.y, by - 0.024, by - 0.004);
+        if (tp <= 0) return;
+        press[k] = tp;
+        const u = k / (pts.length - 1);
+        const rr0 = THREE.MathUtils.lerp(spec.r0, spec.r1, u) * 0.5;
+        const sd = skullStandoff(body, pt, surf);
+        const maxSd = HAT_CLEARANCE[style] - rr0 - 0.001;
+        const want = THREE.MathUtils.lerp(sd, Math.min(sd, maxSd), tp);
+        if (want < sd) {
+          q.set(surf.x - c[0], surf.y - c[1], surf.z - c[2]);
+          const rr = q.length();
+          pt.set(c[0], c[1], c[2]).addScaledVector(q, (rr + want) / rr);
+        }
+      });
+    }
     // tube along the points (parallel-transported frame)
     let along = 0;
     ref.set(0, 0, 1);
@@ -840,7 +874,7 @@ function addStrands(
       ref.copy(nn);
       const u = k / (pts.length - 1);
       const r =
-        THREE.MathUtils.lerp(spec.r0, spec.r1, u) * (style === "braids" && k === pts.length - 1 ? 0.6 : 1);
+        THREE.MathUtils.lerp(spec.r0, spec.r1, u) * (style === "braids" && k === pts.length - 1 ? 0.6 : 1) * (1 - 0.5 * press[k]!) * (k === 0 && flatTop ? 0.35 : 1); // (a tapered root: no open tube end at the scalp)
       for (let j = 0; j <= radial; j++) {
         const ang = (j / radial) * Math.PI * 2;
         dir.copy(nn).multiplyScalar(Math.cos(ang)).addScaledVector(b, Math.sin(ang));

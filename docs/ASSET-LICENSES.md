@@ -320,3 +320,18 @@ existing outfit catalogue (`src/world/outfits.ts`, `apps/api/src/modules/identit
 
 Fetched by `next/font/google` at build time and served from the app's own origin (no runtime request to Google).
 Unmodified. OFL allows bundling and redistribution with the app; the fonts are not sold on their own.
+
+### Realistic campus people (P2-AVA-12)
+
+No new downloaded assets, nothing bought, no download checkouts left on disk. Everything added is procedural or reused:
+
+| What | Where | Source | Licence |
+| --- | --- | --- | --- |
+| Eyeballs (cornea, parallax iris, sclera, occlusion, catchlight) | `src/world/human/eyes.ts` | Generated at runtime, fitted to the Rocketbox heads' own eye caps | In-house (project code) |
+| Skin pore / micro-wrinkle detail normal, jersey knit normal | `public/assets/characters/human-detail.webp` (existing, 240 KB, now also used by the plaza people) | Generated in-house by `apps/web/scripts/boxer/skin_textures.py` (P3-FGT-15) | In-house (project asset) |
+| Fabric weave normals (denim twill, fleece, suiting, cotton twill, leather grain), sheen tints | `src/world/human/skin/skin-shading.ts` | Procedural GLSL | In-house (project code) |
+| Jump, lean, start / stop, reactions, expressions | `src/world/human/motion-layer.ts`, `src/world/human/face-rig.ts` | Procedural on the Rocketbox clips (MIT, above) | In-house (project code) |
+
+Evaluated and not used (docs/CAMPUS-HUMAN-REALISM.md §3): MakeHuman / MPFB2 assets (CC0), CMU mocap (free for all
+uses), Quaternius Universal Animation Library (CC0), Poly Haven and ambientCG fabric scans (CC0). Excluded: Mixamo
+(project rule), Ready Player Me (service shut down January 2026), MetaHuman (project brief), anything NC / ND.

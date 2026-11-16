@@ -3,6 +3,7 @@ import type { BodyType, HairStyle, HeadwearKind } from "../outfits";
 import { fabricTexture, type PrintId } from "../textures";
 import { skullNormal, skullPoint, SKULL_FITS } from "./skull";
 import { bandY, HAT_CLEARANCE } from "./head-fit";
+import { campusHumansOn } from "./realism-flag";
 import type { HeadFrame } from "./hair";
 
 /**
@@ -127,7 +128,13 @@ function crown(B: HatBuilder, o: CrownOpts) {
     }
     pts.push(col);
   }
-  if (o.flatTop !== undefined) {
+  if (o.flatTop !== undefined && campusHumansOn()) {
+    // P2-AVA-12: the old clamp pressed the flat top ~2 cm down into the skull (locs and braids came through it);
+    // a soft knee 1 cm below a plane 4 mm under the dome's top: the top reads flat, yet never sinks more than ~4 mm
+    // (less than the hair pressed under it leaves free)
+    const knee = Math.max(topY - 0.004, bandY(kind, body, 0) + o.flatTop) - 0.01;
+    for (const col of pts) for (const q of col) if (q.y > knee) q.y = knee + 0.01 * Math.tanh((q.y - knee) / 0.01);
+  } else if (o.flatTop !== undefined) {
     const fy = bandY(kind, body, 0) + o.flatTop;
     for (const col of pts) for (const q of col) if (q.y > fy) q.y = fy + (q.y - fy) * 0.08;
   }
@@ -449,12 +456,14 @@ export function headwearGeometry(
       extra: (az, v) => 0.002 * Math.pow(Math.max(0, Math.cos(az)), 2) * Math.sin(v * Math.PI),
     });
     const span = 1.16;
+    // P2-AVA-12: a pre-curved brim (the sides bent well down, "camber") pitched a little flatter, a touch longer
+    const v2 = campusHumansOn();
     brim(B, r.rimP, r.rimN, cols, {
       from: -span,
       to: span,
-      depth: (az) => 0.066 * Math.pow(Math.max(0, 1 - (az / span) ** 2), 0.6) + 0.002,
-      pitch: 0.3,
-      curve: 0.02,
+      depth: (az) => (v2 ? 0.068 : 0.066) * Math.pow(Math.max(0, 1 - (az / span) ** 2), 0.6) + 0.002,
+      pitch: v2 ? 0.13 : 0.3,
+      curve: v2 ? 0.036 : 0.02,
       thick: 0.0036,
       rows: lod === 0 ? 8 : 3,
       body,

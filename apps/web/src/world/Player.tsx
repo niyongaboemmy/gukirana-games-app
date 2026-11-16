@@ -44,6 +44,9 @@ import { SEAT_PROFILES, type SeatProfile } from "./human/seat-profiles";
 import { applyPeople, lookTarget as personLook, nearSpot, people, SPOTS } from "@/social/people";
 import { useSocial } from "@/social/social-store";
 import { HUMAN_MODELS } from "./human/meta";
+import { ACT } from "@gukirana/contracts";
+import { jumpInput, nextJump, requestJump } from "./jump";
+import { JUMP_ON } from "./human/realism-flag";
 import { aerialPivot, FOLLOW_MAX, isAerial, maxPitch, pinchZoom, viewPitch, wheelZoom, ZOOM_MIN } from "./aerial";
 import { eye, EYE_H, EYE_NEAR, eyeDrag, eyePose, reducedMotion, smooth01, stepBlend, useCamMode, zoomEye } from "./eye-view";
 
@@ -186,6 +189,8 @@ export function LocalPlayer({
   /** jogging along a long tap-to-walk route (see AUTO_RUN_ON) */
   const autoRun = useRef(false);
   const still = useRef(true);
+  /** the current jump (P2-AVA-12): until when (ms clock), the last request handled */
+  const jump = useRef({ until: 0, handled: 0 });
   const { camera, gl } = useThree();
   const inXR = useXR((s) => s.session != null);
   useLayoutEffect(() => {
@@ -200,6 +205,12 @@ export function LocalPlayer({
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === "INPUT") return;
+      // Space = jump (P2-AVA-12); not a movement key
+      if (e.code === "Space" && JUMP_ON) {
+        if (!e.repeat) requestJump();
+        e.preventDefault();
+        return;
+      }
       keys.add(e.code);
     };
     const up = (e: KeyboardEvent) => keys.delete(e.code);
@@ -686,6 +697,16 @@ export function LocalPlayer({
       if (useSocial.getState().nearSpot !== idx) useSocial.setState({ nearSpot: idx });
     }
 
+    // a jump (P2-AVA-12): the jump's action code for its length, over walking / running / standing (never seated or
+    // leaning, never while walking through a door)
+    {
+      const now = performance.now();
+      const free = anim.current !== ACT.sit && anim.current !== ACT.lean && !inXR && !useTransition.getState().entering;
+      const j = free ? nextJump(jump.current.until, jump.current.handled, jumpInput.requested, now, anim.current === ACT.run) : null;
+      if (j) jump.current = j;
+      else if (!free) jump.current.handled = jumpInput.requested;
+      if (free && now < jump.current.until) anim.current = ACT.jump;
+    }
     sendMove(pos.current.x, pos.current.z, facing.current, anim.current);
     selfPose.x = pos.current.x;
     selfPose.z = pos.current.z;

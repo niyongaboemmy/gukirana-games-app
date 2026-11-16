@@ -32,6 +32,11 @@ const ACTION_CLIP: Record<number, BaseClipKey | LifeClipKey> = {
   29: "photo",
   30: "idle2",
   31: "fold",
+  // P2-AVA-12: the jump and the startle are procedural (world/human/motion-layer.ts) on a plain idle (no fidget starts
+  // in the middle of them); 34 = the lab's bump
+  32: "idle",
+  33: "idle",
+  34: "idle",
 };
 const BASE = new Set<string>(["idle", "talk", "wave", "clap", "dance"]);
 
