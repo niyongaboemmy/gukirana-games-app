@@ -1,0 +1,36 @@
+{
+  "about": "P3-FGT-19B fighter-v8 acceptance thresholds, scored by qa/e2e/fighter-v8/run.mjs against the AFTER phase. min / max / equals = null means 'unset': the design's acceptance checklist (docs/design/fighter-v8/SPEC.md, P3-FGT-19A) fills it in. Seeded values come from the task brief (budget) or the v7 anthropometric references (docs/FIGHT-REALISM-V7.md §2); `source` says which.",
+  "jointLimits": { "elbowFlexMax": 155, "kneeFlexMax": 155, "kneeBehindMax": 0.015, "wristDevMax": 35, "neckBendMax": 55, "spineTwistMax": 75 },
+  "items": [
+    { "id": "gen", "label": "the v8 people are loaded (not the v7 fallback)", "metric": "generation.loaded", "equals": "v8", "source": "P3-FGT-19B brief" },
+
+    { "id": "tris-m", "label": "triangles per fighter, LOD0 (m)", "metric": "triangles.m", "max": 30000, "source": "P3-FGT-19B brief: about 30k" },
+    { "id": "tris-f", "label": "triangles per fighter, LOD0 (f)", "metric": "triangles.f", "max": 30000, "source": "P3-FGT-19B brief: about 30k" },
+    { "id": "fps-desktop", "label": "fps, broadcast, 1280x720", "metric": "perf.desktop.fps", "min": 58, "source": "P3-FGT-19B brief: 60 fps (2 fps headless tolerance)" },
+    { "id": "fps-phone", "label": "fps, broadcast, 844x390 DPR 2", "metric": "perf.phone.fps", "min": 58, "source": "P3-FGT-19B brief: 60 fps (2 fps headless tolerance)" },
+    { "id": "calls-desktop", "label": "draw calls, broadcast frame (desktop)", "metric": "perf.desktop.calls", "max": null },
+    { "id": "fighter-calls", "label": "draw calls of one fighter alone", "metric": "perf.desktop.fighterCalls", "max": null },
+    { "id": "tex-mb", "label": "texture MB per fighter (desktop)", "metric": "perf.desktop.textureMB", "max": null },
+
+    { "id": "heads-m", "label": "heads tall (m)", "metric": "proportions.m.headsTall", "min": 7.2, "max": 7.9, "source": "rubric / de Leva 1996" },
+    { "id": "heads-f", "label": "heads tall (f)", "metric": "proportions.f.headsTall", "min": 7.2, "max": 7.9, "source": "rubric / de Leva 1996" },
+    { "id": "neck-m", "label": "neck chin-to-notch / stature (m)", "metric": "proportions.m.neckLengthPerH", "min": 0.045, "max": 0.06, "source": "Drillis & Contini (0.052)" },
+    { "id": "neck-f", "label": "neck chin-to-notch / stature (f)", "metric": "proportions.f.neckLengthPerH", "min": 0.045, "max": 0.06, "source": "Drillis & Contini (0.052)" },
+    { "id": "whr-m", "label": "waist-to-hip (m)", "metric": "proportions.m.waistToHip", "min": 0.83, "max": 0.88, "source": "v7 §2 athlete reference" },
+    { "id": "whr-f", "label": "waist-to-hip (f)", "metric": "proportions.f.waistToHip", "min": 0.7, "max": 0.75, "source": "v7 §2 athlete reference" },
+    { "id": "neckgirth-m", "label": "neck girth m (boxers 0.40+)", "metric": "proportions.m.neckGirth", "min": 0.4, "source": "v7 §2" },
+    { "id": "waist-m", "label": "waist girth (m)", "metric": "proportions.m.waistGirth", "min": 0.78, "max": 0.84, "source": "v7 §2" },
+    { "id": "waist-f", "label": "waist girth (f)", "metric": "proportions.f.waistGirth", "min": 0.65, "max": 0.7, "source": "v7 §2" },
+    { "id": "hip-m", "label": "hip girth (m)", "metric": "proportions.m.hipGirth", "min": 0.95, "max": 1.0, "source": "v7 §2" },
+    { "id": "hip-f", "label": "hip girth (f)", "metric": "proportions.f.hipGirth", "min": 0.92, "max": 0.97, "source": "v7 §2" },
+
+    { "id": "garment-inside", "label": "garment vertices inside the skin, worst pose (share)", "metric": "garments.worst", "max": null, "source": "v7 worst 0.076; set by the design" },
+    { "id": "garment-inside-guard", "label": "garment vertices inside the skin, guard (share)", "metric": "garments.byPose.act-guard", "max": null },
+    { "id": "cavity-skin", "label": "inside of the body visible (share of the person's pixels), worst shot", "metric": "cavity.skinBack.worst", "max": null },
+    { "id": "cavity-garment-broadcast", "label": "inside of the garments visible from the broadcast camera (share)", "metric": "cavity.garmentBack.broadcast", "max": null },
+    { "id": "cavity-garment", "label": "inside of the garments visible, worst shot (share)", "metric": "cavity.garmentBack.worst", "max": null },
+    { "id": "joints", "label": "joint-limit violations, all measured poses", "metric": "joints.violations", "max": 0, "source": "a violated joint limit is never acceptable" },
+    { "id": "feet-max", "label": "foot sliding: worst single plant (cm)", "metric": "feet.maxSlideCm", "max": null },
+    { "id": "feet-rate", "label": "foot sliding: planted travel per second (cm/s)", "metric": "feet.slideCmPerS", "max": null }
+  ]
+}

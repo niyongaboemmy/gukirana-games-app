@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { boxerAssets } from "./generation";
+import { loadTextureInto } from "./v8/ktx2";
 
 /**
  * One material for a whole ring person (P3-FGT-13, docs/FIGHT-REALISM-V3.md §3; realism pass P3-FGT-15,
@@ -170,7 +172,7 @@ export function boxerMaterial(
   eyes: { L: THREE.Vector3; R: THREE.Vector3 },
   face: { beard: number; brow: number },
   kit: readonly number[] = [0.1, 0.85, 1.05, 0.62],
-  opts: { gender?: "m" | "f"; lite?: boolean; v6?: boolean; v7?: boolean } = {},
+  opts: { gender?: "m" | "f"; lite?: boolean; v6?: boolean; v7?: boolean; v8?: boolean } = {},
 ): THREE.MeshPhysicalMaterial & { userData: { u: BoxerUniforms } } {
   const u: BoxerUniforms = {
     uCol: { value: boxerPalette(col, !!opts.v6, !!opts.v7) },
@@ -201,10 +203,17 @@ export function boxerMaterial(
     let n = 0;
     const done = () => {
       n++;
-      if (n >= (opts.v6 ? 4 : 3)) u.uTex.value = 1;
+      if (n >= (opts.v6 || opts.v8 ? 4 : 3)) u.uTex.value = 1;
     };
-    if (opts.v6) u.uAnatMap.value = tex(HUMAN_TEX.anatomy(opts.gender ?? "m"), false, done);
-    u.uSkinMap.value = tex(HUMAN_TEX.skin(opts.gender ?? "m", !!opts.lite), false, done);
+    if (opts.v8) {
+      // P3-FGT-19B: the v8 asset set (KTX2 skin and anatomy maps: generation.ts, v8/ktx2.ts)
+      const set = boxerAssets("v8");
+      loadTextureInto(u.uAnatMap, set.anatomy(opts.gender ?? "m"), {}, done);
+      loadTextureInto(u.uSkinMap, set.skin(opts.gender ?? "m", !!opts.lite), {}, done);
+    } else {
+      if (opts.v6) u.uAnatMap.value = tex(HUMAN_TEX.anatomy(opts.gender ?? "m"), false, done);
+      u.uSkinMap.value = tex(HUMAN_TEX.skin(opts.gender ?? "m", !!opts.lite), false, done);
+    }
     u.uDetailMap.value = tex(HUMAN_TEX.detail, true, done);
     u.uIrisMap.value = tex(HUMAN_TEX.iris, false, done);
   }
@@ -701,6 +710,6 @@ if (gkM == 3 && uV7 > 0.5) {
   };
   // P3-FGT-16: the inside of a garment shows through its openings (both sides drawn; a closed body hides its back faces)
   m.side = THREE.DoubleSide;
-  m.customProgramCacheKey = () => (opts.v7 ? "gk-boxer-v7" : "gk-boxer-v6");
+  m.customProgramCacheKey = () => (opts.v8 ? "gk-boxer-v8" : opts.v7 ? "gk-boxer-v7" : "gk-boxer-v6");
   return m;
 }

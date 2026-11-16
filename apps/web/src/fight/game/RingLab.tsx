@@ -15,6 +15,7 @@ import { STOOL_PLACE_S } from "@/rooms/fight/ring-kit-core";
 import { EffectComposer, N8AO, ToneMapping } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
 import { BOXER_V7 } from "@/world/human/boxer/body-v6";
+import { BOXER_GENERATION, BOXER_V8_REQUESTED } from "@/world/human/boxer/generation";
 
 /** P3-FGT-18: the post chain on (v7; ?ao=0 turns it off for before / after frames) */
 const AO = BOXER_V7 && (typeof window === "undefined" || new URLSearchParams(window.location.search).get("ao") !== "0");
@@ -65,11 +66,12 @@ function Probe({ at }: { at: { x: number; z: number } }) {
   }, [camera, at]);
   const st = useMemo(() => ({ calls: 0, tris: 0, fps: 0, frames: 0, t0: performance.now() }), []);
   useEffect(() => {
-    (window as unknown as { __gkRingLab?: unknown }).__gkRingLab = Object.assign(st, { scene, ui: useFightUi });
+    // (P3-FGT-19B: camera / renderer / three for the fighter-v8 harness, qa/e2e/fighter-v8)
+    (window as unknown as { __gkRingLab?: unknown }).__gkRingLab = Object.assign(st, { scene, camera, gl, three: THREE, generation: BOXER_GENERATION, v8Requested: BOXER_V8_REQUESTED, ui: useFightUi });
     // ?fcam=first|fight|behind|auto: the fight camera choice (P3-FGT-15 evidence)
     const fcam = new URLSearchParams(window.location.search).get("fcam");
     if (fcam === "first" || fcam === "fight" || fcam === "behind" || fcam === "auto") useFightUi.getState().set({ fightCam: fcam });
-  }, [st, scene]);
+  }, [st, scene, camera, gl]);
   useEffect(() => {
     gl.info.autoReset = false;
     return () => void (gl.info.autoReset = true);

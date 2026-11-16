@@ -369,3 +369,13 @@ assets already listed above:
 | Kites, weaver flock, butterflies, moths | `src/world/Wildlife.tsx` | Procedural geometry, GPU animation | In-house (project code) |
 | Night crickets, road rumble | `src/world/Ambience.tsx` | Synthesised with Web Audio (no audio files) | In-house (project code) |
 | Ambient campus people | `src/world/CampusLife.tsx` | The Rocketbox human models above (MIT) | MIT (models) + in-house |
+
+### Fighter v8 groundwork (P3-FGT-19B, Phase 0)
+
+Nothing bought, no Mixamo / MetaHuman / NC / ND material. The only new shipped file is a third-party runtime library:
+
+| What | Where | Source | Licence |
+| --- | --- | --- | --- |
+| Basis Universal transcoder (`basis_transcoder.js`, `basis_transcoder.wasm`, 0.58 MB, lazy: loaded only by the v8 fighters' KTX2 textures) | `apps/web/public/basis/` | Copied unchanged from `three@0.187.0/examples/jsm/libs/basis/` (Binomial LLC, https://github.com/BinomialLLC/basis_universal) | **Apache-2.0** |
+| KTX2 encoding at build time | `apps/web/scripts/boxer/ktx2.mjs` | Runs Binomial's `basisu` 2.50 CLI (`brew install basis_universal`); a dev tool, nothing of it ships | Apache-2.0 (tool) |
+| Garment weight transfer, shipped-GLB audit, skin v8 shading maths, the fighter-v8 harness | `apps/web/scripts/boxer/{garment-skin,glb-read,measure-glb,texture-budget}.mjs`, `apps/web/src/world/human/boxer/v8/`, `qa/e2e/fighter-v8/` | Written for this project | In-house (project code) |

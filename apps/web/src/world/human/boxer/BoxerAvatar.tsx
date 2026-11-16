@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { OUTFITS, type AvatarLook } from "@/world/outfits";
@@ -10,6 +10,8 @@ import type { BoxingMotion } from "../boxing/motion";
 import { P } from "../boxing/pose";
 import { BOXER_URL, buildOf, facePickOf, makeBoxer, type BoxerGender, type BoxerInstance, type BoxerOutfit } from "./boxer-body";
 import { BoxerFace } from "./boxer-face";
+import { BOXER_V8 } from "./generation";
+import { registerKtx2Renderer } from "./v8/ktx2";
 import { driveHelpers, fingerRig, helperRig, signFingers } from "./helpers";
 import type { CountSign } from "../boxing/count-signs";
 
@@ -122,6 +124,9 @@ const COARSE = typeof window !== "undefined" && !!window.matchMedia?.("(pointer:
 
 export function BoxerAvatar(props: BoxerAvatarProps) {
   const gender: BoxerGender = props.look.bodyType === "feminine" ? "f" : "m";
+  const gl = useThree((s) => s.gl);
+  // P3-FGT-19B: the v8 textures are KTX2 (the loader picks the GPU's block format from the renderer)
+  if (BOXER_V8) registerKtx2Renderer(gl);
   const gltf = useGLTF(props.src ?? BOXER_URL[gender], false);
   const { look, outfit, kit, polo, seed, klass = 0, lite = false, noHeadgear = false, noGloves = false, bare = false } = props;
   const fadeable = !!props.fade;
