@@ -157,10 +157,18 @@ function Fighter({ look, corner, motion, clock, at, kitOn, headgear, referee, re
   });
   // body=boxer: the ring people's realistic body (BoxerAvatar), the one the hall and the fight lab use
   const boxerBody = useMemo(() => new URLSearchParams(location.search).get("body") === "boxer", []);
+  // P3-FGT-17 evidence: glb=before (the P3-FGT-16 bodies and shading), rtone / btone = a skin tone index per corner
+  const lab = useMemo(() => {
+    const qq = new URLSearchParams(location.search);
+    const tone = qq.get(corner === "red" ? "rtone" : "btone");
+    const g = look.bodyType === "feminine" ? "f" : "m";
+    return { before: qq.get("glb") === "before", tone: tone !== null ? SKIN_TONES[Number(tone)] : undefined, g };
+  }, [corner, look.bodyType]);
+  const boxerLook = lab.tone && !referee ? { ...look, skinTone: lab.tone } : look;
   return (
     <group ref={g} position={[at.x, at.y, at.z]} rotation={[0, at.yaw, 0]}>
       {boxerBody ? (
-        <BoxerAvatar look={look} outfit={referee ? "referee" : "boxer"} kit={corner === "red" ? "#b3242b" : "#1f4fb0"} motion={motion} clock={clock.now} weight={weight} seed={corner === "red" ? 11 : 23} noHeadgear={!headgear} probe={probe} opponent={opponent} />
+        <BoxerAvatar look={boxerLook} outfit={referee ? "referee" : "boxer"} kit={corner === "red" ? "#b3242b" : "#1f4fb0"} motion={motion} clock={clock.now} weight={weight} seed={corner === "red" ? 11 : 23} noHeadgear={!headgear} probe={probe} opponent={opponent} src={lab.before ? `/assets/characters/boxer-${lab.g}-v5.glb` : undefined} v5={lab.before} />
       ) : (
         <Avatar look={shown} animRef={anim} showTag={false} shadows rigLayer={layer} seedId={`lab-${corner}-${look.bodyType}`} />
       )}

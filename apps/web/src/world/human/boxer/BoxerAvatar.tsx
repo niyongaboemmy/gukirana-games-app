@@ -58,6 +58,8 @@ export interface BoxerAvatarProps {
   bare?: boolean;
   /** another GLB of the same layout (lab: before / after comparisons) */
   src?: string;
+  /** P3-FGT-17 lab: the P3-FGT-16 shading (with `src` = a v5 GLB: the before view) */
+  v5?: boolean;
   /** finger signs over the pose (the referee's count, P3-FGT-14): first = the right hand, second = the left */
   fingers?: { current: CountSign | null };
   /** P3-FGT-16: the other fighter: my arms are kept out of their head, trunk and arms (keyed-arm keep-out) */
@@ -137,6 +139,7 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
       bare,
       gender,
       lite: lite || COARSE,
+      ...(props.v5 ? { v6: false } : {}),
     });
   }, [gltf, gender, look, outfit, kit, polo, seed, klass, lite, noHeadgear, noGloves, fadeable, bare]);
   useEffect(() => () => inst.dispose(), [inst]);

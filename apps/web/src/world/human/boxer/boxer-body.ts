@@ -5,6 +5,7 @@ import type { ArmBones } from "../procedural";
 import type { TorsoSlices } from "../boxing/rig";
 import { boxerMaterial, type BoxerColors, type BoxerUniforms } from "./boxer-material";
 import { depenetrate } from "./depenetrate";
+import { BODY_V6 } from "./body-v6";
 
 /**
  * The ring people's body (P3-FGT-13, docs/FIGHT-REALISM-V3.md §3): one athletic, properly skinned body per gender
@@ -19,7 +20,10 @@ import { depenetrate } from "./depenetrate";
  */
 export type BoxerGender = "m" | "f";
 export type BoxerOutfit = "boxer" | "referee" | "staff" | "casual";
-export const BOXER_URL: Record<BoxerGender, string> = { m: "/assets/characters/boxer-m.glb", f: "/assets/characters/boxer-f.glb" };
+/** P3-FGT-17: the rebuilt bodies; the P3-FGT-16 bodies stay as the flag's fallback (body-v6.ts) */
+export const BOXER_URL: Record<BoxerGender, string> = BODY_V6
+  ? { m: "/assets/characters/boxer-m.glb", f: "/assets/characters/boxer-f.glb" }
+  : { m: "/assets/characters/boxer-m-v5.glb", f: "/assets/characters/boxer-f-v5.glb" };
 
 /** body cover bits (build.mjs COVER) */
 const COVER = { vest: 1, trunks: 2, boots: 4, gloves: 8, headgear: 16, shirt: 32, trousers: 64, shoes: 128, hair: 256, sock: 512, vestCore: 1024 } as const;
@@ -54,6 +58,8 @@ export interface BoxerSpec {
   /** P3-FGT-15: which skin texture (the gender's), 1K textures on phones / Lite */
   gender?: "m" | "f";
   lite?: boolean;
+  /** P3-FGT-17: the v6 shading (anatomy map, skin pass); false = the P3-FGT-16 look (flag off, the lab's before view) */
+  v6?: boolean;
 }
 
 export interface BoxerInstance {
@@ -183,7 +189,7 @@ export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: Boxer
     { L: new THREE.Vector3().fromArray(extras.landmarks.eyeL).add(deltas[index.get(boneOf(skeleton, "Bip01_L_Eye")!) ?? 0]!), R: new THREE.Vector3().fromArray(extras.landmarks.eyeR).add(deltas[index.get(boneOf(skeleton, "Bip01_R_Eye")!) ?? 0]!) },
     spec.face,
     extras.landmarks.kit,
-    { gender: spec.gender, lite: spec.lite },
+    { gender: spec.gender, lite: spec.lite, v6: spec.v6 ?? BODY_V6 },
   );
   if (spec.fadeable) material.alphaHash = true;
   const mesh = new THREE.SkinnedMesh(merged, material);

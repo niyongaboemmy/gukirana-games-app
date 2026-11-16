@@ -206,7 +206,7 @@ export function BoxerLab({ q, setInfo }: { q: URLSearchParams; setInfo: (s: stri
   }, [debug, q, scene]);
   return (
     <>
-      <BoxerAvatar look={look} outfit={outfit} kit="#c0262d" polo={outfit === "casual" ? undefined : "#2b2e34"} motion={motion} clock={clock} weight={weight} seed={7} klass={0} noHeadgear={q.get("headgear") === "0"} bare={q.get("bare") === "1"} fingers={fingers} src={q.get("glb") === "before" ? `/assets/characters/_before/boxer-${gender}.glb` : undefined} probe={probe} />
+      <BoxerAvatar look={look} outfit={outfit} kit="#c0262d" polo={outfit === "casual" ? undefined : "#2b2e34"} motion={motion} clock={clock} weight={weight} seed={7} klass={0} noHeadgear={q.get("headgear") === "0"} bare={q.get("bare") === "1"} fingers={fingers} src={q.get("glb") === "before" ? `/assets/characters/boxer-${gender}-v5.glb` : undefined} v5={q.get("glb") === "before"} probe={probe} />
       {q.get("cmp") === "1" && <Reference look={LOOK[gender]} motion={motion} clock={clock} />}
       <CamRig q={q} probe={probe} />
     </>
