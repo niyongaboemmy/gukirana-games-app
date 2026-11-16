@@ -143,9 +143,29 @@ See docs/PEOPLE-BEHAVIOUR.md.
     padded open-face headgear, the referee's shirt / collar / bow tie / trousers / shoes (P3-FGT-14: draped cloth
     volume, a stand collar with wings, straight-leg trousers), the staff polo and a short hair cap;
   - vertex data for our own shader: material slot, cavity (muscle definition), hit zones, face paint (lips, brows,
-    eye sockets, beard). No textures are shipped.
-- MakeHuman skins (textures), proxies, clothes and hair are **not** used (they are not in the code repository and
-  we did not need them). Nothing from Mixamo or any store.
+    eye sockets, beard). No textures were shipped in P3-FGT-13/14 (P3-FGT-15 below adds skin and eye textures).
+- P3-FGT-13/14: MakeHuman skins, proxies, clothes and hair were not used. P3-FGT-15 adds the skin and eye assets
+  below (CC0). Nothing from Mixamo or any store.
+
+### Realistic humans (P3-FGT-15) — `skin-{m,f}.webp`, `skin-{m,f}-1k.webp`, `eye-iris.webp`, `human-detail.webp`, eye proxy in the boxer GLBs
+
+| File | Source asset | Author | Licence |
+| --- | --- | --- | --- |
+| `skin-m.webp` (2048, 1.8 MB), `skin-m-1k.webp` (0.48 MB) | MakeHuman 1.2 system skin `data/skins/textures/young_darkskinned_male_diffuse.png` (in the MakeHuman Community 1.2.0 release, http://download.tuxfamily.org/makehuman/releases/makehuman-community-1.2.0-windows.zip) | MakeHuman team (Data Collection AB, Joel Palmius, Jonas Hauquier) | **CC0 1.0** ("This asset was explicitly released as CC0 in september 2020", in each system-asset file) |
+| `skin-f.webp` (2048, 1.5 MB), `skin-f-1k.webp` (0.37 MB) | same, `young_darkskinned_female_diffuse.png` | same | CC0 1.0 |
+| `eye-iris.webp` (512) | MakeHuman `data/eyes/materials/brown_eye.png` (code repository, commit `a8bc2d54…`; also mirrored on OpenGameArt "MakeHuman system assets eyes") | MakeHuman team | CC0 1.0 |
+| eye geometry inside `boxer-{m,f}.glb` | MakeHuman `data/eyes/high-poly/high-poly.obj` + `.mhclo` (code repository, same commit) | MakeHuman team | CC0 1.0 |
+| `human-detail.webp` (512) | generated (`skin_textures.py`: pores / micro-wrinkles and a knit, seeded noise) | Gukirana | original work |
+
+- **What we made from them** (`apps/web/scripts/boxer/skin_textures.py`): the skin stored relative to its median colour
+  (any avatar skin tone is applied in the shader), the photo session's lowest frequencies flattened, the groin filled
+  with surrounding skin (no anatomical detail ships, whatever is worn), a fine-height alpha channel; WebP (q82, exact
+  colour under alpha). The eye texture's iris turned to luminance (tinted with the player's eye colour at runtime) with an
+  iris mask in alpha. The eye proxy fitted to each body with MakeHuman's own proxy maths (`mh.mjs readProxy`), its clear
+  cornea layer dropped. The body GLBs now carry MakeHuman's UV layout (from `base.obj`).
+- Evaluated, not shipped: MakeHuman community "Toigo" light skins (CC0, OpenGameArt mirror) — superseded by the system
+  dark-skinned skins; MakeHuman system hair / brows / lashes / clothes proxies (CC0) — not used yet (alpha cards cost a
+  second draw call per person; the close crop is the scalp texture plus a shell).
 
 ## Environment — `apps/web/public/assets/env/` (payload 5.3 MB)
 

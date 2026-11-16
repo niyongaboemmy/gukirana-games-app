@@ -17,7 +17,7 @@ import { boxerMaterial, type BoxerColors, type BoxerUniforms } from "./boxer-mat
  * library drive it unchanged.
  */
 export type BoxerGender = "m" | "f";
-export type BoxerOutfit = "boxer" | "referee" | "staff";
+export type BoxerOutfit = "boxer" | "referee" | "staff" | "casual";
 export const BOXER_URL: Record<BoxerGender, string> = { m: "/assets/characters/boxer-m.glb", f: "/assets/characters/boxer-f.glb" };
 
 /** body cover bits (build.mjs COVER) */
@@ -27,6 +27,9 @@ const OUTFIT_MESHES: Record<BoxerOutfit, { meshes: string[]; cover: number; head
   boxer: { meshes: ["body", "kit_vest", "kit_trunks", "kit_boots", "kit_socks", "kit_gloves", "kit_headgear", "kit_wraps"], cover: COVER.vest | COVER.trunks | COVER.boots | COVER.gloves | COVER.headgear, headgear: true },
   referee: { meshes: ["body", "ref_shirt", "ref_collar", "ref_bowtie", "ref_trousers", "ref_shoes", "hair_cap"], cover: COVER.shirt | COVER.trousers | COVER.shoes | COVER.hair, headgear: false },
   staff: { meshes: ["body", "staff_polo", "staff_collar", "ref_trousers", "ref_shoes", "hair_cap"], cover: COVER.shirt | COVER.trousers | COVER.shoes | COVER.hair, headgear: false },
+  // P3-FGT-15: an everyday person (the realistic human out of the ring): a draped tee in the look's top colour,
+  // trousers in its bottom colour, shoes
+  casual: { meshes: ["body", "staff_polo", "ref_trousers", "ref_shoes", "hair_cap"], cover: COVER.shirt | COVER.trousers | COVER.shoes | COVER.hair, headgear: false },
 };
 
 export interface BoxerSpec {
@@ -47,12 +50,15 @@ export interface BoxerSpec {
   shadows?: boolean;
   /** the body alone, nothing covered (the lab's skinning view) */
   bare?: boolean;
+  /** P3-FGT-15: which skin texture (the gender's), 1K textures on phones / Lite */
+  gender?: "m" | "f";
+  lite?: boolean;
 }
 
 export interface BoxerInstance {
   root: THREE.Group;
   mesh: THREE.SkinnedMesh;
-  material: THREE.MeshStandardMaterial & { userData: { u: BoxerUniforms } };
+  material: THREE.MeshPhysicalMaterial & { userData: { u: BoxerUniforms } };
   uniforms: BoxerUniforms;
   arms: ArmBones[];
   /** the torso slices of this body type (rig keep-out; build.mjs torsoSlices) */
@@ -167,6 +173,7 @@ export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: Boxer
     { L: new THREE.Vector3().fromArray(extras.landmarks.eyeL).add(deltas[index.get(boneOf(skeleton, "Bip01_L_Eye")!) ?? 0]!), R: new THREE.Vector3().fromArray(extras.landmarks.eyeR).add(deltas[index.get(boneOf(skeleton, "Bip01_R_Eye")!) ?? 0]!) },
     spec.face,
     extras.landmarks.kit,
+    { gender: spec.gender, lite: spec.lite },
   );
   if (spec.fadeable) material.alphaHash = true;
   const mesh = new THREE.SkinnedMesh(merged, material);

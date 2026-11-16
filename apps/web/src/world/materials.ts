@@ -21,6 +21,7 @@ import {
 } from "./textures";
 import { roofMembraneTexture } from "./roofs";
 import { emissiveByTime } from "./time-of-day/hooks";
+import { agasekeNight, arenaLedNight, arenaScreenNight, fightLedNight } from "./night/material-hooks";
 import { glazingMaterial } from "./glazing";
 import { GLAZED } from "./glass-capture";
 import { BENCHES, FOUNTAIN_COURT, FOUNTAIN_RADIUS, PAVING_R, PLAZA_RADIUS, PORTALS, ringPoint, SPAWN } from "./layout";
@@ -146,7 +147,8 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     // Tournament Arena (P2-WLD-17): dark chocolate (crown, canopy, fascias, mullions, columns, inner drum) with a soft
     // metallic sheen; the perforated bronze screen panels; the standing-seam dome
     choco: std({ color: "#3b2416", roughness: 0.5, metalness: 0.35 }),
-    arenaScreen: std({ map: arenaPerforatedTexture(), roughness: 0.42, metalness: 0.55, side: THREE.DoubleSide }),
+    // (P2-WLD-21: at night the inner drum's warm light shines through the holes in slow rising waves, night/material-hooks)
+    arenaScreen: arenaScreenNight(std({ map: arenaPerforatedTexture(), roughness: 0.42, metalness: 0.55, side: THREE.DoubleSide })),
     arenaRoof: std({ map: standingSeamTexture(), roughness: 0.48, metalness: 0.5 }),
     diamondDark: std({ map: imigongoDiamondTexture("#14161c", "#7a3a22", "#2c2f37"), roughness: 0.5, metalness: 0.6 }),
     grass: std({ map: grassTexture(), roughness: 1, color: "#d8f0c8" }),
@@ -157,7 +159,8 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     screenFrame: std({ color: "#15171d", metalness: 0.6, roughness: 0.35 }),
     asphalt: std({ map: concreteTexture(), color: "#3a3c40", roughness: 0.95 }),
     thatch: std({ map: thatchTexture(), bumpMap: thatchTexture(), bumpScale: 1.5, color: "#c2a47a", roughness: 1, side: THREE.DoubleSide }),
-    agaseke: std({ map: agasekeTexture(), bumpMap: agasekeTextures().bump, bumpScale: 0.8, roughness: 0.88 }),
+    // (the fountain sculpture only; P2-WLD-21: grazed by six basin uplights at night)
+    agaseke: agasekeNight(std({ map: agasekeTexture(), bumpMap: agasekeTextures().bump, bumpScale: 0.8, roughness: 0.88 })),
     hoarding: std({ map: hoardingTexture(), roughness: 0.7 }),
     "paint-orange": std({ color: "#F28C28", roughness: 0.7, side: THREE.DoubleSide }),
     "paint-teal": std({ color: "#159A9C", roughness: 0.7, side: THREE.DoubleSide }),
@@ -165,15 +168,17 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     "paint-yellow": std({ color: "#F2C230", roughness: 0.55, metalness: 0.2 }),
     jet: new THREE.MeshStandardMaterial({ color: "#dff3ff", transparent: true, opacity: 0.55, roughness: 0.05, metalness: 0.1, depthWrite: false }),
     "led-red": ledMaterial("#ff2a2a", tier),
-    "led-halo": ledMaterial(GAME_COLORS.arena, tier),
+    // (the arena's amber lines; P2-WLD-21: brighter at night, the roof edge and the lantern breathing)
+    "led-halo": arenaLedNight(ledMaterial(GAME_COLORS.arena, tier)),
     // LEDs (unlit)
     "led-pool": ledMaterial(GAME_COLORS.pool, tier),
     "led-ludo": ledMaterial(GAME_COLORS.ludo, tier),
     "led-igisoro": ledMaterial(GAME_COLORS.igisoro, tier),
     "led-arena": ledMaterial(GAME_COLORS.arena, tier),
     "led-admin": ledMaterial(GAME_COLORS.admin, tier, 0.7),
-    "led-fight": ledMaterial(GAME_COLORS.fight, tier),
-    "led-corner-blue": ledMaterial("#2F5DB0", tier, 0.9),
+    // (Fight Games' red / blue lines; P2-WLD-21: a slow night pulse, red and blue trading places)
+    "led-fight": fightLedNight(ledMaterial(GAME_COLORS.fight, tier), 0),
+    "led-corner-blue": fightLedNight(ledMaterial("#2F5DB0", tier, 0.9), 0.5),
     charcoal: std({ map: concreteTexture(), color: "#6a6a70", roughness: 0.85 }),
     "led-soon": ledMaterial(GAME_COLORS.soon, tier, 0.5),
     "led-sky": ledMaterial(GAME_COLORS.sky, tier),

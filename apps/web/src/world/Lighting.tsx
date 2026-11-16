@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Bloom, EffectComposer, ToneMapping } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
@@ -47,6 +47,26 @@ function SkyDome({ tier }: { tier: Tier }) {
   const twinkle = useMemo(() => (tier === "lite" || reducedMotion() ? 0 : 1), [tier]);
   useFrame(({ clock }) => updateSky(mesh.material as THREE.ShaderMaterial, { twinkle, time: clock.elapsedTime }));
   return <primitive object={mesh} />;
+}
+
+/**
+ * Scene fog (P2-WLD-21, docs/NIGHT-LIGHTING.md §6): exponential-squared haze on the area's scene. It used to be
+ * declared as `<fogExp2 attach="fog">` inside the "lighting" group, which attached it to that group, never to the
+ * scene: it was never active. Installed before the area's first frame (its programs compile once, with fog) and
+ * removed with the area; colour per phase (FogTint), density from the morning mist × tod.look.fogK (MorningMist).
+ */
+function SceneFog({ tier }: { tier: Tier }) {
+  const scene = useThree((s) => s.scene);
+  const fog = useMemo(() => new THREE.FogExp2(FOG_COLOR, fogDensity(tier)), [tier]);
+  useLayoutEffect(() => {
+    const prev = scene.fog;
+    fog.color.setRGB(...tod.look.fog);
+    scene.fog = fog;
+    return () => {
+      if (scene.fog === fog) scene.fog = prev;
+    };
+  }, [scene, fog]);
+  return null;
 }
 
 /** Fog colour per phase (the density is the morning mist's: PlazaActivities MorningMist × tod.look.fogK). */
@@ -169,7 +189,7 @@ export function Lighting({ tier }: { tier: Tier }) {
   return (
     <>
       <SkyDome tier={tier} />
-      <fogExp2 attach="fog" args={[FOG_COLOR, fogDensity(tier)]} />
+      <SceneFog tier={tier} />
       <FogTint />
       <Hemisphere />
       <Sun tier={tier} />

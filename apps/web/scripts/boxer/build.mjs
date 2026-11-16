@@ -11,7 +11,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { jointPos, macroTargets, morph, readObj, readSkeleton, readTarget } from "./mh.mjs";
+import { jointPos, macroTargets, morph, readObj, readProxy, readSkeleton, readTarget } from "./mh.mjs";
 import { writeGlb } from "./glb.mjs";
 import { shoulderShare, weightBytes } from "./skin-math.mjs";
 
@@ -130,7 +130,30 @@ function finalBones() {
 
 /* ------------------------------------------------------------ one body variant ------------------------------------------------------------ */
 const DM = 0.1; // MakeHuman decimetres → metres
-const { pos: BASE, groups: GROUPS } = readObj(join(MH, "3dobjs/base.obj"));
+const { pos: BASE, groups: GROUPS, uv: UVS, uvGroups: UVG } = readObj(join(MH, "3dobjs/base.obj"));
+/**
+ * P3-FGT-15: MakeHuman's own UV layout (the skin textures are painted on it). glTF's v runs top-down: v' = 1 − v.
+ * A body vertex on a UV seam has several uv corners (the body mesh splits it); garments cut from the body take the
+ * first uv each vertex has (their fabric detail is tiled, a seam there is invisible).
+ */
+const uvAt = (k) => (k >= 0 ? [UVS[k * 2], 1 - UVS[k * 2 + 1]] : [0, 0]);
+const VUV = new Int32Array(BASE.length / 3).fill(-1);
+for (const [g, faces] of GROUPS) {
+  const uvf = UVG.get(g);
+  faces.forEach((f, n) => f.forEach((v, c) => {
+    if (VUV[v] < 0) VUV[v] = uvf[n][c];
+  }));
+}
+/** triangles with their uv corners: [[v, uv], [v, uv], [v, uv]] */
+const triUV = (group) => {
+  const faces = GROUPS.get(group);
+  const uvf = UVG.get(group);
+  return faces.flatMap((f, n) => {
+    const u = uvf[n];
+    const c = f.map((v, k) => [v, u[k]]);
+    return c.length === 4 ? [[c[0], c[1], c[2]], [c[0], c[2], c[3]]] : [c.slice(0, 3)];
+  });
+};
 const { skel, weights: MHW } = readSkeleton(MH);
 const FB = finalBones();
 const FINAL_INDEX = new Map(FB.map((b, i) => [b[0], i]));
@@ -309,6 +332,7 @@ class MeshBuilder {
     this.cover = [];
     this.paint = [];
     this.src = [];
+    this.uv = [];
     this.idx = [];
   }
   vert(p, n, skin, mat, extra = {}) {
@@ -324,6 +348,7 @@ class MeshBuilder {
     this.cover.push(extra.cover ?? 0);
     this.paint.push(...(extra.paint ?? [0, 0, 0, 0]));
     this.src.push(extra.src ?? -1);
+    this.uv.push(...(extra.uv ?? [0, 0]));
     return this.p.length / 3 - 1;
   }
   face(a, b, c) {
@@ -344,6 +369,8 @@ class MeshBuilder {
       WEIGHTS_0: { data: w8, size: 4, norm: true },
       _MAT: { data: Uint8Array.from(this.mat), size: 1 },
       _AO: { data: u8n(this.ao), size: 1, norm: true },
+      // P3-FGT-15: uv as normalised uint16 (KHR_mesh_quantization)
+      TEXCOORD_0: { data: Uint16Array.from(this.uv, (x) => Math.round(clamp(x, 0, 1) * 65535)), size: 2, norm: true },
     };
     if (withBody) {
       attrs._ZONE = { data: Uint8Array.from(this.zone), size: 1 };
@@ -398,7 +425,7 @@ function buildVariant(key, base, morphParams) {
       neigh[f[k]].add(f[(k + f.length - 1) % f.length]);
     }
   /** Laplacian-smoothed positions over a face set (cloth bridging, the shoe last) */
-  const smoothed = (faces, iters, region = () => true) => {
+  const smoothed = (faces, iters, region = () => true, taubin = true) => {
     const nb = new Map();
     for (const f of faces)
       for (let k = 0; k < f.length; k++) {
@@ -409,7 +436,7 @@ function buildVariant(key, base, morphParams) {
       }
     let cur = Float64Array.from(P);
     for (let it = 0; it < iters * 2; it++) {
-      const lam = it % 2 === 0 ? 0.5 : -0.53;
+      const lam = it % 2 === 0 || !taubin ? 0.5 : -0.53;
       const nx = Float64Array.from(cur);
       for (const [a, ns] of nb) {
         if (!region(a)) continue;
@@ -429,6 +456,31 @@ function buildVariant(key, base, morphParams) {
     return cur;
   };
   const SMOOTH_BODY = smoothed(bodyFaces, 40);
+  // P3-FGT-15: what cloth rests on — a plain (shrinking) Laplacian smoothing: nipples, the navel and muscle edges gone
+  // (Taubin smoothing above keeps features of that size)
+  const CLOTH_BODY = smoothed(bodyFaces, 10, () => true, false);
+  {
+    // the nipples are broad cones on the MakeHuman base (≈ 2 cm proud of the chest, several cm wide: smoothing keeps
+    // them); what cloth rests on has them pressed flat, so no garment ever shows them (the body under the cloth is not
+    // drawn). Per side: the most forward chest vertex, its base from the ring 4.5–6 cm round it, a smooth cone removed.
+    for (const s of [1, -1]) {
+      const cand = [...bodyV].filter((i) => P[i * 3] * s > 0.05 && P[i * 3] * s < 0.15 && P[i * 3 + 1] > spine2[1] - 0.08 && P[i * 3 + 1] < spine2[1] + 0.14);
+      if (!cand.length) continue;
+      const tip = cand.reduce((a, b) => (P[b * 3 + 2] > P[a * 3 + 2] ? b : a));
+      const T = [P[tip * 3], P[tip * 3 + 1], P[tip * 3 + 2]];
+      const dist = (i) => Math.hypot(P[i * 3] - T[0], P[i * 3 + 1] - T[1]);
+      const ring = cand.filter((i) => dist(i) > 0.045 && dist(i) < 0.06 && P[i * 3 + 2] > T[2] - 0.08).map((i) => CLOTH_BODY[i * 3 + 2]).sort((a, b) => a - b);
+      const base = ring.length ? ring[Math.floor(ring.length * 0.75)] : T[2] - 0.015;
+      for (const i of bodyV) {
+        const d = dist(i);
+        if (d >= 0.045 || P[i * 3 + 2] < T[2] - 0.08) continue;
+        const k = (1 - d / 0.045) ** 2;
+        const z = CLOTH_BODY[i * 3 + 2];
+        const flatZ = base + (z - base) * 0.25;
+        if (z > flatZ) CLOTH_BODY[i * 3 + 2] = lerp(z, flatZ, Math.min(1, k * 1.6));
+      }
+    }
+  }
   const SMOOTH_TIGHTS = smoothed(GROUPS.get("helper-tights"), 16);
   let SM_SRC = SMOOTH_BODY;
   const SM = (i) => [SM_SRC[i * 3], SM_SRC[i * 3 + 1], SM_SRC[i * 3 + 2]];
@@ -561,13 +613,32 @@ function buildVariant(key, base, morphParams) {
     return q[1] < yTop && q[1] > yBot && Math.abs(q[0]) < halfW;
   };
   const headgearCover = (i) => isHeadV(i) && !faceOval(V(i)) && V(i)[1] > jaw[1] - 0.02;
-  const hairCover = (i) => {
-    if (!isHeadV(i)) return false;
+  /**
+   * P3-FGT-15: the scalp as a smooth field (m, > 0 on the hair): above a hairline that runs from the forehead (a soft
+   * M, temples a little higher) over the tops of the ears (sideburns down to the ear's middle) to the nape. The hair
+   * is a thin shell on the scalp itself (a close crop: the skull's own shape, never a helmet); its edge fades out
+   * strand by strand in the shader (the _ao channel carries the distance from the hairline).
+   */
+  const hairField = (i) => {
+    if (!isHeadV(i) && wOf(i, "Bip01_Neck") < 0.3) return -0.05;
     const q = headLocal(i);
-    // the scalp: above the ears / forehead line
-    const hairline = eyeL[1] - headC[1] + 0.06 - 0.05 * smooth(-0.02, -0.1, q[2]);
-    return q[1] > hairline && !(q[2] > 0.06 && q[1] < eyeL[1] - headC[1] + 0.065);
+    const eyeY = eyeL[1] - headC[1];
+    const ax = Math.abs(q[0]);
+    // front hairline (forehead), temples, sides over the ears, nape
+    const front = smooth(-0.045, 0.035, q[2]);
+    const temple = 0.012 * smooth(0.015, 0.045, ax) * front;
+    const lineFront = eyeY + 0.056 + temple + 0.004 * Math.cos(q[0] * 60);
+    const lineSide = eyeY + 0.035 - 0.02 * smooth(0.0, -0.06, q[2]) * smooth(0.04, 0.07, ax);
+    const lineBack = eyeY - 0.075;
+    const back = smooth(-0.02, -0.08, q[2]);
+    const line = lerp(lerp(lineSide, lineFront, front), lineBack, back);
+    // the ears stay bare: the hair goes round them
+    const earGap = ax > 0.062 && q[2] < 0.02 && q[2] > -0.05 && q[1] < eyeY + 0.03 ? -0.01 : 0;
+    return q[1] - line + earGap;
   };
+  // (the scalp stays drawn under the hair: the skin texture carries a close-cropped natural hairline, the shell adds
+  // the strands over it, partly open)
+  const hairCover = () => false;
   const trunksCoverBody = (i) => {
     const p = V(i);
     return p[1] < waistY + 0.005 && p[1] > kneeL[1] + 0.09 && !isArm(i);
@@ -577,7 +648,7 @@ function buildVariant(key, base, morphParams) {
     return p[1] < waistY + 0.01 && p[1] > ankleL[1] + 0.03 && !isArm(i) && footW(i) < 0.3;
   };
   const coverBits = (i) =>
-    (vestField(i) > 0.012 ? COVER.vest : 0) |
+    (vestField(i) > 0.004 ? COVER.vest : 0) |
     (trunksCoverBody(i) ? COVER.trunks : 0) |
     (bootTop(i) > 0.012 ? COVER.boots : 0) |
     (glovesCover(i) ? COVER.gloves : 0) |
@@ -623,17 +694,56 @@ function buildVariant(key, base, morphParams) {
   /* ---------------- the body mesh: skin + eyes + lashes + teeth ---------------- */
   const bodyMesh = new MeshBuilder("body");
   const map = new Map();
-  const addBodyVert = (i, mat, N) => {
-    const key = `${mat}:${i}`;
+  const addBodyVert = (i, mat, N, uvk = VUV[i]) => {
+    const key = `${mat}:${i}:${uvk}`;
     if (map.has(key)) return map.get(key);
-    const k = bodyMesh.vert(V(i), N ? [N[i * 3], N[i * 3 + 1], N[i * 3 + 2]] : Nv(i), VW[i], mat, mat === MAT.skin ? { ao: cavity[i], zone: zoneOf(i), cover: coverBits(i), paint: paintOf(i), src: i } : { src: i });
+    const k = bodyMesh.vert(V(i), N ? [N[i * 3], N[i * 3 + 1], N[i * 3 + 2]] : Nv(i), VW[i], mat, mat === MAT.skin ? { ao: cavity[i], zone: zoneOf(i), cover: coverBits(i), paint: paintOf(i), src: i, uv: uvAt(uvk) } : { src: i, uv: uvAt(uvk) });
     map.set(key, k);
     return k;
   };
-  for (const [a, b, c] of bodyTris) bodyMesh.face(addBodyVert(a, MAT.skin), addBodyVert(b, MAT.skin), addBodyVert(c, MAT.skin));
+  // P3-FGT-15: each skin corner keeps its own uv (seams split the vertex): the skin texture maps exactly
+  for (const [a, b, c] of triUV("body")) bodyMesh.face(addBodyVert(a[0], MAT.skin, null, a[1]), addBodyVert(b[0], MAT.skin, null, b[1]), addBodyVert(c[0], MAT.skin, null, c[1]));
+  // P3-FGT-15: the eyes are MakeHuman's high-poly eye proxy (CC0: a cornea-shaped ball with its own uv onto the eye
+  // texture: sclera with veins, a photographic iris, the pupil), fitted to this body like MakeHuman fits it (.mhclo);
+  // skinned through the base vertices it hangs from (the eye bones: gaze and blinks keep working)
+  {
+    const px = readProxy(join(MH, "eyes/high-poly/high-poly.mhclo"));
+    const obj = readObj(join(MH, "eyes/high-poly", px.objFile));
+    const fitted = px.fit(pdm);
+    const EP = new Float64Array(fitted.length);
+    for (let i = 0; i < px.refs.length; i++) {
+      EP[i * 3] = fitted[i * 3] * DM;
+      EP[i * 3 + 1] = (fitted[i * 3 + 1] - G.minY) * DM;
+      EP[i * 3 + 2] = fitted[i * 3 + 2] * DM;
+    }
+    const faces = [...obj.groups.values()].flat();
+    const uvf = [...obj.uvGroups.values()].flat();
+    const EN = normalsOf(EP, faces);
+    const skinOf = (r) => {
+      const wm = new Map();
+      r.v.forEach((v, k) => {
+        for (const [b, w] of VW[v]) wm.set(b, (wm.get(b) ?? 0) + w * r.w[k]);
+      });
+      const top = [...wm.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+      const s = top.reduce((q, [, w]) => q + w, 0) || 1;
+      return top.map(([b, w]) => [b, w / s]);
+    };
+    const ids = new Map();
+    const ev = (v, t) => {
+      const key = `${v}:${t}`;
+      if (!ids.has(key)) ids.set(key, bodyMesh.vert([EP[v * 3], EP[v * 3 + 1], EP[v * 3 + 2]], [EN[v * 3], EN[v * 3 + 1], EN[v * 3 + 2]], skinOf(px.refs[v]), MAT.eye, { uv: t >= 0 ? [obj.uv[t * 2], 1 - obj.uv[t * 2 + 1]] : [0, 0] }));
+      return ids.get(key);
+    };
+    faces.forEach((f, n) => {
+      // (the proxy's clear cornea layer maps onto the texture's corner disc: left out, the wet cornea is the shader's
+      // clearcoat on the eyeball)
+      if (uvf[n].every((t) => obj.uv[t * 2] > 0.84 && obj.uv[t * 2 + 1] < 0.16)) return;
+      const c = f.map((v, k) => ev(v, uvf[n][k]));
+      bodyMesh.face(c[0], c[1], c[2]);
+      if (c.length === 4) bodyMesh.face(c[0], c[2], c[3]);
+    });
+  }
   for (const [g, mat] of [
-    ["helper-l-eye", MAT.eye],
-    ["helper-r-eye", MAT.eye],
     ["helper-l-eyelashes-1", MAT.lash],
     ["helper-r-eyelashes-1", MAT.lash],
     ["helper-l-eyelashes-2", MAT.lash],
@@ -652,7 +762,7 @@ function buildVariant(key, base, morphParams) {
    * edges, their position / normal / skin / morph interpolated), so arm holes, necklines and hems are smooth curves,
    * not the body's quad steps. Boundary edges get a hem strip (cloth thickness) in the rim slot.
    */
-  function shell(name, faces, normals, { field, offset, mat, hem = 0.006, rimMat, surface = null, bridge = 0 }) {
+  function shell(name, faces, normals, { field, offset, mat, hem = 0.006, rimMat, surface = null, bridge = 0, flatAo = false, edgeAo = 0 }) {
     const SV = (i) => (surface ? [surface[i * 3], surface[i * 3 + 1], surface[i * 3 + 2]] : V(i));
     const m = new MeshBuilder(name);
     const f = new Map();
@@ -679,7 +789,11 @@ function buildVariant(key, base, morphParams) {
       const top = [...wm.entries()].sort((x, y) => y[1] - x[1]).slice(0, 4);
       const sum = top.reduce((q, [, w]) => q + w, 0) || 1;
       const slot = typeof mat === "function" ? mat(t < 0.5 ? a : b) : mat;
-      const k = m.vert(pos, n, top.map(([bone, w]) => [bone, w / sum]), slot, { ao: 0.5 + 0.35 * (((cavity[a] || 0.5) * (1 - t) + (cavity[b] || 0.5) * t) - 0.5), src: [a, b, t] });
+      // (P3-FGT-15: draped cloth does not take the body's muscle cavities: flatAo)
+      const ua = uvAt(VUV[a]),
+        ub = uvAt(VUV[b]);
+      const ao = edgeAo > 0 ? clamp((F(a) * (1 - t) + F(b) * t) / edgeAo, 0, 1) : flatAo ? 0.5 : 0.5 + 0.35 * (((cavity[a] || 0.5) * (1 - t) + (cavity[b] || 0.5) * t) - 0.5);
+      const k = m.vert(pos, n, top.map(([bone, w]) => [bone, w / sum]), slot, { ao, src: [a, b, t], uv: [ua[0] + (ub[0] - ua[0]) * t, ua[1] + (ub[1] - ua[1]) * t] });
       gv.set(key, k);
       return k;
     };
@@ -763,10 +877,11 @@ function buildVariant(key, base, morphParams) {
       const dir = norm(cross(sub(pv, pu), nu));
       const skinOf = (k) => [0, 1, 2, 3].map((q) => [m.j[k * 4 + q], m.w[k * 4 + q]]);
       const slot = rimMat ?? m.mat[ou];
-      const r1 = m.vert(pu, dir, skinOf(ou), slot, { src: m.src[ou] });
-      const r2 = m.vert(pv, dir, skinOf(ov), slot, { src: m.src[ov] });
-      const i1 = m.vert([m.p[iu * 3], m.p[iu * 3 + 1], m.p[iu * 3 + 2]], dir, skinOf(iu), slot, { src: m.src[iu] });
-      const i2 = m.vert([m.p[iv * 3], m.p[iv * 3 + 1], m.p[iv * 3 + 2]], dir, skinOf(iv), slot, { src: m.src[iv] });
+      const uvOf = (k) => [m.uv[k * 2], m.uv[k * 2 + 1]];
+      const r1 = m.vert(pu, dir, skinOf(ou), slot, { src: m.src[ou], uv: uvOf(ou) });
+      const r2 = m.vert(pv, dir, skinOf(ov), slot, { src: m.src[ov], uv: uvOf(ov) });
+      const i1 = m.vert([m.p[iu * 3], m.p[iu * 3 + 1], m.p[iu * 3 + 2]], dir, skinOf(iu), slot, { src: m.src[iu], uv: uvOf(iu) });
+      const i2 = m.vert([m.p[iv * 3], m.p[iv * 3 + 1], m.p[iv * 3 + 2]], dir, skinOf(iv), slot, { src: m.src[iv], uv: uvOf(iv) });
       m.face(r1, i1, r2);
       m.face(r2, i1, i2);
       m.face(r2, i1, r1);
@@ -775,13 +890,40 @@ function buildVariant(key, base, morphParams) {
     return m;
   }
 
-  // vest: corner colour, white binding at the neckline and arm holes (the hem strips)
-  const vest = shell("kit_vest", bodyFaces, NB, {
+  // vest: corner colour, white binding at the neckline and arm holes (the hem strips).
+  // P3-FGT-15: a real garment, not paint on the body: the vest hangs as cloth from the chest / bust / shoulder blades
+  // (the same drape as the referee's shirt: the cleavage and the spine groove bridged, small bumps never printed, at
+  // most 0.22 m/m of inward slope below the chest) and is tucked under the trunks' waistband; 5 mm of fabric over the
+  // drape, a 6 mm binding at the neckline and arm holes (the hem strips give the cloth its edge thickness).
+  const DRAPE_SURF = drapeShirt();
+  const NDr = normalsOf(DRAPE_SURF, bodyFaces);
+  // (the base mesh is very dense round the nipples and the navel: after the drape those little faces can fold over,
+  // and their face normals would print a dot on the cloth; cloth normals are smoothed over the neighbourhood)
+  for (let it = 0; it < 8; it++) {
+    const prev = Float64Array.from(NDr);
+    for (const i of bodyV) {
+      let x = prev[i * 3],
+        y = prev[i * 3 + 1],
+        z = prev[i * 3 + 2];
+      for (const q of neigh[i]) {
+        x += prev[q * 3];
+        y += prev[q * 3 + 1];
+        z += prev[q * 3 + 2];
+      }
+      const l = Math.hypot(x, y, z) || 1;
+      NDr[i * 3] = x / l;
+      NDr[i * 3 + 1] = y / l;
+      NDr[i * 3 + 2] = z / l;
+    }
+  }
+  const vest = shell("kit_vest", bodyFaces, NDr, {
     field: vestField,
-    offset: (i) => 0.0055 + 0.006 * smooth(spine2[1], pelvis[1], V(i)[1]) * (V(i)[2] > spine[2] ? 1 : 0.6),
-    bridge: 1,
+    // (a little more over the arm holes and straps, where the shoulder works under the cloth)
+    offset: (i) => 0.005 + 0.004 * smooth(0.2, 0.5, armW(i) + wSum(i, ["Bip01_L_Clavicle", "Bip01_R_Clavicle"])),
+    surface: DRAPE_SURF,
+    flatAo: true,
     mat: MAT.vest,
-    hem: 0.004,
+    hem: 0.006,
     rimMat: MAT.vestTrim,
   });
 
@@ -792,6 +934,7 @@ function buildVariant(key, base, morphParams) {
   const trunks = shell("kit_trunks", tightsFaces, NT, {
     bridge: 1,
     field: (i) => Math.min(V(i)[1] - hemY, trunksTop - V(i)[1]),
+    flatAo: true,
     offset: (i) => 0.013 + 0.03 * smooth(thighL[1] - 0.05, hemY, V(i)[1]) + 0.004 * smooth(trunksTop - 0.07, trunksTop - 0.05, V(i)[1]),
     mat: MAT.trunks,
     hem: 0.006,
@@ -919,13 +1062,14 @@ function buildVariant(key, base, morphParams) {
   // P3-FGT-14: real cloth volume instead of a 1–3 cm shell that showed every muscle (and the bust) like a bodysuit:
   // the shirt hangs from the chest / bust / shoulder blades straight down to a bloused tuck at the belt, with soft
   // vertical folds; loose short sleeves flaring to the hem; the trousers hang straight from the seat / thighs.
-  const SHIRT_SURF = drapeShirt();
-  const NS = normalsOf(SHIRT_SURF, bodyFaces);
+  const SHIRT_SURF = DRAPE_SURF;
+  const NS = NDr;
   const shirt = shell("ref_shirt", bodyFaces, NS, {
     field: shirtField,
     offset: (i) => 0.004 + sleeveFlare(i),
     mat: MAT.shirt,
     surface: SHIRT_SURF,
+    flatAo: true,
     hem: 0.004,
   });
   const TROUSER_SURF = drapeTrousers(tightsFaces);
@@ -938,6 +1082,7 @@ function buildVariant(key, base, morphParams) {
       field: (i) => Math.min(V(i)[1] - (ankleL[1] + 0.03), waistY + 0.02 - V(i)[1]),
       offset: () => 0.004,
       surface: TROUSER_SURF,
+      flatAo: true,
       mat: (i) => (V(i)[1] > waistY - 0.018 ? MAT.belt : MAT.trousers),
       hem: 0.005,
     },
@@ -994,11 +1139,14 @@ function buildVariant(key, base, morphParams) {
     }
     const R = Array.from({ length: rows }, () => new Float64Array(NA));
     for (const i of trunkV) {
+      // (P3-FGT-15: the envelope of the SMOOTHED body + 6 mm: a nipple's tip no longer makes a bump in the cloth)
       const p = V(i);
       const k = ri(p[1]);
+      const sx = CLOTH_BODY[i * 3],
+        sz = CLOTH_BODY[i * 3 + 2] - zc[k];
       const dz = p[2] - zc[k];
       const a = ai(Math.atan2(p[0], dz));
-      R[k][a] = Math.max(R[k][a], Math.hypot(p[0], dz));
+      R[k][a] = Math.max(R[k][a], Math.hypot(sx, sz) + 0.006);
     }
     // fill empty bins, angular max filter (±4 bins = ±20°) then a blur: a convex-ish envelope
     for (let k = 0; k < rows; k++) {
@@ -1031,7 +1179,9 @@ function buildVariant(key, base, morphParams) {
       const fold = (0.006 * Math.sin(ang * 9 + Math.sin(ang * 3) * 1.3) + 0.003 * Math.sin(ang * 17 + p[1] * 30)) * smooth(spine2[1] + 0.08, tuckY + 0.02, p[1]) * (1 - smooth(0.12, 0.4, armW(i)));
       let r = lerp(H[k][a] + ease, own + 0.006, t) + blouse * (1 - t);
       folds.set(i, fold);
-      r = Math.max(r, own + 0.004);
+      // (never inside the body, but bumps over the smoothed body are bridged: see the floor below)
+      const sOwn0 = Math.hypot(CLOTH_BODY[i * 3], CLOTH_BODY[i * 3 + 2] - zc[k]);
+      r = Math.max(r, lerp(sOwn0 + 0.012, own + 0.004, t));
       // the arm side of the trunk (armpit, shoulder) and the collar line: back to the body shell
       const w = (1 - smooth(0.12, 0.4, armW(i))) * (1 - smooth(neckBaseY - 0.09, neckBaseY - 0.025, p[1]));
       const rr = lerp(own + 0.008, r, w);
@@ -1042,8 +1192,10 @@ function buildVariant(key, base, morphParams) {
       region.push(i);
       // (the floor: over the body by a few mm, and 1.4 cm over its smoothed shape away from the tuck: the cloth bridges
       // small bumps like the nipples instead of printing them)
-      const sOwn = Math.hypot(SMOOTH_BODY[i * 3], SMOOTH_BODY[i * 3 + 2] - zc[k]);
-      floor.set(i, Math.max(own + 0.004, lerp(sOwn + 0.014, own + 0.004, t)));
+      const sOwn = Math.hypot(CLOTH_BODY[i * 3], CLOTH_BODY[i * 3 + 2] - zc[k]);
+      // (P3-FGT-15: a bump more than 6 mm over that envelope, a nipple, is bridged too: the body under the cloth is not
+      // drawn, so nothing pokes through)
+      floor.set(i, lerp(sOwn + 0.014, own + 0.004, t));
     }
     // cloth is smooth: relax the draped region (the bins are coarse), never inside the body
     for (let it = 0; it < 8; it++) {
@@ -1068,6 +1220,89 @@ function buildVariant(key, base, morphParams) {
         if (r < lo) {
           out[i * 3] = (dx / (r || 1)) * lo;
           out[i * 3 + 2] = zc[k] + (dz / (r || 1)) * lo;
+        }
+      }
+    }
+    // P3-FGT-15: stretched cloth over the chest is smooth: the radius of the front of the trunk is replaced by a blurred
+    // (row × angle) field of itself, never lower than it was by more than 4 mm (the body under it is not drawn) — no
+    // small bump of the body (a nipple, a muscle edge) shows in the cloth
+    {
+      const NB2 = 72;
+      const sum = Array.from({ length: rows }, () => new Float64Array(NB2));
+      const cnt = Array.from({ length: rows }, () => new Float64Array(NB2));
+      const polar = new Map();
+      for (const i of region) {
+        const k = ri(V(i)[1]);
+        const dx = out[i * 3],
+          dz = out[i * 3 + 2] - zc[k];
+        const ang = Math.atan2(dx, dz);
+        const b = ((Math.round((ang / (2 * Math.PI)) * NB2) % NB2) + NB2) % NB2;
+        const r = Math.hypot(dx, dz);
+        polar.set(i, [k, b, r, ang]);
+        // (the trunk only: the hanging arms and the head are not cloth on the chest)
+        if (armW(i) > 0.1 || headW(i) > 0.2) continue;
+        sum[k][b] += r;
+        cnt[k][b] += 1;
+      }
+      const avg = sum.map((row, k) => row.map((s, b) => (cnt[k][b] ? s / cnt[k][b] : 0)));
+      for (let pass = 0; pass < 2; pass++)
+        for (let k = 0; k < rows; k++)
+          for (let b = 0; b < NB2; b++) if (!avg[k][b]) avg[k][b] = avg[k][(b + 1) % NB2] || avg[k][(b + NB2 - 1) % NB2] || (k ? avg[k - 1][b] : 0);
+      const blur = (src) => {
+        const o = src.map((row) => Float64Array.from(row));
+        for (let k = 0; k < rows; k++)
+          for (let b = 0; b < NB2; b++) {
+            let s = 0,
+              w = 0;
+            for (let dk = -2; dk <= 2; dk++)
+              for (let db = -3; db <= 3; db++) {
+                const kk = clamp(k + dk, 0, rows - 1);
+                const v = src[kk][(b + db + NB2) % NB2];
+                if (!v) continue;
+                const ww = Math.exp(-(dk * dk) / 2.5 - (db * db) / 5);
+                s += v * ww;
+                w += ww;
+              }
+            if (w) o[k][b] = s / w;
+          }
+        return o;
+      };
+      const sm = blur(blur(avg));
+      const front = [];
+      for (const i of region) {
+        const [k, b, r, ang] = polar.get(i);
+        const p = V(i);
+        // front and sides of the chest / belly only (not the shoulders, armpits or collar: they follow the body)
+        const wFront = smooth(-0.2, 0.25, Math.cos(ang)) * (1 - smooth(0.1, 0.35, armW(i))) * (1 - smooth(neckBaseY - 0.1, neckBaseY - 0.04, p[1]));
+        if (wFront <= 0) continue;
+        // (never more than 1.5 cm out from where it was: only bumps are evened out)
+        const target = clamp(sm[k][b], r - 0.004, r + 0.015);
+        const nr = lerp(r, target, wFront);
+        const f = nr / (r || 1);
+        out[i * 3] *= f;
+        out[i * 3 + 2] = zc[k] + (out[i * 3 + 2] - zc[k]) * f;
+        front.push([i, wFront]);
+      }
+      // then the cloth over the chest relaxes in all directions (the base mesh is dense round the nipples: a radial
+      // move alone leaves those little triangles crumpled)
+      for (let it = 0; it < 24; it++) {
+        const prev = Float64Array.from(out);
+        for (const [i, wf] of front) {
+          let x = 0,
+            y = 0,
+            z = 0,
+            n = 0;
+          for (const q of neigh[i]) {
+            x += prev[q * 3];
+            y += prev[q * 3 + 1];
+            z += prev[q * 3 + 2];
+            n++;
+          }
+          if (!n) continue;
+          const kk = 0.5 * wf;
+          out[i * 3] = lerp(prev[i * 3], x / n, kk);
+          out[i * 3 + 1] = lerp(prev[i * 3 + 1], y / n, kk);
+          out[i * 3 + 2] = lerp(prev[i * 3 + 2], z / n, kk);
         }
       }
     }
@@ -1397,16 +1632,14 @@ function buildVariant(key, base, morphParams) {
     skinBones: () => [[headBone, 1]],
     rimMat: MAT.headgearTrim,
   });
-  const hairCap = headShell("hair_cap", {
-    thick: (el, az, d) => 0.004 + 0.004 * Math.max(0, d[1]),
-    region: (el, az) => {
-      const front = Math.cos(az);
-      if (front > 0.5) return el > eyeEl + 0.38;
-      if (front > -0.2) return el > eyeEl + 0.02 - 0.1 * (0.5 - front);
-      return el > -0.55;
-    },
+  // P3-FGT-15: a close crop on the scalp (3–7 mm of hair, fuller on the crown), not a bowl
+  SM_SRC = SMOOTH_BODY;
+  const hairCap = shell("hair_cap", bodyFaces, NB, {
+    field: hairField,
+    offset: (i) => 0.0018 + 0.0035 * smooth(eyeL[1] + 0.05, headC[1] + 0.1, V(i)[1]),
     mat: MAT.hair,
-    skinBones: () => [[headBone, 1]],
+    hem: 0.0005,
+    edgeAo: 0.03,
   });
 
   // the referee's bow tie and the shirt / polo collar: small rigid pieces at the throat on the neck / upper spine
@@ -1520,6 +1753,7 @@ function buildVariant(key, base, morphParams) {
     field: shirtField,
     offset: (i) => 0.005 + sleeveFlare(i),
     surface: SHIRT_SURF,
+    flatAo: true,
     mat: MAT.polo,
     hem: 0.004,
   });

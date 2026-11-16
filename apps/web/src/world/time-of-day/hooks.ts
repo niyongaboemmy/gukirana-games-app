@@ -25,6 +25,12 @@ export const todUniforms = {
   /** the plaza glimpsed through a hall's open door (rooms/PlazaGlimpse, baked daylight): the daylight tint plus the
    *  warm lamp light of the plaza at night */
   uGkGlimpse: { value: new THREE.Color(1, 1, 1) },
+  /** P2-WLD-21 night lighting (world/night/*): the photocell level (0 by day → 1 once dark: look.lights) */
+  uGkNight: { value: 0 },
+  /** the night show clock (seconds, wraps at night/show.ts SHOW_WRAP) */
+  uGkShowT: { value: 0 },
+  /** the show's motion amplitude: 0 = static warm state (reduced motion, Lite, not yet dark), 1 = full show */
+  uGkShowK: { value: 0 },
 };
 
 /** Multiply a material's final colour by the plaza-glimpse tint (set before its first compile). */

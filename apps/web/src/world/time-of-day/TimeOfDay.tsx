@@ -5,6 +5,17 @@ import { useXR } from "@react-three/xr";
 import { invalidateCaptures } from "../GlassCapture";
 import { applyDaylightTint, todUniforms } from "./hooks";
 import { onTimePhaseChange, stepTimeOfDay, tod } from "./store";
+import { useStage } from "../stage";
+import { showAmp, SHOW_WRAP } from "../night/show";
+
+/** reduced-motion preference (read once per mount: the night show holds its static warm state) */
+const prefersReducedMotion = () => {
+  try {
+    return typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    return false;
+  }
+};
 
 /**
  * The time-of-day driver (P2-WLD-19), mounted once at the root of the persistent canvas (world/SceneCanvas): it
@@ -18,6 +29,10 @@ import { onTimePhaseChange, stepTimeOfDay, tod } from "./store";
 export function TimeOfDay() {
   const inXR = useXR((s) => s.session != null);
   const ver = useRef(-1);
+  // P2-WLD-21 night show: animated on Standard only, never with reduced motion (Lite: static lights)
+  const lite = useStage((s) => s.tier === "lite");
+  const motion = useRef(true);
+  useEffect(() => void (motion.current = !prefersReducedMotion()), []);
   useEffect(() => onTimePhaseChange(() => invalidateCaptures("reflections")), []);
   // dev-only: the root scene for the QA scripts (qa/e2e/tod-debug.mjs lists the lights of every area)
   const root = useThree((s) => s.scene);
@@ -26,11 +41,16 @@ export function TimeOfDay() {
       (window as unknown as Record<string, unknown>).__gkTodRoot = root;
   }, [root]);
   useFrame(() => {
-    stepTimeOfDay(performance.now(), inXR);
+    const now = performance.now();
+    stepTimeOfDay(now, inXR);
+    // the night show clock and its amplitude (every frame: the animation runs between time-of-day samples)
+    todUniforms.uGkShowT.value = (now / 1000) % SHOW_WRAP;
+    todUniforms.uGkShowK.value = showAmp(tod.look.lights, motion.current && !lite);
     if (ver.current === tod.version) return;
     ver.current = tod.version;
     const L = tod.look;
     todUniforms.uGkLamp.value = L.lampHead;
+    todUniforms.uGkNight.value = L.lights;
     todUniforms.uGkWin.value = L.windows / 0.3;
     todUniforms.uGkHaze.value.set(...L.hazeSrgb);
     todUniforms.uGkFar.value = L.farDim;

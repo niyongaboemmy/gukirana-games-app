@@ -231,9 +231,9 @@ processing (as before), slower transitions, no flashes.
 * Car headlights / lit vehicle interiors, lit house windows in the countryside villages.
 * The smoked hall glazing shows no interior glow at night by design (P2-WLD-18: ~5 % transmission); a faint warm
   emissive band could be added there by its owner via `todUniforms.uGkWin` if wanted.
-* The scene-level `fogExp2` declared in `Lighting.tsx` attaches to the `lighting` group, not the scene (pre-existing):
-  the haze comes from the volcano shader and the landscape's own fades; the fog colour is kept up to date for when it
-  is attached.
+* ~~The scene-level `fogExp2` declared in `Lighting.tsx` attaches to the `lighting` group, not the scene~~ — fixed in
+  P2-WLD-21: the scene fog is installed on the area's scene (docs/NIGHT-LIGHTING.md §6). The night lighting itself
+  (washes, accents, the Agaseke, the arena show) is documented there.
 
 ## 12. Evidence
 

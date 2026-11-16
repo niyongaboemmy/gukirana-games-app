@@ -18,6 +18,7 @@ import { COACH_SHOW_MS, coachMayShow, coachTip, type CoachTip } from "./coach";
 import { judgeGoal, levelGoal, liveRound, OUTCOME_COLOR, punchVerdict, roundVerdict, type RoundReason } from "./outcome";
 import { ResultPanel } from "./ResultPanel";
 import { useFightUi as useWorldUi } from "../ui-store";
+import { FPV_ON } from "../fpv";
 
 /**
  * The fight HUD (FIGHT-GAMES-PLAN §12 Do 5): both names with corner badges, points, round + clock, stamina and
@@ -339,10 +340,11 @@ function CornerRefresh({ mine }: { mine: MyFight }) {
   );
 }
 
-/** camera choice (P3-FGT-09): side broadcast (default), behind your boxer, or auto */
+/** camera choice (P3-FGT-09; first person P3-FGT-15): first person (default), side broadcast, behind your boxer, or auto */
 function CameraToggle() {
   const cam = useWorldUi((s) => s.fightCam);
-  const next = cam === "fight" ? "behind" : cam === "behind" ? "auto" : "fight";
+  // first person (P3-FGT-15, when on) → side → behind → auto → …
+  const next = cam === "first" ? "fight" : cam === "fight" ? "behind" : cam === "behind" ? "auto" : FPV_ON ? "first" : "fight";
   return (
     <button
       type="button"
