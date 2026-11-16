@@ -185,6 +185,25 @@ See docs/PEOPLE-BEHAVIOUR.md.
   rig and we had no gain over the product-sized procedural kit), Smokeworks Skins Vol.0 (CC-BY 4.0, MakeHuman UV,
   normal + ORM: an albedo set, not the anatomy we needed), MetaHuman (excluded by the brief). Nothing was bought; the
   paid options are listed in docs/HUMAN-REALISM-VR-RESEARCH.md §11.
+- **P3-FGT-18** (docs/FIGHT-REALISM-V7.md): the bodies rebuilt again from the same MakeHuman commit (`a8bc2d54…`,
+  CC0). New sources, all MakeHuman CC0 regional targets of that repository: `data/targets/measure/measure-waist-circ-incr`,
+  `measure-shoulder-dist-decr`, `measure-neck-circ-incr`, `measure-neck-height-decr`, `data/targets/head/head-scale-vert-incr`,
+  `head-scale-horiz-incr`, `head-scale-depth-incr` (the proportion fixes of the anthropometric audit). Everything else
+  is our own build code: the loose trunk drape, the vest's tuck / hug / stand-off, product-thick headgear, baked vertex
+  ambient occlusion (`vertex-ao.mjs`), headgear / glove / waistband stitching drawn in the shader. **No new texture,
+  no third-party asset, nothing bought.** Runtime: the N8AO pass ships inside the already-installed
+  `@react-three/postprocessing` dependency (`n8ao` 2.0.1, MIT licence, N8python).
+
+  | File | Source | Author | Licence |
+  | --- | --- | --- | --- |
+  | `boxer-m.glb`, `boxer-f.glb` (rebuilt, 3.25 / 3.20 MB) | as above + the targets listed | MakeHuman team; build Gukirana | CC0 1.0 (sources) / original work (build) |
+  | `boxer-m-v6.glb`, `boxer-f-v6.glb` (3.24 / 3.20 MB) | the P3-FGT-17 bodies, kept as the `NEXT_PUBLIC_FF_BOXER_V7=0` fallback | as above | CC0 1.0 / original work |
+
+  Evaluated as an alternative base, **not adopted** (renders in `docs/QA/boxing-v7/base.jpg`): the Microsoft Rocketbox
+  athletic bodies already shipped for the campus people (MIT) — photo-sourced textures, but every body is dressed in its
+  texture (jacket / jeans: no bare arm and leg skin to show under a vest and trunks) and a boxing kit cannot be layered
+  on it without re-texturing; the MPFB2 skin system — the same hm08 base and CC0 skins as ours, its gain is Blender's
+  node shader, which does not port to WebGL.
 - Evaluated, not shipped: MakeHuman community "Toigo" light skins (CC0, OpenGameArt mirror) — superseded by the system
   dark-skinned skins; MakeHuman system hair / brows / lashes / clothes proxies (CC0) — not used yet (alpha cards cost a
   second draw call per person; the close crop is the scalp texture plus a shell).

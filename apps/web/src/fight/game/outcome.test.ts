@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BoxingOutcome, FightEvent } from "@gukirana/contracts";
-import { accuracy, judgeGoal, levelGoal, liveRound, newStats, punchVerdict, roundsWon, roundVerdict, tallyStats } from "./outcome";
+import { accuracy, HIT_ON_ME_COLOR, judgeGoal, levelGoal, liveRound, newStats, OUTCOME_COLOR, outcomePop, punchVerdict, roundsWon, roundVerdict, tallyStats } from "./outcome";
 
 const hit = (by: 0 | 1, punch: "jab" | "cross" | "hook" | "uppercut" = "jab", points = 1): FightEvent => ({ k: "hit", t: 1, by, punch, points, counter: false, combo: 1 });
 const outcome = (o: Partial<BoxingOutcome>): BoxingOutcome => ({ decision: "points", winner: 0, points: [10, 5], knockdowns: [0, 0], power: [0, 0], rounds: [[5, 2], [5, 3]], ...o });
@@ -89,5 +89,19 @@ describe("practice level goals", () => {
     });
     expect(roundsWon(o, 0)).toBe(1);
     expect(roundsWon(o, 1)).toBe(1);
+  });
+});
+
+describe("outcome pop: who scored (P3-FGT-18)", () => {
+  it("my landed punch is green Landed; a punch landing on me is a warm red Hit, never green", () => {
+    expect(outcomePop({ outcome: "landed", mine: true })).toEqual({ word: "out.landed", color: OUTCOME_COLOR.landed });
+    for (const outcome of ["landed", "counter"] as const) {
+      const p = outcomePop({ outcome, mine: false });
+      expect(p.word).toBe("out.hit");
+      expect(p.color).toBe(HIT_ON_ME_COLOR);
+      expect(p.color).not.toBe(OUTCOME_COLOR.landed);
+    }
+    // their punch that I blocked / slipped: nobody scored, a neutral pop (not my red miss)
+    expect(outcomePop({ outcome: "missed", mine: false }).color).not.toBe(OUTCOME_COLOR.missed);
   });
 });

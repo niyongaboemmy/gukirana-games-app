@@ -92,13 +92,15 @@ export interface BoxerUniforms {
   /** P3-FGT-17: the v6 shading (1) or the P3-FGT-16 look (0); the anatomy detail map (body-detail-{m,f}.webp) */
   uV6: { value: number };
   uAnatMap: { value: THREE.Texture | null };
+  /** P3-FGT-18: the v7 shading (baked skin AO in _ao, satin trunks, stitched headgear / gloves, sweat sheen) */
+  uV7: { value: number };
 }
 
 const c = (hex: string) => new THREE.Color(hex);
 /** a darker / lighter shade of a colour (sRGB space multiply) */
 const shade = (hex: string, k: number) => new THREE.Color(hex).multiplyScalar(k);
 
-export function boxerPalette(col: BoxerColors, v6 = false): THREE.Color[] {
+export function boxerPalette(col: BoxerColors, v6 = false, v7 = false): THREE.Color[] {
   const kit = col.kit ?? "#B3282D";
   const trim = col.trim ?? "#F2F2EE";
   const p: THREE.Color[] = new Array(SLOTS).fill(0).map(() => c("#888888"));
@@ -128,6 +130,9 @@ export function boxerPalette(col: BoxerColors, v6 = false): THREE.Color[] {
   p[SLOT.teeth] = c("#e9e4d8");
   p[SLOT.sock] = c("#f2f1ec");
   p[SLOT.belt] = c("#1b1410");
+  // P3-FGT-18 (round 3): under the broadcast key and ACES the corner colours lifted to a flat salmon / pale blue; dyed
+  // polyester and leather are deeper — the kit takes 82 % of the corner colour (the white trim and panels unchanged)
+  if (v7) for (const s of [SLOT.vest, SLOT.vestTrim, SLOT.trunks, SLOT.glove, SLOT.gloveCuff, SLOT.headgear, SLOT.headgearTrim]) p[s]!.multiplyScalar(0.82);
   return p;
 }
 
@@ -165,10 +170,10 @@ export function boxerMaterial(
   eyes: { L: THREE.Vector3; R: THREE.Vector3 },
   face: { beard: number; brow: number },
   kit: readonly number[] = [0.1, 0.85, 1.05, 0.62],
-  opts: { gender?: "m" | "f"; lite?: boolean; v6?: boolean } = {},
+  opts: { gender?: "m" | "f"; lite?: boolean; v6?: boolean; v7?: boolean } = {},
 ): THREE.MeshPhysicalMaterial & { userData: { u: BoxerUniforms } } {
   const u: BoxerUniforms = {
-    uCol: { value: boxerPalette(col, !!opts.v6) },
+    uCol: { value: boxerPalette(col, !!opts.v6, !!opts.v7) },
     uRough: { value: ROUGH },
     uSheen: { value: SHEEN },
     uSweat: { value: 0.3 },
@@ -190,6 +195,7 @@ export function boxerMaterial(
     uFlush: { value: 0 },
     uV6: { value: opts.v6 ? 1 : 0 },
     uAnatMap: { value: null },
+    uV7: { value: opts.v7 ? 1 : 0 },
   };
   if (typeof window !== "undefined") {
     let n = 0;
@@ -203,7 +209,9 @@ export function boxerMaterial(
     u.uIrisMap.value = tex(HUMAN_TEX.iris, false, done);
   }
   // clearcoat / sheen switched on (their per-fragment strength is set per slot below)
-  const m = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.6, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.3, sheen: 1, sheenRoughness: 0.5, sheenColor: 0xffffff }) as THREE.MeshPhysicalMaterial & { userData: { u: BoxerUniforms } };
+  // (P3-FGT-18: anisotropy on for the satin trunks' stretched highlight; it is zeroed per fragment for every other slot,
+  // where three's anisotropic GGX reduces to the isotropic one)
+  const m = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.6, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.3, sheen: 1, sheenRoughness: 0.5, sheenColor: 0xffffff, ...(opts.v7 ? { anisotropy: 1 } : {}) }) as THREE.MeshPhysicalMaterial & { userData: { u: BoxerUniforms } };
   m.userData.u = u;
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, u);
@@ -258,6 +266,7 @@ uniform vec2 uNearCut;
 uniform float uFlush;
 uniform float uV6;
 uniform sampler2D uAnatMap;
+uniform float uV7;
 flat varying float vMat;
 varying float vAo;
 varying float vZone;
@@ -296,7 +305,58 @@ vec4 gkSkin;
 float gkHairy;
 vec4 gkAnat;
 float gkSkinLit;
-float gkCurv;`,
+float gkCurv;
+float gkOcc;
+float gkGroove;
+float gkSweatK;
+// P3-FGT-18: an anti-aliased line of half-width w round 0 (fwidth-scaled), and a dashed stitch row along it
+float gkLine(float d, float w) { float a = max(fwidth(d), 1e-5); return 1.0 - smoothstep(w - a, w + a, abs(d)); }
+float gkStitchRow(float d, float along, float pitch, float w) { float dash = step(0.42, fract(along / pitch)); return gkLine(d, w) * dash; }
+/**
+ * P3-FGT-18 headgear detail on the shell's own coordinates (build.mjs headShell uv: u = azimuth / 2π, 0 = the face;
+ * v = elevation 0 … 1 over −1.25 … π/2 rad): x = seam grooves (0 … 1), y = stitch rows, z = the rear lacing panel
+ * (laces = 1, the dark gap between the eyelet edges = 0.5), w = the velcro / chin-strap webbing.
+ */
+vec4 gkHeadgearDetail(vec2 uvh) {
+  float az = uvh.x * 6.2831853;
+  float el = -1.25 + uvh.y * (1.5707963 + 1.25);
+  float front = cos(az);
+  float s = sin(az);
+  vec4 r = vec4(0.0);
+  // the crown's panels: seams from the top down the sides and back (4 panels), each with a stitch row either side
+  float panelD = sin(2.0 * az) * cos(el);
+  float crown = smoothstep(0.15, 0.3, el) * (1.0 - smoothstep(0.55, 0.75, front));
+  r.x = max(r.x, gkLine(panelD, 0.012) * crown);
+  r.y = max(r.y, (gkStitchRow(panelD - 0.035, el, 0.022, 0.0045) + gkStitchRow(panelD + 0.035, el, 0.022, 0.0045)) * crown);
+  // the forehead bolster's top seam and its stitches (a band across the brow)
+  float browTop = el - 0.62;
+  float browBand = smoothstep(0.45, 0.65, front);
+  r.x = max(r.x, gkLine(browTop, 0.012) * browBand);
+  r.y = max(r.y, gkStitchRow(browTop - 0.03, az, 0.02, 0.0045) * browBand);
+  // the cheek pad's seam (where it meets the ear piece) with stitches
+  float cheekD = abs(s) - 0.52;
+  float cheekBand = (1.0 - smoothstep(0.35, 0.5, el)) * smoothstep(-0.9, -0.6, el) * step(0.0, front);
+  r.x = max(r.x, gkLine(cheekD, 0.012) * cheekBand);
+  r.y = max(r.y, gkStitchRow(cheekD + 0.03, el, 0.02, 0.0045) * cheekBand);
+  // ear piece: a ring seam round the ear and a few breathing holes
+  vec2 ear = vec2(front, el + 0.12);
+  float earR = length(ear) - 0.22;
+  float earSide = smoothstep(0.75, 0.9, abs(s));
+  r.x = max(r.x, gkLine(earR, 0.01) * earSide);
+  r.y = max(r.y, gkStitchRow(earR + 0.03, atan(ear.y, ear.x), 0.16, 0.0045) * earSide);
+  // the rear lacing: a vertical opening at the back of the head (a dark gap between two eyelet edges) closed by a
+  // criss-cross lace; under it the velcro strap across the nape
+  float back = az - 3.1415927;
+  float lacing = (1.0 - smoothstep(0.08, 0.1, abs(back))) * smoothstep(-0.45, -0.35, el) * (1.0 - smoothstep(0.35, 0.45, el));
+  float gap = 1.0 - smoothstep(0.018, 0.026, abs(back));
+  float zig = abs(fract(el * 7.0) - 0.5) * 2.0;
+  float lace = gkLine(abs(back) - zig * 0.07, 0.009) * step(abs(back), 0.075);
+  r.z = lacing * max(gap * 0.5, lace);
+  r.w = max(r.w, (1.0 - smoothstep(0.38, 0.45, abs(back))) * smoothstep(-0.78, -0.72, el) * (1.0 - smoothstep(-0.55, -0.5, el)));
+  // the chin strap (the band under the jaw) is webbing too
+  r.w = max(r.w, smoothstep(1.03, 1.08, -el) * step(0.0, front));
+  return r;
+}`,
       )
       .replace(
         "#include <clipping_planes_fragment>",
@@ -328,6 +388,15 @@ gkHairy = 0.0;
 gkAnat = vec4(0.5, 0.5, 0.5, 1.0);
 gkSkinLit = 0.0;
 gkCurv = 0.0;
+gkOcc = 1.0;
+gkGroove = 0.0;
+gkSweatK = 0.0;
+if (gkM == 0 && uV7 > 0.5) {
+  // P3-FGT-18: the baked ambient occlusion (build.mjs vertex-ao.mjs): creases under the vest edge, the trunks' hem,
+  // the chin, between the legs; and where sweat gathers (forehead, chest, shoulders, back), beads in patches
+  gkOcc = clamp(vAo * 1.15, 0.0, 1.0);
+  gkSweatK = smoothstep(0.35, 0.75, gkNoise(vBind * 26.0) * 0.7 + gkNoise(vBind * 90.0) * 0.3 + (vZone > 0.5 && vZone < 1.5 ? 0.12 : 0.0));
+}
 if (gkM == 0) {
   // skin: the tone x the photo skin's relative variation (in sRGB: ratio^2.2 in linear), its chroma eased on darker
   // tones (a light skin's pink lips / cheeks become a deeper, browner flush on dark skin, as on real dark skin)
@@ -358,7 +427,8 @@ if (gkM == 0) {
     // P3-FGT-17: the baked anatomy map's cavity (grooves between muscles a little darker, never black) and a gentle
     // tonal breakup (real skin is never one flat colour: blotches of a few cm, a touch warmer / cooler)
     gkAnat = texture2D(uAnatMap, vGkUv);
-    gkBase *= clamp(1.0 + (gkAnat.b - 0.5) * 0.9, 0.8, 1.05);
+    // (P3-FGT-18: the grooves read more under the broadcast key — deltoid / biceps / triceps borders, the sternum line)
+    gkBase *= clamp(1.0 + (gkAnat.b - 0.5) * (uV7 > 0.5 ? 1.3 : 0.9), uV7 > 0.5 ? 0.72 : 0.8, 1.05);
     float bl = gkNoise(vBind * 14.0) - 0.5;
     gkBase *= vec3(1.0 + bl * 0.07, 1.0 + bl * 0.035, 1.0 + bl * 0.02);
   } else {
@@ -387,12 +457,21 @@ if (gkM == 0) {
   float cx = mix(uKit.x, 0.0, hip);
   float cs = (ax - cx) / max(1e-4, length(vec2(ax - cx, vBind.z * mix(1.0, 1.35, hip))));
   float aa = max(fwidth(cs), 1e-4);
-  float stripe = smoothstep(0.915 - aa, 0.915 + aa, cs);
-  float by = uKit.z - (uV6 > 0.5 ? 0.045 : 0.06);
+  // (P3-FGT-18: the loose leg is far wider than the thigh: a narrow piping down the outer seam, not a panel)
+  float stripe = smoothstep((uV7 > 0.5 ? 0.982 : 0.915) - aa, (uV7 > 0.5 ? 0.982 : 0.915) + aa, cs);
+  float by = uKit.z - (uV7 > 0.5 ? 0.058 : (uV6 > 0.5 ? 0.045 : 0.06));
   float ab = max(fwidth(vBind.y), 1e-4);
   float band = smoothstep(by - ab, by + ab, vBind.y);
-  gkBase = mix(gkBase, uCol[4], max(stripe, band));
-  gkBase *= mix(0.9, 1.03, vAo);
+  gkBase = mix(gkBase, uCol[4], max(stripe * (1.0 - band), band));
+  if (uV7 > 0.5) {
+    // the broad elastic band: knitted ribs (fine vertical lines, a touch darker in the grooves) and the top and bottom
+    // stitch rows; a satin leg is never one flat colour (it darkens where it folds away from the light: the normal does
+    // that, plus a slight sheen-side lift in the shading)
+    float rib = 0.5 + 0.5 * sin(atan(vBind.z, vBind.x) * 260.0);
+    gkBase *= mix(1.0, 0.9 + 0.1 * rib, band);
+    float bt = vBind.y - by;
+    gkBase *= 1.0 - 0.25 * band * (gkStitchRow(bt - 0.006, atan(vBind.z, vBind.x), 0.03, 0.0008) + gkStitchRow(bt - 0.051, atan(vBind.z, vBind.x), 0.03, 0.0008));
+  } else gkBase *= mix(0.9, 1.03, vAo);
 } else if (gkM == 8 && uV6 > 0.5) {
   // P3-FGT-17: the competition glove's white scoring panel over the knuckles and the front roll (glove coordinates in
   // the uv: x = (cos θ + 1) / 2 round the section, 0 = the back of the hand; y = (x + 0.15) / 0.35 along it)
@@ -402,6 +481,13 @@ if (gkM == 0) {
   float panel = (1.0 - smoothstep(0.375 - aaC, 0.375 + aaC, vGkUv.x)) * smoothstep(0.08 - aaX, 0.08 + aaX, gx);
   panel = max(panel, smoothstep(0.152 - aaX, 0.152 + aaX, gx) * (1.0 - smoothstep(0.62 - aaC, 0.62 + aaC, vGkUv.x)));
   gkBase = mix(gkBase, uCol[9], panel);
+  if (uV7 > 0.5) {
+    // P3-FGT-18: the stitching round the scoring panel and down the glove's side seam (thread a shade off the leather)
+    float st = gkStitchRow(vGkUv.x - 0.362, vGkUv.y, 0.012, 0.0035) * smoothstep(0.08, 0.1, gx) + gkStitchRow(gx - 0.093, vGkUv.x, 0.012, 0.0035) * (1.0 - smoothstep(0.36, 0.38, vGkUv.x));
+    st += gkStitchRow(vGkUv.x - 0.5, vGkUv.y, 0.012, 0.004) * (1.0 - smoothstep(0.06, 0.08, gx));
+    gkGroove = gkLine(vGkUv.x - 0.375, 0.006) * smoothstep(0.08, 0.1, gx);
+    gkBase = mix(gkBase, mix(gkBase, vec3(0.85, 0.83, 0.8), 0.45), clamp(st, 0.0, 1.0));
+  }
   gkBase *= mix(0.9, 1.03, vAo);
   gkBase *= (0.9 + 0.14 * gkNoise(vBind * 38.0) - 0.06 * gkNoise(vBind * 160.0)) * mix(0.62, 1.0, smoothstep(0.15, 0.45, vAo));
 } else if (gkM == 19) {
@@ -409,6 +495,17 @@ if (gkM == 0) {
   float s1 = gkNoise(vBind * vec3(900.0, 300.0, 900.0));
   float s2 = gkNoise(vBind * 2400.0);
   gkBase *= 0.55 + 0.45 * s1 * (0.6 + 0.4 * s2);
+} else if ((gkM == 11 || gkM == 12) && uV7 > 0.5) {
+  // P3-FGT-18: competition headgear — stitched panels, seams, the rear lacing and the velcro / chin-strap webbing on
+  // the shell's own coordinates (gkHeadgearDetail); a matte, slightly worn leather / vinyl, never one flat colour
+  vec4 hd = gkHeadgearDetail(vGkUv);
+  gkGroove = hd.x;
+  gkBase *= (0.9 + 0.14 * gkNoise(vBind * 38.0) - 0.06 * gkNoise(vBind * 160.0)) * mix(0.62, 1.0, smoothstep(0.15, 0.45, vAo));
+  gkBase *= 1.0 - 0.35 * hd.x;
+  gkBase = mix(gkBase, gkBase * 0.55 + vec3(0.42, 0.4, 0.38) * 0.35, clamp(hd.y, 0.0, 1.0));
+  gkBase = mix(gkBase, vec3(0.025), step(0.25, hd.z) * step(hd.z, 0.75));
+  gkBase = mix(gkBase, vec3(0.86, 0.85, 0.82), step(0.75, hd.z));
+  gkBase = mix(gkBase, gkBase * 0.45 * (0.85 + 0.3 * gkNoise(vBind * 700.0)), hd.w);
 } else {
   gkBase *= mix(0.9, 1.03, vAo);
   // leather: tonal mottling and darker creases between the padded panels (a dyed hide is never one flat colour)
@@ -433,6 +530,15 @@ if (gkM == 0) {
     gkR += (gkNoise(vBind * 9.0) - 0.5) * 0.14 + (0.5 - gkAnat.b) * 0.12;
     gkR = clamp(gkR, 0.42, 0.82);
   }
+  // P3-FGT-18: sweat beads in patches — wet skin is much smoother there
+  if (uV7 > 0.5) gkR = mix(gkR, 0.3, gkSweatK * smoothstep(0.3, 0.9, uSweat) * 0.8);
+}
+if (uV7 > 0.5) {
+  // satin trunks: smooth (the anisotropic lobe stretches it along the folds); headgear / gloves: matte worn leather
+  // with the webbing rough; jersey vest dry and matte
+  if (gkM == 3) gkR = 0.34;
+  if (gkM == 11 || gkM == 12) gkR = mix(0.7, 0.92, gkGroove);
+  if (gkM == 1) gkR = 0.82;
 }
 roughnessFactor = gkR;`,
       )
@@ -457,11 +563,15 @@ roughnessFactor = gkR;`,
       float leg = 1.0 - smoothstep(uKit.y - 0.02, uKit.y + 0.05, vBind.y);
       float ang = atan(vBind.z, abs(vBind.x) - uKit.x);
       float hem = 1.0 - smoothstep(uKit.w, uKit.y, vBind.y);
-      h += sin(ang * 7.0 + gkNoise(vBind * 9.0) * 3.0) * 0.0035 * leg * (0.35 + 0.65 * hem);
+      // (P3-FGT-18: the v7 trunks carry their big folds in the geometry; the shader keeps the finer creases)
+      h += sin(ang * 7.0 + gkNoise(vBind * 9.0) * 3.0) * 0.0035 * leg * (0.35 + 0.65 * hem) * (1.0 - 0.6 * uV7);
+      h += uV7 * (gkNoise(vBind * vec3(30.0, 6.0, 30.0)) - 0.5) * 0.0025 * leg;
       h += sin(vBind.y * 70.0 + ang * 2.0) * 0.0009 * (1.0 - leg);
       h += (gkNoise(vBind * 13.0) - 0.5) * 0.003;
     }
   }
+  // P3-FGT-18: seams pressed into the padding (headgear panels, the glove's panel edge)
+  h -= gkGroove * 0.0011;
   if (gkM == 0 && uTex > 0.5) h += (gkSkin.a - 0.5) * 0.0016;
   else if (gkLeather) {
     // leather: the padding's soft undulation (no perfect shell), a pebble grain (two octaves) up close
@@ -475,7 +585,7 @@ roughnessFactor = gkR;`,
   if (uTex > 0.5 && uDetail > 0.0) {
     if (gkM == 0) {
       // P3-FGT-17: the baked anatomy (muscle separations, the rib / pelvis landmarks) on the body uv
-      if (uV6 > 0.5) normal = gkDetailN(normal, -vViewPosition, vGkUv, gkAnat.rg * 2.0 - 1.0, 1.0);
+      if (uV6 > 0.5) normal = gkDetailN(normal, -vViewPosition, vGkUv, gkAnat.rg * 2.0 - 1.0, uV7 > 0.5 ? 1.7 : 1.0);
       vec2 dn = texture2D(uDetailMap, vGkUv * 56.0).rg * 2.0 - 1.0;
       normal = gkDetailN(normal, -vViewPosition, vGkUv * 56.0, dn, (uV6 > 0.5 ? 0.3 : 0.2) * uDetail);
     } else if (gkM == 1 || gkM == 14 || gkM == 18 || gkM == 23) {
@@ -528,7 +638,35 @@ material.sheenColor = gkM == 0 ? gkBase * vec3(0.6, 0.35, 0.3) * 0.25 : mix(vec3
 material.sheenRoughness = gkM == 3 || gkM == 4 ? 0.3 : 0.6;
 // P3-FGT-17: skin takes the pre-integrated-style diffuse (RE_Direct_Gk); thin parts (ears, nose: the head) scatter more
 gkSkinLit = uV6 > 0.5 && gkM == 0 ? 1.0 - gkHairy : 0.0;
-gkCurv = vZone > 0.5 && vZone < 1.5 ? 1.0 : 0.65;`,
+gkCurv = vZone > 0.5 && vZone < 1.5 ? 1.0 : 0.65;
+if (uV7 > 0.5) {
+  // P3-FGT-18: sweat sheen that builds over the rounds (uSweat: fighters.tsx), in patches; matte leather and webbing
+  if (gkM == 0) {
+    float wet = gkSweatK * smoothstep(0.25, 0.9, uSweat);
+    material.clearcoat = (0.08 + 0.62 * wet) * (1.0 - gkHairy);
+    material.clearcoatRoughness = mix(0.38, 0.13, wet);
+  }
+  if (gkM == 11 || gkM == 12) material.clearcoat = 0.02 * (1.0 - gkGroove);
+}
+#ifdef USE_ANISOTROPY
+// satin trunks: the highlight stretched along the vertical folds (tangent = the world's up on the surface)
+if (gkM == 3 && uV7 > 0.5) {
+  vec3 gkUp = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+  vec3 gkT = gkUp - normal * dot(gkUp, normal);
+  gkT = length(gkT) > 1e-4 ? normalize(gkT) : vec3(1.0, 0.0, 0.0);
+  material.anisotropy = 0.7;
+  material.alphaT = mix(pow2(material.roughness), 1.0, pow2(material.anisotropy));
+  material.anisotropyT = gkT;
+  material.anisotropyB = normalize(cross(normal, gkT));
+} else {
+  // (isotropic: alphaT = alpha, and a well-formed frame — the uv-derived one is NaN on parts with no uv: boots, shoes)
+  material.anisotropy = 0.0;
+  material.alphaT = pow2(material.roughness);
+  vec3 gkA = abs(normal.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+  material.anisotropyT = normalize(cross(gkA, normal));
+  material.anisotropyB = cross(normal, material.anisotropyT);
+}
+#endif`,
       )
       .replace(
         "#include <lights_fragment_end>",
@@ -550,11 +688,19 @@ gkCurv = vZone > 0.5 && vZone < 1.5 ? 1.0 : 0.65;`,
       reflectedLight.directDiffuse *= vec3(1.05, 0.98, 0.95);
     }
   }
+  // P3-FGT-18: the baked occlusion darkens the ambient (sky / fill) light fully and the direct light a little (contact
+  // shade in the creases — under the vest's edge, the chin, between the legs — that a shadow map at ring scale misses)
+  if (uV7 > 0.5 && gkM == 0) {
+    reflectedLight.indirectDiffuse *= gkOcc * gkOcc;
+    reflectedLight.indirectSpecular *= gkOcc;
+    reflectedLight.directDiffuse *= mix(0.55, 1.0, smoothstep(0.1, 0.8, gkOcc));
+    reflectedLight.directSpecular *= mix(0.4, 1.0, smoothstep(0.1, 0.8, gkOcc));
+  }
 }`,
       );
   };
   // P3-FGT-16: the inside of a garment shows through its openings (both sides drawn; a closed body hides its back faces)
   m.side = THREE.DoubleSide;
-  m.customProgramCacheKey = () => "gk-boxer-v6";
+  m.customProgramCacheKey = () => (opts.v7 ? "gk-boxer-v7" : "gk-boxer-v6");
   return m;
 }

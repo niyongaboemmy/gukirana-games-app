@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { TICK_HZ, type FighterView } from "@gukirana/contracts";
 import { BODY_SEP, PUNCH_SPECS } from "@gukirana/boxing";
 import { BOXING_CLIPS, sampleClip } from "@/world/human/boxing/clips";
-import { P } from "@/world/human/boxing/pose";
+import { GUARD, P } from "@/world/human/boxing/pose";
 import { blockReaction, canvasGapOf, clampInRing, gapOf, hitFeel, layoutOf, moodOf, presentFighter, reactionFor, refereeSpot, ringLayout, shakeFor, TARGET_FWD, warp, windOf } from "./present";
 import { hitStopAt, resetRingClock, ringTimeAt } from "./ring-clock";
 
@@ -84,8 +84,9 @@ describe("engine → motion (present.ts)", () => {
     const peak = (c: "hitHookFromLead" | "hitHookFromRear" | "hitUppercut" | "hitStraight") => sampleClip(c, 0.06);
     expect(peak("hitHookFromLead")[P.hyaw]!).toBeGreaterThan(0.4);
     expect(peak("hitHookFromRear")[P.hyaw]!).toBeLessThan(-0.3);
-    expect(peak("hitUppercut")[P.hp]!).toBeLessThan(-0.4);
-    expect(peak("hitStraight")[P.hp]!).toBeLessThan(-0.2);
+    // (measured from the guard: the v7 guard tucks the chin 0.08 rad deeper, P3-FGT-18)
+    expect(peak("hitUppercut")[P.hp]! - GUARD[P.hp]!).toBeLessThan(-0.65);
+    expect(peak("hitStraight")[P.hp]! - GUARD[P.hp]!).toBeLessThan(-0.45);
     // body shots fold the torso forward and drop a glove
     const fold = sampleClip("hitBodyLead", 0.08);
     expect(fold[P.lean]!).toBeGreaterThan(0.35);

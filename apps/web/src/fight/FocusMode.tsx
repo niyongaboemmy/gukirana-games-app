@@ -10,6 +10,7 @@ import { RING_BY_ID } from "./plan";
 import { useFightUi } from "./ui-store";
 import { useGymScene } from "./gym-life";
 import { RingMood } from "./ring-lights";
+import { BOXER_V7 } from "@/world/human/boxer/body-v6";
 
 /**
  * Focus-mode driver (P3-FGT-05, fight/focus.ts): mounted once inside the Boxing hall scene.
@@ -27,7 +28,7 @@ const _c = new THREE.Color();
 const _s = new THREE.Sphere();
 const _p = new THREE.Vector3();
 
-export function FocusMode() {
+export function FocusMode({ lite = false }: { lite?: boolean }) {
   const area = useArea();
   const scene = useThree((s) => s.scene);
   const anchor = useRef<THREE.Group>(null);
@@ -120,7 +121,8 @@ export function FocusMode() {
       spot.current.position.set(ring.x, ring.canvasY + 7.5, ring.z + 0.8);
       target.position.set(ring.x, ring.canvasY, ring.z);
       target.updateMatrixWorld();
-      spot.current.intensity = (spectator ? 1.2 : 3.6) * ee;
+      // (P3-FGT-18: under BOXER_V7 the key is the broadcast rig's, in RingMood; this pool stays dark)
+      spot.current.intensity = BOXER_V7 ? 0 : (spectator ? 1.2 : 3.6) * ee;
       spot.current.angle = ring.feature ? 0.5 : 0.42;
     }
   });
@@ -129,7 +131,7 @@ export function FocusMode() {
     <group ref={anchor} userData={{ noMerge: true, focusKeep: true }}>
       <primitive object={target} />
       {/* fight-night mood (P3-FGT-09): room fill dimmed, rim lights behind the pair */}
-      <RingMood k={() => (focusNow.mode === "fighter" ? focusNow.e : focusNow.e * 0.4)} ring={() => (focusNow.ring ? (RING_BY_ID[focusNow.ring as RingId] ?? null) : null)} />
+      <RingMood k={() => (focusNow.mode === "fighter" ? focusNow.e : focusNow.e * 0.4)} ring={() => (focusNow.ring ? (RING_BY_ID[focusNow.ring as RingId] ?? null) : null)} lite={lite} />
       <spotLight ref={spot} target={target} intensity={0} angle={0.42} penumbra={0.7} decay={0} color="#fff3e2" position={[0, 9, 0]} />
     </group>
   );

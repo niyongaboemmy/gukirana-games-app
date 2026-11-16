@@ -272,6 +272,12 @@ function gloveBody(m, P3, ST, { hand, fore }, MAT, wrist, v6) {
  */
 export const HEADGEAR_V5 = { open: 0.68, top: 0.2, pad: 1, cheek: 1, crown: 1, rollMin: 0.35, rollW: 0.14 };
 export const HEADGEAR_V6 = { open: 0.6, top: 0.25, pad: 0.85, cheek: 0.7, crown: 0.85, rollMin: 0.18, rollW: 0.2 };
+/**
+ * P3-FGT-18 (docs/FIGHT-REALISM-V7.md §5): padding at real product thickness. Competition headgear (open-face, cheek
+ * protectors) measures ≈ 2–2.5 cm over the crown, 3–3.5 cm at the forehead bolster and 2.5–3 cm at the cheeks and the
+ * ear pieces; v6's ≈ 1.1 / 1.2 / 0.8 cm read as a thin plastic helmet and made the head look small on the body.
+ */
+export const HEADGEAR_V7 = { open: 0.6, top: 0.25, pad: 1.45, cheek: 1.35, crown: 1.55, rollMin: 0.22, rollW: 0.22, ear: 2.2 };
 
 /**
  * Headgear thickness (m) over the head shell by direction (el = elevation, az = azimuth, front = cos az): an amateur
@@ -289,7 +295,7 @@ export function headgearThickness(el, az, d, eyeEl, chinEl, hg = HEADGEAR_V5) {
   // cheek pads: in front of the ears, down to the jaw line (2.4 cm)
   const cheek = 0.012 * hg.cheek * smooth(0.25, 0.42, side) * smooth(0.05, 0.3, front) * (1 - smooth(eyeEl + 0.05, eyeEl + 0.25, el)) * smooth(chinEl - 0.2, chinEl, el);
   // ear pieces: a padded disc round the ear (1.9 cm)
-  const ear = 0.006 * smooth(0.82, 0.95, side) * (1 - smooth(eyeEl + 0.1, eyeEl + 0.35, el)) * smooth(chinEl - 0.1, chinEl + 0.12, el);
+  const ear = 0.006 * (hg.ear ?? 1) * smooth(0.82, 0.95, side) * (1 - smooth(eyeEl + 0.1, eyeEl + 0.35, el)) * smooth(chinEl - 0.1, chinEl + 0.12, el);
   // the pads roll down to the face opening (a padded edge, not a shelf): the extra padding fades over the last ~6°
   // before the opening (front > 0.68 between the brow and the chin, build.mjs region)
   const inBand = el < eyeEl + hg.top && el > chinEl - 0.05;

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Bloom, EffectComposer, ToneMapping } from "@react-three/postprocessing";
+import { Bloom, EffectComposer, N8AO, ToneMapping } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
 import * as THREE from "three";
 import type { Tier } from "./materials";
@@ -10,6 +10,8 @@ import { NightLights } from "./NightLights";
 import { tod } from "./time-of-day/store";
 import { followCamera, skyGeometry, skyMaterial, updateSky } from "./time-of-day/sky";
 import { TodEnvironment } from "./time-of-day/TodEnvironment";
+import { useFightFocus } from "@/fight/focus";
+import { BOXER_V7 } from "./human/boxer/body-v6";
 
 /**
  * Musanze daylight, twilight and night (P2-WLD-19, docs/TIME-OF-DAY.md): everything follows the time-of-day state
@@ -202,8 +204,13 @@ export function Lighting({ tier }: { tier: Tier }) {
 
 /** Standard tier only, never inside an XR session: one merged pass of mip-blur bloom (threshold 1 = LEDs only). */
 export function Effects() {
+  // P3-FGT-18 (docs/FIGHT-REALISM-V7.md §6): screen-space ambient occlusion (N8AO, half resolution) while I am in a
+  // ring as a fighter — contact shade where the arms close on the trunk, in the armpits, under the chin, between the
+  // fighters and on the canvas round the feet. Always mounted (no composer rebuild), enabled only then.
+  const ringAo = useFightFocus((s) => BOXER_V7 && !!s.ring && s.mode === "fighter");
   return (
     <EffectComposer multisampling={4} enableNormalPass={false}>
+      <N8AO enabled={ringAo} halfRes quality="performance" aoRadius={0.55} distanceFalloff={0.9} intensity={2.4} color="black" />
       <Bloom mipmapBlur levels={6} luminanceThreshold={1} luminanceSmoothing={0.2} intensity={0.55} radius={0.62} />
       <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
     </EffectComposer>

@@ -1,0 +1,81 @@
+{
+ "at": "2026-11-16T13:39:30.966Z",
+ "pass": 4,
+ "subjects": {
+  "plaza": [],
+  "boxer": [
+   {
+    "id": "proportions",
+    "label": "Proportions",
+    "auto": 4,
+    "visual": 4,
+    "score": 4,
+    "pass": true,
+    "autoNote": "7.65 heads, worst segment 9 % off; 7.53 heads, worst segment 11 % off; 7.66 heads, worst segment 9 % off; 7.65 heads, worst segment 11 % off; 7.66 heads, worst segment 9 % off",
+    "visualNote": "waist-to-hip 0.84 / 0.70 (was 0.72 / 0.60), feminine neck 0.053 H (was 0.067 H), heads 7.4–7.65 with product-thick headgear: no long thin neck or small head from the side camera"
+   },
+   {
+    "id": "skin",
+    "label": "Skin",
+    "auto": null,
+    "visual": 3,
+    "score": 3,
+    "pass": false,
+    "autoNote": "",
+    "visualNote": "baked AO in the creases and the key's shadow help at 1–3 m; close-up still a 2K CC0 photo skin on a generic sculpt"
+   },
+   {
+    "id": "hands",
+    "label": "Hands and fingers",
+    "auto": 5,
+    "visual": 4,
+    "score": 4,
+    "pass": true,
+    "autoNote": "5 fingers × 3 segments on both hands",
+    "visualNote": "product-sized gloves with stitched panel edge and side seam; no laced / velcro cuff geometry"
+   },
+   {
+    "id": "clothing",
+    "label": "Clothing",
+    "auto": 3,
+    "visual": 3,
+    "score": 3,
+    "pass": false,
+    "autoNote": "rest: inside 0.00 %, worst 0 mm; inside 0.13 %, worst 5.9 mm; inside 0.91 %, worst 10.5 mm; inside 0.47 %, worst 5.8 mm; inside 0.93 %, worst 11.3 mm; in the pose: worst 7.6 % of garment vertices inside",
+    "visualNote": "loose satin trunks with wide legs and folds, flat elastic band, flat strap: reads as cloth at gameplay distance; close-ups show ragged edges at the arm hole top in a hook and at a trunk hem"
+   },
+   {
+    "id": "motion",
+    "label": "Motion",
+    "auto": null,
+    "visual": 3,
+    "score": 3,
+    "pass": false,
+    "autoNote": "",
+    "visualNote": "deeper, bladed guard with the chin behind a raised lead shoulder; still hand-keyed, no captured weight shift"
+   },
+   {
+    "id": "lighting",
+    "label": "Lighting response",
+    "auto": null,
+    "visual": 4,
+    "score": 4,
+    "pass": true,
+    "autoNote": "",
+    "visualNote": "broadcast rig: overhead shadow-casting key, rims, camera-side fills, dark room, AO (N8AO + baked)"
+   },
+   {
+    "id": "perf",
+    "label": "Performance",
+    "auto": 5,
+    "visual": null,
+    "score": 5,
+    "pass": true,
+    "autoNote": "≤ 28347 tris, ≤ 0 calls (incl. shadow), ≤ 29.3 MB textures per person",
+    "visualNote": ""
+   }
+  ],
+  "fpv": [],
+  "ring": []
+ }
+}

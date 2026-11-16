@@ -1,0 +1,11 @@
+{
+  "boxer": {
+    "proportions": [4, "waist-to-hip 0.84 / 0.70 (was 0.72 / 0.60), feminine neck 0.053 H (was 0.067 H), heads 7.4–7.65 with product-thick headgear: no long thin neck or small head from the side camera"],
+    "skin": [3, "baked AO in the creases and the key's shadow help at 1–3 m; close-up still a 2K CC0 photo skin on a generic sculpt"],
+    "hands": [4, "product-sized gloves with stitched panel edge and side seam; no laced / velcro cuff geometry"],
+    "clothing": [3, "loose satin trunks with wide legs and folds, flat elastic band, flat strap: reads as cloth at gameplay distance; close-ups show ragged edges at the arm hole top in a hook and at a trunk hem"],
+    "motion": [3, "deeper, bladed guard with the chin behind a raised lead shoulder; still hand-keyed, no captured weight shift"],
+    "lighting": [4, "broadcast rig: overhead shadow-casting key, rims, camera-side fills, dark room, AO (N8AO + baked)"],
+    "performance": [5, "28.3k tris per fighter, 1 draw call + shadow, no new textures; practice ring 60 fps at 1280×720 and 844×390 DPR 2"]
+  }
+}

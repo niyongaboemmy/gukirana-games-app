@@ -60,6 +60,8 @@ export interface BoxerAvatarProps {
   src?: string;
   /** P3-FGT-17 lab: the P3-FGT-16 shading (with `src` = a v5 GLB: the before view) */
   v5?: boolean;
+  /** P3-FGT-18 lab: the P3-FGT-17 shading (with `src` = a v6 GLB: the before view of docs/QA/boxing-v7) */
+  v6?: boolean;
   /** finger signs over the pose (the referee's count, P3-FGT-14): first = the right hand, second = the left */
   fingers?: { current: CountSign | null };
   /** P3-FGT-16: the other fighter: my arms are kept out of their head, trunk and arms (keyed-arm keep-out) */
@@ -140,8 +142,9 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
       gender,
       lite: lite || COARSE,
       ...(props.v5 ? { v6: false } : {}),
+      ...(props.v6 ? { v7: false } : {}),
     });
-  }, [gltf, gender, look, outfit, kit, polo, seed, klass, lite, noHeadgear, noGloves, fadeable, bare]);
+  }, [gltf, gender, look, outfit, kit, polo, seed, klass, lite, noHeadgear, noGloves, fadeable, bare, props.v5, props.v6]);
   useEffect(() => () => inst.dispose(), [inst]);
   const rig = useMemo(() => new BoxingRig(inst.root, inst.arms, { torso: inst.torso }), [inst]);
   const face = useMemo(() => new BoxerFace(inst.bone, seed), [inst, seed]);
