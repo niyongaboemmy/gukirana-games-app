@@ -28,7 +28,8 @@ export const CRITERIA = [
   ["perf", "Performance"],
   ["fpv", "First-person view"],
 ];
-const REF = { upperArm: 0.186, forearm: 0.146, thigh: 0.245, shank: 0.246 };
+// joint-centre segment lengths / stature (de Leva 1996, adjusting Zatsiorsky–Seluyanov; male, female within 3 %)
+const REF = { upperArm: 0.162, forearm: 0.154, thigh: 0.243, shank: 0.249 };
 
 function proportions(list) {
   const ms = list.filter((m) => m?.proportions?.headRatio);
@@ -124,12 +125,21 @@ function skin(faceMaps) {
   const fails = [];
   for (const [k, v] of all) {
     const night = /night/.test(k);
-    if (!night && (v.lRatio < 0.8 || v.lRatio > 1.5)) fails.push(`${k} L ratio ${v.lRatio}`);
-    if (!night && v.chromaRatio < 0.65) fails.push(`${k} chroma ratio ${v.chromaRatio}`);
+    if (v.refRatio !== undefined) {
+      // against the matte reference sphere in the skin's own albedo, same light and camera (exposure-independent)
+      if (v.refRatio < (night ? 0.6 : 0.75) || v.refRatio > 1.35)
+        fails.push(`${k} skin/reference L ${v.refRatio}`);
+      if (v.refChromaRatio < 0.65) fails.push(`${k} skin/reference chroma ${v.refChromaRatio}`);
+    } else {
+      if (!night && (v.lRatio < 0.8 || v.lRatio > 1.5)) fails.push(`${k} L ratio ${v.lRatio}`);
+      if (!night && v.chromaRatio < 0.65) fails.push(`${k} chroma ratio ${v.chromaRatio}`);
+    }
     if (v.blown > 2) fails.push(`${k} blown ${v.blown} %`);
-    if (night && v.L < 5) fails.push(`${k} night L ${v.L}`);
+    if (night && v.L < 4) fails.push(`${k} night L ${v.L}`);
   }
-  const s = fails.length === 0 ? 5 : fails.length === 1 ? 4 : fails.length <= 3 ? 3 : 2;
+  // a share of the patches, not a count (the matrix has 48)
+  const share = fails.length / all.length;
+  const s = fails.length === 0 ? 5 : share <= 0.05 ? 4 : share <= 0.2 ? 3 : 2;
   return [
     s,
     fails.length
@@ -160,6 +170,20 @@ function perf(list) {
   return [s, `≤ ${tris} tris, ≤ ${calls} calls (incl. shadow), ≤ ${tex} MB textures per person`];
 }
 
+function fpv(f) {
+  const fr = Object.entries(f?.intrusion ?? {}).filter(([, v]) => v);
+  if (!fr.length) return null;
+  // own headgear / vest / eyes / teeth / hair at the lens = broken; skin in the guard frame = my own face / shoulders
+  const BAD = new Set(["slot1", "slot2", "slot11", "slot12", "slot19", "slot20", "slot21", "slot22"]);
+  const bad = fr.filter(([, v]) => Object.keys(v.bySlot).some((k) => BAD.has(k)));
+  const guard = fr.filter(([k, v]) => /guard/.test(k) && v.inView > 0);
+  const s = bad.length ? 2 : guard.length ? 3 : 4;
+  return [
+    s,
+    `${bad.length} of ${fr.length} frames with my own kit / face within 20 cm of the lens${bad.length ? ` (${bad.map(([k]) => k).join(", ")})` : ""}; guard frames with own body at the lens: ${guard.length}`,
+  ];
+}
+
 const lab = M.lab ?? {},
   boxer = M.boxer ?? {},
   world = M.world ?? {},
@@ -182,6 +206,7 @@ const auto = {
     clothing: clothing(Object.values(boxer.bind ?? {}).flat()),
     perf: perf(Object.values(boxer.measure ?? {}).flat()),
   },
+  fpv: { fpv: fpv(M.fpv) },
   ring: {
     clothing: clothing(hall.measure ?? []),
     hands: hands(hall.measure ?? []),

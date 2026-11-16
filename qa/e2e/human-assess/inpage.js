@@ -597,5 +597,96 @@
     }
   }
 
-  window.__humanAssess = { people, measure, isolate, project, screenBox, sample, RX };
+  /** grab the camera / renderer of the next render of a scene (three calls scene.onBeforeRender with them) */
+  function grab(scene) {
+    return new Promise((resolve) => {
+      const prev = scene.onBeforeRender;
+      scene.onBeforeRender = function (renderer, sc, camera, rt) {
+        scene.onBeforeRender = prev;
+        resolve({ renderer, camera, rt: !!rt });
+        return prev.apply(this, arguments);
+      };
+    });
+  }
+
+  /**
+   * First person: own-body geometry right at the lens. The person nearest the camera is "me"; every one of my
+   * vertices in the view frustum closer than `near` m (camera space) is counted, by material slot; the cut-away head
+   * (>= 50 % head-weighted) is reported apart.
+   */
+  function lensIntrusion(root, camera, near = 0.2) {
+    const ps = people(root);
+    const cp = camera.getWorldPosition(Vec(camera.position));
+    let me = null,
+      bd = Infinity;
+    for (const p of ps) {
+      const h = findBone(p, RX.head) ?? p.top;
+      const d = wp(h).distanceTo(cp);
+      if (d < bd) ((bd = d), (me = p));
+    }
+    if (!me) return null;
+    const head = findBone(me, RX.head);
+    const headSet = new Set();
+    if (head) head.traverse((o) => o.isBone && headSet.add(o));
+    camera.updateMatrixWorld(true);
+    const view = camera.matrixWorldInverse,
+      proj = camera.projectionMatrix;
+    const bySlot = {};
+    let n = 0,
+      headN = 0,
+      minDepth = Infinity;
+    const v = Vec(camera.position);
+    for (const m of me.meshes) {
+      const { pos, used } = skinnedPositions(m);
+      const slot = slotOf(m);
+      // the boxer shader's first-person hide sphere (bind space): vertices inside it are discarded, not drawn
+      let hide = null,
+        cut = null;
+      for (const mt of mats(m))
+        for (const pool of [mt.uniforms, ...Object.values(mt.userData ?? {})]) {
+          if (pool?.uHide?.value?.w > 0) hide = pool.uHide.value;
+          if (pool?.uNearCut?.value?.y > 0) cut = pool.uNearCut.value; // bind y above x and closer than y m: discarded
+        }
+      const bp = m.geometry.attributes.position;
+      for (let i = 0; i < used.length; i++) {
+        if (!used[i]) continue;
+        if (hide && Math.hypot(bp.getX(i) - hide.x, bp.getY(i) - hide.y, bp.getZ(i) - hide.z) < hide.w)
+          continue;
+        v.set(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]).applyMatrix4(view);
+        const depth = -v.z;
+        if (depth <= 0 || depth > near) continue;
+        if (cut && bp.getY(i) > cut.x && v.length() < cut.y) continue;
+        v.applyMatrix4(proj);
+        if (Math.abs(v.x) > 1 || Math.abs(v.y) > 1) continue;
+        if (!hide && headSet.size && headWeight(m, i, headSet) >= 0.5) {
+          headN++;
+          continue;
+        }
+        n++;
+        if (depth < minDepth) minDepth = depth;
+        const k = slot ? `slot${slot.getX(i)}` : m.name || "mesh";
+        bySlot[k] = (bySlot[k] ?? 0) + 1;
+      }
+    }
+    return {
+      headDist: +bd.toFixed(3),
+      near,
+      inView: n,
+      cutHeadInView: headN,
+      minDepth: isFinite(minDepth) ? +minDepth.toFixed(3) : null,
+      bySlot,
+    };
+  }
+
+  window.__humanAssess = {
+    grab,
+    lensIntrusion,
+    people,
+    measure,
+    isolate,
+    project,
+    screenBox,
+    sample,
+    RX,
+  };
 })();

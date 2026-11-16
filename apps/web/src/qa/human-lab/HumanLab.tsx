@@ -111,6 +111,10 @@ interface LabState {
   walk: { speed: number };
   /** the look on show (skin tone, age, body) */
   current: AvatarLook | null;
+  /** reference: hide the person, show a plain matte sphere in the skin's albedo where the face is (skin fidelity) */
+  reference: boolean;
+  /** the cheek point (world) the reference sphere's near surface is put on */
+  referenceAt: [number, number, number] | null;
   anchors: () => Record<string, [number, number, number]>;
 }
 
@@ -139,6 +143,8 @@ const lab: LabState = {
   view: { az: 0, el: 3, dist: 4.6, target: "body", fov: 30 },
   walk: { speed: 0 },
   current: null,
+  reference: false,
+  referenceAt: null,
   anchors: () => ({}),
 };
 
@@ -190,6 +196,8 @@ function Director({
     const p = person.current;
     if (!p) return;
     lab.person = p;
+    // the skin reference shot: the camera holds still (the hidden person's bones are not posed)
+    if (lab.reference) return;
     let skinned = false;
     p.traverse((o) => void ((o as THREE.SkinnedMesh).isSkinnedMesh && (skinned = true)));
     if (!skinned) return;
@@ -237,6 +245,35 @@ function Walker({
     } else if (anim.current === 1 || anim.current === 2) anim.current = 0;
   });
   return null;
+}
+
+/**
+ * The skin reference: a plain physically based sphere in the look's skin colour (roughness 0.6), the size of a head, at
+ * the face. The cheek of the real skin is compared with the same patch of this sphere under the same light, so the
+ * skin's exposure / colour is judged against its own albedo, not against the rig's brightness.
+ */
+function Reference({ person, color }: { person: React.RefObject<THREE.Group | null>; color: string }) {
+  const m = useRef<THREE.Mesh>(null);
+  useFrame(() => {
+    const p = person.current;
+    if (!m.current || !p) return;
+    m.current.visible = lab.reference;
+    p.visible = !lab.reference;
+    if (!lab.reference) return;
+    // the sphere's near point sits on the cheek point (captured while the person was shown), facing the camera
+    const at = lab.referenceAt;
+    if (at && lab.camera) {
+      _t.set(at[0], at[1], at[2]);
+      _v.copy(_t).sub(lab.camera.position).normalize();
+      m.current.position.copy(_t).addScaledVector(_v, 0.1);
+    }
+  });
+  return (
+    <mesh ref={m} visible={false} castShadow>
+      <sphereGeometry args={[0.1, 48, 32]} />
+      <meshStandardMaterial color={color} roughness={0.6} />
+    </mesh>
+  );
 }
 
 function LookPoll({ onLook }: { onLook: (code: string) => void }) {
@@ -355,6 +392,7 @@ export default function HumanLab() {
             />
           </Suspense>
         </group>
+        <Reference person={person} color={look.skinTone} />
         <Walker person={person} anim={anim} yaw={yaw} />
         <Director person={person} yaw={yaw} />
         <LookPoll onLook={setCode} />

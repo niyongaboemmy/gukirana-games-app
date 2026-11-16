@@ -41,12 +41,50 @@
   },
   "boxer": {
     "jobs": [
-      { "id": "m-boxer", "query": "mode=boxer&gender=m&clip=guard" },
-      { "id": "f-boxer", "query": "mode=boxer&gender=f&clip=guard" }
+      {
+        "id": "m-boxer",
+        "query": "mode=boxer&gender=m&clip=guard"
+      },
+      {
+        "id": "f-boxer",
+        "query": "mode=boxer&gender=f&clip=guard"
+      },
+      {
+        "id": "m-casual",
+        "query": "mode=boxer&gender=m&outfit=casual&clip=guard&tone=0"
+      },
+      {
+        "id": "f-casual-senior",
+        "query": "mode=boxer&gender=f&outfit=casual&clip=guard&tone=6&age=senior"
+      },
+      {
+        "id": "m-referee",
+        "query": "mode=boxer&gender=m&outfit=referee&clip=guard&tone=3"
+      }
     ],
     "cams": ["full", "fullSide", "fullBack", "front", "face", "face34", "shoulderL", "armpitL"],
     "phoneCams": ["full", "face", "front"]
   },
-  "world": { "tod": { "day": 600, "sunset": 1085, "night": 1290 } },
-  "hall": { "practice": true, "ring": "R1", "people": 6, "fpv": "" }
+  "world": {
+    "tod": {
+      "day": 600,
+      "sunset": 1085,
+      "night": 1290
+    }
+  },
+  "hall": {
+    "practice": true,
+    "ring": "R1",
+    "people": 6,
+    "fpv": ""
+  },
+  "fpv": {
+    "query": "scene=1&auto=1&level=1&rounds=2&secs=20&name=Aline&fcam=first",
+    "punches": [
+      ["j", "jab", 170],
+      ["k", "cross", 230],
+      ["u", "lead-hook", 260],
+      ["o", "uppercut", 260]
+    ]
+  }
 }

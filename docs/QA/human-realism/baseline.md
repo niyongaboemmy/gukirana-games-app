@@ -13,7 +13,7 @@ the skin tone-fidelity numbers were added after this run (the dark-skin cheek L*
 
 | Criterion         | Plaza person                                                              | Boxers | Ring people                                                |
 | ----------------- | ------------------------------------------------------------------------- | ------ | ---------------------------------------------------------- |
-| Proportions       | 3 (auto: upper arm 21 % short)                                            | –      | –                                                          |
+| Proportions       | 4 (7.0–7.6 heads, segments ≤ 11 %)*                                       | –      | –                                                          |
 | Face              | 2                                                                         | 2      | 2                                                          |
 | Eyes              | 2 (blinks 15/min, saccades 45/min)                                        | 1      | –                                                          |
 | Skin              | 2                                                                         | 1      | 1                                                          |
@@ -26,7 +26,7 @@ the skin tone-fidelity numbers were added after this run (the dark-skin cheek L*
 | LOD transitions   | 4 (head detail switch at 9 m, no measurable pop)                          | –      | –                                                          |
 | Performance       | 3 (≤ 29k tris, 11 calls incl. shadow + props, 24 MB textures / body type) | 5      | 5                                                          |
 
-Nothing passes except LOD; every subject is a 1–3 ("stylised-realistic game avatar").
+Nothing passes except proportions and LOD; every subject is a 1–3 ("stylised-realistic game avatar"). (* re-scored with the joint-centre segment references of round 1; the first scoring used surface-landmark ratios and gave 3.)
 
 ## Top gaps (ranked)
 

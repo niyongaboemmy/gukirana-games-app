@@ -45,9 +45,11 @@ so, with the asset and the expected gain, instead of lowering the bar.
 Each criterion: what is looked at, the reference, the automated part, and what a 4 looks like.
 
 ### 1. Proportions
-- Reference (adult anthropometry, Drillis & Contini segment ratios of stature H): head height (crown–chin) H/7.5
-  (7.0–8.0 heads); upper arm 0.186 H, forearm 0.146 H, thigh 0.245 H, shank 0.246 H (joint to joint); shoulder joint
-  centres ≈ 0.20–0.24 H (male wider), hip joint centres ≈ 0.10–0.12 H. Adult heads (no child-like head ratio < 6.5).
+- Reference (adult anthropometry): head height (crown–chin) H/7.5 (7.0–8.0 heads); joint-centre segment lengths
+  (de Leva 1996): upper arm (shoulder–elbow) 0.162 H, forearm (elbow–wrist) 0.154 H, thigh (hip–knee) 0.243 H, shank
+  (knee–ankle) 0.249 H; shoulder joint centres ≈ 0.20–0.24 H (male wider), hip joint centres ≈ 0.10–0.12 H. Adult
+  heads (no child-like head ratio < 6.5). (Round 1 first used Drillis & Contini's surface-landmark ratios, 0.186 H for
+  the upper arm, which joint centres never reach: corrected.)
 - Automated: stature and head height from the skinned surface (head = vertices ≥ 98 % weighted to the head bone and its
   children, skin only), segment lengths from bone world positions, in the standing pose (bind pose for boxers).
   Auto score: 5 if head ratio 7.2–7.9 and all segments within ±10 %; 4 if 7.0–8.0 and ±15 %; 3 if 6.5–8.3 and ±22 %;
@@ -73,10 +75,12 @@ Each criterion: what is looked at, the reference, the automated part, and what a
 - No plastic sheen (one broad specular everywhere), warm terminator (no grey shadows), pores / micro-normal at
   close range, lips and palms different from the face, tone-correct for every skin tone (especially dark skin: no ashy
   grey, no crushed black, no orange).
-- Automated (cheek patch below the eyes in the face shots): rendered L* / albedo L* in daylight 0.8–1.5 (exposure), chroma
-  ratio ≥ 0.65 (not greyed), blown highlights < 2 %, and in the night rig the darkest tone still above L* 5. Auto score:
-  5 if all tones pass in day and night, 4 if one fails, 3 if two, else 2. Material facts recorded (maps, normal map,
-  roughness, clearcoat / sheen, custom skin shader).
+- Automated (cheek patch below the eyes in the face shots, every tone × age × body × light): the same patch is shot
+  again on a plain matte reference sphere in the look's own skin albedo (roughness 0.6) at the face, same light and
+  camera. Skin / reference L* within 0.75–1.35 (night ≥ 0.6) = neither crushed nor glowing, chroma ratio ≥ 0.65 = not
+  greyed / ashy, blown highlights < 2 %, darkest tone above L* 4 at night. (Without the reference: rendered L* /
+  albedo L*.) Auto score by the share of failing patches: 5 none, 4 ≤ 5 %, 3 ≤ 20 %, else 2. Material facts recorded
+  (maps, normal map, roughness, clearcoat / sheen, custom skin shader).
 - A 4: skin reads as skin at head-and-shoulders, in all three lights.
 
 ### 5. Hair
@@ -139,8 +143,10 @@ Each criterion: what is looked at, the reference, the automated part, and what a
 ### 13. First-person view (fight)
 - Nothing of my own head, headgear, hair or vest enters the lens; my gloves and forearms read clean (no near-plane cuts,
   no inside-out faces); the opponent is framed (not filling the frame on phones); no motion sickness (no snapping).
-- Visual (FPV frames desktop + phone) and the automated near-plane check of the fight camera (own-body triangles within
-  the near-clip distance are reported).
+- Visual (FPV frames desktop + phone: guard, each punch, block, look-down) and the automated lens check: "me" = the
+  person whose head is nearest the camera; every one of my vertices drawn in the view frustum within 20 cm of the lens
+  (after the shader's own hide sphere / near cut) is counted by material slot. A 4 needs 0 in the guard and only
+  glove / wrap / forearm skin in punches.
 - A 4: it looks like a real first-person boxing shot.
 
 ## Subjects

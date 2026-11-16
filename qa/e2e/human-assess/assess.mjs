@@ -21,7 +21,7 @@ const arg = (k, d) => {
 };
 const WEB = arg("web", process.env.QA_WEB ?? "http://localhost:3995");
 const OUT = arg("out", join(tmpdir(), "gk-human-assess", "out"));
-const ONLY = new Set((arg("only", "lab,matrix,lod,boxer,world,hall") ?? "").split(","));
+const ONLY = new Set((arg("only", "lab,matrix,lod,boxer,world,hall,fpv") ?? "").split(","));
 const QUICK = process.argv.includes("--quick");
 const CFG = JSON.parse(readFileSync(arg("config", join(HERE, "shots.json")), "utf8"));
 const RAW = join(tmpdir(), "gk-human-assess", String(Date.now()));
@@ -150,7 +150,29 @@ function hexLab(hex) {
   return { L: +L.toFixed(1), chroma: +Math.hypot(a, b).toFixed(1) };
 }
 /** rendered cheek vs albedo: L ratio (exposure of the skin) and chroma ratio (< 0.6 = greyed / ashy) */
-async function withAlbedo(page, st) {
+async function withAlbedo(page, st, file, patch) {
+  // the same patch on the matte reference sphere in the skin's albedo (human lab), same light, same camera
+  if (file && patch) {
+    await page.evaluate(() => {
+      const h = window.__gkHuman,
+        e = h.anchors().eyes;
+      h.referenceAt = [e[0], e[1] - 0.045, e[2] + 0.03];
+      h.reference = true;
+    });
+    await sleep(250);
+    const ref = file.replace(/\.jpg$/, "-ref.jpg");
+    await page.screenshot({ path: ref, type: "jpeg", quality: 90 });
+    await page.evaluate(() => (window.__gkHuman.reference = false));
+    await sleep(150);
+    const r = patchStats(ref, patch.x, patch.y, patch.w, patch.h);
+    if (!r.error && !st.error)
+      Object.assign(st, {
+        refL: r.L,
+        refChroma: r.chroma,
+        refRatio: +(st.L / Math.max(r.L, 0.1)).toFixed(2),
+        refChromaRatio: +(st.chroma / Math.max(r.chroma, 0.1)).toFixed(2),
+      });
+  }
   const hex = await page.evaluate(() => window.__gkHuman.current?.skinTone ?? null);
   if (!hex || st.error) return st;
   const a = hexLab(hex);
@@ -313,6 +335,8 @@ async function sectionLab() {
             res.face[`${vpName}/${look.id}/${light}`] = await withAlbedo(
               page,
               patchStats(files.at(-1), p.x * p.dpr, p.y * p.dpr, p.w * p.dpr, p.h * p.dpr),
+              files.at(-1),
+              { x: p.x * p.dpr, y: p.y * p.dpr, w: p.w * p.dpr, h: p.h * p.dpr },
             );
           }
         }
@@ -376,6 +400,8 @@ async function sectionMatrix() {
           res.face[`${light}/${body}/${age}/s${skin}`] = await withAlbedo(
             page,
             patchStats(f, p.x, p.y, p.w, p.h),
+            f,
+            p,
           );
           if (!QUICK) {
             await labView(page, "full34");
@@ -466,7 +492,7 @@ async function sectionBoxer() {
         files.push(await snap(page, `boxer-${vpName}-${job.id}-${cam}`));
         if (vpName === "desktop" && cam === CFG.boxer.cams[0]) {
           // proportions in the standing bind pose (the guard crouches), garments / clipping in the guard
-          await page.goto(`${WEB}/play/boxing-lab?${job.query}&cam=${cam}&bind=1`, {
+          await page.goto(`${WEB}/play/boxing-lab?${job.query}&cam=${cam}&bind=1&headgear=0`, {
             waitUntil: "domcontentloaded",
             timeout: 180_000,
           });
@@ -832,8 +858,68 @@ async function sectionHall() {
   await page.close();
 }
 
+/* ------------------------------------------------------------------ first-person fight view (fight lab, no login) */
+async function sectionFpv() {
+  const res = { frames: {}, intrusion: {} };
+  metrics.sections.fpv = res;
+  for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
+    if (QUICK && vpName === "phone") continue;
+    const page = await newPage(vp);
+    await page.goto(`${WEB}/fight-lab?${CFG.fpv.query}`, { waitUntil: "domcontentloaded", timeout: 180_000 });
+    await page.waitForFunction(() => window.__gkRingLab?.frames > 30 && window.__gkPractice?.session(), {
+      timeout: 180_000,
+    });
+    await inject(page);
+    for (
+      let i = 0;
+      i < 80 && (await page.evaluate(() => window.__gkPractice.session().state.phase)) !== "round";
+      i++
+    )
+      await sleep(250);
+    await sleep(1200);
+    await page.keyboard.down("w");
+    await sleep(700);
+    await page.keyboard.up("w");
+    await sleep(500);
+    const files = [];
+    const frame = async (name) => {
+      res.intrusion[`${vpName}/${name}`] = await page.evaluate(async () => {
+        const sc = window.__gkRingLab.scene;
+        const { camera } = await window.__humanAssess.grab(sc);
+        return window.__humanAssess.lensIntrusion(sc, camera, 0.2);
+      });
+      files.push(await snap(page, `fpv-${vpName}-${name}`));
+    };
+    await frame("guard");
+    for (const [k, name, at] of CFG.fpv.punches) {
+      await page.keyboard.press(k);
+      await sleep(at);
+      await frame(name);
+      await sleep(650);
+    }
+    await page.keyboard.down("l");
+    await sleep(500);
+    await frame("block");
+    await page.keyboard.up("l");
+    await page.evaluate(() => Object.assign(window.__gkFpvLook ?? {}, { yaw: 0, pitch: 0.95, held: true }));
+    await sleep(900);
+    await frame("look-down");
+    await page.evaluate(() => Object.assign(window.__gkFpvLook ?? {}, { yaw: 0, pitch: 0, held: false }));
+    await page.evaluate(() => window.__gkRingLab.ui.getState().set({ fightCam: "fight" }));
+    await sleep(1800);
+    files.push(await snap(page, `fpv-${vpName}-side-camera`));
+    res.frames[vpName] = sheet(`fpv-${vpName}`, files, {
+      cols: 4,
+      tile: vpName === "phone" ? "420x" : "400x",
+    });
+    save();
+    await page.close();
+  }
+}
+
 try {
   for (const [k, fn] of Object.entries({
+    fpv: sectionFpv,
     lab: sectionLab,
     matrix: sectionMatrix,
     lod: sectionLod,

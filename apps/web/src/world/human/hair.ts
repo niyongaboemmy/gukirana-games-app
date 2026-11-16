@@ -769,9 +769,12 @@ function addStrands(
         d.lerp(g, 0.6).normalize();
       } else {
         if (gather && !gathered) gathered = true;
+        // the sideways / back sweep off the face fades along the strand, so long strands fall with gravity instead of
+        // standing out from the head like spokes (QA-HUM-01)
+        const fall = k / segs;
         d.multiplyScalar(spec.stiff)
           .addScaledVector(g, 1 - spec.stiff)
-          .addScaledVector(sweep, gather ? 0 : 0.5)
+          .addScaledVector(sweep, gather ? 0 : 0.5 * (1 - fall) * (1 - fall))
           .normalize();
         if (gather) {
           // hang together below the band
@@ -803,6 +806,18 @@ function addStrands(
         const minR = 0.068 + spec.r0;
         if (rr < minR) {
           const k2 = minR / Math.max(rr, 1e-4);
+          p.x *= k2;
+          p.z = nz + (p.z - nz) * k2;
+        }
+      }
+      // ... and they rest on the shoulders / upper back instead of going through them (an ellipse of the upper torso)
+      if (p.y < c[1] - 0.2) {
+        const nz = c[2] - 0.01;
+        const ex = p.x / 0.17,
+          ez = (p.z - nz) / 0.11;
+        const e = Math.hypot(ex, ez);
+        if (e < 1) {
+          const k2 = 1 / Math.max(e, 1e-3);
           p.x *= k2;
           p.z = nz + (p.z - nz) * k2;
         }

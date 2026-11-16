@@ -38,7 +38,7 @@ the hit side with an exhalation.
 | Rating (Glicko-2), no pay-to-win | Kept | The paid corner refresh stays practice-only |
 | Bodies, faces, skin, eyes, hair, clothing | **Rebuilt** (docs/HUMAN-REALISM.md) | The user's main complaint |
 | Kit: vest | **Rebuilt as a draped garment** tucked under the trunks' waistband | The painted-on vest showed the chest |
-| Camera | **First person added and made the default**; side broadcast, behind and auto kept | The user's key ask |
+| Camera | **First person added** (an option: QA-HUM-01 round 1 scored it 2 of 5, so the side broadcast camera is the default until it passes, docs/QA/human-realism/round-1.md); side broadcast, behind and auto kept | The user's key ask |
 | Emotions | Face channels kept (focus, effort, wince, smile, mouth / breathing, eyes) + a flush with effort and fatigue | Life on the face |
 
 ## 3. Persons and clothing
