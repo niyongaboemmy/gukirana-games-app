@@ -182,6 +182,8 @@ export function BoxerLab({ q, setInfo }: { q: URLSearchParams; setInfo: (s: stri
       if (!p) return;
       clearInterval(id);
       if (debug === "weights") p.inst.mesh.material = debugMaterial(p.inst.mesh, q.get("bone") ?? "arm") as never;
+      // P3-FGT-16: arms=ik shows the P3-FGT-14 wrist-target IK arms (before / after comparisons and metrics)
+      if (q.get("arms") === "ik") (p.rig as unknown as { armFk: null }).armFk = null;
       if (debug === "bones" || q.get("bones") === "1") {
         helper = new THREE.SkeletonHelper(p.inst.root);
         (helper.material as THREE.LineBasicMaterial).depthTest = false;

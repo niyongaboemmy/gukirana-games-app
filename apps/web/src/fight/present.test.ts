@@ -114,6 +114,18 @@ describe("engine → motion (present.ts)", () => {
     expect(refereeSpot("round", { dist: 70, down: -1, winner: null, breaking: true, half: 2.45 }).clip).toBe("refBreak");
     expect(refereeSpot("round", { dist: 200, down: -1, winner: null, breaking: false, half: 2.45 }).clip).toBe("refIdle");
   });
+  it("P3-FGT-16: the referee stays clear of the boxers — 1.5–2.5 m off in the round, at arm's length beside a clinch", () => {
+    for (let t = 0; t < 120; t += 3.7) {
+      // the clinch: boxers at ±gap/2 on the pair axis, the referee at (x, z) relative to their middle
+      const gap = canvasGapOf(640);
+      const b = refereeSpot("round", { dist: 64, down: -1, winner: null, breaking: true, half: 2.45, t, gap });
+      for (const s of [-1, 1]) expect(Math.hypot(b.x - (s * gap) / 2, b.z), `t ${t}`).toBeGreaterThanOrEqual(0.7);
+      expect(Math.hypot(b.x - Math.sign(b.x) * (gap / 2), b.z)).toBeLessThan(0.95);
+      const r = refereeSpot("round", { dist: 300, down: -1, winner: null, breaking: false, half: 2.45, t, gap: 1.1 });
+      expect(r.z).toBeGreaterThanOrEqual(1.5);
+      expect(r.z).toBeLessThanOrEqual(2.5);
+    }
+  });
   it("ring layout: real exchange range, circling, never past the ropes (P3-FGT-07)", () => {
     // v1 snapshots / far-ring loops (cm): the P3-FGT-07 mapping
     expect(gapOf(190)).toBeCloseTo(0.98, 2);
@@ -121,7 +133,7 @@ describe("engine → motion (present.ts)", () => {
     expect(gapOf(30)).toBe(gapOf(70));
     expect(gapOf(1000)).toBe(gapOf(360));
     // engine v2 (mm): a jab landing at its reach fits the reach-fit clamp; bodies at the body line stay apart
-    expect(canvasGapOf(PUNCH_SPECS.jab.reach)).toBeCloseTo(0.98, 2);
+    expect(canvasGapOf(PUNCH_SPECS.jab.reach)).toBeCloseTo(1.1, 2);
     expect(canvasGapOf(PUNCH_SPECS.jab.reach) - TARGET_FWD).toBeGreaterThan(0.7);
     expect(canvasGapOf(BODY_SEP)).toBeGreaterThanOrEqual(0.62);
     expect(canvasGapOf(PUNCH_SPECS.hook.reach)).toBeLessThan(canvasGapOf(PUNCH_SPECS.cross.reach));

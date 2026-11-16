@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { curl, reach, type ArmBones } from "../procedural";
-import { P, type Pose } from "./pose";
+import { ARM, ARM_SIZE, P, type Pose } from "./pose";
+import { aimArm, ArmFk, ARM_R, armPoints, clampArm, keepOut, newPoints, type Obstacle } from "./arm-fk";
 
 /**
  * Boxing rig layer (P3-FGT-02): puts a boxing pose (pose.ts) on a Rocketbox body, after the mixer. The pose fully
@@ -17,6 +18,12 @@ import { P, type Pose } from "./pose";
  * the arms). Bind data come from the skeleton's inverse bind matrices, so the layer can be built on a posed body.
  * `w` blends the whole layer over the clip pose (entering / leaving the ring). No allocations per frame.
  */
+
+/**
+ * P3-FGT-16 feature flag: keyed arms (arm-fk.ts) on the boxer bodies. ON unless NEXT_PUBLIC_FF_KEYED_ARMS=0, which falls
+ * back to the P3-FGT-14 wrist-target IK below.
+ */
+export const KEYED_ARMS = process.env.NEXT_PUBLIC_FF_KEYED_ARMS !== "0";
 
 /** reference body the poses are authored for (masculine Rocketbox, measured in the bind pose) */
 export const REF_BODY = { hipY: 0.8952, shoulderY: 1.43 };
@@ -49,6 +56,7 @@ const _kd = new THREE.Vector3();
 const _kel = new THREE.Vector3();
 const _kq = new THREE.Quaternion();
 const _kfw = new THREE.Vector3();
+const _kp1 = newPoints();
 
 /**
  * The torso as horizontal slices [y, half width, front z, back z] relative to the Spine2 joint in its bind frame
@@ -190,6 +198,15 @@ export class BoxingRig {
   private readonly torso: TorsoSlices | null;
   private readonly chest: Chain | null;
   private readonly frame = new THREE.Matrix4();
+  /** P3-FGT-16 keyed-arm driver (null on the Rocketbox bodies) */
+  readonly armFk: ArmFk | null;
+  /** the opponent's body parts (world: head, chest, belly, arms) to keep the arms out of; set every frame by the owner */
+  readonly opponent: Obstacle[] = [];
+  /** the last keyed angles applied (lead, rear; for tests and the lab) */
+  readonly lastArms = new Float32Array(ARM_SIZE * 2);
+  private readonly obs: Obstacle[] = Array.from({ length: 16 }, () => ({ a: new THREE.Vector3(), b: null as THREE.Vector3 | null, r: 0 }));
+  private readonly obsB: THREE.Vector3[] = Array.from({ length: 16 }, () => new THREE.Vector3());
+  private readonly obsList: Obstacle[] = [];
   private readonly frameInv = new THREE.Matrix4();
 
   constructor(
@@ -217,6 +234,8 @@ export class BoxingRig {
     };
     this.torso = opts.torso && opts.torso.length >= 2 ? opts.torso : null;
     this.chest = this.chain.spine.find((c) => c.bone.name === "Bip01_Spine2") ?? null;
+    // P3-FGT-16: keyed arms on the boxer body (the bodies with torso slices); the Rocketbox path stays on the IK
+    this.armFk = KEYED_ARMS && this.torso && this.chest ? new ArmFk(root, bind, this.chest.bone, bone) : null;
     const arm = (side: 1 | -1): Arm | null => {
       const a = arms.find((x) => x.side === side);
       if (!a) return null;
@@ -331,11 +350,13 @@ export class BoxingRig {
     // ---- arms: wrists to the targets, straight wrist, fist turned to the palm direction
     const fist = p[P.fist]!;
     const keep = this.torso && this.chest ? this.chestFrame() : null;
+    // P3-FGT-16: keyed arms (arm-fk.ts) on the boxer body; the wrist-target IK below only where a clip still uses it
+    const fkW = this.armFk ? p[P.fk]! : 0;
     for (const [a, i] of [
       [leadArm, P.lx],
       [rearArm, P.rx],
     ] as const) {
-      if (!a) continue;
+      if (!a || fkW >= 0.999) continue;
       root.localToWorld(_t.set(p[i]! * kA, p[i + 1]! * kA, p[i + 2]! * kA));
       _pole.set(p[i + 3]!, p[i + 4]!, p[i + 5]!).applyQuaternion(rootQ);
       // this body's own shoulder rhythm and torso: the clavicle lifts / rolls forward with the arm, the glove and the
@@ -352,8 +373,9 @@ export class BoxingRig {
       _f.subVectors(_v2, _v).normalize();
       _n.set(p[i + 6]!, p[i + 7]!, p[i + 8]!).applyQuaternion(rootQ);
       this.orient(a.hand, a.fingerL, a.palmL, _f, _n, w);
-      if (detail && fist > 0.01) curl(a, 1.45 * fist, w, 0.55 * fist);
     }
+    if (fkW > 0.002) this.keyedArms(p, mirrored, rootQ, w * fkW, detail);
+    for (const a of [leadArm, rearArm]) if (a && detail && fist > 0.01) curl(a, 1.45 * fist, w, 0.55 * fist);
 
     // ---- legs: ankles to the targets (heel raise about the ball of the foot), feet / toes flat from the bind pose
     const leadLeg = this.legs[this.side(true, mirrored)];
@@ -388,6 +410,90 @@ export class BoxingRig {
         l.toe.updateMatrixWorld(true);
       }
     }
+  }
+
+
+  /**
+   * P3-FGT-16 keyed arms: the clip's joint angles (+ the shrug on the clavicle), bent onto the contact point near
+   * impact, kept out of the own head / torso, the other arm and the opponent, clamped by the joint limits, then put
+   * on the bones (arm-fk.ts). `w` = layer weight × the pose's fk weight.
+   */
+  private keyedArms(p: Pose, mirrored: boolean, rootQ: THREE.Quaternion, w: number, detail: boolean) {
+    const fk = this.armFk!;
+    const lead = fk.arms[this.side(true, mirrored)];
+    const rear = fk.arms[this.side(false, mirrored)];
+    if (!lead || !rear) return;
+    const A = this.lastArms;
+    for (let k = 0; k < ARM_SIZE; k++) {
+      A[k] = p[P.la + k]!;
+      A[ARM_SIZE + k] = p[P.ra + k]!;
+    }
+    // the shrug (chin behind the shoulder) lifts the clavicle
+    A[ARM.elev] = A[ARM.elev]! + 0.2 * p[P.shrugL]!;
+    A[ARM_SIZE + ARM.elev] = A[ARM_SIZE + ARM.elev]! + 0.2 * p[P.shrugR]!;
+    clampArm(A, 0);
+    clampArm(A, ARM_SIZE);
+    const delta = fk.chestDelta(rootQ, _kq);
+    const kA = this.kArm;
+    // aim: the striking glove onto its contact point (root frame, reference units → world → chest)
+    const aimK = p[P.aimK]!;
+    if (aimK > 0.002) {
+      this.root.localToWorld(_kv.set(p[P.ax]! * kA, p[P.ay]! * kA, p[P.az]! * kA));
+      fk.toChest(_kv, rootQ, delta, _kh);
+      const rearHand = p[P.aimRear]! > 0.5;
+      const arm = rearHand ? rear : lead;
+      // the aim point is ~10 cm short of the target's centre line (fighters.tsx aimFor): the glove's centre stops 4 cm
+      // shorter still, so the leather meets the face / body instead of sinking into it
+      armPoints(arm.dims, A, rearHand ? ARM_SIZE : 0, _kp1);
+      _kd.subVectors(_kh, _kp1.sh).normalize();
+      _kh.addScaledVector(_kd, -0.04);
+      aimArm(arm.dims, A, rearHand ? ARM_SIZE : 0, _kh, Math.min(1, aimK));
+    }
+    if (detail) {
+      // keep-out: own head (headgear), the other arm, the opponent; the torso slices inside keepOut
+      const head = this.chain.head?.bone;
+      let n = 0;
+      const ob = (a: THREE.Vector3, b: THREE.Vector3 | null, r: number) => {
+        if (n >= this.obs.length) return;
+        const o = this.obs[n]!;
+        o.a.copy(a);
+        if (b) o.b = this.obsB[n]!.copy(b);
+        else o.b = null;
+        o.r = r;
+        n++;
+      };
+      if (head) {
+        head.getWorldPosition(_kv);
+        fk.toChest(_kv, rootQ, delta, _kh);
+        _kh.y += 0.06;
+        _kh.z += 0.03;
+        ob(_kh, null, 0.115);
+      }
+      const own = n;
+      for (const o of this.opponent) {
+        fk.toChest(o.a, rootQ, delta, _kv);
+        if (o.b) fk.toChest(o.b, rootQ, delta, _ke);
+        ob(_kv, o.b ? _ke : null, o.r);
+      }
+      const base = n;
+      // the striking arm near its impact: the contact point decides where the glove meets the opponent (aim); the
+      // opponent is no obstacle for it (it would push the punch off its line)
+      const striking = aimK > 0.25 ? (p[P.aimRear]! > 0.5 ? ARM_SIZE : 0) : -1;
+      const solve = (arm: typeof lead, o: number, other: typeof lead, oo: number) => {
+        n = base;
+        armPoints(other.dims, A, oo, _kp1);
+        ob(_kp1.el, _kp1.wr, ARM_R.fore);
+        ob(_kp1.gl, null, ARM_R.glove);
+        const list = this.obsList;
+        list.length = 0;
+        for (let k = 0; k < n; k++) if (o !== striking || k < own || k >= base) list.push(this.obs[k]!);
+        keepOut(arm.dims, A, o, list, this.torso);
+      };
+      solve(lead, 0, rear, ARM_SIZE);
+      solve(rear, ARM_SIZE, lead, 0);
+    }
+    fk.apply(lead, A, 0, rootQ, delta, w);
+    fk.apply(rear, A, ARM_SIZE, rootQ, delta, w);
   }
 
   /** the chest frame now: world → Spine2-local (bind axes, origin at the joint), for the torso keep-out */

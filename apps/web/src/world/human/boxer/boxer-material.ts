@@ -48,8 +48,8 @@ export const SLOT = {
 export const SLOTS = 25;
 
 /** roughness and sheen per slot (fixed); colours are uniforms */
-const ROUGH: number[] = [0.56, 0.72, 0.66, 0.34, 0.36, 0.5, 0.75, 0.8, 0.5, 0.52, 0.56, 0.55, 0.6, 0.88, 0.74, 0.66, 0.32, 0.45, 0.74, 0.82, 0.05, 0.9, 0.3, 0.88, 0.38];
-const SHEEN: number[] = [0, 0.18, 0.12, 0.9, 0.7, 0.12, 0, 0, 0.25, 0.15, 0.2, 0.2, 0.12, 0.25, 0.2, 0.15, 0.25, 0.4, 0.2, 0.3, 0, 0, 0, 0.3, 0.2];
+const ROUGH: number[] = [0.56, 0.74, 0.7, 0.48, 0.5, 0.5, 0.75, 0.8, 0.64, 0.62, 0.66, 0.64, 0.66, 0.88, 0.74, 0.66, 0.32, 0.45, 0.74, 0.82, 0.05, 0.9, 0.3, 0.88, 0.38];
+const SHEEN: number[] = [0, 0.18, 0.12, 0.55, 0.45, 0.12, 0, 0, 0.12, 0.1, 0.12, 0.12, 0.1, 0.25, 0.2, 0.15, 0.25, 0.4, 0.2, 0.3, 0, 0, 0, 0.3, 0.2];
 
 export interface BoxerColors {
   skin: string;
@@ -101,7 +101,7 @@ export function boxerPalette(col: BoxerColors): THREE.Color[] {
   const p: THREE.Color[] = new Array(SLOTS).fill(0).map(() => c("#888888"));
   p[SLOT.skin] = c(col.skin);
   p[SLOT.vest] = c(kit);
-  p[SLOT.vestTrim] = c(trim);
+  p[SLOT.vestTrim] = col.trim ? c(col.trim) : shade(kit, 0.62);
   p[SLOT.trunks] = shade(kit, 0.92);
   p[SLOT.trunksTrim] = c(trim);
   p[SLOT.boot] = c("#161616");
@@ -357,10 +357,14 @@ if (gkM == 0) {
 } else if (gkM == 3) {
   // trunks: a white waistband, and a white stripe down the outside of each leg (over the hip above the crotch)
   float ax = abs(vBind.x);
-  float cx = vBind.y > uKit.y ? 0.0 : uKit.x;
-  float cs = (ax - cx) / max(1e-4, length(vec2(ax - cx, vBind.z * (vBind.y > uKit.y ? 1.35 : 1.0))));
-  float stripe = smoothstep(0.9, 0.93, cs);
-  float band = smoothstep(uKit.z - 0.062, uKit.z - 0.058, vBind.y);
+  float hip = smoothstep(uKit.y - 0.04, uKit.y + 0.04, vBind.y);
+  float cx = mix(uKit.x, 0.0, hip);
+  float cs = (ax - cx) / max(1e-4, length(vec2(ax - cx, vBind.z * mix(1.0, 1.35, hip))));
+  float aa = max(fwidth(cs), 1e-4);
+  float stripe = smoothstep(0.915 - aa, 0.915 + aa, cs);
+  float by = uKit.z - 0.06;
+  float ab = max(fwidth(vBind.y), 1e-4);
+  float band = smoothstep(by - ab, by + ab, vBind.y);
   gkBase = mix(gkBase, uCol[4], max(stripe, band));
   gkBase *= mix(0.9, 1.03, vAo);
 } else if (gkM == 19) {
@@ -371,7 +375,7 @@ if (gkM == 0) {
 } else {
   gkBase *= mix(0.9, 1.03, vAo);
   // leather: tonal mottling and darker creases between the padded panels (a dyed hide is never one flat colour)
-  if (gkIsLeather(gkM)) gkBase *= 0.9 + 0.14 * gkNoise(vBind * 38.0) - 0.06 * gkNoise(vBind * 160.0);
+  if (gkIsLeather(gkM)) gkBase *= (0.9 + 0.14 * gkNoise(vBind * 38.0) - 0.06 * gkNoise(vBind * 160.0)) * mix(0.62, 1.0, smoothstep(0.15, 0.45, vAo));
 }
 diffuseColor.rgb = gkBase;`,
       )
@@ -383,8 +387,8 @@ float gkSh = 0.0;
 for (int k = 0; k < ${SLOTS}; k++) { if (k == gkM) { gkR = uRough[k]; gkSh = uSheen[k]; } }
 if (gkM == 0) {
   // pores and creases are rougher; sweat smooths the skin
-  gkR = clamp(gkR + (0.5 - gkSkin.a) * 0.5, 0.42, 0.8);
-  gkR = mix(gkR, 0.3, uSweat * 0.8);
+  gkR = clamp(gkR + (0.5 - gkSkin.a) * 0.5, 0.5, 0.8);
+  gkR = mix(gkR, 0.42, max(0.0, uSweat - 0.3) * 0.7);
   gkR = mix(gkR, 0.8, gkHairy);
 }
 roughnessFactor = gkR;`,
@@ -401,7 +405,9 @@ roughnessFactor = gkR;`,
   else if (gkLeather) {
     // leather: the padding's soft undulation (no perfect shell), a pebble grain (two octaves) up close
     h += gkNoise(vBind * 55.0) * 0.0018;
-    h += (gkNoise(vBind * 1100.0) * 0.6 + gkNoise(vBind * 2600.0) * 0.4) * 0.00032 * uDetail;
+    // (faded out where a pixel spans more than a grain: obliquely seen strips — the headgear rim — sparkled)
+    float gkGw = 1.0 - smoothstep(0.25, 0.9, length(fwidth(vBind)) * 1100.0);
+    h += (gkNoise(vBind * 1100.0) * 0.6 + gkNoise(vBind * 2600.0) * 0.4 * gkGw) * 0.00032 * uDetail * gkGw;
   }
   vec2 dh = vec2(dFdx(h), dFdy(h));
   normal = gkPerturb(-vViewPosition, normal, dh, faceDirection);
@@ -421,7 +427,7 @@ roughnessFactor = gkR;`,
         `#include <lights_physical_fragment>
 // second specular lobe: skin oil / sweat (sharper, weak, grows with sweat); the wet cornea; satin and leather a little;
 // fabric sheen (physical sheen, per slot)
-material.clearcoat = gkM == 0 ? (0.06 + 0.6 * uSweat) * (1.0 - gkHairy) : (gkM == 20 ? 1.0 : (gkM == 3 || gkM == 4 ? 0.25 : (gkIsLeather(gkM) ? 0.1 : 0.0)));
+material.clearcoat = gkM == 0 ? (0.4 * max(0.0, uSweat - 0.35)) * (1.0 - gkHairy) : (gkM == 20 ? 1.0 : (gkM == 3 || gkM == 4 ? 0.06 : (gkIsLeather(gkM) ? 0.04 : 0.0)));
 material.clearcoatRoughness = gkM == 0 ? mix(0.42, 0.18, uSweat) : (gkM == 20 ? 0.02 : (gkIsLeather(gkM) ? 0.45 : 0.25));
 material.sheenColor = gkM == 0 ? gkBase * vec3(0.6, 0.35, 0.3) * 0.25 : mix(vec3(1.0), gkBase, 0.4) * gkSh;
 material.sheenRoughness = gkM == 3 || gkM == 4 ? 0.3 : 0.6;`,
@@ -437,13 +443,15 @@ material.sheenRoughness = gkM == 3 || gkM == 4 ? 0.3 : 0.6;`,
     // subsurface: light bleeding through at grazing angles and lifting the shadow side warm (blood under the skin),
     // stronger in thin parts (ears, nose: the high cavity) — never a grey, plastic shadow
     vec3 scatter = gkBase * vec3(0.62, 0.18, 0.1);
-    reflectedLight.indirectDiffuse += scatter * rim * 0.6;
-    reflectedLight.indirectDiffuse += scatter * 0.12;
+    reflectedLight.indirectDiffuse += scatter * rim * 0.35;
+    reflectedLight.indirectDiffuse += scatter * 0.06;
     reflectedLight.directDiffuse *= vec3(1.05, 0.98, 0.95);
   }
 }`,
       );
   };
-  m.customProgramCacheKey = () => "gk-boxer-v3";
+  // P3-FGT-16: the inside of a garment shows through its openings (both sides drawn; a closed body hides its back faces)
+  m.side = THREE.DoubleSide;
+  m.customProgramCacheKey = () => "gk-boxer-v4";
   return m;
 }

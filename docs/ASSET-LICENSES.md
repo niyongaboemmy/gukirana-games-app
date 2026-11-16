@@ -146,6 +146,9 @@ See docs/PEOPLE-BEHAVIOUR.md.
     eye sockets, beard). No textures were shipped in P3-FGT-13/14 (P3-FGT-15 below adds skin and eye textures).
 - P3-FGT-13/14: MakeHuman skins, proxies, clothes and hair were not used. P3-FGT-15 adds the skin and eye assets
   below (CC0). Nothing from Mixamo or any store.
+- P3-FGT-16: regenerated from the same MakeHuman commit (`a8bc2d54…`, CC0) with our own changes only: the boxing gloves
+  and headgear are new procedural shapes (`apps/web/scripts/boxer/kit-shapes.mjs`, original work), the vest's arm hole,
+  neckline, skin weights and body cover margin changed (`build.mjs`). boxer-m.glb 3.19 MB, boxer-f.glb 3.13 MB.
 
 ### Realistic humans (P3-FGT-15) — `skin-{m,f}.webp`, `skin-{m,f}-1k.webp`, `eye-iris.webp`, `human-detail.webp`, eye proxy in the boxer GLBs
 
@@ -203,6 +206,23 @@ one alpha-cut atlas (`world/Flowers.tsx`) — original work, no third-party cont
 | Banana and bamboo models | No CC0 / CC-BY source of acceptable quality found; bamboo groves stay procedural |
 | Poly Haven flowers (gazania, ursinia …) | Single small flowers, heavy per plant; procedural atlas cards give massed beds for a fraction of the cost |
 | Flowering-tree variants (jacaranda bloom, flame tree) | Built and evaluated, then dropped: the compound brief is "no trees, modern flowers" |
+
+### Boxing motion reference (P3-FGT-16) — no motion file shipped
+
+The boxers' arms are **keyed joint angles authored in code** (`apps/web/src/world/human/boxing/clips.ts`, `pose.ts`;
+docs/FIGHT-REALISM-V5.md): no third-party motion data is stored in the repository or sent to the browser. As a
+measurement reference during authoring we read:
+
+| Source | Takes | Licence | What we took |
+| --- | --- | --- | --- |
+| CMU Graphics Lab Motion Capture Database, http://mocap.cs.cmu.edu/ (ASF/AMC) | boxing: 13_17, 13_18, 14_01–14_03, 15_13, 17_10; punching: 144_13/14/20/21, 86_*, 141_14, 143_23 | Free for all uses, including commercial products; the raw data may not be resold (CMU's stated terms). "The data used in this project was obtained from mocap.cs.cmu.edu. The database was created with funding from NSF EIA-0196217." | Numbers only: straight-punch extension times (62 % → full extension 0.06–0.12 s, return 0.15–0.2 s), the guard → impact → guard rhythm and the shoulder-to-wrist reach at full extension. Downloaded to a scratch folder, deleted after use |
+
+Evaluated, not used for motion: **Bandai Namco Research Motiondataset** (CC BY-NC-ND 4.0 — non-commercial, no
+derivatives: excluded); **Mixamo** (Adobe terms forbid redistributing the raw animation files; the project rejects it);
+**Quaternius** Universal Animation Library (CC0, but stylised game moves — no boxing set); the CMU takes themselves as a
+retarget source (amateur subjects in everyday clothes: parallel feet, bare-hand guards that a 12 oz glove would pass
+through, no hooks to the body, no clinch / reactions / knockdown — keyed poses with joint limits gave a cleaner result
+for this cast; see FIGHT-REALISM-V5.md §3).
 
 ## Assets evaluated and rejected (humans)
 

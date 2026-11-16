@@ -1,0 +1,464 @@
+[
+ {
+  "name": "guard",
+  "cam": "side",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "guard",
+  "cam": "close",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "guard",
+  "cam": "front",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "guard",
+  "cam": "side",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "guard",
+  "cam": "close",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "guard",
+  "cam": "front",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "jab",
+  "cam": "side",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "jab",
+  "cam": "close",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "jab",
+  "cam": "front",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "jab",
+  "cam": "side",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "jab",
+  "cam": "close",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "jab",
+  "cam": "front",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "cross",
+  "cam": "side",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "cross",
+  "cam": "close",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "cross",
+  "cam": "front",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "cross",
+  "cam": "side",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "cross",
+  "cam": "close",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "cross",
+  "cam": "front",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "hook",
+  "cam": "side",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "hook",
+  "cam": "close",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "hook",
+  "cam": "front",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "hook",
+  "cam": "side",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "hook",
+  "cam": "close",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "hook",
+  "cam": "front",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "uppercut",
+  "cam": "side",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "uppercut",
+  "cam": "close",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "uppercut",
+  "cam": "front",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "uppercut",
+  "cam": "side",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "uppercut",
+  "cam": "close",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "uppercut",
+  "cam": "front",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "body-shot",
+  "cam": "side",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "body-shot",
+  "cam": "close",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "body-shot",
+  "cam": "front",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "body-shot",
+  "cam": "side",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "body-shot",
+  "cam": "close",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "body-shot",
+  "cam": "front",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "block",
+  "cam": "side",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "block",
+  "cam": "close",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "block",
+  "cam": "front",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "block",
+  "cam": "side",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "block",
+  "cam": "close",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "block",
+  "cam": "front",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "clinch",
+  "cam": "side",
+  "size": "1280x720",
+  "calls": 13,
+  "tris": 182062
+ },
+ {
+  "name": "clinch",
+  "cam": "close",
+  "size": "1280x720",
+  "calls": 13,
+  "tris": 182062
+ },
+ {
+  "name": "clinch",
+  "cam": "front",
+  "size": "1280x720",
+  "calls": 13,
+  "tris": 182062
+ },
+ {
+  "name": "clinch",
+  "cam": "side",
+  "size": "844x390",
+  "calls": 13,
+  "tris": 182062
+ },
+ {
+  "name": "clinch",
+  "cam": "close",
+  "size": "844x390",
+  "calls": 13,
+  "tris": 182062
+ },
+ {
+  "name": "clinch",
+  "cam": "front",
+  "size": "844x390",
+  "calls": 13,
+  "tris": 182062
+ },
+ {
+  "name": "hit-reaction",
+  "cam": "side",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "hit-reaction",
+  "cam": "close",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "hit-reaction",
+  "cam": "front",
+  "size": "1280x720",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "hit-reaction",
+  "cam": "side",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "hit-reaction",
+  "cam": "close",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "hit-reaction",
+  "cam": "front",
+  "size": "844x390",
+  "calls": 11,
+  "tris": 124658
+ },
+ {
+  "name": "knockdown",
+  "cam": "side",
+  "size": "1280x720",
+  "calls": 13,
+  "tris": 182062
+ },
+ {
+  "name": "knockdown",
+  "cam": "close",
+  "size": "1280x720",
+  "calls": 13,
+  "tris": 182062
+ },
+ {
+  "name": "knockdown",
+  "cam": "front",
+  "size": "1280x720",
+  "calls": 13,
+  "tris": 182062
+ },
+ {
+  "name": "knockdown",
+  "cam": "side",
+  "size": "844x390",
+  "calls": 13,
+  "tris": 182062
+ },
+ {
+  "name": "knockdown",
+  "cam": "close",
+  "size": "844x390",
+  "calls": 13,
+  "tris": 182062
+ },
+ {
+  "name": "knockdown",
+  "cam": "front",
+  "size": "844x390",
+  "calls": 13,
+  "tris": 182062
+ },
+ {
+  "name": "referee-count",
+  "cam": "side",
+  "size": "1280x720",
+  "calls": 13,
+  "tris": 182062
+ },
+ {
+  "name": "referee-count",
+  "cam": "close",
+  "size": "1280x720",
+  "calls": 13,
+  "tris": 182062
+ },
+ {
+  "name": "referee-count",
+  "cam": "front",
+  "size": "1280x720",
+  "calls": 13,
+  "tris": 182062
+ },
+ {
+  "name": "referee-count",
+  "cam": "side",
+  "size": "844x390",
+  "calls": 13,
+  "tris": 182062
+ },
+ {
+  "name": "referee-count",
+  "cam": "close",
+  "size": "844x390",
+  "calls": 13,
+  "tris": 182062
+ },
+ {
+  "name": "referee-count",
+  "cam": "front",
+  "size": "844x390",
+  "calls": 13,
+  "tris": 182062
+ }
+]

@@ -108,6 +108,7 @@ export function FightAvatar({
   seed = 0,
   klass = 0,
   probe,
+  opponent,
 }: {
   look: AvatarLook;
   corner: Corner;
@@ -116,8 +117,10 @@ export function FightAvatar({
   seed?: number;
   klass?: number;
   probe?: React.MutableRefObject<BoxerProbe | null>;
+  /** P3-FGT-16: the other fighter (my arms stay out of their body) */
+  opponent?: React.MutableRefObject<BoxerProbe | null>;
 }) {
-  if (BOXER_BODY) return <FightBoxer look={look} corner={corner} body={body} lite={lite} seed={seed} klass={klass} probe={probe} />;
+  if (BOXER_BODY) return <FightBoxer look={look} corner={corner} body={body} lite={lite} seed={seed} klass={klass} probe={probe} opponent={opponent} />;
   return <FightAvatarPlaza look={look} corner={corner} body={body} lite={lite} />;
 }
 
@@ -130,6 +133,7 @@ function FightBoxer({
   seed,
   klass,
   probe,
+  opponent,
 }: {
   look: AvatarLook;
   corner: Corner;
@@ -138,6 +142,8 @@ function FightBoxer({
   seed: number;
   klass: number;
   probe?: React.MutableRefObject<BoxerProbe | null>;
+  /** P3-FGT-16: the other fighter (my arms stay out of their body) */
+  opponent?: React.MutableRefObject<BoxerProbe | null>;
 }) {
   const motion = useMemo(() => new BoxingMotion(), []);
   const weight = useMemo(() => ({ current: 1 }), []);
@@ -153,7 +159,7 @@ function FightBoxer({
     }
   });
   useBodyDriver(motion, body, weight, anim, "walk");
-  return <BoxerAvatar look={look} outfit="boxer" kit={CORNER_COLORS[corner]} motion={motion} clock={ringNow} weight={weight} sweat={sweat} red={red} klass={klass} seed={seed} lite={lite} probe={probe} />;
+  return <BoxerAvatar look={look} outfit="boxer" kit={CORNER_COLORS[corner]} motion={motion} clock={ringNow} weight={weight} sweat={sweat} red={red} klass={klass} seed={seed} lite={lite} probe={probe} opponent={opponent} />;
 }
 
 function FightAvatarPlaza({ look, corner, body, lite = false }: { look: AvatarLook; corner: Corner; body: React.RefObject<RingBody | null>; lite?: boolean }) {

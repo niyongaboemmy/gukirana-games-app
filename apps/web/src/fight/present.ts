@@ -295,11 +295,11 @@ export const CANVAS_SCALE = 0.9 / 1000;
  * a punch that lands in the engine reaches its target with the motion reach fit, out of range they stand apart.
  */
 const GAP_V2: readonly (readonly [number, number])[] = [
-  [640, 0.64],
-  [PUNCH_SPECS.uppercut.reach, 0.74],
-  [PUNCH_SPECS.hook.reach, 0.8],
-  [PUNCH_SPECS.jab.reach, 0.98],
-  [1800, 1.55],
+  [640, 0.66],
+  [PUNCH_SPECS.uppercut.reach, 0.82],
+  [PUNCH_SPECS.hook.reach, 0.9],
+  [PUNCH_SPECS.jab.reach, 1.1],
+  [1800, 1.62],
   [3600, 3.2],
 ];
 export function canvasGapOf(mm: number): number {
@@ -361,7 +361,13 @@ export function refereeSpot(phase: FightPhase, ctx: { dist: number; down: 0 | 1 
     const s = ctx.winner === 0 ? -1 : 1;
     return { x: s * half - s * 0.0, z: 0.62, clip: "refRaise", face: 0 };
   }
-  if (ctx.breaking) return { x: 0, z: 0.35, clip: "refBreak", face: 0 };
+  // P3-FGT-16: breaking a clinch he steps in from the side at arm's length (~0.75 m from the nearer boxer's centre,
+  // off the pair's middle so a camera across the pair sees him beside the tie-up, never inside or right behind it);
+  // his hands do the separating (refBreak), his body stays clear
+  if (ctx.breaking) {
+    const sd = Math.sin(0.07 * (ctx.t ?? 0) + 0.6) >= 0 ? 1 : -1;
+    return { x: sd * Math.min(0.55, half + 0.2), z: 0.72, clip: "refBreak", face: 0 };
+  }
   if (phase === "intro" || phase === "countdown") return { x: 0, z: 0.9, clip: "refStart", face: 0 };
   if (phase === "rest") return { x: 0, z: ctx.half - 0.9, clip: "refIdle", face: 0 };
   // the round: the "V" with both boxers in view (never behind one, never between them), a little closer in when they

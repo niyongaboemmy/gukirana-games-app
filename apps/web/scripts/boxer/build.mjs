@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { jointPos, macroTargets, morph, readObj, readProxy, readSkeleton, readTarget } from "./mh.mjs";
 import { writeGlb } from "./glb.mjs";
 import { shoulderShare, weightBytes } from "./skin-math.mjs";
+import { buildGlove, headgearSeam, headgearThickness } from "./kit-shapes.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "../../public/assets/characters");
@@ -524,11 +525,13 @@ function buildVariant(key, base, morphParams) {
     // (sized by the shoulder width: the feminine body is ~20 % narrower and the strap must survive between the
     // neckline and the hole)
     const sc = shoulderX / 0.207;
-    const ey = (p[1] - (shoulderL[1] - 0.05 * sc)) / (0.15 * sc);
-    const ez = (p[2] - (shoulderL[2] - 0.012)) / (0.088 * sc);
+    // P3-FGT-16: a smaller hole (bottom ~4 cm under the armpit fold, was ~9: the vest opened down the ribs) and a
+    // wider strap
+    const ey = (p[1] - (shoulderL[1] - 0.035 * sc)) / (0.12 * sc);
+    const ez = (p[2] - (shoulderL[2] - 0.012)) / (0.08 * sc);
     // (a rounded intersection: the strap's corner at the top of the hole is a curve, not a point)
-    const a = (1 - Math.hypot(ey, ez)) * 0.088 * sc,
-      b = Math.abs(p[0]) - (shoulderX - 0.09 * sc);
+    const a = (1 - Math.hypot(ey, ez)) * 0.08 * sc,
+      b = Math.abs(p[0]) - (shoulderX - 0.078 * sc);
     const k = 0.025,
       hk = Math.max(k - Math.abs(a - b), 0) / k;
     const inHole = Math.min(a, b) - hk * hk * k * 0.25;
@@ -537,7 +540,7 @@ function buildVariant(key, base, morphParams) {
     // neckline: a round scoop at the front, higher at the back
     const ax = Math.abs(p[0]) / sc;
     const front = backZ(p);
-    const lineY = lerp(neckBaseY - 0.012 + 0.016 * smooth(0.03, 0.09, ax), neckBaseY - 0.088 * sc + 0.07 * sc * smooth(0.02, 0.1, ax), front);
+    const lineY = lerp(neckBaseY - 0.012 + 0.016 * smooth(0.03, 0.09, ax), neckBaseY - 0.06 * sc + 0.045 * sc * smooth(0.02, 0.1, ax), front);
     const fNeck = lineY - p[1];
     return Math.min(fBottom, fArm, fArmW, fNeck, 0.3 - headW(i));
   };
@@ -648,12 +651,12 @@ function buildVariant(key, base, morphParams) {
     return p[1] < waistY + 0.01 && p[1] > ankleL[1] + 0.03 && !isArm(i) && footW(i) < 0.3;
   };
   const coverBits = (i) =>
-    (vestField(i) > 0.004 ? COVER.vest : 0) |
+    (vestField(i) > 0.022 ? COVER.vest : 0) |
     (trunksCoverBody(i) ? COVER.trunks : 0) |
     (bootTop(i) > 0.012 ? COVER.boots : 0) |
     (glovesCover(i) ? COVER.gloves : 0) |
     (headgearCover(i) ? COVER.headgear : 0) |
-    (shirtField(i) > 0.012 ? COVER.shirt : 0) |
+    (shirtField(i) > 0.022 ? COVER.shirt : 0) |
     (trousersCoverBody(i) ? COVER.trousers : 0) |
     (shoeTop(i) > 0.012 ? COVER.shoes : 0) |
     (hairCover(i) ? COVER.hair : 0);
@@ -762,7 +765,7 @@ function buildVariant(key, base, morphParams) {
    * edges, their position / normal / skin / morph interpolated), so arm holes, necklines and hems are smooth curves,
    * not the body's quad steps. Boundary edges get a hem strip (cloth thickness) in the rim slot.
    */
-  function shell(name, faces, normals, { field, offset, mat, hem = 0.006, rimMat, surface = null, bridge = 0, flatAo = false, edgeAo = 0 }) {
+  function shell(name, faces, normals, { field, offset, mat, hem = 0.006, rimMat, surface = null, bridge = 0, flatAo = false, edgeAo = 0, remap = null }) {
     const SV = (i) => (surface ? [surface[i * 3], surface[i * 3 + 1], surface[i * 3 + 2]] : V(i));
     const m = new MeshBuilder(name);
     const f = new Map();
@@ -784,8 +787,12 @@ function buildVariant(key, base, morphParams) {
       const pos = add(lerp3(SV(a), SV(b)), scl(n, o));
       // skin: blend the two vertices' weights
       const wm = new Map();
-      for (const [bone, w] of VW[a]) wm.set(bone, (wm.get(bone) ?? 0) + w * (1 - t));
-      for (const [bone, w] of VW[b]) wm.set(bone, (wm.get(bone) ?? 0) + w * t);
+      const put = (bone, w) => {
+        if (!remap) return void wm.set(bone, (wm.get(bone) ?? 0) + w);
+        for (const [b2, k] of remap(bone)) wm.set(b2, (wm.get(b2) ?? 0) + w * k);
+      };
+      for (const [bone, w] of VW[a]) put(bone, w * (1 - t));
+      for (const [bone, w] of VW[b]) put(bone, w * t);
       const top = [...wm.entries()].sort((x, y) => y[1] - x[1]).slice(0, 4);
       const sum = top.reduce((q, [, w]) => q + w, 0) || 1;
       const slot = typeof mat === "function" ? mat(t < 0.5 ? a : b) : mat;
@@ -884,8 +891,6 @@ function buildVariant(key, base, morphParams) {
       const i2 = m.vert([m.p[iv * 3], m.p[iv * 3 + 1], m.p[iv * 3 + 2]], dir, skinOf(iv), slot, { src: m.src[iv], uv: uvOf(iv) });
       m.face(r1, i1, r2);
       m.face(r2, i1, i2);
-      m.face(r2, i1, r1);
-      m.face(i2, i1, r2);
     }
     return m;
   }
@@ -916,7 +921,22 @@ function buildVariant(key, base, morphParams) {
       NDr[i * 3 + 2] = z / l;
     }
   }
+  // P3-FGT-16: a vest rides on the arm only through the shoulder: the upper arm's share of the skin under it goes to the
+  // shoulder helper (half the arm's turn) and the clavicle — in a raised guard the strap and the arm hole's edge used to
+  // stretch with the whole arm into a torn-looking zig-zag; with no follow at all the deltoid came up through the strap
+  const ARMISH = new Map();
+  for (const S of ["L", "R"]) {
+    const clav = FINAL_INDEX.get(`Bip01_${S}_Clavicle`);
+    const helper = FINAL_INDEX.get(`Bip01_${S}_ShoulderHelper`);
+    for (const n of ["UpperArm", "Forearm", "ForearmTwist", "Hand"])
+      ARMISH.set(FINAL_INDEX.get(`Bip01_${S}_${n}`), [
+        [helper, 0.65],
+        [clav, 0.35],
+      ]);
+  }
+  const vestRemap = (bone) => ARMISH.get(bone) ?? [[bone, 1]];
   const vest = shell("kit_vest", bodyFaces, NDr, {
+    remap: vestRemap,
     field: vestField,
     // (a little more over the arm holes and straps, where the shoulder works under the cloth)
     offset: (i) => 0.005 + 0.004 * smooth(0.2, 0.5, armW(i) + wSum(i, ["Bip01_L_Clavicle", "Bip01_R_Clavicle"])),
@@ -1407,103 +1427,15 @@ function buildVariant(key, base, morphParams) {
     const s = norm(cross(nrm, f));
     return { wrist, f, n: nrm, s: s, across };
   };
+  // P3-FGT-16: real glove shapes (kit-shapes.mjs): a lofted leather body with a knuckle roll, a flat palm with the grip
+  // line, the thumb along the side tied at its tip, a cuff with a raised strap, stitched seams as grooves
   const gloves = new MeshBuilder("kit_gloves");
   for (const S of ["L", "R"]) {
-    const { wrist, f, n, s } = handFrame(S);
-    const bone = FINAL_INDEX.get(`Bip01_${S}_Hand`);
-    const skin = [[bone, 1]];
-    const P3 = (x, y, z) => add(wrist, add(scl(f, x), add(scl(n, y), scl(s, z))));
-    const D3 = (x, y, z) => norm(add(scl(f, x), add(scl(n, y), scl(s, z))));
-    // the fist: a rounded box (superellipsoid), 25 cm long from the wrist, 12 cm wide, 11 cm deep
-    const cx = 0.08,
-      a = 0.088,
-      b = 0.056,
-      c = 0.062;
-    const U = 28,
-      W = 16;
-    const ring = [];
-    for (let v = 0; v <= W; v++) {
-      const phi = -Math.PI / 2 + (Math.PI * v) / W;
-      const row = [];
-      for (let u = 0; u < U; u++) {
-        const th = (2 * Math.PI * u) / U;
-        const sp = (x, e) => Math.sign(x) * Math.abs(x) ** e;
-        const ex = 0.62;
-        const lx = a * sp(Math.sin(phi), ex);
-        const ly = b * sp(Math.cos(phi) * Math.cos(th), ex) - 0.006;
-        const lz = c * sp(Math.cos(phi) * Math.sin(th), ex);
-        // the knuckle front bulges, the cuff end narrows into the wrist
-        const taper = phi < 0 ? 0.8 + 0.2 * Math.cos(phi) : 1;
-        const p = P3(cx + lx, ly * taper, lz * taper);
-        const nn = D3(Math.sin(phi) / a, (Math.cos(phi) * Math.cos(th)) / b, (Math.cos(phi) * Math.sin(th)) / c);
-        const target = phi > 0.55 && Math.cos(th) < 0.35 && Math.cos(th) > -0.95;
-        row.push(gloves.vert(p, nn, skin, target ? MAT.gloveTarget : MAT.glove));
-      }
-      ring.push(row);
-    }
-    for (let v = 0; v < W; v++)
-      for (let u = 0; u < U; u++) {
-        const a0 = ring[v][u],
-          a1 = ring[v][(u + 1) % U],
-          b0 = ring[v + 1][u],
-          b1 = ring[v + 1][(u + 1) % U];
-        gloves.face(a0, b0, a1);
-        gloves.face(a1, b0, b1);
-      }
-    // the thumb: a smaller ellipsoid along the side, fused to the fist
-    const tc = [0.07, 0.02, 0.054];
-    const tr = [0.045, 0.028, 0.024];
-    const trow = [];
-    for (let v = 0; v <= 10; v++) {
-      const phi = -Math.PI / 2 + (Math.PI * v) / 10;
-      const row = [];
-      for (let u = 0; u < 14; u++) {
-        const th = (2 * Math.PI * u) / 14;
-        const lx = tr[0] * Math.sin(phi),
-          ly = tr[1] * Math.cos(phi) * Math.cos(th),
-          lz = tr[2] * Math.cos(phi) * Math.sin(th);
-        row.push(gloves.vert(P3(tc[0] + lx, tc[1] + ly, tc[2] + lz), D3(Math.sin(phi) / tr[0], (Math.cos(phi) * Math.cos(th)) / tr[1], (Math.cos(phi) * Math.sin(th)) / tr[2]), skin, MAT.glove));
-      }
-      trow.push(row);
-    }
-    for (let v = 0; v < 10; v++)
-      for (let u = 0; u < 14; u++) {
-        const a0 = trow[v][u],
-          a1 = trow[v][(u + 1) % 14],
-          b0 = trow[v + 1][u],
-          b1 = trow[v + 1][(u + 1) % 14];
-        gloves.face(a0, b0, a1);
-        gloves.face(a1, b0, b1);
-      }
-    // the cuff: a short tube over the wrist with a white lace strip on the palm side
-    const cuff = [];
-    const CR = 20;
-    for (let k = 0; k <= 4; k++) {
-      const x = -0.085 + (0.09 * k) / 4;
-      const r = 0.05 + 0.006 * (k / 4);
-      const row = [];
-      for (let u = 0; u < CR; u++) {
-        const th = (2 * Math.PI * u) / CR;
-        const ny = Math.cos(th),
-          nz = Math.sin(th);
-        const lace = ny > 0.92 && k > 0 && k < 4;
-        row.push(gloves.vert(P3(x, ny * r * 0.9, nz * r), D3(0, ny, nz), skin, lace ? MAT.lace : MAT.gloveCuff));
-      }
-      cuff.push(row);
-    }
-    for (let k = 0; k < 4; k++)
-      for (let u = 0; u < CR; u++) {
-        const a0 = cuff[k][u],
-          a1 = cuff[k][(u + 1) % CR],
-          b0 = cuff[k + 1][u],
-          b1 = cuff[k + 1][(u + 1) % CR];
-        gloves.face(a0, b0, a1);
-        gloves.face(a1, b0, b1);
-      }
+    buildGlove(gloves, handFrame(S), { hand: FINAL_INDEX.get(`Bip01_${S}_Hand`), fore: FINAL_INDEX.get(`Bip01_${S}_ForearmTwist`) }, MAT);
   }
 
   /** a smooth shell round the head: per direction from the head centre, the head's own extent + thickness */
-  function headShell(name, { thick, region, mat, skinBones, rimMat }) {
+  function headShell(name, { thick, region, mat, skinBones, rimMat, seam = null }) {
     const m = new MeshBuilder(name);
     const AZ = 44,
       EL = 26;
@@ -1529,6 +1461,9 @@ function buildVariant(key, base, morphParams) {
         radius[e][a] = r;
       }
     }
+    // P3-FGT-16: the head's own extent before smoothing — the shell never dips under it (at the face opening the
+    // smoothed envelope ran a few mm inside the cheeks: the pads' edge z-fought with the skin, a dotted fringe)
+    const rawR = radius.map((r) => Float64Array.from(r));
     // smooth (the ears and nose would make bumps): a few passes of neighbour averaging, keeping the max-ish envelope
     for (let pass = 0; pass < 3; pass++) {
       const copy = radius.map((r) => Float64Array.from(r));
@@ -1560,9 +1495,11 @@ function buildVariant(key, base, morphParams) {
           row.push(-1);
           continue;
         }
-        const r = radius[e][a] + thick(el, az, dir);
+        const th = thick(el, az, dir);
+        const r = Math.max(radius[e][a], rawR[e][a] + 0.004) + th;
         const p = add(headC, scl(dir, r));
-        row.push(m.vert(p, dir, skinBones(p), typeof mat === "function" ? mat(el, az, dir) : mat));
+        const sg = seam ? seam(el, az) : 0;
+        row.push(m.vert(p, dir, skinBones(p), typeof mat === "function" ? mat(el, az, dir) : mat, { ao: sg > 0 ? 0.2 : 0.5, src: -1 - th * 1000 }));
       }
       grid.push(row);
     }
@@ -1594,17 +1531,19 @@ function buildVariant(key, base, morphParams) {
         const [x, y] = k.split("_").map(Number);
         const px = [m.p[x * 3], m.p[x * 3 + 1], m.p[x * 3 + 2]];
         const py = [m.p[y * 3], m.p[y * 3 + 1], m.p[y * 3 + 2]];
-        const inX = add(px, scl(norm(sub(headC, px)), 0.016));
-        const inY = add(py, scl(norm(sub(headC, py)), 0.016));
-        const out = norm(sub(scl(add(px, py), 0.5), headC));
+        // (rolled in by the padding's own thickness less 3 mm: never into the head)
+        const dx = Math.max(0.004, -m.src[x] / 1000 - 0.003),
+          dy = Math.max(0.004, -m.src[y] / 1000 - 0.003);
+        const inX = add(px, scl(norm(sub(headC, px)), dx));
+        const inY = add(py, scl(norm(sub(headC, py)), dy));
+        // (the strip's own normal: the radial one lay in its plane and broke the bump shading into sparkles)
+        const out = norm(cross(sub(py, px), sub(inX, px)));
         const r1 = m.vert(px, out, skinBones(px), rimMat);
         const r2 = m.vert(py, out, skinBones(py), rimMat);
         const i1 = m.vert(inX, out, skinBones(inX), rimMat);
         const i2 = m.vert(inY, out, skinBones(inY), rimMat);
         m.face(r1, i1, r2);
         m.face(r2, i1, i2);
-        m.face(r2, i1, r1);
-        m.face(i2, i1, r2);
       }
     return m;
   }
@@ -1612,12 +1551,9 @@ function buildVariant(key, base, morphParams) {
   const eyeEl = Math.atan2(eyeL[1] - headC[1], Math.max(0.05, eyeL[2] - headC[2]));
   const chinEl = Math.atan2(jaw[1] - 0.06 - headC[1], 0.07);
   const headgear = headShell("kit_headgear", {
-    thick: (el, az, d) => {
-      const front = Math.cos(az);
-      const cheek = Math.abs(Math.sin(az)) > 0.45 && Math.abs(Math.sin(az)) < 0.9 && front > 0.2 && el < eyeEl && el > chinEl - 0.1 ? 0.012 : 0;
-      const brow = front > 0.55 && el > eyeEl + 0.05 && el < eyeEl + 0.42 ? 0.01 : 0;
-      return 0.011 + cheek + brow + 0.003 * Math.max(0, d[1]);
-    },
+    // P3-FGT-16: an amateur open-face headgear (kit-shapes.mjs): forehead bolster, cheek pads, ear pieces, a quilted crown
+    thick: (el, az, d) => headgearThickness(el, az, d, eyeEl, chinEl) - headgearSeam(el, az, eyeEl),
+    seam: (el, az) => headgearSeam(el, az, eyeEl),
     region: (el, az, d) => {
       const front = Math.cos(az);
       // the open face: in front, between the brow pad and the chin
