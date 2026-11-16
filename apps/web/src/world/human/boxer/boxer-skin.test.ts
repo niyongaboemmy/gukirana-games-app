@@ -6,12 +6,14 @@ import { shoulderShare, weightBytes } from "../../../../scripts/boxer/skin-math.
 import { depth, pushOut, torsoAt, type TorsoSlices } from "../boxing/rig";
 import { twistOf } from "./helpers";
 import { probeBody } from "./skin-probe.dev";
+import { BOXER_V8 } from "./generation";
 import type { BoxingClipName } from "../boxing/clips";
 
 /**
  * P3-FGT-14: the boxer bodies' skinning and the rig maths that keep the arms on the body (docs/FIGHT-REALISM-V4.md §1).
  */
-const asset = (n: string) => fileURLToPath(new URL(`../../../../public/assets/characters/${n}.glb`, import.meta.url));
+// (P3-FGT-19B: with the v8 fighters on, the clips are the v8 ones: they are checked on the v8 bodies)
+const asset = (n: string) => fileURLToPath(new URL(`../../../../public/assets/characters/${BOXER_V8 && /^boxer-[mf]$/.test(n) ? "v8/" : ""}${n}.glb`, import.meta.url));
 
 /** a minimal reader of our own (uncompressed) GLB: joints, skin, the body mesh's skin attributes */
 function readGlb(path: string) {

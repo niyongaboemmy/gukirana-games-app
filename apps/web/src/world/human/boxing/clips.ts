@@ -1,4 +1,6 @@
 import { BOXER_V7 } from "../boxer/body-v6";
+import { BOXER_V8 } from "../boxer/generation";
+import { clampArm } from "./arm-fk";
 import { armOf, GUARD,GUARD_AUTHOR, GUARD_LEAD_ARM as GL, GUARD_REAR_ARM as GR, KNEEL, P, pose, POSE_SIZE, SIT, STAND, newPose, stanceWeight, type ArmSpec, type Pose, type PoseSpec, type V3 } from "./pose";
 
 /**
@@ -1241,6 +1243,25 @@ export const TOUCH_DISTANCE = 0.92;
 
 /** clips that leave the guard (down, on the stool, standing up): the deep stance follows each key's body (pose.ts stanceWeight) */
 const KEYED_STANCE = new Set<BoxingClipName>(["walk", "knockdown", "count", "getUp", "cornerSit", "cornerRest", "cornerStand", "victory", "victoryHold", "defeat", "defeatHold", "winnerRaised"]);
+/**
+ * P3-FGT-19B (docs/design/fighter-v8/SPEC.md §9, checklist 15a; flag BOXER_V8): the impact keys of the jab and the lead
+ * hook re-keyed for the v8 guard, fitted on the real rig and body (qa/e2e/fighter-v8/fit-pose.mjs). Jab: the lead arm
+ * ~92 % extended at shoulder height, knuckles flat (palm down), wrist straight. Lead hook: the elbow at shoulder height,
+ * bent ~90°, the forearm level across the body, palm down, wrist straight. Absolute angles (they replace the key's
+ * lead arm after the guard delta); every other key keeps its authored angles plus the guard delta.
+ */
+const V8_KEYS: Partial<Record<BoxingClipName, { t: number; leadArm?: Required<ArmSpec>; rearArm?: Required<ArmSpec> }[]>> = {
+  jab: [{ t: 0.14, leadArm: { flex: 0, abd: 105, rot: 0, elbow: 45, pron: 115, wrist: 0, elev: 17, prot: 11 } }],
+  leadHook: [{ t: 0.24, leadArm: { flex: 95, abd: 122, rot: 84, elbow: 93, pron: 106, wrist: 0, elev: 11, prot: 13 } }],
+  // high block (hold): the guard's rolled rear shoulder (protraction 30°) with both arms raised squashed the shoulder
+  // skin; covering the forehead needs none of it
+  blockHigh: [
+    { t: 0.12, rearArm: { flex: 65, abd: -33, rot: 40, elbow: 111, pron: -33, wrist: 0, elev: 7, prot: 12 } },
+    { t: 0.36, rearArm: { flex: 65, abd: -33, rot: 40, elbow: 111, pron: -33, wrist: 0, elev: 7, prot: 12 } },
+  ],
+};
+const ARM_KEYS = ["flex", "abd", "rot", "elbow", "pron", "wrist", "elev", "prot"] as const;
+
 const CLIPS = {} as Record<BoxingClipName, ClipDef>;
 for (const [name, d] of Object.entries(DEFS as Record<BoxingClipName, Def>) as [BoxingClipName, Def][]) {
   const loop = d.loop ?? false;
@@ -1252,6 +1273,18 @@ for (const [name, d] of Object.entries(DEFS as Record<BoxingClipName, Def>) as [
       const w = full ? 1 : stanceWeight(k.p);
       const out = newPose();
       for (let i = 0; i < POSE_SIZE; i++) out[i] = k.p[i]! + (GUARD[i]! - GUARD_AUTHOR[i]!) * w;
+      for (const v of BOXER_V8 ? (V8_KEYS[name] ?? []) : [])
+        if (Math.abs(v.t - k.t) < 1e-6)
+          for (const [arm, off] of [
+            [v.leadArm, P.la],
+            [v.rearArm, P.ra],
+          ] as const)
+            if (arm) ARM_KEYS.forEach((key, j) => (out[off + j] = (arm[key] * Math.PI) / 180));
+      // (P3-FGT-19B: the guard delta can carry a key a hair past a joint limit: every v8 key is put back inside them)
+      if (BOXER_V8) {
+        clampArm(out, P.la);
+        clampArm(out, P.ra);
+      }
       return { t: k.t, p: out };
     });
   }

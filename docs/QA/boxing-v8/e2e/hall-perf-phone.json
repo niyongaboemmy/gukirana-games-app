@@ -1,0 +1,99 @@
+[
+ {
+  "name": "hall-arrive",
+  "w": 1477,
+  "snap": null,
+  "fps": 60
+ },
+ {
+  "name": "hall-jab",
+  "w": 1477,
+  "snap": {
+   "phase": "round",
+   "round": 1,
+   "down": [
+    "idle",
+    "idle"
+   ]
+  },
+  "fps": 60
+ },
+ {
+  "name": "hall-lead-hook",
+  "w": 1477,
+  "snap": {
+   "phase": "round",
+   "round": 1,
+   "down": [
+    "idle",
+    "cross"
+   ]
+  },
+  "fps": 60
+ },
+ {
+  "name": "hall-guard",
+  "w": 1477,
+  "snap": {
+   "phase": "round",
+   "round": 1,
+   "down": [
+    "idle",
+    "idle"
+   ]
+  },
+  "fps": 60
+ },
+ {
+  "name": "hall-rest-stool-carried",
+  "w": 1477,
+  "snap": {
+   "phase": "rest",
+   "round": 1,
+   "down": [
+    "idle",
+    "idle"
+   ]
+  },
+  "fps": 59
+ },
+ {
+  "name": "hall-rest-on-stool",
+  "w": 1477,
+  "snap": {
+   "phase": "rest",
+   "round": 1,
+   "down": [
+    "idle",
+    "idle"
+   ]
+  },
+  "fps": 60
+ },
+ {
+  "name": "hall-count-4",
+  "w": 1477,
+  "snap": {
+   "phase": "round",
+   "round": 2,
+   "down": [
+    "idle",
+    "idle"
+   ]
+  },
+  "fps": 60
+ },
+ {
+  "name": "hall-count-7",
+  "w": 1477,
+  "snap": {
+   "phase": "round",
+   "round": 2,
+   "down": [
+    "idle",
+    "idle"
+   ]
+  },
+  "fps": 60
+ }
+]

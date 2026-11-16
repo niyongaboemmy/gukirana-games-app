@@ -64,7 +64,7 @@
   const joints = (person, limits) => M.jointChecks(jointPoints(person), limits);
 
   /** an id render of the people only: B = person, R = back face, G = skin slot (0) */
-  function cavity(list) {
+  function cavity(list, opts = {}) {
     const { scene, camera, gl } = ctx();
     if (!scene || !camera || !gl || !list.length) return null;
     const T = ctx().three;
@@ -77,7 +77,7 @@
         "varying float vGkMat;\n" +
         s.fragmentShader.replace(
           /}\s*$/,
-          "  bool face = vGkMat > 18.5 && vGkMat < 22.5;\n  gl_FragColor = vec4((gl_FrontFacing || face) ? 0.0 : 1.0, vGkMat < 0.5 ? 1.0 : 0.0, 1.0, 1.0);\n}",
+          "  bool face = vGkMat > 18.5 && vGkMat < 22.5;\n  gl_FragColor = vec4((gl_FrontFacing || face) ? 0.0 : 1.0, vGkMat < 0.5 ? 1.0 : 0.0, 1.0, (vGkMat > 0.5 && vGkMat < 2.5) ? 1.0 : 0.6);\n}",
         );
     };
     mat.customProgramCacheKey = () => "fv8-cavity";
@@ -121,7 +121,17 @@
     for (const o of hidden) o.visible = true;
     for (const [o, m] of swapped) o.material = m;
     mat.dispose();
-    return { ...M.cavityStats(px), w, h };
+    // (skinSamples: front-facing skin pixels, every n-th, in screenshot coordinates — the T1 chroma check)
+    let skin = null;
+    if (opts.skinSamples) {
+      skin = [];
+      const st = opts.skinSamples;
+      for (let y = 0; y < h; y += st) for (let x = 0; x < w; x += st) {
+        const o = (y * w + x) * 4;
+        if (px[o + 2] >= 128 && px[o] < 128 && px[o + 1] >= 128) skin.push([x, h - 1 - y]);
+      }
+    }
+    return { ...M.cavityStats(px), w, h, ...(skin ? { skin } : {}) };
   }
 
   function textures(person) {

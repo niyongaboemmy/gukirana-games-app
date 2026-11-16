@@ -9,14 +9,20 @@ import { measureBody } from "./measure.mjs";
 import { fighterTriangles, readBoxerGlb } from "./glb-read.mjs";
 
 /** measure a read GLB's body mesh in the bind pose (base body type) */
-export function measureGlb(glb) {
-  const body = glb.meshes.get("body");
-  if (!body) throw new Error("measure-glb: no `body` mesh");
+export function measureGlb(glb, { morph = null } = {}) {
+  const body0 = glb.meshes.get("body");
+  if (!body0) throw new Error("measure-glb: no `body` mesh");
+  // a body type at full weight (P3-FGT-19B: the v8 GLB's `heavy` morph is the heavier weight class)
+  const d = morph ? body0.morphs?.[morph] : null;
+  if (morph && !d) throw new Error(`measure-glb: no morph ${morph}`);
+  const body = d ? { ...body0, P: Float32Array.from(body0.P, (v, i) => v + d[i]) } : body0;
+  const bm = morph ? glb.extras.boneMorph?.[morph] : null;
   const index = new Map(glb.joints.map((j, k) => [j.name, k]));
   const bp = (name) => {
     const k = index.get(name);
     if (k === undefined) throw new Error(`measure-glb: no joint ${name}`);
-    return glb.joints[k].pos;
+    const p = glb.joints[k].pos;
+    return bm?.[k] ? [p[0] + bm[k][0], p[1] + bm[k][1], p[2] + bm[k][2]] : p;
   };
   const used = new Set(body.index);
   const wOf = (i, name) => {

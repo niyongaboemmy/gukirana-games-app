@@ -58,10 +58,27 @@ export const SHOTS = [
   ...ACTIONS.map(([id, label, q]) => ({ id: `act-${id}`, group: "action", label, path: duel(DUEL_F, q), wait: 900, vps: id === "guard" || id === "jab" ? ["desktop", "phone"] : ["desktop"], measure: ["garments", "joints", "cavity"] })),
 ];
 
+/**
+ * P3-FGT-19B acceptance checks (SPEC §15) on one fighter (the boxing lab's boxer view): stand (the bind pose), guard,
+ * jab and hook at impact, the high block; the T1 close shot for the chroma check.
+ */
+const CHK = (g, q, kinds, id, label) => ({ id: `chk-${g}-${id}`, group: "checks", label: `${g} ${label}`, path: `/play/boxing-lab?mode=boxer&gender=${g}&tone=${g === "m" ? 1 : 5}&cam=full&az=30&dist=3.0&${q}`, wait: 700, vps: ["desktop"], size: [560, 760], measure: kinds });
+SHOTS.push(
+  ...["m", "f"].flatMap((g) => [
+    CHK(g, "clip=guard&at=0.5&bind=1", ["garments8", "face"], "stand", "stand (bind pose)"),
+    CHK(g, "clip=guard&at=0.5", ["garments8", "pose:guard", "arms"], "guard", "guard"),
+    CHK(g, "clip=jab&at=impact", ["garments8", "pose:jab", "arms"], "jab", "jab at impact"),
+    CHK(g, "clip=leadHook&at=impact", ["garments8", "pose:hook", "arms"], "hook", "lead hook at impact"),
+    CHK(g, "clip=blockHigh&at=0.3", ["arms"], "block", "high block"),
+  ]),
+  { id: "chk-t1-close", group: "checks", label: "T1 deep tone, guard, close camera (ring light)", path: `/play/boxing-lab?body=boxer&headgear=1&red=masculine&blue=masculine&rtone=1&btone=1&light=ring&clip=guard&at=0.5&cam=close&gap=1.1`, wait: 900, vps: ["desktop"], measure: ["chroma", "f0"] },
+  { id: "chk-tones", group: "checks", label: "two tones (F0 per tone)", path: `/play/boxing-lab?${DUEL_F}&clip=guard&at=0.5&cam=side&gap=1.1&rtone=9`, wait: 900, vps: ["desktop"], measure: ["f0", "deltoid"] },
+);
+
 /** foot sliding: the duel playing in real time, the toes sampled every frame */
 export const FEET = [
   { id: "steps", label: "step forward / back loop", path: `/play/boxing-lab?${DUEL_F}&clip=stepForward&cam=side`, seconds: 6 },
   { id: "library", label: "the motion library cycling", path: `/play/boxing-lab?${DUEL_F}&cam=side`, seconds: 10 },
 ];
 
-export const GROUP_COLS = { broadcast: 1, duel: 1, turnaround: 4, closeup: 3, action: 2 };
+export const GROUP_COLS = { broadcast: 1, duel: 1, turnaround: 4, closeup: 3, action: 2, checks: 4 };

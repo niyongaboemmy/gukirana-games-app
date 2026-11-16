@@ -26,6 +26,11 @@ export type BoxerOutfit = "boxer" | "referee" | "staff" | "casual";
 /** P3-FGT-19B: the GLB per gender comes from the generation's asset set (generation.ts: v8 behind
  * NEXT_PUBLIC_FF_BOXER_V8, v7 the fallback; v6 / v5 behind the older flags) */
 export const BOXER_URL: Record<BoxerGender, string> = boxerAssets().glb;
+/** P3-FGT-19B: the v8 GLB carries the fighters only (build.mjs V8): the referee, corner staff, judges and everyday
+ * people stay on the v7 bodies */
+export function boxerUrlFor(gender: BoxerGender, outfit: BoxerOutfit): string {
+  return BOXER_V8 && outfit !== "boxer" ? boxerAssets("v7").glb[gender] : BOXER_URL[gender];
+}
 
 /** body cover bits (build.mjs COVER) */
 const COVER = { vest: 1, trunks: 2, boots: 4, gloves: 8, headgear: 16, shirt: 32, trousers: 64, shoes: 128, hair: 256, sock: 512, vestCore: 1024 } as const;
@@ -76,6 +81,8 @@ export interface BoxerInstance {
   arms: ArmBones[];
   /** the torso slices of this body type (rig keep-out; build.mjs torsoSlices) */
   torso: TorsoSlices | null;
+  /** P3-FGT-19B: the cloth-push cone radii (upper arm, thigh: proximal, distal; m) of a v8 fighter, else null */
+  caps: { arm: number[]; thigh: number[] } | null;
   bone(name: string): THREE.Bone | null;
   dispose(): void;
 }
@@ -85,14 +92,16 @@ interface Extras {
   morphs: string[];
   boneMorph: Record<string, number[][]>;
   torsoMorph?: Record<string, number[][]>;
-  landmarks: { headC: number[]; eyeL: number[]; eyeR: number[]; kit?: number[]; torso?: number[][] };
+  landmarks: { headC: number[]; eyeL: number[]; eyeR: number[]; kit?: number[]; torso?: number[][]; caps?: { arm: number[]; thigh: number[] } };
 }
 
 /** Build one person from the loaded GLB scene (the GLTF stays shared and untouched). */
 export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: BoxerSpec): BoxerInstance {
   const scene = cloneSkinned(gltfScene) as THREE.Object3D;
   const plan = OUTFIT_MESHES[spec.outfit];
-  const wanted = spec.bare ? ["body"] : plan.meshes.filter((n) => !(spec.noHeadgear && n === "kit_headgear") && !(spec.noGloves && n === "kit_gloves"));
+  const v8 = (spec.v6 ?? BODY_V6) && (spec.v7 ?? BOXER_V7) && (spec.v8 ?? BOXER_V8) && spec.outfit === "boxer";
+  // (P3-FGT-19B: the v8 hand wraps are only drawn without gloves — under a glove they are 800 hidden triangles)
+  const wanted = spec.bare ? ["body"] : plan.meshes.filter((n) => !(spec.noHeadgear && n === "kit_headgear") && !(spec.noGloves && n === "kit_gloves") && !(v8 && !spec.noGloves && n === "kit_wraps"));
   let cover = spec.bare ? 0 : plan.cover;
   if (spec.noGloves) cover &= ~COVER.gloves;
   if (spec.noHeadgear && plan.headgear && !spec.bare) {
@@ -163,7 +172,9 @@ export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: Boxer
   for (const g of geos) g.dispose();
   if (!merged) throw new Error("boxer: merge failed");
   // garments never inside the drawn skin (collars on the neck, shoes on the instep: QA-HUM-01)
-  if (!spec.bare) depenetrate(merged);
+  // (P3-FGT-19B: not for the v8 fighters — their build pushes the cloth out of the drawn skin by closest triangle; this
+  // nearest-vertex push measured the tucked singlet against skin culled under the band and pushed it out through it)
+  if (!spec.bare && !v8) depenetrate(merged);
   merged.computeBoundingBox();
   merged.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 1.7);
 
@@ -195,7 +206,7 @@ export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: Boxer
     { L: new THREE.Vector3().fromArray(extras.landmarks.eyeL).add(deltas[index.get(boneOf(skeleton, "Bip01_L_Eye")!) ?? 0]!), R: new THREE.Vector3().fromArray(extras.landmarks.eyeR).add(deltas[index.get(boneOf(skeleton, "Bip01_R_Eye")!) ?? 0]!) },
     spec.face,
     extras.landmarks.kit,
-    { gender: spec.gender, lite: spec.lite, v6: spec.v6 ?? BODY_V6, v7: (spec.v6 ?? BODY_V6) && (spec.v7 ?? BOXER_V7), v8: (spec.v6 ?? BODY_V6) && (spec.v7 ?? BOXER_V7) && (spec.v8 ?? BOXER_V8) },
+    { gender: spec.gender, lite: spec.lite, v6: spec.v6 ?? BODY_V6, v7: (spec.v6 ?? BODY_V6) && (spec.v7 ?? BOXER_V7), v8 },
   );
   if (spec.fadeable) material.alphaHash = true;
   const mesh = new THREE.SkinnedMesh(merged, material);
@@ -230,6 +241,7 @@ export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: Boxer
     uniforms: material.userData.u,
     arms,
     torso: torsoOf(extras, names, w),
+    caps: v8 && extras.landmarks.caps ? extras.landmarks.caps : null,
     bone,
     dispose() {
       merged.dispose();

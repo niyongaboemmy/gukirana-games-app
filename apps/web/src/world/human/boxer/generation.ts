@@ -5,8 +5,8 @@ import { BODY_V6, BOXER_V7 } from "./body-v6";
  * assets live. One switch for the whole loading path, so the v8 fighters can land behind a flag with v7 as the
  * fallback:
  *
- *  - `NEXT_PUBLIC_FF_BOXER_V8=1` turns the v8 fighters on (default OFF until the v8 design passes its acceptance
- *    checklist, docs/design/fighter-v8/SPEC.md). Needs v7 (it builds on the v7 rig, clips and ring lighting).
+ *  - The v8 fighters are ON unless `NEXT_PUBLIC_FF_BOXER_V8=0` (the v7 fallback); it stayed off until the v8 build met its
+ *    acceptance checklist (docs/design/fighter-v8/SPEC.md). Needs v7 (it builds on the v7 rig, clips and ring lighting).
  *  - In development builds the labs and the QA harness (qa/e2e/fighter-v8) can pick a generation per page with
  *    `?boxer=v7|v8`, so one dev server renders the before / after pairs.
  *  - The v8 asset set is only used once it is marked shipped (`V8_ASSETS_READY`); until then a v8 request falls
@@ -15,8 +15,8 @@ import { BODY_V6, BOXER_V7 } from "./body-v6";
 export type BoxerGeneration = "v5" | "v6" | "v7" | "v8";
 export type BoxerGender = "m" | "f";
 
-/** set to true in the commit that ships apps/web/public/assets/characters/v8/* (Phase 1 of P3-FGT-19B) */
-export const V8_ASSETS_READY = false;
+/** the v8 asset set is shipped (apps/web/public/assets/characters/v8/*: built by scripts/boxer/build.mjs V8=1 and ktx2.mjs) */
+export const V8_ASSETS_READY = true;
 
 export interface GenerationInput {
   /** NEXT_PUBLIC_FF_BODY_V6 / _BOXER_V7 resolved */
@@ -45,7 +45,7 @@ export function v8Requested(i: Pick<GenerationInput, "v8Env" | "search" | "dev">
     const o = new URLSearchParams(i.search).get("boxer");
     if (o === "v7" || o === "v8") return o === "v8";
   }
-  return i.v8Env === "1";
+  return i.v8Env !== "0";
 }
 
 const SEARCH = typeof window === "undefined" ? null : window.location.search;
@@ -67,6 +67,9 @@ export interface BoxerAssetSet {
   anatomy: (g: BoxerGender) => string;
   /** textures are KTX2 / Basis (world/human/boxer/v8/ktx2.ts) */
   ktx2: boolean;
+  /** P3-FGT-19B: the v8 skin set (SPEC §5–6): an albedo per Monk-scale tone (1 deep … 4 light brown), a tangent normal
+   * map (pores, anatomy, veins), roughness zones and the sweat mask — all in MakeHuman's uv */
+  v8maps?: { albedo: (g: BoxerGender, tone: 1 | 2 | 3 | 4) => string; normal: (g: BoxerGender) => string; rough: (g: BoxerGender) => string; sweat: (g: BoxerGender) => string };
 }
 
 const C = "/assets/characters";
@@ -81,9 +84,15 @@ const SETS: Record<BoxerGeneration, BoxerAssetSet> = {
   v8: {
     generation: "v8",
     glb: { m: `${C}/v8/boxer-m.glb`, f: `${C}/v8/boxer-f.glb` },
-    skin: (g, lite) => `${C}/v8/skin-${g}${lite ? "-1k" : ""}.ktx2`,
-    anatomy: (g) => `${C}/v8/body-detail-${g}.ktx2`,
+    skin: (g) => `${C}/v8/skin-${g}-t3.ktx2`,
+    anatomy: (g) => `${C}/v8/skin-${g}-normal.ktx2`,
     ktx2: true,
+    v8maps: {
+      albedo: (g, t) => `${C}/v8/skin-${g}-t${t}.ktx2`,
+      normal: (g) => `${C}/v8/skin-${g}-normal.ktx2`,
+      rough: (g) => `${C}/v8/skin-${g}-rough.ktx2`,
+      sweat: (g) => `${C}/v8/skin-${g}-sweat.ktx2`,
+    },
   },
 };
 

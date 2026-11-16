@@ -77,7 +77,13 @@ export function readBoxerGlb(path) {
       const k = K.startsWith("_") ? K.toLowerCase() : K;
       attrs[k] = accessor(i, { float: !/^(JOINTS_0|_mat|_cover|_zone)$/.test(k) });
     }
-    meshes.set(m.name, { P: attrs.POSITION, index: p.indices !== undefined ? accessor(p.indices, { float: false }) : null, J: attrs.JOINTS_0 ?? null, W: attrs.WEIGHTS_0 ?? null, attrs });
+    // morph targets by name (position deltas, metres)
+    const morphs = {};
+    (p.targets ?? []).forEach((t, k) => {
+      const name = m.extras?.targetNames?.[k] ?? `t${k}`;
+      if (t.POSITION !== undefined) morphs[name] = accessor(t.POSITION);
+    });
+    meshes.set(m.name, { P: attrs.POSITION, index: p.indices !== undefined ? accessor(p.indices, { float: false }) : null, J: attrs.JOINTS_0 ?? null, W: attrs.WEIGHTS_0 ?? null, attrs, morphs });
   }
   return { meshes, joints, extras: json.scenes?.[json.scene ?? 0]?.extras ?? {}, json };
 }

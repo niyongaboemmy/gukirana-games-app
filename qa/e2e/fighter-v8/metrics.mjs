@@ -131,16 +131,22 @@ export function footSlide(frames, { plantH = 0.025, plantV = 0.12 } = {}) {
 export function cavityStats(rgba) {
   let person = 0,
     skinBack = 0,
-    garmentBack = 0;
+    garmentBack = 0,
+    vest = 0,
+    vestBack = 0;
   for (let i = 0; i < rgba.length; i += 4) {
     if (rgba[i + 2] < 128) continue;
     person++;
+    // (alpha > 200: the singlet — jersey or its binding)
+    const isVest = rgba[i + 3] > 200;
+    if (isVest) vest++;
     if (rgba[i] < 128) continue;
     if (rgba[i + 1] >= 128) skinBack++;
     else garmentBack++;
+    if (isVest) vestBack++;
   }
   const f = (n) => (person ? +(n / person).toFixed(5) : 0);
-  return { personPx: person, skinBackPx: skinBack, garmentBackPx: garmentBack, skinBackShare: f(skinBack), garmentBackShare: f(garmentBack) };
+  return { personPx: person, skinBackPx: skinBack, garmentBackPx: garmentBack, skinBackShare: f(skinBack), garmentBackShare: f(garmentBack), vestPx: vest, vestBackPx: vestBack, vestBackShare: vest ? +(vestBack / vest).toFixed(5) : 0 };
 }
 
 /** mean and worst of a list (null on an empty list) */

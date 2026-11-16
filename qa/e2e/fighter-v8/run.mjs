@@ -24,6 +24,7 @@ import { FEET, GROUP_COLS, SHOTS, VIEWPORTS } from "./config.mjs";
 import { score, summary } from "./metrics.mjs";
 import { fighterTriangles, readBoxerGlb } from "../../../apps/web/scripts/boxer/glb-read.mjs";
 import { measureGlb } from "../../../apps/web/scripts/boxer/measure-glb.mjs";
+import { chroma as labChroma, lab, staticChecks } from "./static.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "../../..");
@@ -51,6 +52,7 @@ const LIB = [
   readFileSync(join(ROOT, "qa/e2e/human-assess/inpage.js"), "utf8"),
   `(() => {\n${metricsSrc.replace(/^export /gm, "")}\nwindow.__fv8m = { ${exported.join(", ")} };\n})();`,
   readFileSync(join(HERE, "inpage.js"), "utf8"),
+  readFileSync(join(HERE, "inpage-checks.js"), "utf8"),
 ].join("\n;\n");
 
 const withPhase = (path, phase) => `${path}${path.includes("?") ? "&" : "?"}boxer=${phase}`;
@@ -94,6 +96,15 @@ async function measure(page, kinds, limits) {
       }
       if (kinds.includes("cavity")) r.cavity = F.cavity(people);
       if (kinds.includes("joints")) r.joints = people.map((p) => F.joints(p, limits));
+      const C = window.__fv8c;
+      const p0 = people[0];
+      if (p0 && kinds.includes("garments8")) r.garments8 = C.garments(p0);
+      for (const k of kinds) if (p0 && k.startsWith("pose:")) r.pose = C.pose(p0, k.slice(5));
+      if (p0 && kinds.includes("arms")) r.arms = C.armCover(p0);
+      if (p0 && kinds.includes("face")) r.face = C.faceOpen(p0);
+      if (kinds.includes("f0")) r.f0 = C.f0(people);
+      if (kinds.includes("chroma")) r.chroma = { skin: F.cavity(people.slice(0, 1), { skinSamples: 3 }).skin };
+      if (p0 && kinds.includes("deltoid")) r.deltoid = C.deltoid(p0);
       if (kinds.includes("garments"))
         r.garments = people.map((p) => {
           const m = window.__humanAssess.measure(p);
@@ -114,6 +125,34 @@ async function feet(page, seconds) {
     for (const p of ps.slice(0, 2)) out.push(await window.__fv8.feet(p, s));
     return out;
   }, seconds);
+}
+
+/** read a PNG's pixels (RGB) through ImageMagick */
+function readRGB(file) {
+  const [w, h] = execFileSync("magick", ["identify", "-format", "%w %h", file]).toString().trim().split(" ").map(Number);
+  const raw = execFileSync("magick", [file, "-depth", "8", "rgb:-"], { maxBuffer: 256 << 20 });
+  return { w, h, at: (x, y) => [raw[(y * w + x) * 3], raw[(y * w + x) * 3 + 1], raw[(y * w + x) * 3 + 2]] };
+}
+/** 19: mean chroma of the lit skin (pixels above the median lightness) against the T1 albedo target's; 6: the
+ * luminance step along the deltoid line */
+export function pixelChecks(file, m) {
+  const img = readRGB(file);
+  const out = {};
+  if (m.chroma?.skin?.length) {
+    const px = m.chroma.skin.filter(([x, y]) => x >= 0 && y >= 0 && x < img.w && y < img.h).map(([x, y]) => lab(img.at(x, y)));
+    const Ls = px.map((c) => c[0]).sort((a, b) => a - b);
+    const med = Ls[Math.floor(Ls.length / 2)] ?? 0;
+    const lit = px.filter((c) => c[0] >= med);
+    const meanC = lit.reduce((s2, c) => s2 + Math.hypot(c[1], c[2]), 0) / Math.max(1, lit.length);
+    out.chroma = { samples: px.length, litChroma: +meanC.toFixed(2), targetChroma: +labChroma("#46302a").toFixed(2), ratio: +(meanC / labChroma("#46302a")).toFixed(3) };
+  }
+  if (m.deltoid?.length) {
+    const Ls = m.deltoid.filter(([x, y]) => x >= 0 && y >= 0 && x < img.w && y < img.h).map(([x, y]) => lab(img.at(x, y))[0]);
+    const hi = Math.max(...Ls),
+      lo = Math.min(...Ls);
+    out.deltoid = { L: Ls.map((v) => +v.toFixed(1)), step: hi > 0 ? +((hi - lo) / hi).toFixed(3) : 0 };
+  }
+  return out;
 }
 
 function glbFor(gen, g) {
@@ -138,6 +177,7 @@ async function runPhase(browser, phase) {
         const file = join(dir, `${s.id}-${vp}.png`);
         await page.screenshot({ path: file });
         const m = await measure(page, s.measure ?? [], ACCEPT.jointLimits);
+        if (m.chroma?.skin || m.deltoid) Object.assign(m, pixelChecks(file, m));
         res.generation ??= m.generation;
         res.v8Requested ??= m.v8Requested;
         (res.shots[s.id] ??= {})[vp] = m;
@@ -214,6 +254,52 @@ export function aggregate(phase, r) {
   m.cavity.garmentBack.worst = cg.length ? Math.max(...cg) : null;
   m.cavity.garmentBack.broadcast = r.shots.broadcast?.desktop?.cavity?.garmentBackShare ?? null;
   m.cavity.skinBack.broadcast = r.shots.broadcast?.desktop?.cavity?.skinBackShare ?? null;
+  // P3-FGT-19B acceptance checks (SPEC §15) measured in the page
+  const shot = (id) => r.shots[id]?.desktop;
+  const G2 = ["m", "f"];
+  const worstOf = (f) => {
+    const v = G2.map(f).filter((x) => Number.isFinite(x));
+    return v.length ? Math.max(...v) : null;
+  };
+  const minOf = (f) => {
+    const v = G2.map(f).filter((x) => Number.isFinite(x));
+    return v.length ? Math.min(...v) : null;
+  };
+  const allOf = (f) => {
+    const v = G2.map(f).filter((x) => x !== undefined && x !== null);
+    return v.length ? v.every(Boolean) : null;
+  };
+  const rt = (m.runtime = { garments: {}, guard: {}, jab: {}, hook: {}, arms: {}, face: {}, skin: {}, cavity: {} });
+  for (const ps of ["stand", "guard", "jab", "hook"]) rt.garments[ps] = worstOf((g) => shot(`chk-${g}-${ps}`)?.garments8?.share);
+  rt.garments.insideWorst = Math.max(...["stand", "guard", "jab", "hook"].map((p2) => rt.garments[p2] ?? 0));
+  rt.garments.outsideBand = worstOf((g) => Math.max(...["stand", "guard", "jab", "hook"].map((p2) => shot(`chk-${g}-${p2}`)?.garments8?.outsideBand ?? 0)));
+  const gp = (g) => shot(`chk-${g}-guard`)?.pose;
+  rt.guard.forearmMin = minOf((g) => gp(g)?.forearmMin);
+  rt.guard.forearmMax = worstOf((g) => gp(g)?.forearmMax);
+  rt.guard.elbowBelowMin = minOf((g) => gp(g)?.elbowBelowMin);
+  rt.guard.elbowsInside = allOf((g) => gp(g)?.elbowsInside);
+  rt.guard.eyesVisible = allOf((g) => gp(g)?.eyesVisible);
+  rt.guard.rearGloveCheekGap = worstOf((g) => gp(g)?.rearGloveCheekGap);
+  rt.guard.leadGloveDyAbs = worstOf((g) => Math.abs(gp(g)?.leadGloveDy ?? NaN));
+  rt.guard.leadGloveFwdMin = minOf((g) => gp(g)?.leadGloveFwd);
+  rt.guard.leadGloveFwdMax = worstOf((g) => gp(g)?.leadGloveFwd);
+  rt.wristDevMax = worstOf((g) => Math.max(...["guard", "jab", "hook"].map((p2) => shot(`chk-${g}-${p2}`)?.pose?.wristDevMax ?? 0)));
+  rt.jab.palmDown = minOf((g) => shot(`chk-${g}-jab`)?.pose?.palmDown);
+  rt.jab.extensionMin = minOf((g) => shot(`chk-${g}-jab`)?.pose?.extension);
+  rt.jab.extensionMax = worstOf((g) => shot(`chk-${g}-jab`)?.pose?.extension);
+  rt.hook.elbowAngleMin = minOf((g) => shot(`chk-${g}-hook`)?.pose?.elbowAngle);
+  rt.hook.elbowAngleMax = worstOf((g) => shot(`chk-${g}-hook`)?.pose?.elbowAngle);
+  rt.hook.elbowVsShoulder = worstOf((g) => shot(`chk-${g}-hook`)?.pose?.elbowVsShoulder);
+  rt.hook.palmDownOrIn = minOf((g) => shot(`chk-${g}-hook`)?.pose?.palmDownOrIn);
+  rt.arms.coverWorst = worstOf((g) => Math.max(...["guard", "jab", "hook", "block"].map((p2) => shot(`chk-${g}-${p2}`)?.arms?.worst ?? 0)));
+  rt.face.openAll = allOf((g) => shot(`chk-${g}-stand`)?.face?.all);
+  rt.skin.t1ChromaRatio = shot("chk-t1-close")?.chroma?.ratio ?? null;
+  rt.skin.f0Same = (shot("chk-tones")?.f0?.same ?? false) && (shot("chk-t1-close")?.f0?.same ?? false) && shot("chk-tones")?.f0?.value === shot("chk-t1-close")?.f0?.value;
+  rt.skin.f0 = shot("chk-tones")?.f0?.value ?? null;
+  rt.deltoidStep = shot("chk-tones")?.deltoid?.step ?? null;
+  rt.cavity.vestInnerBroadcastPx = r.shots.broadcast?.desktop?.cavity?.vestBackPx ?? null;
+  rt.cavity.vestInnerGuardSidePx = shot("act-guard")?.cavity?.vestBackPx ?? null;
+  m.perf.phoneTextureMB = r.shots.broadcast?.phone?.textureMB ?? null;
   const fs = Object.values(r.feet).flat();
   if (fs.length) {
     m.feet.maxSlideCm = Math.max(...fs.map((f) => f.maxSlideCm));
@@ -297,6 +383,17 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     await browser.close();
   }
   const byPhase = Object.fromEntries(Object.entries(raw).map(([p, r]) => [p, aggregate(p, r)]));
+  // the static checks run on the v8 GLBs (they exist only for v8): attached to the v8 phase
+  if (byPhase.v8) byPhase.v8.static = staticChecks();
+  // checklist 21 is a unit test (fight/sweat.test.ts): its exit status
+  let sweat = false;
+  try {
+    execFileSync("npx", ["vitest", "run", "src/fight/sweat.test.ts"], { cwd: join(ROOT, "apps/web"), stdio: "ignore" });
+    sweat = true;
+  } catch {
+    sweat = false;
+  }
+  for (const m of Object.values(byPhase)) m.unit = { sweat };
   const scores = Object.fromEntries(Object.entries(byPhase).map(([p, m]) => [p, score(m, ACCEPT)]));
   const sheetFiles = sheets(COMPARE ? [`${COMPARE}`, PHASES[PHASES.length - 1]] : PHASES, (p) => (COMPARE && p === COMPARE ? join(resolve(RAW, "..", COMPARE), PHASES[PHASES.length - 1]) : join(RAW, p)), OUT);
   writeFileSync(join(OUT, "report.json"), JSON.stringify({ label: LABEL, web: WEB, git: git(), at: new Date().toISOString(), phases: byPhase, raw, scores }, null, 1));

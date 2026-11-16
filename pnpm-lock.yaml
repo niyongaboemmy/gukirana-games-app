@@ -282,6 +282,9 @@ importers:
       '@types/three':
         specifier: ^0.187.0
         version: 0.187.0
+      meshoptimizer:
+        specifier: 0.25.0
+        version: 0.25.0
       tailwindcss:
         specifier: ^4.1.14
         version: 4.3.5
@@ -3173,6 +3176,9 @@ packages:
     resolution: {integrity: sha512-/TQj+JdZkeSUOl5Mk2J7eLcYTLiQm2IDzmlSvYm7ov15anEcDJ92GHqqazxTSreeNgfnYu24kiEvvv0WlbCdFQ==}
     peerDependencies:
       three: '>=0.137'
+
+  meshoptimizer@0.25.0:
+    resolution: {integrity: sha512-ewwuAo3ujPZ7T3Y2oTkEoLlXvNOqnr0cjyAxfv5djXJqwD9QlxDDO0qGtsqB4Z9QUVvhruKXg9q/xfK9I5S1xQ==}
 
   meshoptimizer@1.1.1:
     resolution: {integrity: sha512-oRFNWJRDA/WTrVj7NWvqa5HqE1t9MYDj2VaWirQCzCCrAd2GHrqR/sQezCxiWATPNlKTcRaPRHPJwIRoPBAp5g==}
@@ -6547,6 +6553,8 @@ snapshots:
   meshline@3.3.1(three@0.187.0):
     dependencies:
       three: 0.187.0
+
+  meshoptimizer@0.25.0: {}
 
   meshoptimizer@1.1.1: {}
 
