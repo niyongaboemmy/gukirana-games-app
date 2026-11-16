@@ -425,7 +425,7 @@ function buildVariant(key, base, morphParams) {
       neigh[f[k]].add(f[(k + f.length - 1) % f.length]);
     }
   /** Laplacian-smoothed positions over a face set (cloth bridging, the shoe last) */
-  const smoothed = (faces, iters, region = () => true) => {
+  const smoothed = (faces, iters, region = () => true, taubin = true) => {
     const nb = new Map();
     for (const f of faces)
       for (let k = 0; k < f.length; k++) {
@@ -436,7 +436,7 @@ function buildVariant(key, base, morphParams) {
       }
     let cur = Float64Array.from(P);
     for (let it = 0; it < iters * 2; it++) {
-      const lam = it % 2 === 0 ? 0.5 : -0.53;
+      const lam = it % 2 === 0 || !taubin ? 0.5 : -0.53;
       const nx = Float64Array.from(cur);
       for (const [a, ns] of nb) {
         if (!region(a)) continue;
@@ -456,6 +456,31 @@ function buildVariant(key, base, morphParams) {
     return cur;
   };
   const SMOOTH_BODY = smoothed(bodyFaces, 40);
+  // P3-FGT-15: what cloth rests on — a plain (shrinking) Laplacian smoothing: nipples, the navel and muscle edges gone
+  // (Taubin smoothing above keeps features of that size)
+  const CLOTH_BODY = smoothed(bodyFaces, 10, () => true, false);
+  {
+    // the nipples are broad cones on the MakeHuman base (≈ 2 cm proud of the chest, several cm wide: smoothing keeps
+    // them); what cloth rests on has them pressed flat, so no garment ever shows them (the body under the cloth is not
+    // drawn). Per side: the most forward chest vertex, its base from the ring 4.5–6 cm round it, a smooth cone removed.
+    for (const s of [1, -1]) {
+      const cand = [...bodyV].filter((i) => P[i * 3] * s > 0.05 && P[i * 3] * s < 0.15 && P[i * 3 + 1] > spine2[1] - 0.08 && P[i * 3 + 1] < spine2[1] + 0.14);
+      if (!cand.length) continue;
+      const tip = cand.reduce((a, b) => (P[b * 3 + 2] > P[a * 3 + 2] ? b : a));
+      const T = [P[tip * 3], P[tip * 3 + 1], P[tip * 3 + 2]];
+      const dist = (i) => Math.hypot(P[i * 3] - T[0], P[i * 3 + 1] - T[1]);
+      const ring = cand.filter((i) => dist(i) > 0.045 && dist(i) < 0.06 && P[i * 3 + 2] > T[2] - 0.08).map((i) => CLOTH_BODY[i * 3 + 2]).sort((a, b) => a - b);
+      const base = ring.length ? ring[Math.floor(ring.length * 0.75)] : T[2] - 0.015;
+      for (const i of bodyV) {
+        const d = dist(i);
+        if (d >= 0.045 || P[i * 3 + 2] < T[2] - 0.08) continue;
+        const k = (1 - d / 0.045) ** 2;
+        const z = CLOTH_BODY[i * 3 + 2];
+        const flatZ = base + (z - base) * 0.25;
+        if (z > flatZ) CLOTH_BODY[i * 3 + 2] = lerp(z, flatZ, Math.min(1, k * 1.6));
+      }
+    }
+  }
   const SMOOTH_TIGHTS = smoothed(GROUPS.get("helper-tights"), 16);
   let SM_SRC = SMOOTH_BODY;
   const SM = (i) => [SM_SRC[i * 3], SM_SRC[i * 3 + 1], SM_SRC[i * 3 + 2]];
@@ -623,7 +648,7 @@ function buildVariant(key, base, morphParams) {
     return p[1] < waistY + 0.01 && p[1] > ankleL[1] + 0.03 && !isArm(i) && footW(i) < 0.3;
   };
   const coverBits = (i) =>
-    (vestField(i) > 0.012 ? COVER.vest : 0) |
+    (vestField(i) > 0.004 ? COVER.vest : 0) |
     (trunksCoverBody(i) ? COVER.trunks : 0) |
     (bootTop(i) > 0.012 ? COVER.boots : 0) |
     (glovesCover(i) ? COVER.gloves : 0) |
@@ -872,9 +897,29 @@ function buildVariant(key, base, morphParams) {
   // drape, a 6 mm binding at the neckline and arm holes (the hem strips give the cloth its edge thickness).
   const DRAPE_SURF = drapeShirt();
   const NDr = normalsOf(DRAPE_SURF, bodyFaces);
+  // (the base mesh is very dense round the nipples and the navel: after the drape those little faces can fold over,
+  // and their face normals would print a dot on the cloth; cloth normals are smoothed over the neighbourhood)
+  for (let it = 0; it < 8; it++) {
+    const prev = Float64Array.from(NDr);
+    for (const i of bodyV) {
+      let x = prev[i * 3],
+        y = prev[i * 3 + 1],
+        z = prev[i * 3 + 2];
+      for (const q of neigh[i]) {
+        x += prev[q * 3];
+        y += prev[q * 3 + 1];
+        z += prev[q * 3 + 2];
+      }
+      const l = Math.hypot(x, y, z) || 1;
+      NDr[i * 3] = x / l;
+      NDr[i * 3 + 1] = y / l;
+      NDr[i * 3 + 2] = z / l;
+    }
+  }
   const vest = shell("kit_vest", bodyFaces, NDr, {
     field: vestField,
-    offset: () => 0.005,
+    // (a little more over the arm holes and straps, where the shoulder works under the cloth)
+    offset: (i) => 0.005 + 0.004 * smooth(0.2, 0.5, armW(i) + wSum(i, ["Bip01_L_Clavicle", "Bip01_R_Clavicle"])),
     surface: DRAPE_SURF,
     flatAo: true,
     mat: MAT.vest,
@@ -1094,11 +1139,14 @@ function buildVariant(key, base, morphParams) {
     }
     const R = Array.from({ length: rows }, () => new Float64Array(NA));
     for (const i of trunkV) {
+      // (P3-FGT-15: the envelope of the SMOOTHED body + 6 mm: a nipple's tip no longer makes a bump in the cloth)
       const p = V(i);
       const k = ri(p[1]);
+      const sx = CLOTH_BODY[i * 3],
+        sz = CLOTH_BODY[i * 3 + 2] - zc[k];
       const dz = p[2] - zc[k];
       const a = ai(Math.atan2(p[0], dz));
-      R[k][a] = Math.max(R[k][a], Math.hypot(p[0], dz));
+      R[k][a] = Math.max(R[k][a], Math.hypot(sx, sz) + 0.006);
     }
     // fill empty bins, angular max filter (±4 bins = ±20°) then a blur: a convex-ish envelope
     for (let k = 0; k < rows; k++) {
@@ -1131,7 +1179,9 @@ function buildVariant(key, base, morphParams) {
       const fold = (0.006 * Math.sin(ang * 9 + Math.sin(ang * 3) * 1.3) + 0.003 * Math.sin(ang * 17 + p[1] * 30)) * smooth(spine2[1] + 0.08, tuckY + 0.02, p[1]) * (1 - smooth(0.12, 0.4, armW(i)));
       let r = lerp(H[k][a] + ease, own + 0.006, t) + blouse * (1 - t);
       folds.set(i, fold);
-      r = Math.max(r, own + 0.004);
+      // (never inside the body, but bumps over the smoothed body are bridged: see the floor below)
+      const sOwn0 = Math.hypot(CLOTH_BODY[i * 3], CLOTH_BODY[i * 3 + 2] - zc[k]);
+      r = Math.max(r, lerp(sOwn0 + 0.012, own + 0.004, t));
       // the arm side of the trunk (armpit, shoulder) and the collar line: back to the body shell
       const w = (1 - smooth(0.12, 0.4, armW(i))) * (1 - smooth(neckBaseY - 0.09, neckBaseY - 0.025, p[1]));
       const rr = lerp(own + 0.008, r, w);
@@ -1142,8 +1192,10 @@ function buildVariant(key, base, morphParams) {
       region.push(i);
       // (the floor: over the body by a few mm, and 1.4 cm over its smoothed shape away from the tuck: the cloth bridges
       // small bumps like the nipples instead of printing them)
-      const sOwn = Math.hypot(SMOOTH_BODY[i * 3], SMOOTH_BODY[i * 3 + 2] - zc[k]);
-      floor.set(i, Math.max(own + 0.004, lerp(sOwn + 0.014, own + 0.004, t)));
+      const sOwn = Math.hypot(CLOTH_BODY[i * 3], CLOTH_BODY[i * 3 + 2] - zc[k]);
+      // (P3-FGT-15: a bump more than 6 mm over that envelope, a nipple, is bridged too: the body under the cloth is not
+      // drawn, so nothing pokes through)
+      floor.set(i, lerp(sOwn + 0.014, own + 0.004, t));
     }
     // cloth is smooth: relax the draped region (the bins are coarse), never inside the body
     for (let it = 0; it < 8; it++) {
@@ -1168,6 +1220,89 @@ function buildVariant(key, base, morphParams) {
         if (r < lo) {
           out[i * 3] = (dx / (r || 1)) * lo;
           out[i * 3 + 2] = zc[k] + (dz / (r || 1)) * lo;
+        }
+      }
+    }
+    // P3-FGT-15: stretched cloth over the chest is smooth: the radius of the front of the trunk is replaced by a blurred
+    // (row × angle) field of itself, never lower than it was by more than 4 mm (the body under it is not drawn) — no
+    // small bump of the body (a nipple, a muscle edge) shows in the cloth
+    {
+      const NB2 = 72;
+      const sum = Array.from({ length: rows }, () => new Float64Array(NB2));
+      const cnt = Array.from({ length: rows }, () => new Float64Array(NB2));
+      const polar = new Map();
+      for (const i of region) {
+        const k = ri(V(i)[1]);
+        const dx = out[i * 3],
+          dz = out[i * 3 + 2] - zc[k];
+        const ang = Math.atan2(dx, dz);
+        const b = ((Math.round((ang / (2 * Math.PI)) * NB2) % NB2) + NB2) % NB2;
+        const r = Math.hypot(dx, dz);
+        polar.set(i, [k, b, r, ang]);
+        // (the trunk only: the hanging arms and the head are not cloth on the chest)
+        if (armW(i) > 0.1 || headW(i) > 0.2) continue;
+        sum[k][b] += r;
+        cnt[k][b] += 1;
+      }
+      const avg = sum.map((row, k) => row.map((s, b) => (cnt[k][b] ? s / cnt[k][b] : 0)));
+      for (let pass = 0; pass < 2; pass++)
+        for (let k = 0; k < rows; k++)
+          for (let b = 0; b < NB2; b++) if (!avg[k][b]) avg[k][b] = avg[k][(b + 1) % NB2] || avg[k][(b + NB2 - 1) % NB2] || (k ? avg[k - 1][b] : 0);
+      const blur = (src) => {
+        const o = src.map((row) => Float64Array.from(row));
+        for (let k = 0; k < rows; k++)
+          for (let b = 0; b < NB2; b++) {
+            let s = 0,
+              w = 0;
+            for (let dk = -2; dk <= 2; dk++)
+              for (let db = -3; db <= 3; db++) {
+                const kk = clamp(k + dk, 0, rows - 1);
+                const v = src[kk][(b + db + NB2) % NB2];
+                if (!v) continue;
+                const ww = Math.exp(-(dk * dk) / 2.5 - (db * db) / 5);
+                s += v * ww;
+                w += ww;
+              }
+            if (w) o[k][b] = s / w;
+          }
+        return o;
+      };
+      const sm = blur(blur(avg));
+      const front = [];
+      for (const i of region) {
+        const [k, b, r, ang] = polar.get(i);
+        const p = V(i);
+        // front and sides of the chest / belly only (not the shoulders, armpits or collar: they follow the body)
+        const wFront = smooth(-0.2, 0.25, Math.cos(ang)) * (1 - smooth(0.1, 0.35, armW(i))) * (1 - smooth(neckBaseY - 0.1, neckBaseY - 0.04, p[1]));
+        if (wFront <= 0) continue;
+        // (never more than 1.5 cm out from where it was: only bumps are evened out)
+        const target = clamp(sm[k][b], r - 0.004, r + 0.015);
+        const nr = lerp(r, target, wFront);
+        const f = nr / (r || 1);
+        out[i * 3] *= f;
+        out[i * 3 + 2] = zc[k] + (out[i * 3 + 2] - zc[k]) * f;
+        front.push([i, wFront]);
+      }
+      // then the cloth over the chest relaxes in all directions (the base mesh is dense round the nipples: a radial
+      // move alone leaves those little triangles crumpled)
+      for (let it = 0; it < 24; it++) {
+        const prev = Float64Array.from(out);
+        for (const [i, wf] of front) {
+          let x = 0,
+            y = 0,
+            z = 0,
+            n = 0;
+          for (const q of neigh[i]) {
+            x += prev[q * 3];
+            y += prev[q * 3 + 1];
+            z += prev[q * 3 + 2];
+            n++;
+          }
+          if (!n) continue;
+          const kk = 0.5 * wf;
+          out[i * 3] = lerp(prev[i * 3], x / n, kk);
+          out[i * 3 + 1] = lerp(prev[i * 3 + 1], y / n, kk);
+          out[i * 3 + 2] = lerp(prev[i * 3 + 2], z / n, kk);
         }
       }
     }
