@@ -6,6 +6,7 @@ import type { RingId } from "@gukirana/contracts";
 import { HallRingKit } from "../assets-shim";
 import { FightersLayer } from "../fighters";
 import { FightCamera } from "../camera";
+import { useFightUi } from "../ui-store";
 import { RING_BY_ID } from "../plan";
 import { useFightBridge } from "../bridge";
 import { RingMood } from "../ring-lights";
@@ -51,7 +52,10 @@ function Probe({ at }: { at: { x: number; z: number } }) {
   }, [camera, at]);
   const st = useMemo(() => ({ calls: 0, tris: 0, fps: 0, frames: 0, t0: performance.now() }), []);
   useEffect(() => {
-    (window as unknown as { __gkRingLab?: unknown }).__gkRingLab = Object.assign(st, { scene });
+    (window as unknown as { __gkRingLab?: unknown }).__gkRingLab = Object.assign(st, { scene, ui: useFightUi });
+    // ?fcam=first|fight|behind|auto: the fight camera choice (P3-FGT-15 evidence)
+    const fcam = new URLSearchParams(window.location.search).get("fcam");
+    if (fcam === "first" || fcam === "fight" || fcam === "behind" || fcam === "auto") useFightUi.getState().set({ fightCam: fcam });
   }, [st, scene]);
   useEffect(() => {
     gl.info.autoReset = false;

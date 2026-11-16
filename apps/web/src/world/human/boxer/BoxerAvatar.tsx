@@ -3,7 +3,7 @@ import { useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import type { AvatarLook } from "@/world/outfits";
+import { OUTFITS, type AvatarLook } from "@/world/outfits";
 import { BoxingRig } from "../boxing/rig";
 import type { BoxingMotion } from "../boxing/motion";
 import { P } from "../boxing/pose";
@@ -61,11 +61,23 @@ export interface BoxerAvatarProps {
   fingers?: { current: CountSign | null };
 }
 
+/** an everyday person's colours from their look (world/outfits.ts catalogue): the top's colour (accent-coloured tops take
+ * the player's top / accent colour), the bottom's colour (prints and wraps read as a dark neutral here) */
+function casualTop(look: AvatarLook): string {
+  const it = OUTFITS.find((o) => o.id === look.outfit.top);
+  const c = it?.color ?? "accent";
+  return c === "accent" ? (look.topColor ?? look.accent) : it?.print ? "#e9e4da" : c;
+}
+function casualBottom(look: AvatarLook): string {
+  const it = OUTFITS.find((o) => o.id === look.outfit.bottom);
+  return it && !it.print && it.color !== "accent" ? it.color : "#23252e";
+}
 const BEARD: Record<string, number> = { none: 0, stubble: 0.45, shadow: 0.35, moustache: 0.55, goatee: 0.6, chinstrap: 0.6, short: 0.78, full: 0.95 };
 const BROW: Record<string, number> = { thin: 0.55, natural: 0.85, arched: 0.85, straight: 0.9, full: 1, bold: 1 };
 const _v = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const FWD = new THREE.Vector3(0, 0, 1);
+const COARSE = typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches;
 
 export function BoxerAvatar(props: BoxerAvatarProps) {
   const gender: BoxerGender = props.look.bodyType === "feminine" ? "f" : "m";
@@ -77,7 +89,7 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
     const facial = gender === "m" ? (BEARD[look.face?.facialHair ?? "none"] ?? 0) : 0;
     return makeBoxer(gltf.scene, extras, {
       outfit,
-      colors: { skin: look.skinTone, hair: look.hairColor, iris: look.face?.eyeColor ?? "#3d2314", kit, polo },
+      colors: { skin: look.skinTone, hair: look.hairColor, iris: look.face?.eyeColor ?? "#3d2314", kit, polo: polo ?? (outfit === "casual" ? casualTop(look) : undefined), trousers: outfit === "casual" ? casualBottom(look) : undefined },
       build: buildOf(outfit === "boxer" ? klass : 0.1, seed, look.age),
       noHeadgear,
       noGloves,
@@ -86,6 +98,8 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
       facePick: facePickOf(look.face),
       shadows: !lite,
       bare,
+      gender,
+      lite: lite || COARSE,
     });
   }, [gltf, gender, look, outfit, kit, polo, seed, klass, lite, noHeadgear, noGloves, fadeable, bare]);
   useEffect(() => () => inst.dispose(), [inst]);
@@ -157,6 +171,9 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
     const u = inst.uniforms;
     if (props.sweat) u.uSweat.value = props.sweat.current;
     if (props.red) u.uRed.value.set(props.red.current[0], props.red.current[1]);
+    // P3-FGT-15: the face flushes with the work done and with effort (blood to the skin; separate from hit redness)
+    const sw = props.sweat?.current ?? 0;
+    u.uFlush.value += (Math.min(1, Math.max(0, (sw - 0.3) / 0.6) * 0.7 + pose[P.effort]! * 0.3) - u.uFlush.value) * Math.min(1, dt * 2);
     u.uDetail.value = near ? 1 : 0;
   });
   return <primitive object={inst.root} />;

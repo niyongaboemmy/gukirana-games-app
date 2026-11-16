@@ -16,6 +16,7 @@ import { blockReaction, clampInRing, hitFeel, layoutOf, moodOf, presentFighter, 
 import { PUNCH_SPECS } from "@gukirana/boxing";
 import type { BoxerProbe } from "@/world/human/boxer/BoxerAvatar";
 import { cameraKick, hitStop } from "./ring-clock";
+import { fpvProbes } from "./fpv";
 import { focusNow, ringCulled } from "./focus";
 import { replayFrame } from "./game/replay";
 import { CLIMB_S, climbPose } from "./climb";
@@ -270,6 +271,13 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
   const bodies = [useRef<RingBody | null>(newBody()), useRef<RingBody | null>(newBody())] as const;
   const refBody = useRef<RingBody | null>(newBody());
   const probes = [useRef<BoxerProbe | null>(null), useRef<BoxerProbe | null>(null)] as const;
+  const [p0, p1] = probes;
+  useEffect(
+    () => () => {
+      if (fpvProbes.me && (fpvProbes.me === p0.current || fpvProbes.me === p1.current)) fpvProbes.me = fpvProbes.them = null;
+    },
+    [p0, p1],
+  );
   const tracks = useRef([newTrack(), newTrack(), newTrack()]);
   const phaseRef = useRef({ phase: "", since: 0, clinchSince: -1, refSide: 0, signalAt: -10, signalTo: 0 as 0 | 1, waveAt: -10 });
   const loopT0 = useMemo(() => performance.now() - ((hashOf(slot.ring) % 997) * 1000) / 3, [slot.ring]);
@@ -312,6 +320,12 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
     const phaseSince = t - ph.since;
     const trs = tracks.current;
     const myIdx = slot.src === "mine" && b.mine ? (b.mine.corner === "red" ? 0 : 1) : -1;
+    // first person (P3-FGT-15): the camera reads my body and my opponent's from here
+    if (myIdx !== -1) {
+      fpvProbes.me = probes[myIdx]!.current;
+      fpvProbes.them = probes[1 - myIdx]!.current;
+      fpvProbes.at = now;
+    }
     for (const e of events) {
       if (e.k === "hit") {
         const to = (1 - e.by) as 0 | 1;
