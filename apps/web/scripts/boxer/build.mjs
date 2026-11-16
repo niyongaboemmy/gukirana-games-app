@@ -50,7 +50,7 @@ export const MAT = {
   belt: 24,
 };
 /** body cover bits: a body face whose three corners are covered by the worn outfit is not drawn */
-const COVER = { vest: 1, trunks: 2, boots: 4, gloves: 8, headgear: 16, shirt: 32, trousers: 64, shoes: 128, hair: 256 };
+const COVER = { vest: 1, trunks: 2, boots: 4, gloves: 8, headgear: 16, shirt: 32, trousers: 64, shoes: 128, hair: 256, vestCore: 1024 };
 
 /* ------------------------------------------------------------ small vector maths ------------------------------------------------------------ */
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -528,10 +528,11 @@ function buildVariant(key, base, morphParams) {
     // P3-FGT-16: a smaller hole (bottom ~4 cm under the armpit fold, was ~9: the vest opened down the ribs) and a
     // wider strap
     const ey = (p[1] - (shoulderL[1] - 0.035 * sc)) / (0.12 * sc);
-    const ez = (p[2] - (shoulderL[2] - 0.012)) / (0.08 * sc);
+    // (narrower behind the joint: a singlet keeps a real back panel over the shoulder blades, not a racer-back Y)
+    const ez = (p[2] - (shoulderL[2] - 0.012)) / ((p[2] < shoulderL[2] - 0.012 ? 0.058 : 0.08) * sc);
     // (a rounded intersection: the strap's corner at the top of the hole is a curve, not a point)
     const a = (1 - Math.hypot(ey, ez)) * 0.08 * sc,
-      b = Math.abs(p[0]) - (shoulderX - 0.078 * sc);
+      b = Math.abs(p[0]) - (shoulderX - 0.087 * sc);
     const k = 0.025,
       hk = Math.max(k - Math.abs(a - b), 0) / k;
     const inHole = Math.min(a, b) - hk * hk * k * 0.25;
@@ -542,7 +543,10 @@ function buildVariant(key, base, morphParams) {
     const front = backZ(p);
     const lineY = lerp(neckBaseY - 0.012 + 0.016 * smooth(0.03, 0.09, ax), neckBaseY - 0.06 * sc + 0.045 * sc * smooth(0.02, 0.1, ax), front);
     const fNeck = lineY - p[1];
-    return Math.min(fBottom, fArm, fArmW, fNeck, 0.3 - headW(i));
+    // (P3-FGT-16: no skin-weight terms near the edge — a weight field steps from vertex to vertex and cut the strap tops
+    // by the neck into splinters; the geometric neckline already keeps the vest off the neck and head, the arm-weight
+    // term only bounds the arm far below the hole)
+    return Math.min(fBottom, fArm, fArmW, fNeck, isHeadV(i) ? -0.05 : 0.05);
   };
   const shirtField = (i) => {
     const p = V(i);
@@ -651,7 +655,10 @@ function buildVariant(key, base, morphParams) {
     return p[1] < waistY + 0.01 && p[1] > ankleL[1] + 0.03 && !isArm(i) && footW(i) < 0.3;
   };
   const coverBits = (i) =>
-    (vestField(i) > 0.022 ? COVER.vest : 0) |
+    // (P3-FGT-16: at the front neckline the skin slides under the cloth as the chin tucks: the body is kept 3 cm further
+    // in there; at the back it would rise through the cloth instead, so not behind the neck)
+    (vestField(i) > 0.004 + 0.03 * smooth(0.02, 0.15, wOf(i, "Bip01_Neck") + wOf(i, "Bip01_Head")) * smooth(spine2[2] + 0.05, spine2[2] + 0.09, V(i)[2]) ? COVER.vest : 0) |
+    (vestField(i) > 0.0025 && Math.abs(V(i)[0]) < shoulderX * 0.56 && V(i)[1] > shoulderL[1] - 0.16 && V(i)[2] < spine2[2] + 0.06 ? COVER.vestCore : 0) |
     (trunksCoverBody(i) ? COVER.trunks : 0) |
     (bootTop(i) > 0.012 ? COVER.boots : 0) |
     (glovesCover(i) ? COVER.gloves : 0) |
@@ -765,7 +772,7 @@ function buildVariant(key, base, morphParams) {
    * edges, their position / normal / skin / morph interpolated), so arm holes, necklines and hems are smooth curves,
    * not the body's quad steps. Boundary edges get a hem strip (cloth thickness) in the rim slot.
    */
-  function shell(name, faces, normals, { field, offset, mat, hem = 0.006, rimMat, surface = null, bridge = 0, flatAo = false, edgeAo = 0, remap = null }) {
+  function shell(name, faces, normals, { field, offset, mat, hem = 0.006, rimMat, surface = null, bridge = 0, flatAo = false, edgeAo = 0, remap = null, binding = false, smoothSkin = 0 }) {
     const SV = (i) => (surface ? [surface[i * 3], surface[i * 3 + 1], surface[i * 3 + 2]] : V(i));
     const m = new MeshBuilder(name);
     const f = new Map();
@@ -871,6 +878,138 @@ function buildVariant(key, base, morphParams) {
         else edges.set(k2, { u, v, n: 1 });
       }
     }
+    const skinMap = (k) => {
+      const mp = new Map();
+      for (let q = 0; q < 4; q++) if (m.w[k * 4 + q] > 0) mp.set(m.j[k * 4 + q], (mp.get(m.j[k * 4 + q]) ?? 0) + m.w[k * 4 + q]);
+      return mp;
+    };
+    const setSkin = (k, mp) => {
+      const top = [...mp.entries()].sort((x, y) => y[1] - x[1]).slice(0, 4);
+      const sum = top.reduce((q, [, w]) => q + w, 0) || 1;
+      for (let q = 0; q < 4; q++) {
+        m.j[k * 4 + q] = top[q] ? top[q][0] : 0;
+        m.w[k * 4 + q] = top[q] ? top[q][1] / sum : 0;
+      }
+    };
+    // P3-FGT-16: the cloth's skin smoothed over the garment (neighbour averaging): neighbouring vertices of a garment
+    // deform together, so an edge never stretches into notches in a pose
+    if (smoothSkin > 0) {
+      const adj = Array.from({ length: m.count }, () => new Set());
+      for (let f = 0; f < m.idx.length; f += 3) {
+        const [a, b, c] = [m.idx[f], m.idx[f + 1], m.idx[f + 2]];
+        adj[a].add(b).add(c);
+        adj[b].add(a).add(c);
+        adj[c].add(a).add(b);
+      }
+      for (let it = 0; it < smoothSkin; it++) {
+        const next = [];
+        for (let k = 0; k < m.count; k++) {
+          const acc = skinMap(k);
+          for (const [bn, w] of acc) acc.set(bn, w * 2);
+          for (const q of adj[k]) for (const [bn, w] of skinMap(q)) acc.set(bn, (acc.get(bn) ?? 0) + w);
+          next.push(acc);
+        }
+        next.forEach((mp, k) => setSkin(k, mp));
+      }
+    }
+    if (binding) {
+      // P3-FGT-16: a bound edge, not a cut: the boundary loops are ironed smooth along themselves (the clip of the body
+      // mesh is piecewise linear: a saw-tooth up close), then a binding is rolled round them — a band on the outside,
+      // a rounded lip, the underside — with thickness, its skin the edge's own (smoothed along the loop)
+      const P3 = (k) => [m.p[k * 3], m.p[k * 3 + 1], m.p[k * 3 + 2]];
+      const N3 = (k) => [m.n[k * 3], m.n[k * 3 + 1], m.n[k * 3 + 2]];
+      const nb = new Map();
+      const third = new Map();
+      for (let f = 0; f < m.idx.length; f += 3) {
+        const tri3 = [m.idx[f], m.idx[f + 1], m.idx[f + 2]];
+        for (let q = 0; q < 3; q++) {
+          const a = tri3[q],
+            b = tri3[(q + 1) % 3];
+          third.set(a < b ? `${a}_${b}` : `${b}_${a}`, tri3[(q + 2) % 3]);
+        }
+      }
+      const bEdges = [];
+      for (const { u, v, n } of edges.values()) {
+        if (n !== 1) continue;
+        const a = id(u),
+          b = id(v);
+        if (a === b) continue;
+        bEdges.push([a, b]);
+        if (!nb.has(a)) nb.set(a, []);
+        if (!nb.has(b)) nb.set(b, []);
+        nb.get(a).push(b);
+        nb.get(b).push(a);
+      }
+      if (process.env.BIND_DEBUG) {
+        const h = {};
+        for (const [, ns] of nb) h[ns.length] = (h[ns.length] ?? 0) + 1;
+        console.log(name, "boundary valence", JSON.stringify(h), "edges", bEdges.length);
+      }
+      for (let it = 0; it < 16; it++) {
+        const lam = it % 2 === 0 ? 0.5 : -0.52;
+        const np = new Map();
+        for (const [a, ns] of nb) {
+          if (ns.length !== 2) continue;
+          const pa = P3(a),
+            avg = scl(add(P3(ns[0]), P3(ns[1])), 0.5);
+          np.set(a, add(pa, scl(sub(avg, pa), lam)));
+        }
+        for (const [a, q] of np) for (let c = 0; c < 3; c++) m.p[a * 3 + c] = q[c];
+      }
+      for (let it = 0; it < 6; it++) {
+        const ns2 = new Map();
+        for (const [a, ns] of nb) {
+          const acc = skinMap(a);
+          for (const [bn, w] of acc) acc.set(bn, w * 2);
+          for (const q of ns) for (const [bn, w] of skinMap(q)) acc.set(bn, (acc.get(bn) ?? 0) + w);
+          ns2.set(a, acc);
+        }
+        for (const [a, mp] of ns2) setSkin(a, mp);
+      }
+      // per boundary vertex: the inward direction in the cloth (towards the face beside the edge)
+      const inward = new Map();
+      for (const [a, b] of bEdges) {
+        const c = third.get(a < b ? `${a}_${b}` : `${b}_${a}`);
+        if (c === undefined) continue;
+        const e = norm(sub(P3(b), P3(a)));
+        let d = sub(P3(c), P3(a));
+        d = norm(sub(d, scl(e, dot(d, e))));
+        for (const k of [a, b]) inward.set(k, add(inward.get(k) ?? [0, 0, 0], d));
+      }
+      const ring = new Map();
+      const slot = rimMat ?? MAT.vestTrim;
+      const skinOf = (k) => [0, 1, 2, 3].map((q) => [m.j[k * 4 + q], m.w[k * 4 + q]]);
+      for (const [a, ns] of nb) {
+        // (a junction of two loops has no single edge direction: no binding there, its neighbours close it)
+        if (ns.length !== 2) continue;
+        const N = N3(a);
+        // across the edge from the loop's own tangent (a clip sliver's third corner gave a noisy direction: spikes),
+        // turned towards the cloth
+        const T = norm(sub(P3(ns[1]), P3(ns[0])));
+        let D = norm(cross(N, T));
+        if (dot(D, inward.get(a) ?? [0, 0, 0]) < 0) D = scl(D, -1);
+        const P = P3(a);
+        const ex = { src: m.src[a], uv: [m.uv[a * 2], m.uv[a * 2 + 1]], ao: 0.5 };
+        const sk = skinOf(a);
+        ring.set(a, [
+          m.vert(add(add(P, scl(D, 0.006)), scl(N, 0.0012)), N, sk, slot, { ...ex, ao: 0.35 }),
+          m.vert(add(P, scl(N, 0.0026)), norm(sub(N, scl(D, 0.6))), sk, slot, ex),
+          m.vert(add(P, scl(D, -0.0028)), scl(D, -1), sk, slot, ex),
+          m.vert(add(P, scl(N, -0.0035)), norm(sub(scl(N, -1), scl(D, 0.6))), sk, slot, ex),
+          m.vert(add(add(P, scl(N, -0.0035)), scl(D, 0.004)), scl(N, -1), sk, slot, { ...ex, ao: 0.3 }),
+        ]);
+      }
+      for (const [a, b] of bEdges) {
+        const ra = ring.get(a),
+          rb = ring.get(b);
+        if (!ra || !rb) continue;
+        for (let q = 0; q < 4; q++) {
+          m.face(ra[q], ra[q + 1], rb[q]);
+          m.face(rb[q], ra[q + 1], rb[q + 1]);
+        }
+      }
+      return m;
+    }
     // the hem: a strip from the outer surface down towards the body along every boundary edge
     for (const { u, v, n } of edges.values()) {
       if (n !== 1) continue;
@@ -935,11 +1074,16 @@ function buildVariant(key, base, morphParams) {
       ]);
   }
   const vestRemap = (bone) => ARMISH.get(bone) ?? [[bone, 1]];
+  void vestRemap;
   const vest = shell("kit_vest", bodyFaces, NDr, {
-    remap: vestRemap,
+    // P3-FGT-16 follow-up: the vest follows the body under it (smoothed over the garment: no notches) and its edges are
+    // bound (rolled binding with thickness); the strap is narrower and sits on the trapezius, clear of the deltoid
+    smoothSkin: 2,
+    binding: true,
     field: vestField,
     // (a little more over the arm holes and straps, where the shoulder works under the cloth)
-    offset: (i) => 0.005 + 0.004 * smooth(0.2, 0.5, armW(i) + wSum(i, ["Bip01_L_Clavicle", "Bip01_R_Clavicle"])),
+    // (P3-FGT-16: more stand-off over the trapezius and the shoulder blades, which rise under the straps in a guard)
+    offset: (i) => 0.005 + 0.004 * smooth(0.2, 0.5, armW(i) + wSum(i, ["Bip01_L_Clavicle", "Bip01_R_Clavicle"])) + 0.007 * smooth(0.15, 0.5, wSum(i, ["Bip01_L_Clavicle", "Bip01_R_Clavicle", "Bip01_L_ShoulderHelper", "Bip01_R_ShoulderHelper", "Bip01_Neck"])) * smooth(spine2[2] + 0.04, spine2[2] - 0.03, V(i)[2]) * 2.4,
     surface: DRAPE_SURF,
     flatAo: true,
     mat: MAT.vest,

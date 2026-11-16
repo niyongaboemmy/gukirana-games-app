@@ -564,8 +564,10 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     keys: keys(G, [
       [0, {}],
       [0.1, { head: [-0.35, 0.35, -0.2], lean: -0.15, hips: [0, 0.84, -0.06], ...hands([0, -0.1, -0.08]), wince: 1, eyes: 0.8, jaw: 0.4, focus: 0 }],
-      [0.35, { fk: 0, hips: [0.01, 0.72, -0.08], lean: 0.05, head: [0.1, 0.2, 0.1], lead: [0.18, 1.05, 0.25], rear: [-0.18, 1.02, 0.12], leadPole: [0.8, -0.5, -0.4], rearPole: [-0.8, -0.5, -0.4], rearFoot: [-0.14, 0.03, -0.38], rearHeel: 0.8, rearKnee: [-0.05, -0.4, 1], eyes: 0.6 }],
-      [0.72, { hips: [0.02, 0.55, -0.08], lean: 0.42, head: [0.5, 0.05, 0.08], lead: [0.18, 0.64, 0.32], rear: [-0.24, 0.12, 0.12], leadPalm: [0, -1, 0.1], rearPalm: [0, -1, 0], rearPole: [-1, 0.2, -0.5], leadFoot: [0.15, 0, 0.36], leadFootYaw: -0.1, rearFoot: [-0.14, 0.04, -0.56], rearFootYaw: -0.25, rearHeel: 1.05, leadKnee: [0.2, 0.2, 1], yaw: -0.3, eyes: 0.4 }],
+      // P3-FGT-16 keyed arms: the guard falls apart (elbows open, gloves drop), the rear arm reaches for the canvas and
+      // takes the weight (straight arm, the floor contact kept by rig.ts), the lead glove comes down on the lead knee
+      [0.35, { leadArm: { flex: 26, abd: 16, rot: 10, elbow: 72, pron: 25 }, rearArm: { flex: 18, abd: 20, rot: 8, elbow: 55, pron: 20 }, hips: [0.01, 0.72, -0.08], lean: 0.05, head: [0.1, 0.2, 0.1], lead: [0.18, 1.05, 0.25], rear: [-0.18, 1.02, 0.12], leadPole: [0.8, -0.5, -0.4], rearPole: [-0.8, -0.5, -0.4], rearFoot: [-0.14, 0.03, -0.38], rearHeel: 0.8, rearKnee: [-0.05, -0.4, 1], eyes: 0.6 }],
+      [0.72, { leadArm: { flex: 26, abd: 10, rot: 16, elbow: 50, pron: 60 }, rearArm: { flex: 10, abd: 20, rot: 0, elbow: 14, pron: 45 }, hips: [0.02, 0.55, -0.08], lean: 0.42, head: [0.5, 0.05, 0.08], lead: [0.18, 0.64, 0.32], rear: [-0.24, 0.12, 0.12], leadPalm: [0, -1, 0.1], rearPalm: [0, -1, 0], rearPole: [-1, 0.2, -0.5], leadFoot: [0.15, 0, 0.36], leadFootYaw: -0.1, rearFoot: [-0.14, 0.04, -0.56], rearFootYaw: -0.25, rearHeel: 1.05, leadKnee: [0.2, 0.2, 1], yaw: -0.3, eyes: 0.4 }],
       [1.5, { ...specOf(KNEEL) }],
     ]),
   },
@@ -590,10 +592,11 @@ const DEFS: Partial<Record<BoxingClipName, Def>> = {
     events: [{ t: 0.85, kind: "step" }],
     keys: keys(KNEEL, [
       [0, {}],
-      [0.3, { lean: 0.48, hips: [0.04, 0.6, -0.02], lead: [0.17, 0.62, 0.32], head: [0.3, 0.05, 0.03], eyes: 0.1 }],
-      [0.7, { hips: [0.03, 0.75, -0.06], lean: 0.3, yaw: -0.4, rearFoot: [-0.14, 0.05, -0.38], rearHeel: 0.5, rearKnee: [-0.1, -0.2, 1], lead: [0.15, 1.1, 0.3], rear: [-0.12, 1.1, 0.16], leadPole: [0.5, -1, -0.2], rearPole: [-0.4, -1, -0.2], head: [0.2, 0.06, 0], wince: 0.2, eyes: 0 }],
+      // P3-FGT-16 keyed arms: push off the lead knee with the lead glove, the guard comes back up as the legs straighten
+      [0.3, { leadArm: { flex: 14, abd: 10, rot: 12, elbow: 72, pron: 60 }, rearArm: { flex: 6, abd: 12, rot: 14, elbow: 78, pron: 25 }, lean: 0.48, hips: [0.04, 0.6, -0.02], lead: [0.17, 0.62, 0.32], head: [0.3, 0.05, 0.03], eyes: 0.1 }],
+      [0.7, { leadArm: { flex: 42, abd: -6, rot: 6, elbow: 112, pron: 25 }, rearArm: { flex: 40, abd: -10, rot: 28, elbow: 112, pron: -8 }, hips: [0.03, 0.75, -0.06], lean: 0.3, yaw: -0.4, rearFoot: [-0.14, 0.05, -0.38], rearHeel: 0.5, rearKnee: [-0.1, -0.2, 1], lead: [0.15, 1.1, 0.3], rear: [-0.12, 1.1, 0.16], leadPole: [0.5, -1, -0.2], rearPole: [-0.4, -1, -0.2], head: [0.2, 0.06, 0], wince: 0.2, eyes: 0 }],
       [0.85, { rearFoot: [-0.14, 0, -0.24], rearHeel: 0.3, rearKnee: [-0.1, 0, 1] }],
-      [1.1, { hips: [0, 0.85, -0.01], lean: 0.15, yaw: -0.46, chest: -0.08, ...hands([0, -0.02, 0]), leadPalm: [-0.55, -0.1, -0.83], rearPalm: [0.45, -0.1, -0.88], head: [0.16, 0.08, 0], jaw: 0.1, wince: 0, focus: 0.5 }],
+      [1.1, { ...arms(), hips: [0, 0.85, -0.01], lean: 0.15, yaw: -0.46, chest: -0.08, ...hands([0, -0.02, 0]), leadPalm: [-0.55, -0.1, -0.83], rearPalm: [0.45, -0.1, -0.88], head: [0.16, 0.08, 0], jaw: 0.1, wince: 0, focus: 0.5 }],
       [1.4, { ...specOf(GUARD_AUTHOR) }],
     ]),
   },

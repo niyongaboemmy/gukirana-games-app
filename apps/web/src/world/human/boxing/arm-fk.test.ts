@@ -176,6 +176,13 @@ describe("keyed arms in the motion library", () => {
     for (const n of ["refIdle", "refCount", "cornerRest", "walk", "victoryHold"] as const) expect(sampleClip(n, 0.1)[P.fk], n).toBe(0);
   });
 
+  it("the knockdown, the count and getting up are keyed all the way (no wrist targets left)", () => {
+    for (const n of ["knockdown", "count", "getUp"] as const) {
+      const d = BOXING_CLIPS[n].duration;
+      for (let k = 0; k <= 10; k++) expect(sampleClip(n, (d * k) / 10)[P.fk], `${n}@${k}`).toBe(1);
+    }
+  });
+
   it("a punch carries its contact point into the pose when aimed (weight 0 at the guard, 1 at impact)", () => {
     const m = new BoxingMotion();
     m.play({ clip: "jab", start: 0, aim: [0.05, 1.5, 0.8] });

@@ -362,7 +362,11 @@ export const STAND: Pose = pose(GUARD_AUTHOR, {
 
 /** Down on one knee after a knockdown (rear knee on the canvas, lead foot planted, lead glove on the lead knee). */
 export const KNEEL: Pose = pose(GUARD_AUTHOR, {
-  fk: 0,
+  // P3-FGT-16: keyed arms — the lead forearm resting across the lead knee, the rear arm hanging loose by the rear thigh
+  // (rig.ts keeps every glove above the canvas)
+  fk: 1,
+  leadArm: { flex: 26, abd: 8, rot: 18, elbow: 58, pron: 60, wrist: 0, elev: 2, prot: 6 },
+  rearArm: { flex: 12, abd: 12, rot: 10, elbow: 38, pron: 30, wrist: 0, elev: 0, prot: 2 },
   hips: [0.02, 0.56, -0.08],
   yaw: -0.3,
   chest: -0.05,

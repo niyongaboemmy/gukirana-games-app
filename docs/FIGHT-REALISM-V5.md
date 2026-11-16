@@ -188,7 +188,41 @@ GLB sizes: boxer-m.glb 3.19 MB, boxer-f.glb 3.13 MB (both within 5 KB of before:
 | Gap | What closes it |
 | --- | --- |
 | Hand-keyed rhythm (no captured micro-motion, no secondary motion in the shoulders / head on every punch) | Capture or license professional boxing mocap (a mocap studio session of an amateur boxer in gloves, or a commercial pack with a game licence) and retarget onto the joint-angle channels — the channels, limits and corrections stay; only the keys change |
-| Knockdown, count and get-up arms on the old wrist targets | Key them in angles like the reactions (the fall's arm reach to the canvas needs a floor contact constraint) |
-| Lead body hook hidden from the side camera | A camera rule that drifts to the open side for body work, or a lower hook path |
+| ~~Knockdown, count and get-up arms on the old wrist targets~~ | Done in §8 |
+| ~~Lead body hook hidden from the side camera~~ | Done in §8 |
+| Tiny skin specks (≈ 1 cm) on the upper back under the strap in the hardest shrug (high block), seen from behind at 0.4 m | Per-pose corrective shapes for the trapezius, or a body cull driven by the cloth's own posed distance (a GPU pass) |
+| A knocked-down boxer's glove rests on the knee, it does not reach the canvas (the kneeling torso is too upright for a straight arm to reach the floor) | A deeper fall key (more lean) with the floor contact (§8) holding the glove on the canvas |
 | No cloth simulation (vest folds, trunks flutter) | Baked fold normal maps per garment and per-pose corrective shapes; real simulation is over the phone budget |
 | Faces / skin up close (3) | Scanned heads / SSS on desktop — unchanged from docs/QA/human-realism/round-3.md |
+
+## 8. Follow-up (after the first review): bound vest edges, keyed knockdown, body-work camera
+
+Review of `compare-kit.jpg` rows 2–3: the strap and arm hole still showed a saw-tooth cut, the binding broken and skin
+in notches. Causes and fixes (`apps/web/scripts/boxer/build.mjs`, `world/human/boxer/boxer-body.ts`):
+
+| Seen | Cause | Fix |
+| --- | --- | --- |
+| Saw-tooth edge up close | the edge is the clip of the body mesh (piecewise linear on its triangles); the hem was a flat 6 mm strip on it | **a bound edge**: the boundary loops are ironed along themselves (Taubin, 16 passes, skin smoothed along the loop), then a binding is rolled round them — a 6 mm band on the outside, a rounded lip 2.8 mm proud, the underside — with its direction across the edge from the loop's own tangent (a clip sliver's third corner gave noisy directions: spikes) |
+| Binding broken, skin in notches at the strap | the strap sat on the deltoid and was skinned to the shoulder helper / clavicle (P3-FGT-16 first pass), so in a raised guard the deltoid rose through it; weight-based fields (head / neck weight) cut the strap tops by the neck into splinters | the strap sits medial, on the trapezius (hole line 8.7 cm inside the shoulder joint); the vest follows the body under it again, its skin smoothed over the garment (2 passes); no skin-weight terms near the edge, only geometric ones; the arm hole narrower behind (a real back panel, not a racer-back Y); more stand-off over the trapezius and shoulder blades |
+| Stair-stepped red through the skin at the front neckline when the chin tucks | the throat skin slides under the neckline, the body's dropped faces moved with it | the body is kept 3 cm further in at the throat only (front of the neck) |
+| Skin slivers rising through the narrow straps in a shrug | a body face is only dropped when all three corners are covered; the strap is ~4 cm wide | a second cover bit (`vestCore`, medial straps / upper back, ≥ 2.5 mm inside): a face with two of its corners there is dropped too |
+
+Evidence: `docs/QA/boxing-v5/compare-edges-closeup.jpg` — the same 60 close-ups (0.4–0.5 m) before and after: 10
+poses (guard, jab, cross, lead hook, rear uppercut, lead body, block, clinch, knockdown on the knee, get-up) × front
+neckline, both shoulders, both sides of the back, under the arm (`qa/e2e/boxer-edges.mjs`). The edge is a continuous
+bound hem in all of them; the remaining tell is listed in §7.
+
+**Knockdown, count and get-up** are keyed in the angle channels (no wrist targets left; tested in `arm-fk.test.ts`):
+the guard falls apart as the legs give, the lead glove comes down on the lead knee, the rear arm hangs and takes the
+fall; on the knee the lead forearm rests across the knee; getting up the lead hand pushes off the knee and the guard
+rises with the legs. A **floor contact** in `rig.ts` keeps every glove at least its own radius above the canvas (the
+aim correction lifts it onto the floor, never through). Sheets: `after2-knockdown.jpg`, `after2-knockdown-landing.jpg`,
+`after2-referee-count.jpg`, `after2-get-up.jpg`.
+
+**Body work from the side** (`fight/camera.tsx bodyWorkShot`, tested in `camera-body.test.ts`): while a lead-hand
+body shot (the lead hook or jab to the body) is thrown the broadcast camera wants the puncher's lead side — a cut
+when it stands on the far side (at most one every 1.2 s, never to a side whose shot would leave the ropes) — and drops
+30 cm (look point 22 cm) to body height, eased in and out.
+
+Budget after the follow-up: one boxer 27.6k triangles (masculine), 27.2k (feminine), referee 27.7k (≈ 30k budget);
+`after2-*.json` frame numbers unchanged in draw calls (11 / 13).

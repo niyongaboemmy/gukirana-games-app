@@ -1,0 +1,44 @@
+[
+ {
+  "name": "get-up",
+  "cam": "side",
+  "size": "1280x720",
+  "calls": 13,
+  "tris": 183258
+ },
+ {
+  "name": "get-up",
+  "cam": "close",
+  "size": "1280x720",
+  "calls": 13,
+  "tris": 183258
+ },
+ {
+  "name": "get-up",
+  "cam": "front",
+  "size": "1280x720",
+  "calls": 13,
+  "tris": 183258
+ },
+ {
+  "name": "get-up",
+  "cam": "side",
+  "size": "844x390",
+  "calls": 13,
+  "tris": 183258
+ },
+ {
+  "name": "get-up",
+  "cam": "close",
+  "size": "844x390",
+  "calls": 13,
+  "tris": 183258
+ },
+ {
+  "name": "get-up",
+  "cam": "front",
+  "size": "844x390",
+  "calls": 13,
+  "tris": 183258
+ }
+]
