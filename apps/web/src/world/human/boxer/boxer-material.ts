@@ -288,6 +288,12 @@ float gkHairy;`,
         "#include <clipping_planes_fragment>",
         `#include <clipping_planes_fragment>
 if (uHide.w > 0.0 && distance(vBind, uHide.xyz) < uHide.w) discard;
+{
+  // first person: my own headgear, hair, eyes, lashes and teeth are never drawn (they reached the lens past the hide
+  // sphere in hooks and when looking down: QA-HUM-01)
+  int gkF = int(vMat + 0.5);
+  if (uHide.w > 0.0 && (gkF == 11 || gkF == 12 || (gkF >= 19 && gkF <= 22))) discard;
+}
 if (uNearCut.y > 0.0 && vBind.y > uNearCut.x && length(vViewPosition) < uNearCut.y) discard;
 {
   int gkS = int(vMat + 0.5);

@@ -4,6 +4,7 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import type { ArmBones } from "../procedural";
 import type { TorsoSlices } from "../boxing/rig";
 import { boxerMaterial, type BoxerColors, type BoxerUniforms } from "./boxer-material";
+import { depenetrate } from "./depenetrate";
 
 /**
  * The ring people's body (P3-FGT-13, docs/FIGHT-REALISM-V3.md §3): one athletic, properly skinned body per gender
@@ -142,6 +143,8 @@ export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: Boxer
   const merged = mergeGeometries(geos, false);
   for (const g of geos) g.dispose();
   if (!merged) throw new Error("boxer: merge failed");
+  // garments never inside the drawn skin (collars on the neck, shoes on the instep: QA-HUM-01)
+  if (!spec.bare) depenetrate(merged);
   merged.computeBoundingBox();
   merged.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 1.7);
 

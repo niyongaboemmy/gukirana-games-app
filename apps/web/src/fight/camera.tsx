@@ -40,8 +40,9 @@ function setHidden(p: BoxerProbe | null, on: boolean) {
     HIDE.set(p.inst, h);
   }
   u.copy(h);
-  // (the shoulders / vest straps / upper chest close to the eye in a punch or a turn: not drawn within 16 cm)
-  near.set(h.y - HIDE_UP - 0.22, 0.16);
+  // (the shoulders / vest straps / upper chest close to the eye in a punch or a turn: not drawn within 22 cm; 16 cm left
+  // cut edges of the jaw / shoulders at the bottom of the frame, QA-HUM-01)
+  near.set(h.y - HIDE_UP - 0.22, 0.22);
 }
 
 /**

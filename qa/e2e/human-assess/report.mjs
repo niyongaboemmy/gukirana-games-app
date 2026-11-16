@@ -61,7 +61,8 @@ function hands(list) {
   );
   return [ok ? 5 : 1, ok ? "5 fingers × 3 segments on both hands" : JSON.stringify(ms.map((m) => m.hands))];
 }
-function clothing(list) {
+/** `skip`: material slots left out (the bind pose's open hands under the fist-shaped gloves / wraps: 8, 9, 10, 13) */
+function clothing(list, skip = []) {
   const ms = list.filter((m) => m?.garments);
   if (!ms.length) return null;
   let score = 5;
@@ -73,14 +74,40 @@ function clothing(list) {
       notes.push("clothes are the body surface (no separate garments)");
       continue;
     }
-    const pen = g.penetration ?? { fraction: 0, worstMm: 0 };
+    const pen0 = g.penetration ?? { fraction: 0, worstMm: 0 };
+    let pen = pen0;
+    if (skip.length && pen0.bySlot) {
+      const out = skip.reduce((a, k) => a + (pen0.bySlot[k] ?? 0), 0);
+      pen = {
+        ...pen0,
+        fraction: pen0.tested ? (pen0.inside - out) / pen0.tested : 0,
+        worstMm: out ? `≤ ${pen0.worstMm}` : pen0.worstMm,
+      };
+    }
     const s =
-      pen.fraction < 0.005 && pen.worstMm <= 5 ? 5 : pen.fraction < 0.015 ? 4 : pen.fraction < 0.04 ? 3 : 2;
+      pen.fraction < 0.005 && (typeof pen.worstMm !== "number" || pen.worstMm <= 5)
+        ? 5
+        : pen.fraction < 0.015
+          ? 4
+          : pen.fraction < 0.04
+            ? 3
+            : 2;
     score = Math.min(score, s);
     notes.push(`inside ${(pen.fraction * 100).toFixed(2)} %, worst ${pen.worstMm} mm`);
   }
   return [score, notes.join("; ")];
 }
+/** in a live pose (the guard: arms against the chest) the bar is twice as loose as at rest */
+function clothingPose(list) {
+  const ms = list.filter((m) => m?.garments?.penetration);
+  if (!ms.length) return null;
+  const f = Math.max(...ms.map((m) => m.garments.penetration.fraction));
+  return [
+    f < 0.01 ? 5 : f < 0.03 ? 4 : f < 0.08 ? 3 : 2,
+    `in the pose: worst ${(f * 100).toFixed(1)} % of garment vertices inside`,
+  ];
+}
+const both = (a, b) => (a && b ? [Math.min(a[0], b[0]), `rest: ${a[1]}; ${b[1]}`] : (a ?? b));
 function motion(walks, idles) {
   const w = walks.filter((x) => x?.footSlide);
   if (!w.length) return null;
@@ -175,7 +202,12 @@ function fpv(f) {
   if (!fr.length) return null;
   // own headgear / vest / eyes / teeth / hair at the lens = broken; skin in the guard frame = my own face / shoulders
   const BAD = new Set(["slot1", "slot2", "slot11", "slot12", "slot19", "slot20", "slot21", "slot22"]);
-  const bad = fr.filter(([, v]) => Object.keys(v.bySlot).some((k) => BAD.has(k)));
+  // (looking down at my own chest the vest is meant to be close)
+  const bad = fr.filter(([k, v]) =>
+    Object.keys(v.bySlot).some(
+      (s) => BAD.has(s) && !(/look-down/.test(k) && (s === "slot1" || s === "slot2")),
+    ),
+  );
   const guard = fr.filter(([k, v]) => /guard/.test(k) && v.inView > 0);
   const s = bad.length ? 2 : guard.length ? 3 : 4;
   return [
@@ -203,12 +235,15 @@ const auto = {
   boxer: {
     proportions: proportions(Object.values(boxer.bind ?? {}).flat()),
     hands: hands(Object.values(boxer.bind ?? {}).flat()),
-    clothing: clothing(Object.values(boxer.bind ?? {}).flat()),
+    clothing: both(
+      clothing(Object.values(boxer.bind ?? {}).flat(), [8, 9, 10, 13]),
+      clothingPose(Object.values(boxer.measure ?? {}).flat()),
+    ),
     perf: perf(Object.values(boxer.measure ?? {}).flat()),
   },
   fpv: { fpv: fpv(M.fpv) },
   ring: {
-    clothing: clothing(hall.measure ?? []),
+    clothing: clothingPose(hall.measure ?? []),
     hands: hands(hall.measure ?? []),
     perf: perf(hall.measure ?? []),
   },

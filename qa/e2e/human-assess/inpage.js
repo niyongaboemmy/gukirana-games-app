@@ -235,7 +235,7 @@
           if (y < chinY) chinY = y;
         }
         if (s === SLOT_SKIN) skinPts.push([m, i, pos[i * 3], y, pos[i * 3 + 2]]);
-        else if (!SLOT_NON_GARMENT.has(s)) garmentPts.push([m, i, pos[i * 3], y, pos[i * 3 + 2]]);
+        else if (!SLOT_NON_GARMENT.has(s)) garmentPts.push([m, i, pos[i * 3], y, pos[i * 3 + 2], s]);
       }
     }
     const H = maxY - minY;
@@ -307,6 +307,7 @@
         grid.get(kk).push(k);
       });
       const nrm = Vec(person.meshes[0].position);
+      const bySlot = {};
       let inside = 0,
         tested = 0,
         worst = 0;
@@ -335,6 +336,7 @@
         const sd = (g[2] - p[2]) * nrm.x + (g[3] - p[3]) * nrm.y + (g[4] - p[4]) * nrm.z;
         if (sd < -0.002) {
           inside++;
+          bySlot[g[5]] = (bySlot[g[5]] ?? 0) + 1;
           if (-sd > worst) worst = -sd;
           if (hits.length < 12)
             hits.push([+g[2].toFixed(2), +g[3].toFixed(2), +g[4].toFixed(2), +(sd * 1000).toFixed(1)]);
@@ -343,6 +345,7 @@
       r.garments.penetration = {
         tested,
         inside,
+        bySlot,
         fraction: tested ? +(inside / tested).toFixed(4) : 0,
         worstMm: +(worst * 1000).toFixed(1),
         samples: hits,
@@ -652,6 +655,8 @@
         if (!used[i]) continue;
         if (hide && Math.hypot(bp.getX(i) - hide.x, bp.getY(i) - hide.y, bp.getZ(i) - hide.z) < hide.w)
           continue;
+        // first person also drops my headgear, hair, eyes, lashes and teeth (boxer-material.ts)
+        if (hide && slot && [11, 12, 19, 20, 21, 22].includes(slot.getX(i))) continue;
         v.set(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]).applyMatrix4(view);
         const depth = -v.z;
         if (depth <= 0 || depth > near) continue;
