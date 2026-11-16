@@ -1,0 +1,26 @@
+{
+  "task": "P2-WLD-21",
+  "at": "2026-11-16",
+  "method": "qa/e2e/night-lighting.mjs on an isolated stack (web 3990, api 4990, realtime 3257), Chrome headless (Metal), 1280x720; whole-frame draw calls (median over 1.5 s), fps, compiled programs. Baseline = main at the merge base (c17eedc) with the P2-WLD-21 files checked out, same stack and poses.",
+  "standard": {
+    "plaza_ground": { "baseline": { "midday": 242, "night": 259 }, "after": { "midday": 242, "night": 261 } },
+    "aerial": { "baseline": { "midday": 285, "night": 287 }, "after": { "midday": 286, "night": 290 } },
+    "arena_front": { "baseline": { "midday": 171, "night": 175 }, "after": { "midday": 170, "night": 176 } },
+    "fight_front": { "baseline": { "midday": 170, "night": 178 }, "after": { "midday": 170, "night": 180 } },
+    "night_meshes_ab": "the four night meshes (pools, halos, washes, washes-add) toggled off in the same frame: plaza 261 -> 257 and 248 -> 244 (+4 exactly)"
+  },
+  "lite": {
+    "plaza_ground": { "baseline": { "midday": 193, "night": 194 }, "after": { "midday": 196, "night": 199 } },
+    "aerial": { "baseline": { "midday": 268, "night": 269 }, "after": { "midday": 271, "night": 274 } }
+  },
+  "after_per_view_standard": {
+    "night": { "plaza": 261, "agaseke": 189, "fountain-high": 208, "arena": 176, "pool": 151, "ludo": 188, "igisoro": 149, "fight": 180, "cafe": 138, "soon": 146, "admin": 129, "gate-in": 134, "gate-out": 287, "walk": 115, "road": 192, "aerial": 290 },
+    "dusk_1830": { "plaza": 246, "agaseke": 188, "fountain-high": 210, "arena": 176, "pool": 149, "ludo": 186, "igisoro": 145, "fight": 175, "cafe": 138, "soon": 141, "admin": 122, "gate-in": 132, "gate-out": 288, "walk": 115, "road": 192, "aerial": 290 },
+    "midday": { "plaza": 242, "agaseke": 185, "fountain-high": 206, "arena": 170, "pool": 144, "ludo": 181, "igisoro": 140, "fight": 170, "cafe": 131, "soon": 135, "admin": 111, "gate-in": 128, "gate-out": 290, "walk": 111, "road": 189, "aerial": 286 },
+    "fps": "60-61 in every view (one 51-57 sample on the first plaza view while the scene was still compiling)"
+  },
+  "phone_844x390_night": "plaza, Agaseke, arena: 60-61 fps",
+  "programs": "17:30 -> 18:40 in 1-minute pins and a Midday -> Night preset: 273 -> 273 (no program compiled during transitions or the show)",
+  "shader_errors": "none in any view or phase (console watched for WebGLProgram / Shader Error)",
+  "zscan": "plaza 0 flat / 0 wall hits, gate 0 / 0 (qa/e2e/zscan.mjs, run at night)"
+}
