@@ -101,7 +101,7 @@ Sky colours per phase (sRGB keyframes over *h*, linearly interpolated with smoot
 | −1° | `#2f5c9e` | `#b2a5a6` | `#ff965a` | `#a09ca4` | `#b4b6cc` × 0.78 | `#d9a28d` |
 | 2° | `#4677ba` | `#dcbfa3` | `#ffad6e` | `#cabdb1` | `#cfc6c4` × 0.6 | `#f2c6a3` |
 | 6° | `#5386c6` | `#e2d6c6` | `#ffcd98` | `#cdcfcb` | `#d2d4d8` × 0.5 | `#f6dfc6` |
-| 12–17° | `#578dcd` | `#c6d4de` | `#fff2e2` | `#c4d2dc` | `#c9def0` × 0.45 | `#f4f6f8` |
+| 12–17° | `#578dcd` | `#c6d4de` | `#fff2e2` | `#c4d2dc` | `#c9def0` × 0.56–0.6 (P2-WLD-22; was 0.45) | `#f4f6f8` |
 | 40° | `#4f88cf` | `#c2d3e2` | | `#c5d3de` | `#c9def0` × 0.48 | |
 | 90° | `#4a84cf` | `#c0d3e4` | | `#c6d5e0` | `#cce0f2` × 0.5 | |
 
@@ -114,7 +114,7 @@ moon that is up lifts the night zenith, horizon, fog and clouds a little (up to 
 display — and a VR headset, where sudden brightness changes are uncomfortable — cannot show that, and players must be
 able to walk at night. So the tables are what an eye-adapted camera records (`look.ts`):
 
-* the 17° morning is the reference (sun 2.6, hemisphere 0.45, environment 0.55 — the values the world was tuned with);
+* the 17° morning is the reference (sun 2.6; hemisphere 0.6 and environment 0.68 since P2-WLD-22 — 0.45 / 0.55 left shaded facades near black, docs/COMPOUND-REALISM.md);
 * the **sun** colour comes from the real atmospheric transmittance: Kasten–Young air mass × Rayleigh optical depths at
   680 / 550 / 440 nm scaled to 0.81 atm, plus a light highland aerosol (Ångström β 0.04) — white at noon, cream in the
   morning, deep orange at the horizon. Its intensity follows the transmittance, compressed (^0.4 below the reference,

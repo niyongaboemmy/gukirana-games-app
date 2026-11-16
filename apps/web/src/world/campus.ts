@@ -699,21 +699,48 @@ export const WALK_TOTEMS: WalkTotem[] = (() => {
  * (alternating sides, clear of buildings, walks and roads) and small clusters on the lawns between the district
  * plots inside the loop. The volcano corridor stays open. Deterministic (hashes), drawn by Landscape's tree species.
  */
-export function campusTrees(): { x: number; z: number; rotY: number; s: number }[] {
+/**
+ * Low shrub clumps (P2-WLD-22): the open lawns of the volcano view corridor and the growth band read as an empty mown
+ * field; loose drifts of knee-to-shoulder-high shrubs (never tall enough to cut the volcano skyline) give them scale.
+ */
+export function campusShrubs(): { x: number; z: number; rotY: number; s: number }[] {
   const out: { x: number; z: number; rotY: number; s: number }[] = [];
+  for (let k = 0; k < 40; k++) {
+    const deg = (hash01(k, 61) - 0.5) * 2 * (VIEW_CORRIDOR_DEG + 30);
+    const r = PLAZA_RADIUS + 50 + hash01(k, 62) * 170;
+    const q = ringPoint(deg, r);
+    if (!inCompound(q.x, q.z, 6) || inBuilding(q.x, q.z, 4) || nearCampusWalk(q.x, q.z, 2.5) || onCampusRoad(q.x, q.z, 2.5)) continue;
+    // in drifts: 2–4 bushes round each seed point
+    const n = 2 + Math.floor(hash01(k, 63) * 3);
+    for (let j = 0; j < n; j++) {
+      const x = q.x + (hash01(k * 7 + j, 64) - 0.5) * 6;
+      const z = q.z + (hash01(k * 7 + j, 65) - 0.5) * 6;
+      if (!inCompound(x, z, 6) || inBuilding(x, z, 4) || nearCampusWalk(x, z, 2) || onCampusRoad(x, z, 2)) continue;
+      out.push({ x, z, rotY: hash01(k * 7 + j, 66) * 6.28, s: 0.6 + hash01(k * 7 + j, 67) * 0.6 });
+    }
+  }
+  return out;
+}
+
+/** Campus tree species (P2-WLD-22): jacaranda avenues on the walks, eucalyptus on the lawns and along the wall. */
+export type CampusTreeKind = "acacia" | "jacaranda" | "eucalyptus";
+export function campusTrees(): { x: number; z: number; rotY: number; s: number; kind: CampusTreeKind }[] {
+  const out: { x: number; z: number; rotY: number; s: number; kind: CampusTreeKind }[] = [];
   let i = 0;
-  const ok = (x: number, z: number) =>
+  const ok = (x: number, z: number, gap = 6) =>
     !inBuilding(x, z, 3) &&
     !nearCampusWalk(x, z, 1.8) &&
     !onCampusRoad(x, z, 1.5) &&
     Math.hypot(x, z) > PLAZA_RADIUS + 9 &&
     Math.abs((Math.atan2(x, -z) * 180) / Math.PI) > VIEW_CORRIDOR_DEG &&
-    out.every((t) => Math.hypot(t.x - x, t.z - z) > 6);
-  const add = (x: number, z: number, s = 0.8) => {
-    out.push({ x, z, rotY: hash01(i, 31) * Math.PI * 2, s: s + hash01(i, 32) * 0.3 });
+    out.every((t) => Math.hypot(t.x - x, t.z - z) > gap);
+  const add = (x: number, z: number, s: number, kind: CampusTreeKind) => {
+    out.push({ x, z, rotY: hash01(i, 31) * Math.PI * 2, s: s + hash01(i, 32) * 0.3, kind });
     i++;
   };
-  for (const b of PARKING_BAYS) if (b.tree) add(b.x, b.z, 0.7);
+  // shade trees in the car-park planters (acacia: a flat, wide canopy over the bays)
+  for (const b of PARKING_BAYS) if (b.tree) add(b.x, b.z, 0.7, "acacia");
+  // the district walks: a jacaranda avenue, alternating sides
   for (const w of DISTRICT_WALKS)
     for (let k = 0; k < w.pts.length - 1; k++) {
       const a = w.pts[k]!;
@@ -723,15 +750,26 @@ export function campusTrees(): { x: number; z: number; rotY: number; s: number }
         const side = (Math.floor(t / 11) + k) % 2 ? 1 : -1;
         const x = a.x + ((b.x - a.x) * t) / L - ((b.z - a.z) / L) * side * (w.hw + 3.2);
         const z = a.z + ((b.z - a.z) * t) / L + ((b.x - a.x) / L) * side * (w.hw + 3.2);
-        if (ok(x, z)) add(x, z);
+        if (ok(x, z)) add(x, z, 0.75, "jacaranda");
       }
     }
+  // eucalyptus clumps on the lawns between the districts
   for (const deg of [-108, -80, -50, 50, 108])
     for (let k = 0; k < 4; k++) {
       const r = 128 + (hash01(k + Math.abs(deg), 41) - 0.5) * 14;
       const d = deg + (hash01(k + Math.abs(deg), 42) - 0.5) * 6;
       const q = ringPoint(d, r);
-      if (ok(q.x, q.z)) add(q.x, q.z, 0.9);
+      if (ok(q.x, q.z)) add(q.x, q.z, 0.75, "eucalyptus");
     }
+  // a eucalyptus windbreak just inside the compound wall (the field-edge rows of every Musanze farm), in loose pairs,
+  // stopping either side of the volcano view corridor and short of the south frontage
+  for (let deg = -150; deg <= 150; deg += 2.2) {
+    const R = compoundR(deg) - 6.5 - hash01(Math.round(deg * 10), 51) * 3;
+    const q = ringPoint(deg + (hash01(Math.round(deg * 10), 52) - 0.5) * 0.8, R);
+    if (q.z > COMPOUND.southZ - 14 || !inCompound(q.x, q.z, 4)) continue;
+    if (Math.abs(deg) < VIEW_CORRIDOR_DEG + 4) continue;
+    if (hash01(Math.round(deg * 10), 53) < 0.18) continue; // gaps in the row
+    if (ok(q.x, q.z, 4.5)) add(q.x, q.z, 0.7, "eucalyptus");
+  }
   return out;
 }

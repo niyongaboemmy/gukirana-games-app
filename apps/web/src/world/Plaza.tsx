@@ -12,6 +12,8 @@ import { doorHold, doorOpen } from "./transition";
 import { selfPose, useWorld } from "@/lib/world-store";
 import { plazaDoorSound, PlazaLife } from "./Ambience";
 import { PlazaActivities } from "./PlazaActivities";
+import { CampusLife } from "./CampusLife";
+import { Wildlife } from "./Wildlife";
 import { EntryGate } from "./gate/EntryGate";
 import { GAME_COLORS, LED_BOOST, worldMaterials, type Tier } from "./materials";
 import { arenaScreenTexture } from "./textures";
@@ -32,7 +34,9 @@ import { campusWalkLength } from "./campus";
 
 const FONT = "/fonts/Baloo2.ttf";
 
-const NO_SHADOW = new Set(["basalt", "granite", "basinFloor", "brass", "lampHead", "screenFrame"]);
+// (P2-WLD-22: "paint-yellow" = the tower-crane lattices: their thin members cast aliased, streaky shadows across the
+// plaza from the inner-ring construction sites)
+const NO_SHADOW = new Set(["basalt", "granite", "basinFloor", "brass", "lampHead", "screenFrame", "paint-yellow"]);
 
 /** Merged static district: ~one draw call per material. */
 function District({ tier }: { tier: Tier }) {
@@ -558,6 +562,8 @@ export function Plaza({ nearPortal, tier = "standard" }: { nearPortal: string | 
       <group name="plaza-life" userData={{ noMerge: true }}>
         <PlazaLife tier={tier} />
         <PlazaActivities tier={tier} />
+        <CampusLife tier={tier} />
+        <Wildlife tier={tier} />
       </group>
       <group name="doors">
         {PORTALS.map((p) => (

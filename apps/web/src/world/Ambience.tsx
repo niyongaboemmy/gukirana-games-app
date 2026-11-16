@@ -12,6 +12,9 @@ import { paintRwandaFlag, rwandaFlagSpec } from "./rwanda-flag";
 import type { Tier } from "./materials";
 import { useGamePrefs } from "@/games/feedback";
 import { kigaliHour } from "./activities";
+import { tod } from "./time-of-day/store";
+import { PUBLIC_ROAD } from "./campus";
+import { COMPOUND_LIFE_ON } from "./campus-life";
 
 /*
  * Plaza life that isn't geometry: wind-blown flags on the arena flagpoles and a quiet, synthesized soundscape
@@ -44,7 +47,7 @@ function noiseBuffer(ctx: AudioContext, seconds: number, seed: number) {
 const AMBIENCE = 0.8;
 const soundOn = () => useGamePrefs.getState().sound;
 
-type Bed = { master: GainNode; fountain: GainNode; babble: GainNode; wind: GainNode; windFilter: BiquadFilterNode };
+type Bed = { master: GainNode; fountain: GainNode; babble: GainNode; wind: GainNode; windFilter: BiquadFilterNode; night: GainNode; road: GainNode };
 let bed: Bed | null = null;
 
 function loopNoise(ctx: AudioContext, seconds: number, seed: number) {
@@ -96,7 +99,49 @@ function ensureBed(): Bed | null {
   wSrc.connect(windFilter).connect(wind).connect(master);
   wSrc.start();
 
-  bed = { master, fountain, babble, wind, windFilter };
+  // P2-WLD-22 night chorus: two crickets (a sine carrier gated by a fast trill and a slower chirp rhythm), off by day
+  const night = ctx.createGain();
+  night.gain.value = 0;
+  night.connect(master);
+  for (const [f, trill, chirp, pan] of [
+    [4350, 31, 2.3, -0.55],
+    [3920, 26, 1.7, 0.6],
+  ] as const) {
+    const car = ctx.createOscillator();
+    car.frequency.value = f;
+    const g1 = ctx.createGain();
+    g1.gain.value = 0.5;
+    const l1 = ctx.createOscillator();
+    l1.type = "square";
+    l1.frequency.value = trill;
+    const d1 = ctx.createGain();
+    d1.gain.value = 0.5;
+    l1.connect(d1).connect(g1.gain);
+    const g2 = ctx.createGain();
+    g2.gain.value = 0.35;
+    const l2 = ctx.createOscillator();
+    l2.frequency.value = chirp;
+    const d2 = ctx.createGain();
+    d2.gain.value = 0.65;
+    l2.connect(d2).connect(g2.gain);
+    const pn = ctx.createStereoPanner();
+    pn.pan.value = pan;
+    car.connect(g1).connect(g2).connect(pn).connect(night);
+    car.start();
+    l1.start();
+    l2.start();
+  }
+  // Musanze Road: a low rumble of passing traffic, by distance from the road (campus life on only)
+  const rSrc = loopNoise(ctx, 8.3, 53);
+  const rLp = ctx.createBiquadFilter();
+  rLp.type = "lowpass";
+  rLp.frequency.value = 260;
+  const road = ctx.createGain();
+  road.gain.value = 0;
+  rSrc.connect(rLp).connect(road).connect(master);
+  rSrc.start();
+
+  bed = { master, fountain, babble, wind, windFilter, night, road };
   return bed;
 }
 
@@ -257,9 +302,15 @@ function Soundscape() {
     const gust = 0.5 + 0.3 * Math.sin(t * 0.13) + 0.2 * Math.sin(t * 0.37 + 1.3);
     b.wind.gain.setTargetAtTime(0.018 + gust * 0.022, ctx.currentTime, 1.2);
     b.windFilter.frequency.setTargetAtTime(220 + gust * 260, ctx.currentTime, 1.2);
-    // distant birds: now and then, a little more often in the early morning (Kigali time)
+    // crickets after dusk (quieter near the fountain, which masks them)
+    const dark = Math.min(1, Math.max(0, (tod.look.lights - 0.4) / 0.5));
+    b.night.gain.setTargetAtTime(0.0035 * dark * (1 - 0.6 * near), ctx.currentTime, 1.5);
+    // traffic on Musanze Road: audible near the frontage, quieter at night
+    const rd = Math.max(0, Math.abs(selfPose.z - PUBLIC_ROAD.mid) - 4);
+    b.road.gain.setTargetAtTime(COMPOUND_LIFE_ON ? (0.03 / (1 + (rd / 14) ** 2)) * (1 - 0.6 * dark) * (0.8 + 0.2 * Math.sin(t * 0.21)) : 0, ctx.currentTime, 0.8);
+    // distant birds: now and then, a little more often in the early morning (Kigali time), not at night
     if (t > nextBird.current) {
-      if (nextBird.current > 0) birdCall(rnd);
+      if (nextBird.current > 0 && dark < 0.5) birdCall(rnd);
       const morning = kigaliHour(Date.now()) < 9 ? 0.6 : 1;
       nextBird.current = t + (9 + rnd() * 16) * morning;
     }

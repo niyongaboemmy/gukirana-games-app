@@ -109,6 +109,24 @@ float gkNoise(vec2 p) {
     f *= 0.84 + 0.32 * gkNoise(gkP * 0.0045);
     gkC = mix(gkC, f, vGkFarm * 0.88);
   }
+  {
+    // campus lawn life (P2-WLD-22): the mown kikuyu lawn was one even, saturated green — lusher and drier patches,
+    // clover-dark hollows, a slight desaturation and faint mowing stripes (anti-aliased: they fade out from the air)
+    float lw = 1.0 - smoothstep(0.0, 0.3, vGkFarm);
+    float m1 = gkNoise(gkP * 0.031);
+    float m2 = gkNoise(gkP * 0.11 + 3.1);
+    float m3 = gkNoise(gkP * 0.47 + 7.7);
+    vec3 tint = mix(vec3(0.84, 1.0, 0.84), vec3(1.14, 1.04, 0.66), smoothstep(0.5, 0.82, m1 * 0.7 + m2 * 0.3));
+    tint *= 0.86 + 0.2 * m2 + 0.1 * (m3 - 0.5);
+#ifndef GK_LITE
+    float st = vGkW.x / 3.2;
+    float stripe = mix(step(0.5, fract(st)), 0.5, smoothstep(0.15, 0.45, fwidth(st)));
+    tint *= 1.0 + 0.05 * (stripe - 0.5);
+#endif
+    vec3 lawn = gkC * tint;
+    lawn = mix(lawn, vec3(dot(lawn, vec3(0.3, 0.59, 0.11))), 0.14);
+    gkC = mix(gkC, lawn, lw);
+  }
   diffuseColor.rgb *= gkC;
   // countryside features (absolute colours: the grass photo texture is not under the roads and water)
   vec4 gkM = texture2D(uGkMask, gkP / ${(MASK_HALF * 2).toFixed(1)} + 0.5);

@@ -35,28 +35,81 @@ function build(parts: Part[]): THREE.BufferGeometry {
 const box = (w: number, h: number, d: number, x: number, y: number, z: number, c: string): Part => ({ g: new THREE.BoxGeometry(w, h, d).translate(x, y, z), c });
 const wheel = (r: number, w: number, x: number, y: number, z: number, c = "#151515"): Part => ({ g: new THREE.CylinderGeometry(r, r, w, 12).rotateZ(Math.PI / 2).translate(x, y, z), c });
 
-/** Hatchback / saloon (4.4 m, nose towards +z). */
-function carGeometry() {
+/** A side profile (z, y points, nose +z) extruded across the car (width w, centred on x = 0), with rounded edges. */
+function profile(pts: [number, number][], w: number, bevel: number, c: string): Part {
+  const sh = new THREE.Shape();
+  pts.forEach(([z, y], i) => (i ? sh.lineTo(z, y) : sh.moveTo(z, y)));
+  sh.closePath();
+  const g = new THREE.ExtrudeGeometry(sh, { depth: w - bevel * 2, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 2, curveSegments: 4 });
+  // shape xy = (z, y), extruded along +z → turn so the shape's x is the car's z and the extrusion runs across (x)
+  g.rotateY(-Math.PI / 2).translate((w - bevel * 2) / 2, 0, 0);
+  return { g, c };
+}
+
+/** Wheel: tyre with a pale hub cap (axis along x). */
+const tyre = (x: number, z: number, r = 0.32): Part[] => [
+  wheel(r, 0.22, x, r, z),
+  { g: new THREE.CylinderGeometry(r * 0.55, r * 0.55, 0.02, 12).rotateZ(Math.PI / 2).translate(x + Math.sign(x) * 0.115, r, z), c: "#9a9ea4" },
+];
+
+/**
+ * Hatchback / saloon (4.4 m, nose towards +z): an extruded side profile (bumper, bonnet, raked screen, roof, boot),
+ * a glass house set into it, dark wheel arches, hub caps, lamps and plates.
+ */
+export function carGeometry() {
   const BODY = "#ffffff";
-  const GLASS = "#1b2128";
-  const TRIM = "#2a2a2a";
+  const GLASS = "#20272e";
+  const TRIM = "#262626";
+  const body: [number, number][] = [
+    [2.2, 0.3], [2.22, 0.62], [2.05, 0.78], [1.15, 0.86], [-1.7, 0.9], [-2.12, 0.82], [-2.2, 0.62], [-2.18, 0.3],
+  ];
+  const house: [number, number][] = [[1.05, 0.84], [0.25, 1.36], [-1.15, 1.38], [-1.72, 0.9]];
+  const roof: [number, number][] = [[0.22, 1.36], [0.27, 1.43], [-1.12, 1.45], [-1.2, 1.37]];
   return build([
-    box(1.8, 0.62, 4.4, 0, 0.6, 0, BODY),
-    box(1.62, 0.56, 2.3, 0, 1.18, -0.3, GLASS),
-    box(1.5, 0.07, 2.05, 0, 1.49, -0.3, BODY),
-    box(1.64, 0.4, 0.06, 0, 1.15, 0.86, GLASS),
-    box(1.84, 0.18, 0.12, 0, 0.36, 2.2, TRIM),
-    box(1.84, 0.18, 0.12, 0, 0.36, -2.2, TRIM),
-    box(0.36, 0.12, 0.05, -0.62, 0.72, 2.21, "#f4f0dc"),
-    box(0.36, 0.12, 0.05, 0.62, 0.72, 2.21, "#f4f0dc"),
-    box(0.36, 0.12, 0.05, -0.64, 0.74, -2.21, "#a3161a"),
-    box(0.36, 0.12, 0.05, 0.64, 0.74, -2.21, "#a3161a"),
-    ...[-1, 1].flatMap((sx) => [-1, 1].map((sz) => wheel(0.33, 0.24, sx * 0.84, 0.33, sz * 1.38))),
+    profile(body, 1.8, 0.07, BODY),
+    profile(house, 1.6, 0.05, GLASS),
+    profile(roof, 1.52, 0.03, BODY),
+    // dark sills and wheel-arch shadows along both sides
+    box(1.84, 0.12, 3.0, 0, 0.32, -0.02, TRIM),
+    ...[-1, 1].flatMap((sz) => [box(1.82, 0.36, 0.86, 0, 0.42, sz * 1.38, "#111111")]),
+    // bumpers, lamps, plates (yellow plates on the back, Rwandan style; white front)
+    box(1.82, 0.16, 0.1, 0, 0.36, 2.22, TRIM),
+    box(1.82, 0.16, 0.1, 0, 0.36, -2.21, TRIM),
+    box(0.4, 0.11, 0.05, -0.6, 0.7, 2.2, "#f4f0dc"),
+    box(0.4, 0.11, 0.05, 0.6, 0.7, 2.2, "#f4f0dc"),
+    box(0.34, 0.12, 0.05, -0.66, 0.72, -2.19, "#a3161a"),
+    box(0.34, 0.12, 0.05, 0.66, 0.72, -2.19, "#a3161a"),
+    box(0.5, 0.12, 0.02, 0, 0.5, 2.28, "#f2f2ee"),
+    box(0.5, 0.12, 0.02, 0, 0.52, -2.27, "#e8c21e"),
+    // mirrors
+    ...[-1, 1].map((sx) => box(0.16, 0.1, 0.08, sx * 0.95, 0.98, 0.95, TRIM)),
+    ...[-1, 1].flatMap((sx) => [-1, 1].flatMap((sz) => tyre(sx * 0.82, sz * 1.38))),
+  ]);
+}
+
+/** Minibus (the Coaster / Hiace "twegerane" of Rwandan roads, 5.4 m), nose towards +z, body white with a stripe. */
+export function minibusGeometry() {
+  const BODY = "#ffffff";
+  const GLASS = "#20272e";
+  const body: [number, number][] = [[2.7, 0.35], [2.72, 1.05], [2.45, 1.5], [2.2, 2.2], [-2.6, 2.25], [-2.7, 2.1], [-2.72, 0.35]];
+  return build([
+    profile(body, 1.95, 0.08, BODY),
+    // side windows band and windscreen
+    box(1.99, 0.62, 4.3, 0, 1.75, -0.25, GLASS),
+    box(1.7, 0.6, 0.06, 0, 1.78, 2.38, GLASS),
+    // the operator's livery stripe
+    box(1.99, 0.14, 5.2, 0, 1.18, 0, "#c99a2e"),
+    box(1.98, 0.12, 5.3, 0, 0.4, 0, "#262626"),
+    box(0.4, 0.12, 0.05, -0.65, 0.85, 2.73, "#f4f0dc"),
+    box(0.4, 0.12, 0.05, 0.65, 0.85, 2.73, "#f4f0dc"),
+    box(0.3, 0.14, 0.05, -0.75, 0.8, -2.73, "#a3161a"),
+    box(0.3, 0.14, 0.05, 0.75, 0.8, -2.73, "#a3161a"),
+    ...[-1, 1].flatMap((sx) => [1.75, -1.6].flatMap((z) => tyre(sx * 0.86, z, 0.36))),
   ]);
 }
 
 /** Motorbike (moto-taxi), 2 m, nose towards +z. */
-function motoGeometry() {
+export function motoGeometry() {
   const BODY = "#ffffff";
   return build([
     wheel(0.3, 0.1, 0, 0.3, 0.68),
@@ -72,7 +125,7 @@ function motoGeometry() {
 }
 
 /** An adult moto-taxi rider seated on the bike (same frame as the bike): green helmet, green vest, dark trousers. */
-function riderGeometry() {
+export function riderGeometry() {
   const SKIN = "#5a3826";
   const VEST = "#2e8b3e";
   const SHIRT = "#e8e4da";
@@ -113,8 +166,8 @@ const PARK_BOUNDS = [-1, 1].map((s) => new THREE.Sphere(new THREE.Vector3(s * 59
 const FRONT_BOUNDS = [new THREE.Sphere(new THREE.Vector3(0, 1, 80.4), 23.5), new THREE.Sphere(new THREE.Vector3(-34.7, 1, 83.6), 5.5), ...[-1, 1].map((s) => new THREE.Sphere(new THREE.Vector3(s * 34.3, 1, 65.8), 4.6))];
 
 /** Body colours of the parked cars (Rwandan car parks: white, silver and grey first). */
-const CAR_COLOURS = ["#f2f2ef", "#f2f2ef", "#c9ccd0", "#c9ccd0", "#8e9297", "#2b2e33", "#7b1f1f", "#1f3b6b", "#d9cfb8", "#3d4a3a"];
-const MOTO_COLOURS = ["#b3201f", "#1f3e8a", "#151515", "#d8d8d8", "#b3201f"];
+export const CAR_COLOURS = ["#f2f2ef", "#f2f2ef", "#c9ccd0", "#c9ccd0", "#8e9297", "#2b2e33", "#7b1f1f", "#1f3b6b", "#d9cfb8", "#3d4a3a"];
+export const MOTO_COLOURS = ["#b3201f", "#1f3e8a", "#151515", "#d8d8d8", "#b3201f"];
 
 interface Inst {
   x: number;

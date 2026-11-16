@@ -9,6 +9,7 @@ import { worldMaterials, type Tier } from "./materials";
 import { rng } from "./textures";
 import { addWind } from "./Vegetation";
 import { sessionMemo } from "./session-cache";
+import { bleedCanvas } from "./alpha-bleed";
 
 /**
  * Modern compound landscaping (no trees inside the compound): raised planters and corten / concrete-edged beds with
@@ -24,8 +25,8 @@ type CellId = "agapanthus" | "lavender" | "roses" | "allium" | "tulips" | "strel
 const CELLS: CellId[] = ["agapanthus", "lavender", "roses", "allium", "tulips", "strelitzia", "canna", "salvia", "grass", "gaura", "coreopsis", "bougainvillea", "foliage"];
 const CELL = 256;
 
-let atlasCache: THREE.CanvasTexture | null = null;
-function flowerAtlas(): THREE.CanvasTexture {
+let atlasCache: THREE.Texture | null = null;
+function flowerAtlas(): THREE.Texture {
   if (atlasCache) return atlasCache;
   const c = document.createElement("canvas");
   c.width = c.height = CELL * 4;
@@ -225,10 +226,10 @@ function flowerAtlas(): THREE.CanvasTexture {
     }
     g.restore();
   });
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
+  // (P2-WLD-22: the leaf colour is bled into the transparent texels, so filtering and mips never pull black into the
+  // edges — the beds used to read as dark smudges from a few metres away)
+  const t = bleedCanvas(c, 5);
   t.anisotropy = 4;
-  t.generateMipmaps = true;
   atlasCache = t;
   return t;
 }
@@ -486,6 +487,21 @@ function addDistanceThinning(mat: THREE.Material, lite: boolean) {
   mat.customProgramCacheKey = () => `${key()}-thin${lite ? "L" : "S"}`;
 }
 
+/**
+ * Both faces of a plant card lit like foliage (P2-WLD-22). The cards carry up-tilted normals, but a double-sided
+ * material flips the normal on back faces — every card seen from behind faced the ground and rendered nearly black
+ * (half the bed read as black smudges). This undoes the flip for the cards.
+ */
+function addFoliageNormals(mat: THREE.Material) {
+  const prev = mat.onBeforeCompile.bind(mat);
+  const key = mat.customProgramCacheKey.bind(mat);
+  mat.onBeforeCompile = (shader, renderer) => {
+    prev(shader, renderer);
+    shader.fragmentShader = shader.fragmentShader.replace("#include <normal_fragment_begin>", "#include <normal_fragment_begin>\n#ifdef DOUBLE_SIDED\n  normal *= faceDirection;\n#endif");
+  };
+  mat.customProgramCacheKey = () => `${key()}-fol`;
+}
+
 /* ---------------- component ---------------- */
 export function Flowers({ tier }: { tier: Tier }) {
   const lite = tier === "lite";
@@ -576,6 +592,7 @@ export function Flowers({ tier }: { tier: Tier }) {
       const mat = new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.45, alphaToCoverage: true, side: THREE.DoubleSide, roughness: 0.75, metalness: 0 });
       addWind(mat, id === "grass" ? 0.08 : id === "bougainvillea" ? 0.02 : 0.05);
       addDistanceThinning(mat, lite);
+      addFoliageNormals(mat);
       const matrices = new Float32Array(list.length * 16);
       const colors = new Float32Array(list.length * 3);
       list.forEach((p, i) => {

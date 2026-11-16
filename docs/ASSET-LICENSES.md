@@ -354,3 +354,18 @@ No new downloaded assets, nothing bought, no download checkouts left on disk. Ev
 Evaluated and not used (docs/CAMPUS-HUMAN-REALISM.md §3): MakeHuman / MPFB2 assets (CC0), CMU mocap (free for all
 uses), Quaternius Universal Animation Library (CC0), Poly Haven and ambientCG fabric scans (CC0). Excluded: Mixamo
 (project rule), Ready Player Me (service shut down January 2026), MetaHuman (project brief), anything NC / ND.
+
+### Compound realism pass (P2-WLD-22)
+
+No new downloaded assets, nothing bought, no download scratch left on disk. Everything added is procedural or reuses
+assets already listed above:
+
+| What | Where | Source | Licence |
+| --- | --- | --- | --- |
+| Jacaranda trees (violet bloom) | `src/world/Vegetation.tsx` species `jacaranda` | The Poly Haven acacia model and impostor sheet above (CC0), foliage re-tinted in the shader | CC0 (asset) + in-house shader |
+| Shadow-casting campus eucalyptus / acacia, shrub drifts | `src/world/Vegetation.tsx`, `src/world/campus.ts` | Existing Poly Haven eucalyptus, acacia and bush models (CC0) | CC0 |
+| Weathering (macro breakup, soil splash, rain streaks, hedge leaf clumps) | `src/world/weathering.ts` | Procedural GLSL | In-house (project code) |
+| Car and minibus models, road traffic | `src/world/campus-props.tsx`, `src/world/CampusLife.tsx` | Procedural geometry | In-house (project code) |
+| Kites, weaver flock, butterflies, moths | `src/world/Wildlife.tsx` | Procedural geometry, GPU animation | In-house (project code) |
+| Night crickets, road rumble | `src/world/Ambience.tsx` | Synthesised with Web Audio (no audio files) | In-house (project code) |
+| Ambient campus people | `src/world/CampusLife.tsx` | The Rocketbox human models above (MIT) | MIT (models) + in-house |
