@@ -1,0 +1,3122 @@
+{
+ "source": "MakeHuman 1.x CC0 targets (commit a8bc2d54ff0ac92e78ff71431b1023eda42bf482); values and sculpt volumes: Gukirana P3-FGT-19A",
+ "units": "sculpt volumes in MakeHuman decimetres before the stature scale; amplitude along the vertex normal",
+ "fighters": {
+  "mW": {
+   "label": "Male welterweight (63.5–67 kg)",
+   "stature": 1.76,
+   "macro": {
+    "gender": 1,
+    "age": 0.5,
+    "muscle": 0.96,
+    "weight": 0.38,
+    "height": 0.55,
+    "proportions": 1,
+    "african": 0.8,
+    "asian": 0.1,
+    "caucasian": 0.1
+   },
+   "regional": [
+    [
+     "torso/torso-vshape-incr",
+     0.5
+    ],
+    [
+     "torso/torso-muscle-dorsi-incr",
+     0.55
+    ],
+    [
+     "torso/torso-muscle-pectoral-incr",
+     0.35
+    ],
+    [
+     "stomach/stomach-tone-incr",
+     0.8
+    ],
+    [
+     "neck/neck-scale-horiz-incr",
+     0.3
+    ],
+    [
+     "neck/neck-back-scale-depth-incr",
+     0.35
+    ],
+    [
+     "measure/measure-neck-circ-incr",
+     0.35
+    ],
+    [
+     "measure/measure-shoulder-dist-decr",
+     0.2
+    ],
+    [
+     "measure/measure-waist-circ-incr",
+     0.95
+    ],
+    [
+     "buttocks/buttocks-volume-incr",
+     0.1
+    ],
+    [
+     "sym:upperarm-shoulder-muscle-incr",
+     0.6
+    ],
+    [
+     "sym:upperarm-muscle-incr",
+     0.35
+    ],
+    [
+     "sym:lowerarm-muscle-incr",
+     0.6
+    ],
+    [
+     "sym:upperleg-muscle-incr",
+     0.3
+    ],
+    [
+     "sym:lowerleg-muscle-incr",
+     0.55
+    ],
+    [
+     "head/head-scale-horiz-incr",
+     0.06
+    ],
+    [
+     "head/head-scale-depth-incr",
+     0.06
+    ]
+   ],
+   "face": [
+    [
+     "cheek/l-cheek-bones-incr",
+     0.5
+    ],
+    [
+     "cheek/r-cheek-bones-incr",
+     0.5
+    ],
+    [
+     "cheek/l-cheek-volume-decr",
+     0.45
+    ],
+    [
+     "cheek/r-cheek-volume-decr",
+     0.45
+    ],
+    [
+     "head/head-fat-decr",
+     0.55
+    ],
+    [
+     "head/head-square",
+     0.25
+    ],
+    [
+     "chin/chin-width-incr",
+     0.3
+    ],
+    [
+     "chin/chin-prominent-incr",
+     0.25
+    ],
+    [
+     "mouth/mouth-lowerlip-volume-decr",
+     0.2
+    ],
+    [
+     "nose/nose-flaring-decr",
+     0.15
+    ]
+   ],
+   "sculptScale": 1,
+   "sculptVolumes": [
+    {
+     "centreDm": [
+      2.8176,
+      6.4432,
+      0.213
+     ],
+     "radiiDm": [
+      0.42,
+      0.62,
+      0.5
+     ],
+     "amplitudeDm": 0.075,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L",
+      "shoulder01.L",
+      "clavicle.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.5766,
+      6.5667,
+      0.5136
+     ],
+     "radiiDm": [
+      0.35,
+      0.5,
+      0.3
+     ],
+     "amplitudeDm": 0.04,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L",
+      "shoulder01.L",
+      "clavicle.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.6136,
+      6.5255,
+      -0.1066
+     ],
+     "radiiDm": [
+      0.35,
+      0.5,
+      0.3
+     ],
+     "amplitudeDm": 0.035,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L",
+      "shoulder01.L",
+      "clavicle.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.037,
+      7.4796,
+      0.0571
+     ],
+     "radiiDm": [
+      0.55,
+      0.28,
+      0.35
+     ],
+     "amplitudeDm": 0.07,
+     "bones": [
+      "neck01",
+      "neck02",
+      "spine01",
+      "clavicle.L",
+      "shoulder01.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.2544,
+      5.5138,
+      -0.1352
+     ],
+     "radiiDm": [
+      0.35,
+      0.95,
+      0.45
+     ],
+     "amplitudeDm": 0.055,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "clavicle.L",
+      "shoulder01.L",
+      "breast.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.2244,
+      5.7138,
+      0.6348
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.018,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.2244,
+      5.4338,
+      0.6848
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.018,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.2244,
+      5.1538,
+      0.7348
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.018,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.L"
+     ]
+    },
+    {
+     "centreDm": [
+      3.193,
+      5.7755,
+      -0.07
+     ],
+     "radiiDm": [
+      0.3,
+      0.6,
+      0.25
+     ],
+     "amplitudeDm": 0.03,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      3.3781,
+      5.5695,
+      0.429
+     ],
+     "radiiDm": [
+      0.25,
+      0.45,
+      0.22
+     ],
+     "amplitudeDm": 0.025,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      4.6033,
+      4.3486,
+      0.7882
+     ],
+     "radiiDm": [
+      0.3,
+      0.45,
+      0.28
+     ],
+     "amplitudeDm": 0.04,
+     "bones": [
+      "lowerarm01.L",
+      "lowerarm02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.1902,
+      -1.8846,
+      0.4831
+     ],
+     "radiiDm": [
+      0.26,
+      0.38,
+      0.22
+     ],
+     "amplitudeDm": 0.03,
+     "bones": [
+      "upperleg01.L",
+      "upperleg02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.6344,
+      -0.2809,
+      0.2356
+     ],
+     "radiiDm": [
+      0.25,
+      0.8,
+      0.3
+     ],
+     "amplitudeDm": 0.025,
+     "bones": [
+      "upperleg01.L",
+      "upperleg02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.5961,
+      -3.9809,
+      -0.0339
+     ],
+     "radiiDm": [
+      0.25,
+      0.55,
+      0.25
+     ],
+     "amplitudeDm": 0.04,
+     "bones": [
+      "lowerleg01.L",
+      "lowerleg02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.8175,
+      -3.6864,
+      -0.0046
+     ],
+     "radiiDm": [
+      0.22,
+      0.45,
+      0.22
+     ],
+     "amplitudeDm": 0.028,
+     "bones": [
+      "lowerleg01.L",
+      "lowerleg02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.1958,
+      1.9966,
+      -0.7914
+     ],
+     "radiiDm": [
+      0.55,
+      0.55,
+      0.4
+     ],
+     "amplitudeDm": 0.03,
+     "bones": [
+      "root",
+      "pelvis.L",
+      "upperleg01.L",
+      "spine05"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.8176,
+      6.4432,
+      0.213
+     ],
+     "radiiDm": [
+      0.42,
+      0.62,
+      0.5
+     ],
+     "amplitudeDm": 0.075,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R",
+      "shoulder01.R",
+      "clavicle.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.5766,
+      6.5667,
+      0.5136
+     ],
+     "radiiDm": [
+      0.35,
+      0.5,
+      0.3
+     ],
+     "amplitudeDm": 0.04,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R",
+      "shoulder01.R",
+      "clavicle.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.6136,
+      6.5255,
+      -0.1066
+     ],
+     "radiiDm": [
+      0.35,
+      0.5,
+      0.3
+     ],
+     "amplitudeDm": 0.035,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R",
+      "shoulder01.R",
+      "clavicle.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.037,
+      7.4796,
+      0.0571
+     ],
+     "radiiDm": [
+      0.55,
+      0.28,
+      0.35
+     ],
+     "amplitudeDm": 0.07,
+     "bones": [
+      "neck01",
+      "neck02",
+      "spine01",
+      "clavicle.R",
+      "shoulder01.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.2544,
+      5.5138,
+      -0.1352
+     ],
+     "radiiDm": [
+      0.35,
+      0.95,
+      0.45
+     ],
+     "amplitudeDm": 0.055,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "clavicle.R",
+      "shoulder01.R",
+      "breast.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.2244,
+      5.7138,
+      0.6348
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.018,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.2244,
+      5.4338,
+      0.6848
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.018,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.2244,
+      5.1538,
+      0.7348
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.018,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -3.193,
+      5.7755,
+      -0.07
+     ],
+     "radiiDm": [
+      0.3,
+      0.6,
+      0.25
+     ],
+     "amplitudeDm": 0.03,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -3.3781,
+      5.5695,
+      0.429
+     ],
+     "radiiDm": [
+      0.25,
+      0.45,
+      0.22
+     ],
+     "amplitudeDm": 0.025,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -4.6033,
+      4.3486,
+      0.7882
+     ],
+     "radiiDm": [
+      0.3,
+      0.45,
+      0.28
+     ],
+     "amplitudeDm": 0.04,
+     "bones": [
+      "lowerarm01.R",
+      "lowerarm02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.1902,
+      -1.8846,
+      0.4831
+     ],
+     "radiiDm": [
+      0.26,
+      0.38,
+      0.22
+     ],
+     "amplitudeDm": 0.03,
+     "bones": [
+      "upperleg01.R",
+      "upperleg02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.6344,
+      -0.2809,
+      0.2356
+     ],
+     "radiiDm": [
+      0.25,
+      0.8,
+      0.3
+     ],
+     "amplitudeDm": 0.025,
+     "bones": [
+      "upperleg01.R",
+      "upperleg02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.5961,
+      -3.9809,
+      -0.0339
+     ],
+     "radiiDm": [
+      0.25,
+      0.55,
+      0.25
+     ],
+     "amplitudeDm": 0.04,
+     "bones": [
+      "lowerleg01.R",
+      "lowerleg02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.8175,
+      -3.6864,
+      -0.0046
+     ],
+     "radiiDm": [
+      0.22,
+      0.45,
+      0.22
+     ],
+     "amplitudeDm": 0.028,
+     "bones": [
+      "lowerleg01.R",
+      "lowerleg02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.1958,
+      1.9966,
+      -0.7914
+     ],
+     "radiiDm": [
+      0.55,
+      0.55,
+      0.4
+     ],
+     "amplitudeDm": 0.03,
+     "bones": [
+      "root",
+      "pelvis.R",
+      "upperleg01.R",
+      "spine05"
+     ]
+    }
+   ],
+   "measure": {
+    "stature": 1.76,
+    "headHeight": 0.223,
+    "headsTall": 7.91,
+    "headBreadth": 0.164,
+    "neckLength_chinToNotch": 0.094,
+    "neckLengthPerH": 0.053,
+    "neckBreadth": 0.145,
+    "neckGirth": 0.408,
+    "neckToHeadBreadth": 0.89,
+    "biacromial": 0.486,
+    "bideltoid": 0.617,
+    "bideltoidPerH": 0.351,
+    "chestGirth": 1.03,
+    "waistGirth": 0.792,
+    "waistY": 1.049,
+    "hipGirth": 0.956,
+    "hipY": 0.839,
+    "waistToHip": 0.83,
+    "upperArmGirth": [
+     42.3,
+     35.7,
+     34.6,
+     28.9
+    ],
+    "forearmGirth": [
+     26.5,
+     26.5,
+     18.8,
+     14.5
+    ],
+    "thighGirth": [
+     54.8,
+     45.1,
+     38.5
+    ],
+    "calfGirth": [
+     33.4,
+     0,
+     21.3
+    ]
+   }
+  },
+  "mH": {
+   "label": "Male heavyweight (86–92 kg)",
+   "stature": 1.87,
+   "macro": {
+    "gender": 1,
+    "age": 0.52,
+    "muscle": 1,
+    "weight": 0.6,
+    "height": 0.75,
+    "proportions": 1,
+    "african": 0.8,
+    "asian": 0.1,
+    "caucasian": 0.1
+   },
+   "regional": [
+    [
+     "torso/torso-vshape-incr",
+     0.35
+    ],
+    [
+     "torso/torso-muscle-dorsi-incr",
+     0.6
+    ],
+    [
+     "torso/torso-muscle-pectoral-incr",
+     0.5
+    ],
+    [
+     "stomach/stomach-tone-incr",
+     0.4
+    ],
+    [
+     "neck/neck-scale-horiz-incr",
+     0.5
+    ],
+    [
+     "neck/neck-back-scale-depth-incr",
+     0.5
+    ],
+    [
+     "measure/measure-neck-circ-incr",
+     0.6
+    ],
+    [
+     "measure/measure-waist-circ-incr",
+     1.7
+    ],
+    [
+     "measure/measure-shoulder-dist-incr",
+     0.45
+    ],
+    [
+     "head/head-scale-vert-incr",
+     0.12
+    ],
+    [
+     "head/head-scale-depth-incr",
+     0.1
+    ],
+    [
+     "sym:upperarm-shoulder-muscle-incr",
+     0.7
+    ],
+    [
+     "sym:upperarm-muscle-incr",
+     0.5
+    ],
+    [
+     "sym:lowerarm-muscle-incr",
+     0.7
+    ],
+    [
+     "sym:upperleg-muscle-incr",
+     0.45
+    ],
+    [
+     "sym:lowerleg-muscle-incr",
+     0.5
+    ],
+    [
+     "head/head-scale-horiz-incr",
+     0.04
+    ]
+   ],
+   "face": [
+    [
+     "cheek/l-cheek-bones-incr",
+     0.5
+    ],
+    [
+     "cheek/r-cheek-bones-incr",
+     0.5
+    ],
+    [
+     "cheek/l-cheek-volume-decr",
+     0.45
+    ],
+    [
+     "cheek/r-cheek-volume-decr",
+     0.45
+    ],
+    [
+     "head/head-fat-decr",
+     0.55
+    ],
+    [
+     "head/head-square",
+     0.25
+    ],
+    [
+     "chin/chin-width-incr",
+     0.3
+    ],
+    [
+     "chin/chin-prominent-incr",
+     0.25
+    ],
+    [
+     "mouth/mouth-lowerlip-volume-decr",
+     0.2
+    ],
+    [
+     "nose/nose-flaring-decr",
+     0.15
+    ]
+   ],
+   "sculptScale": 1.25,
+   "sculptVolumes": [
+    {
+     "centreDm": [
+      3.1744,
+      8.8602,
+      0.2385
+     ],
+     "radiiDm": [
+      0.42,
+      0.62,
+      0.5
+     ],
+     "amplitudeDm": 0.0938,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L",
+      "shoulder01.L",
+      "clavicle.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.9111,
+      9.0083,
+      0.5354
+     ],
+     "radiiDm": [
+      0.35,
+      0.5,
+      0.3
+     ],
+     "amplitudeDm": 0.05,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L",
+      "shoulder01.L",
+      "clavicle.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.9555,
+      8.9589,
+      -0.0836
+     ],
+     "radiiDm": [
+      0.35,
+      0.5,
+      0.3
+     ],
+     "amplitudeDm": 0.0438,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L",
+      "shoulder01.L",
+      "clavicle.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.1675,
+      10.0235,
+      0.0694
+     ],
+     "radiiDm": [
+      0.55,
+      0.28,
+      0.35
+     ],
+     "amplitudeDm": 0.0875,
+     "bones": [
+      "neck01",
+      "neck02",
+      "spine01",
+      "clavicle.L",
+      "shoulder01.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.5444,
+      8.0045,
+      -0.121
+     ],
+     "radiiDm": [
+      0.35,
+      0.95,
+      0.45
+     ],
+     "amplitudeDm": 0.0688,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "clavicle.L",
+      "shoulder01.L",
+      "breast.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.5144,
+      8.2045,
+      0.649
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.0225,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.5144,
+      7.9245,
+      0.699
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.0225,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.5144,
+      7.6445,
+      0.749
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.0225,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.L"
+     ]
+    },
+    {
+     "centreDm": [
+      3.6611,
+      8.0697,
+      -0.0255
+     ],
+     "radiiDm": [
+      0.3,
+      0.6,
+      0.25
+     ],
+     "amplitudeDm": 0.0375,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      3.8833,
+      7.8228,
+      0.4798
+     ],
+     "radiiDm": [
+      0.25,
+      0.45,
+      0.22
+     ],
+     "amplitudeDm": 0.0313,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      5.3088,
+      6.3836,
+      0.934
+     ],
+     "radiiDm": [
+      0.3,
+      0.45,
+      0.28
+     ],
+     "amplitudeDm": 0.05,
+     "bones": [
+      "lowerarm01.L",
+      "lowerarm02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.3792,
+      -0.8463,
+      0.5124
+     ],
+     "radiiDm": [
+      0.26,
+      0.38,
+      0.22
+     ],
+     "amplitudeDm": 0.0375,
+     "bones": [
+      "upperleg01.L",
+      "upperleg02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.8011,
+      1.0685,
+      0.251
+     ],
+     "radiiDm": [
+      0.25,
+      0.8,
+      0.3
+     ],
+     "amplitudeDm": 0.0313,
+     "bones": [
+      "upperleg01.L",
+      "upperleg02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.7992,
+      -3.3056,
+      -0.0313
+     ],
+     "radiiDm": [
+      0.25,
+      0.55,
+      0.25
+     ],
+     "amplitudeDm": 0.05,
+     "bones": [
+      "lowerleg01.L",
+      "lowerleg02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.0195,
+      -2.9627,
+      0.0044
+     ],
+     "radiiDm": [
+      0.22,
+      0.45,
+      0.22
+     ],
+     "amplitudeDm": 0.035,
+     "bones": [
+      "lowerleg01.L",
+      "lowerleg02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.3317,
+      3.7781,
+      -0.7954
+     ],
+     "radiiDm": [
+      0.55,
+      0.55,
+      0.4
+     ],
+     "amplitudeDm": 0.0375,
+     "bones": [
+      "root",
+      "pelvis.L",
+      "upperleg01.L",
+      "spine05"
+     ]
+    },
+    {
+     "centreDm": [
+      -3.1744,
+      8.8602,
+      0.2385
+     ],
+     "radiiDm": [
+      0.42,
+      0.62,
+      0.5
+     ],
+     "amplitudeDm": 0.0938,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R",
+      "shoulder01.R",
+      "clavicle.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.9111,
+      9.0083,
+      0.5354
+     ],
+     "radiiDm": [
+      0.35,
+      0.5,
+      0.3
+     ],
+     "amplitudeDm": 0.05,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R",
+      "shoulder01.R",
+      "clavicle.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.9555,
+      8.9589,
+      -0.0836
+     ],
+     "radiiDm": [
+      0.35,
+      0.5,
+      0.3
+     ],
+     "amplitudeDm": 0.0438,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R",
+      "shoulder01.R",
+      "clavicle.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.1675,
+      10.0235,
+      0.0694
+     ],
+     "radiiDm": [
+      0.55,
+      0.28,
+      0.35
+     ],
+     "amplitudeDm": 0.0875,
+     "bones": [
+      "neck01",
+      "neck02",
+      "spine01",
+      "clavicle.R",
+      "shoulder01.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.5444,
+      8.0045,
+      -0.121
+     ],
+     "radiiDm": [
+      0.35,
+      0.95,
+      0.45
+     ],
+     "amplitudeDm": 0.0688,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "clavicle.R",
+      "shoulder01.R",
+      "breast.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.5144,
+      8.2045,
+      0.649
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.0225,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.5144,
+      7.9245,
+      0.699
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.0225,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.5144,
+      7.6445,
+      0.749
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.0225,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -3.6611,
+      8.0697,
+      -0.0255
+     ],
+     "radiiDm": [
+      0.3,
+      0.6,
+      0.25
+     ],
+     "amplitudeDm": 0.0375,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -3.8833,
+      7.8228,
+      0.4798
+     ],
+     "radiiDm": [
+      0.25,
+      0.45,
+      0.22
+     ],
+     "amplitudeDm": 0.0313,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -5.3088,
+      6.3836,
+      0.934
+     ],
+     "radiiDm": [
+      0.3,
+      0.45,
+      0.28
+     ],
+     "amplitudeDm": 0.05,
+     "bones": [
+      "lowerarm01.R",
+      "lowerarm02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.3792,
+      -0.8463,
+      0.5124
+     ],
+     "radiiDm": [
+      0.26,
+      0.38,
+      0.22
+     ],
+     "amplitudeDm": 0.0375,
+     "bones": [
+      "upperleg01.R",
+      "upperleg02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.8011,
+      1.0685,
+      0.251
+     ],
+     "radiiDm": [
+      0.25,
+      0.8,
+      0.3
+     ],
+     "amplitudeDm": 0.0313,
+     "bones": [
+      "upperleg01.R",
+      "upperleg02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.7992,
+      -3.3056,
+      -0.0313
+     ],
+     "radiiDm": [
+      0.25,
+      0.55,
+      0.25
+     ],
+     "amplitudeDm": 0.05,
+     "bones": [
+      "lowerleg01.R",
+      "lowerleg02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.0195,
+      -2.9627,
+      0.0044
+     ],
+     "radiiDm": [
+      0.22,
+      0.45,
+      0.22
+     ],
+     "amplitudeDm": 0.035,
+     "bones": [
+      "lowerleg01.R",
+      "lowerleg02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.3317,
+      3.7781,
+      -0.7954
+     ],
+     "radiiDm": [
+      0.55,
+      0.55,
+      0.4
+     ],
+     "amplitudeDm": 0.0375,
+     "bones": [
+      "root",
+      "pelvis.R",
+      "upperleg01.R",
+      "spine05"
+     ]
+    }
+   ],
+   "measure": {
+    "stature": 1.87,
+    "headHeight": 0.232,
+    "headsTall": 8.05,
+    "headBreadth": 0.167,
+    "neckLength_chinToNotch": 0.093,
+    "neckLengthPerH": 0.05,
+    "neckBreadth": 0.179,
+    "neckGirth": 0.478,
+    "neckToHeadBreadth": 1.07,
+    "biacromial": 0.501,
+    "bideltoid": 0.648,
+    "bideltoidPerH": 0.347,
+    "chestGirth": 1.061,
+    "waistGirth": 0.866,
+    "waistY": 1.247,
+    "hipGirth": 0.993,
+    "hipY": 0.927,
+    "waistToHip": 0.87,
+    "upperArmGirth": [
+     45.1,
+     39.4,
+     38.4,
+     33.5
+    ],
+    "forearmGirth": [
+     29.2,
+     29.2,
+     20.9,
+     16.1
+    ],
+    "thighGirth": [
+     55.9,
+     25,
+     41.2
+    ],
+    "calfGirth": [
+     37.2,
+     0,
+     23.4
+    ]
+   }
+  },
+  "fL": {
+   "label": "Female lightweight (57–60 kg)",
+   "stature": 1.65,
+   "macro": {
+    "gender": 0,
+    "age": 0.5,
+    "muscle": 0.9,
+    "weight": 0.4,
+    "height": 0.55,
+    "proportions": 1,
+    "african": 0.8,
+    "asian": 0.1,
+    "caucasian": 0.1
+   },
+   "regional": [
+    [
+     "torso/torso-vshape-incr",
+     0.3
+    ],
+    [
+     "torso/torso-muscle-dorsi-incr",
+     0.45
+    ],
+    [
+     "torso/torso-muscle-pectoral-incr",
+     0.15
+    ],
+    [
+     "stomach/stomach-tone-incr",
+     0.7
+    ],
+    [
+     "neck/neck-back-scale-depth-incr",
+     0.25
+    ],
+    [
+     "measure/measure-neck-height-decr",
+     1
+    ],
+    [
+     "measure/measure-neck-circ-incr",
+     0.25
+    ],
+    [
+     "measure/measure-waist-circ-incr",
+     0.95
+    ],
+    [
+     "breast/female-young-maxmuscle-averageweight-mincup-maxfirmness",
+     0.6
+    ],
+    [
+     "breast/breast-point-decr",
+     0.8
+    ],
+    [
+     "sym:upperarm-shoulder-muscle-incr",
+     0.55
+    ],
+    [
+     "sym:upperarm-muscle-incr",
+     0.3
+    ],
+    [
+     "sym:lowerarm-muscle-incr",
+     0.5
+    ],
+    [
+     "sym:upperleg-muscle-incr",
+     0.3
+    ],
+    [
+     "sym:lowerleg-muscle-incr",
+     0.5
+    ],
+    [
+     "head/head-scale-vert-incr",
+     0.15
+    ],
+    [
+     "head/head-scale-horiz-incr",
+     0.12
+    ],
+    [
+     "head/head-scale-depth-incr",
+     0.12
+    ]
+   ],
+   "face": [
+    [
+     "cheek/l-cheek-bones-incr",
+     0.45
+    ],
+    [
+     "cheek/r-cheek-bones-incr",
+     0.45
+    ],
+    [
+     "cheek/l-cheek-volume-decr",
+     0.4
+    ],
+    [
+     "cheek/r-cheek-volume-decr",
+     0.4
+    ],
+    [
+     "head/head-fat-decr",
+     0.5
+    ],
+    [
+     "head/head-oval",
+     0.3
+    ],
+    [
+     "chin/chin-prominent-incr",
+     0.15
+    ],
+    [
+     "mouth/mouth-upperlip-volume-decr",
+     0.35
+    ],
+    [
+     "mouth/mouth-lowerlip-volume-decr",
+     0.4
+    ],
+    [
+     "mouth/mouth-scale-horiz-decr",
+     0.15
+    ],
+    [
+     "nose/nose-flaring-decr",
+     0.25
+    ],
+    [
+     "nose/nose-scale-horiz-decr",
+     0.1
+    ]
+   ],
+   "sculptScale": 0.7,
+   "sculptVolumes": [
+    {
+     "centreDm": [
+      2.2427,
+      5.2097,
+      0.2282
+     ],
+     "radiiDm": [
+      0.42,
+      0.62,
+      0.5
+     ],
+     "amplitudeDm": 0.0525,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L",
+      "shoulder01.L",
+      "clavicle.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.0086,
+      5.3223,
+      0.5252
+     ],
+     "radiiDm": [
+      0.35,
+      0.5,
+      0.3
+     ],
+     "amplitudeDm": 0.028,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L",
+      "shoulder01.L",
+      "clavicle.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.0433,
+      5.2848,
+      -0.0938
+     ],
+     "radiiDm": [
+      0.35,
+      0.5,
+      0.3
+     ],
+     "amplitudeDm": 0.0245,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L",
+      "shoulder01.L",
+      "clavicle.L"
+     ]
+    },
+    {
+     "centreDm": [
+      0.7878,
+      6.1305,
+      -0.0263
+     ],
+     "radiiDm": [
+      0.55,
+      0.28,
+      0.35
+     ],
+     "amplitudeDm": 0.049,
+     "bones": [
+      "neck01",
+      "neck02",
+      "spine01",
+      "clavicle.L",
+      "shoulder01.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.7006,
+      4.2477,
+      -0.1309
+     ],
+     "radiiDm": [
+      0.35,
+      0.95,
+      0.45
+     ],
+     "amplitudeDm": 0.0385,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "clavicle.L",
+      "shoulder01.L",
+      "breast.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.6706,
+      4.4477,
+      0.6391
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.0126,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.6706,
+      4.1677,
+      0.6891
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.0126,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.6706,
+      3.8877,
+      0.7391
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.0126,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.5829,
+      4.5963,
+      -0.0367
+     ],
+     "radiiDm": [
+      0.3,
+      0.6,
+      0.25
+     ],
+     "amplitudeDm": 0.021,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.7563,
+      4.4086,
+      0.4684
+     ],
+     "radiiDm": [
+      0.25,
+      0.45,
+      0.22
+     ],
+     "amplitudeDm": 0.0175,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      3.8636,
+      3.2886,
+      0.6971
+     ],
+     "radiiDm": [
+      0.3,
+      0.45,
+      0.28
+     ],
+     "amplitudeDm": 0.028,
+     "bones": [
+      "lowerarm01.L",
+      "lowerarm02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.0674,
+      -2.4574,
+      0.6765
+     ],
+     "radiiDm": [
+      0.26,
+      0.38,
+      0.22
+     ],
+     "amplitudeDm": 0.021,
+     "bones": [
+      "upperleg01.L",
+      "upperleg02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.4858,
+      -1.0459,
+      0.4354
+     ],
+     "radiiDm": [
+      0.25,
+      0.8,
+      0.3
+     ],
+     "amplitudeDm": 0.0175,
+     "bones": [
+      "upperleg01.L",
+      "upperleg02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.3702,
+      -4.3487,
+      0.1212
+     ],
+     "radiiDm": [
+      0.25,
+      0.55,
+      0.25
+     ],
+     "amplitudeDm": 0.028,
+     "bones": [
+      "lowerleg01.L",
+      "lowerleg02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.6142,
+      -4.0802,
+      0.1577
+     ],
+     "radiiDm": [
+      0.22,
+      0.45,
+      0.22
+     ],
+     "amplitudeDm": 0.0196,
+     "bones": [
+      "lowerleg01.L",
+      "lowerleg02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.0113,
+      0.9646,
+      -0.5828
+     ],
+     "radiiDm": [
+      0.55,
+      0.55,
+      0.4
+     ],
+     "amplitudeDm": 0.021,
+     "bones": [
+      "root",
+      "pelvis.L",
+      "upperleg01.L",
+      "spine05"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.2427,
+      5.2097,
+      0.2282
+     ],
+     "radiiDm": [
+      0.42,
+      0.62,
+      0.5
+     ],
+     "amplitudeDm": 0.0525,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R",
+      "shoulder01.R",
+      "clavicle.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.0086,
+      5.3223,
+      0.5252
+     ],
+     "radiiDm": [
+      0.35,
+      0.5,
+      0.3
+     ],
+     "amplitudeDm": 0.028,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R",
+      "shoulder01.R",
+      "clavicle.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.0433,
+      5.2848,
+      -0.0938
+     ],
+     "radiiDm": [
+      0.35,
+      0.5,
+      0.3
+     ],
+     "amplitudeDm": 0.0245,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R",
+      "shoulder01.R",
+      "clavicle.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -0.7878,
+      6.1305,
+      -0.0263
+     ],
+     "radiiDm": [
+      0.55,
+      0.28,
+      0.35
+     ],
+     "amplitudeDm": 0.049,
+     "bones": [
+      "neck01",
+      "neck02",
+      "spine01",
+      "clavicle.R",
+      "shoulder01.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.7006,
+      4.2477,
+      -0.1309
+     ],
+     "radiiDm": [
+      0.35,
+      0.95,
+      0.45
+     ],
+     "amplitudeDm": 0.0385,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "clavicle.R",
+      "shoulder01.R",
+      "breast.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.6706,
+      4.4477,
+      0.6391
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.0126,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.6706,
+      4.1677,
+      0.6891
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.0126,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.6706,
+      3.8877,
+      0.7391
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.0126,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.5829,
+      4.5963,
+      -0.0367
+     ],
+     "radiiDm": [
+      0.3,
+      0.6,
+      0.25
+     ],
+     "amplitudeDm": 0.021,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.7563,
+      4.4086,
+      0.4684
+     ],
+     "radiiDm": [
+      0.25,
+      0.45,
+      0.22
+     ],
+     "amplitudeDm": 0.0175,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -3.8636,
+      3.2886,
+      0.6971
+     ],
+     "radiiDm": [
+      0.3,
+      0.45,
+      0.28
+     ],
+     "amplitudeDm": 0.028,
+     "bones": [
+      "lowerarm01.R",
+      "lowerarm02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.0674,
+      -2.4574,
+      0.6765
+     ],
+     "radiiDm": [
+      0.26,
+      0.38,
+      0.22
+     ],
+     "amplitudeDm": 0.021,
+     "bones": [
+      "upperleg01.R",
+      "upperleg02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.4858,
+      -1.0459,
+      0.4354
+     ],
+     "radiiDm": [
+      0.25,
+      0.8,
+      0.3
+     ],
+     "amplitudeDm": 0.0175,
+     "bones": [
+      "upperleg01.R",
+      "upperleg02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.3702,
+      -4.3487,
+      0.1212
+     ],
+     "radiiDm": [
+      0.25,
+      0.55,
+      0.25
+     ],
+     "amplitudeDm": 0.028,
+     "bones": [
+      "lowerleg01.R",
+      "lowerleg02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.6142,
+      -4.0802,
+      0.1577
+     ],
+     "radiiDm": [
+      0.22,
+      0.45,
+      0.22
+     ],
+     "amplitudeDm": 0.0196,
+     "bones": [
+      "lowerleg01.R",
+      "lowerleg02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.0113,
+      0.9646,
+      -0.5828
+     ],
+     "radiiDm": [
+      0.55,
+      0.55,
+      0.4
+     ],
+     "amplitudeDm": 0.021,
+     "bones": [
+      "root",
+      "pelvis.R",
+      "upperleg01.R",
+      "spine05"
+     ]
+    }
+   ],
+   "measure": {
+    "stature": 1.65,
+    "headHeight": 0.219,
+    "headsTall": 7.53,
+    "headBreadth": 0.168,
+    "neckLength_chinToNotch": 0.089,
+    "neckLengthPerH": 0.054,
+    "neckBreadth": 0.143,
+    "neckGirth": 0.398,
+    "neckToHeadBreadth": 0.85,
+    "biacromial": 0.389,
+    "bideltoid": 0.517,
+    "bideltoidPerH": 0.313,
+    "chestGirth": 0.888,
+    "waistGirth": 0.69,
+    "waistY": 1.093,
+    "hipGirth": 0.925,
+    "hipY": 0.773,
+    "waistToHip": 0.75,
+    "upperArmGirth": [
+     35.2,
+     30.2,
+     27.7,
+     24.4
+    ],
+    "forearmGirth": [
+     24.9,
+     13.4,
+     17.9,
+     12.6
+    ],
+    "thighGirth": [
+     50.4,
+     50.9,
+     40
+    ],
+    "calfGirth": [
+     31.6,
+     22.5,
+     18.8
+    ]
+   }
+  },
+  "fM": {
+   "label": "Female middleweight (70–75 kg)",
+   "stature": 1.7,
+   "macro": {
+    "gender": 0,
+    "age": 0.52,
+    "muscle": 0.95,
+    "weight": 0.55,
+    "height": 0.62,
+    "proportions": 1,
+    "african": 0.8,
+    "asian": 0.1,
+    "caucasian": 0.1
+   },
+   "regional": [
+    [
+     "torso/torso-vshape-incr",
+     0.3
+    ],
+    [
+     "torso/torso-muscle-dorsi-incr",
+     0.5
+    ],
+    [
+     "torso/torso-muscle-pectoral-incr",
+     0.2
+    ],
+    [
+     "stomach/stomach-tone-incr",
+     0.5
+    ],
+    [
+     "neck/neck-back-scale-depth-incr",
+     0.35
+    ],
+    [
+     "measure/measure-neck-height-decr",
+     1
+    ],
+    [
+     "measure/measure-neck-circ-incr",
+     0.4
+    ],
+    [
+     "measure/measure-waist-circ-incr",
+     1.05
+    ],
+    [
+     "breast/female-young-maxmuscle-averageweight-mincup-maxfirmness",
+     0.55
+    ],
+    [
+     "breast/breast-point-decr",
+     0.8
+    ],
+    [
+     "sym:upperarm-shoulder-muscle-incr",
+     0.6
+    ],
+    [
+     "sym:upperarm-muscle-incr",
+     0.4
+    ],
+    [
+     "sym:lowerarm-muscle-incr",
+     0.6
+    ],
+    [
+     "sym:upperleg-muscle-incr",
+     0.4
+    ],
+    [
+     "sym:lowerleg-muscle-incr",
+     0.5
+    ],
+    [
+     "head/head-scale-vert-incr",
+     0.12
+    ],
+    [
+     "head/head-scale-horiz-incr",
+     0.12
+    ],
+    [
+     "head/head-scale-depth-incr",
+     0.12
+    ]
+   ],
+   "face": [
+    [
+     "cheek/l-cheek-bones-incr",
+     0.45
+    ],
+    [
+     "cheek/r-cheek-bones-incr",
+     0.45
+    ],
+    [
+     "cheek/l-cheek-volume-decr",
+     0.4
+    ],
+    [
+     "cheek/r-cheek-volume-decr",
+     0.4
+    ],
+    [
+     "head/head-fat-decr",
+     0.5
+    ],
+    [
+     "head/head-oval",
+     0.3
+    ],
+    [
+     "chin/chin-prominent-incr",
+     0.15
+    ],
+    [
+     "mouth/mouth-upperlip-volume-decr",
+     0.35
+    ],
+    [
+     "mouth/mouth-lowerlip-volume-decr",
+     0.4
+    ],
+    [
+     "mouth/mouth-scale-horiz-decr",
+     0.15
+    ],
+    [
+     "nose/nose-flaring-decr",
+     0.25
+    ],
+    [
+     "nose/nose-scale-horiz-decr",
+     0.1
+    ]
+   ],
+   "sculptScale": 0.85,
+   "sculptVolumes": [
+    {
+     "centreDm": [
+      2.339,
+      6.0501,
+      0.2567
+     ],
+     "radiiDm": [
+      0.42,
+      0.62,
+      0.5
+     ],
+     "amplitudeDm": 0.0638,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L",
+      "shoulder01.L",
+      "clavicle.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.0974,
+      6.171,
+      0.5522
+     ],
+     "radiiDm": [
+      0.35,
+      0.5,
+      0.3
+     ],
+     "amplitudeDm": 0.034,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L",
+      "shoulder01.L",
+      "clavicle.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.1346,
+      6.1307,
+      -0.0663
+     ],
+     "radiiDm": [
+      0.35,
+      0.5,
+      0.3
+     ],
+     "amplitudeDm": 0.0298,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L",
+      "shoulder01.L",
+      "clavicle.L"
+     ]
+    },
+    {
+     "centreDm": [
+      0.821,
+      7.0154,
+      -0.0023
+     ],
+     "radiiDm": [
+      0.55,
+      0.28,
+      0.35
+     ],
+     "amplitudeDm": 0.0595,
+     "bones": [
+      "neck01",
+      "neck02",
+      "spine01",
+      "clavicle.L",
+      "shoulder01.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.7744,
+      5.113,
+      -0.1068
+     ],
+     "radiiDm": [
+      0.35,
+      0.95,
+      0.45
+     ],
+     "amplitudeDm": 0.0467,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "clavicle.L",
+      "shoulder01.L",
+      "breast.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.7444,
+      5.313,
+      0.6632
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.0153,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.7444,
+      5.033,
+      0.7132
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.0153,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.7444,
+      4.753,
+      0.7632
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.0153,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.7166,
+      5.3952,
+      -0.0009
+     ],
+     "radiiDm": [
+      0.3,
+      0.6,
+      0.25
+     ],
+     "amplitudeDm": 0.0255,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      2.9025,
+      5.1936,
+      0.5065
+     ],
+     "radiiDm": [
+      0.25,
+      0.45,
+      0.22
+     ],
+     "amplitudeDm": 0.0213,
+     "bones": [
+      "upperarm01.L",
+      "upperarm02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      4.0788,
+      3.9998,
+      0.7719
+     ],
+     "radiiDm": [
+      0.3,
+      0.45,
+      0.28
+     ],
+     "amplitudeDm": 0.034,
+     "bones": [
+      "lowerarm01.L",
+      "lowerarm02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.1266,
+      -2.0989,
+      0.6874
+     ],
+     "radiiDm": [
+      0.26,
+      0.38,
+      0.22
+     ],
+     "amplitudeDm": 0.0255,
+     "bones": [
+      "upperleg01.L",
+      "upperleg02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.5386,
+      -0.5765,
+      0.4428
+     ],
+     "radiiDm": [
+      0.25,
+      0.8,
+      0.3
+     ],
+     "amplitudeDm": 0.0213,
+     "bones": [
+      "upperleg01.L",
+      "upperleg02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.4409,
+      -4.1151,
+      0.1223
+     ],
+     "radiiDm": [
+      0.25,
+      0.55,
+      0.25
+     ],
+     "amplitudeDm": 0.034,
+     "bones": [
+      "lowerleg01.L",
+      "lowerleg02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.6831,
+      -3.8303,
+      0.161
+     ],
+     "radiiDm": [
+      0.22,
+      0.45,
+      0.22
+     ],
+     "amplitudeDm": 0.0238,
+     "bones": [
+      "lowerleg01.L",
+      "lowerleg02.L"
+     ]
+    },
+    {
+     "centreDm": [
+      1.0553,
+      1.588,
+      -0.5802
+     ],
+     "radiiDm": [
+      0.55,
+      0.55,
+      0.4
+     ],
+     "amplitudeDm": 0.0255,
+     "bones": [
+      "root",
+      "pelvis.L",
+      "upperleg01.L",
+      "spine05"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.339,
+      6.0501,
+      0.2567
+     ],
+     "radiiDm": [
+      0.42,
+      0.62,
+      0.5
+     ],
+     "amplitudeDm": 0.0638,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R",
+      "shoulder01.R",
+      "clavicle.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.0974,
+      6.171,
+      0.5522
+     ],
+     "radiiDm": [
+      0.35,
+      0.5,
+      0.3
+     ],
+     "amplitudeDm": 0.034,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R",
+      "shoulder01.R",
+      "clavicle.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.1346,
+      6.1307,
+      -0.0663
+     ],
+     "radiiDm": [
+      0.35,
+      0.5,
+      0.3
+     ],
+     "amplitudeDm": 0.0298,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R",
+      "shoulder01.R",
+      "clavicle.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -0.821,
+      7.0154,
+      -0.0023
+     ],
+     "radiiDm": [
+      0.55,
+      0.28,
+      0.35
+     ],
+     "amplitudeDm": 0.0595,
+     "bones": [
+      "neck01",
+      "neck02",
+      "spine01",
+      "clavicle.R",
+      "shoulder01.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.7744,
+      5.113,
+      -0.1068
+     ],
+     "radiiDm": [
+      0.35,
+      0.95,
+      0.45
+     ],
+     "amplitudeDm": 0.0467,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "clavicle.R",
+      "shoulder01.R",
+      "breast.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.7444,
+      5.313,
+      0.6632
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.0153,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.7444,
+      5.033,
+      0.7132
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.0153,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.7444,
+      4.753,
+      0.7632
+     ],
+     "radiiDm": [
+      0.18,
+      0.12,
+      0.2
+     ],
+     "amplitudeDm": 0.0153,
+     "bones": [
+      "spine01",
+      "spine02",
+      "spine03",
+      "breast.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.7166,
+      5.3952,
+      -0.0009
+     ],
+     "radiiDm": [
+      0.3,
+      0.6,
+      0.25
+     ],
+     "amplitudeDm": 0.0255,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -2.9025,
+      5.1936,
+      0.5065
+     ],
+     "radiiDm": [
+      0.25,
+      0.45,
+      0.22
+     ],
+     "amplitudeDm": 0.0213,
+     "bones": [
+      "upperarm01.R",
+      "upperarm02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -4.0788,
+      3.9998,
+      0.7719
+     ],
+     "radiiDm": [
+      0.3,
+      0.45,
+      0.28
+     ],
+     "amplitudeDm": 0.034,
+     "bones": [
+      "lowerarm01.R",
+      "lowerarm02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.1266,
+      -2.0989,
+      0.6874
+     ],
+     "radiiDm": [
+      0.26,
+      0.38,
+      0.22
+     ],
+     "amplitudeDm": 0.0255,
+     "bones": [
+      "upperleg01.R",
+      "upperleg02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.5386,
+      -0.5765,
+      0.4428
+     ],
+     "radiiDm": [
+      0.25,
+      0.8,
+      0.3
+     ],
+     "amplitudeDm": 0.0213,
+     "bones": [
+      "upperleg01.R",
+      "upperleg02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.4409,
+      -4.1151,
+      0.1223
+     ],
+     "radiiDm": [
+      0.25,
+      0.55,
+      0.25
+     ],
+     "amplitudeDm": 0.034,
+     "bones": [
+      "lowerleg01.R",
+      "lowerleg02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.6831,
+      -3.8303,
+      0.161
+     ],
+     "radiiDm": [
+      0.22,
+      0.45,
+      0.22
+     ],
+     "amplitudeDm": 0.0238,
+     "bones": [
+      "lowerleg01.R",
+      "lowerleg02.R"
+     ]
+    },
+    {
+     "centreDm": [
+      -1.0553,
+      1.588,
+      -0.5802
+     ],
+     "radiiDm": [
+      0.55,
+      0.55,
+      0.4
+     ],
+     "amplitudeDm": 0.0255,
+     "bones": [
+      "root",
+      "pelvis.R",
+      "upperleg01.R",
+      "spine05"
+     ]
+    }
+   ],
+   "measure": {
+    "stature": 1.7,
+    "headHeight": 0.221,
+    "headsTall": 7.69,
+    "headBreadth": 0.17,
+    "neckLength_chinToNotch": 0.091,
+    "neckLengthPerH": 0.053,
+    "neckBreadth": 0.162,
+    "neckGirth": 0.455,
+    "neckToHeadBreadth": 0.95,
+    "biacromial": 0.394,
+    "bideltoid": 0.529,
+    "bideltoidPerH": 0.311,
+    "chestGirth": 0.928,
+    "waistGirth": 0.718,
+    "waistY": 1.098,
+    "hipGirth": 0.951,
+    "hipY": 0.818,
+    "waistToHip": 0.75,
+    "upperArmGirth": [
+     37.6,
+     32.7,
+     29.8,
+     26
+    ],
+    "forearmGirth": [
+     26.7,
+     14.5,
+     19,
+     13.2
+    ],
+    "thighGirth": [
+     52.7,
+     53.9,
+     41.3
+    ],
+    "calfGirth": [
+     35.4,
+     23.1,
+     19.8
+    ]
+   }
+  }
+ },
+ "kit": {
+  "bandWidth": 0.075,
+  "vestTuck": 0.04,
+  "vestThickness": 0.0018,
+  "trunksThickness": 0.0016,
+  "bandThickness": 0.0045,
+  "trunksHemAboveKnee": 0.1,
+  "trunksEase": 0.022,
+  "strapWidth": {
+   "m": 0.058,
+   "f": 0.05
+  },
+  "glove": {
+   "oz": 10,
+   "length": 0.27,
+   "knuckleWidth": 0.118,
+   "depth": 0.116,
+   "cuffLength": 0.1,
+   "tapeWidth": 0.05,
+   "fistCentre": 0.085
+  },
+  "headgear": {
+   "crown": 0.021,
+   "brow": 0.036,
+   "cheek": 0.028,
+   "ear": 0.026,
+   "back": 0.023,
+   "gap": 0.0025
+  },
+  "boot": {
+   "shaft": 0.22,
+   "sole": 0.012
+  }
+ },
+ "tones": [
+  {
+   "id": "t1-deep",
+   "label": "Deep (MST 9)",
+   "hex": "#3a312a",
+   "albedo": "#46302a"
+  },
+  {
+   "id": "t2-dark",
+   "label": "Dark brown (MST 8)",
+   "hex": "#604134",
+   "albedo": "#664234"
+  },
+  {
+   "id": "t3-brown",
+   "label": "Brown (MST 7)",
+   "hex": "#825c43",
+   "albedo": "#895c42"
+  },
+  {
+   "id": "t4-light",
+   "label": "Light brown (MST 6)",
+   "hex": "#a07e56",
+   "albedo": "#a77b55"
+  }
+ ]
+}
