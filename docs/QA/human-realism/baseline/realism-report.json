@@ -1,0 +1,273 @@
+{
+  "at": "2026-11-16T01:05:29.120Z",
+  "pass": 4,
+  "subjects": {
+    "plaza": [
+      {
+        "id": "proportions",
+        "label": "Proportions",
+        "auto": 4,
+        "visual": 4,
+        "score": 4,
+        "pass": true,
+        "autoNote": "7.61 heads, worst segment 10 % off; 7.03 heads, worst segment 11 % off",
+        "visualNote": "reads as an adult from all sides; upper arm bone short (joint placement), visually fine"
+      },
+      {
+        "id": "face",
+        "label": "Face",
+        "auto": null,
+        "visual": 2,
+        "score": 2,
+        "pass": false,
+        "autoNote": "",
+        "visualNote": "photo-textured but low-poly head (5k tris), flat profile, painted moles / lines read as decals"
+      },
+      {
+        "id": "eyes",
+        "label": "Eyes",
+        "auto": 5,
+        "visual": 2,
+        "score": 2,
+        "pass": false,
+        "autoNote": "14.9 blinks/min, 44.8 saccades/min (range 8.9°); 15 blinks/min, 45 saccades/min (range 8.9°)",
+        "visualNote": "textured iris and catchlight, but no wet line or lid occlusion; eyes sit flat in the socket"
+      },
+      {
+        "id": "skin",
+        "label": "Skin",
+        "auto": null,
+        "visual": 2,
+        "score": 2,
+        "pass": false,
+        "autoNote": "",
+        "visualNote": "single roughness 0.8 everywhere, baked photo light in the albedo; darkest tone crushed (cheek L* 8.8 vs albedo ~15 in daylight)"
+      },
+      {
+        "id": "hair",
+        "label": "Hair",
+        "auto": null,
+        "visual": 2,
+        "score": 2,
+        "pass": false,
+        "autoNote": "",
+        "visualNote": "braids as floating ribbon cards, short hair a shell with a soft edge; helmet-like silhouette from the back"
+      },
+      {
+        "id": "hands",
+        "label": "Hands and fingers",
+        "auto": 5,
+        "visual": 2,
+        "score": 2,
+        "pass": false,
+        "autoNote": "5 fingers × 3 segments on both hands",
+        "visualNote": "5 fingers present but faceted paddles at close range; a pink wedge at the wrist under the cuff"
+      },
+      {
+        "id": "clothing",
+        "label": "Clothing",
+        "auto": 2,
+        "visual": 2,
+        "score": 2,
+        "pass": false,
+        "autoNote": "clothes are the body surface (no separate garments); clothes are the body surface (no separate garments)",
+        "visualNote": "clothes are the body surface (Rocketbox single mesh, painted detail); a 'tee' shows as the base model's jacket"
+      },
+      {
+        "id": "motion",
+        "label": "Motion",
+        "auto": 2,
+        "visual": 3,
+        "score": 2,
+        "pass": false,
+        "autoNote": "foot slide worst mean 7.5 cm / max 11.2 cm per step; snap 13.7°/frame; idle sway 6.9/12.5 mm; arms 6.5/9.7° from vertical",
+        "visualNote": "speed-matched gait, idle sway and blinks; feet still skate at slow walking"
+      },
+      {
+        "id": "expressions",
+        "label": "Expressions",
+        "auto": null,
+        "visual": 2,
+        "score": 2,
+        "pass": false,
+        "autoNote": "",
+        "visualNote": "jaw / blink / gaze only; no brows, cheeks or mouth corners in conversation"
+      },
+      {
+        "id": "lighting",
+        "label": "Lighting response",
+        "auto": null,
+        "visual": 3,
+        "score": 3,
+        "pass": false,
+        "autoNote": "",
+        "visualNote": "consistent in day / sunset / night rigs, dark skin loses form at sunset and night"
+      },
+      {
+        "id": "lod",
+        "label": "LOD transitions",
+        "auto": 5,
+        "visual": 4,
+        "score": 4,
+        "pass": true,
+        "autoNote": "8.5→9 m: 58452→16710 tris at 260 px, pop -1.31",
+        "visualNote": "head detail switch at 9 m is not visible in the sweep"
+      },
+      {
+        "id": "perf",
+        "label": "Performance",
+        "auto": 3,
+        "visual": 4,
+        "score": 3,
+        "pass": false,
+        "autoNote": "≤ 29225 tris, ≤ 11 calls (incl. shadow), ≤ 23.9 MB textures per person",
+        "visualNote": "12–29k tris, 3 body meshes + props per person, 24 MB textures per body type"
+      }
+    ],
+    "boxer": [
+      {
+        "id": "face",
+        "label": "Face",
+        "auto": null,
+        "visual": 2,
+        "score": 2,
+        "pass": false,
+        "autoNote": "",
+        "visualNote": "generic MakeHuman head, flat colour skin, procedural disc eyes"
+      },
+      {
+        "id": "eyes",
+        "label": "Eyes",
+        "auto": null,
+        "visual": 1,
+        "score": 1,
+        "pass": false,
+        "autoNote": "",
+        "visualNote": "procedural disc on the helper ball, no wetness"
+      },
+      {
+        "id": "skin",
+        "label": "Skin",
+        "auto": null,
+        "visual": 1,
+        "score": 1,
+        "pass": false,
+        "autoNote": "",
+        "visualNote": "one flat colour per person, noise bump, rim light: plastic"
+      },
+      {
+        "id": "hair",
+        "label": "Hair",
+        "auto": null,
+        "visual": 1,
+        "score": 1,
+        "pass": false,
+        "autoNote": "",
+        "visualNote": "1–2 cm bowl from the head envelope: helmet hair"
+      },
+      {
+        "id": "hands",
+        "label": "Hands and fingers",
+        "auto": null,
+        "visual": 3,
+        "score": 3,
+        "pass": false,
+        "autoNote": "",
+        "visualNote": "fingers rigged, gloves procedural shells"
+      },
+      {
+        "id": "clothing",
+        "label": "Clothing",
+        "auto": null,
+        "visual": 2,
+        "score": 2,
+        "pass": false,
+        "autoNote": "",
+        "visualNote": "vest a shell 5–11 mm along the body normals: the chest prints through"
+      },
+      {
+        "id": "motion",
+        "label": "Motion",
+        "auto": null,
+        "visual": 3,
+        "score": 3,
+        "pass": false,
+        "autoNote": "",
+        "visualNote": "IK boxing motion, frozen in the lab (not measured)"
+      },
+      {
+        "id": "expressions",
+        "label": "Expressions",
+        "auto": null,
+        "visual": 3,
+        "score": 3,
+        "pass": false,
+        "autoNote": "",
+        "visualNote": "focus / effort / wince channels exist"
+      },
+      {
+        "id": "perf",
+        "label": "Performance",
+        "auto": 5,
+        "visual": null,
+        "score": 5,
+        "pass": true,
+        "autoNote": "≤ 26171 tris, ≤ 0 calls (incl. shadow), ≤ 0 MB textures per person",
+        "visualNote": ""
+      }
+    ],
+    "fpv": [],
+    "ring": [
+      {
+        "id": "face",
+        "label": "Face",
+        "auto": null,
+        "visual": 2,
+        "score": 2,
+        "pass": false,
+        "autoNote": "",
+        "visualNote": "same base as the boxers"
+      },
+      {
+        "id": "skin",
+        "label": "Skin",
+        "auto": null,
+        "visual": 1,
+        "score": 1,
+        "pass": false,
+        "autoNote": "",
+        "visualNote": "flat colour"
+      },
+      {
+        "id": "hands",
+        "label": "Hands and fingers",
+        "auto": 5,
+        "visual": null,
+        "score": 5,
+        "pass": true,
+        "autoNote": "5 fingers × 3 segments on both hands",
+        "visualNote": ""
+      },
+      {
+        "id": "clothing",
+        "label": "Clothing",
+        "auto": 2,
+        "visual": 2,
+        "score": 2,
+        "pass": false,
+        "autoNote": "inside 3.17 %, worst 25.9 mm; inside 7.06 %, worst 36.3 mm; inside 8.25 %, worst 39.4 mm; inside 8.36 %, worst 29.2 mm; inside 4.07 %, worst 27.8 mm; inside 4.19 %, worst 27.8 mm",
+        "visualNote": "referee shirt and judges' polos as body-offset shells; clipping 3–8 % of garment vertices"
+      },
+      {
+        "id": "perf",
+        "label": "Performance",
+        "auto": 5,
+        "visual": null,
+        "score": 5,
+        "pass": true,
+        "autoNote": "≤ 27970 tris, ≤ 0 calls (incl. shadow), ≤ 0 MB textures per person",
+        "visualNote": ""
+      }
+    ]
+  }
+}

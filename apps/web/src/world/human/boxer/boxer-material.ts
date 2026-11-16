@@ -48,7 +48,7 @@ export const SLOT = {
 export const SLOTS = 25;
 
 /** roughness and sheen per slot (fixed); colours are uniforms */
-const ROUGH: number[] = [0.5, 0.72, 0.66, 0.34, 0.36, 0.42, 0.75, 0.8, 0.38, 0.44, 0.46, 0.5, 0.52, 0.88, 0.74, 0.66, 0.32, 0.45, 0.74, 0.82, 0.05, 0.9, 0.3, 0.88, 0.38];
+const ROUGH: number[] = [0.56, 0.72, 0.66, 0.34, 0.36, 0.5, 0.75, 0.8, 0.5, 0.52, 0.56, 0.55, 0.6, 0.88, 0.74, 0.66, 0.32, 0.45, 0.74, 0.82, 0.05, 0.9, 0.3, 0.88, 0.38];
 const SHEEN: number[] = [0, 0.18, 0.12, 0.9, 0.7, 0.12, 0, 0, 0.25, 0.15, 0.2, 0.2, 0.12, 0.25, 0.2, 0.15, 0.25, 0.4, 0.2, 0.3, 0, 0, 0, 0.3, 0.2];
 
 export interface BoxerColors {
@@ -108,7 +108,7 @@ export function boxerPalette(col: BoxerColors): THREE.Color[] {
   p[SLOT.sole] = c("#d8d4cc");
   p[SLOT.lace] = c("#f0efea");
   p[SLOT.glove] = c(kit);
-  p[SLOT.gloveTarget] = c("#f4f2ec");
+  p[SLOT.gloveTarget] = shade(kit, 0.96);
   p[SLOT.gloveCuff] = shade(kit, 0.82);
   p[SLOT.headgear] = c(kit);
   p[SLOT.headgearTrim] = shade(kit, 0.6);
@@ -120,7 +120,7 @@ export function boxerPalette(col: BoxerColors): THREE.Color[] {
   p[SLOT.polo] = c(col.polo ?? "#5a3826");
   p[SLOT.hair] = c(col.hair);
   p[SLOT.eye] = c("#f1eee8");
-  p[SLOT.lash] = c("#0d0b0a");
+  p[SLOT.lash] = c("#231a15");
   p[SLOT.teeth] = c("#e9e4d8");
   p[SLOT.sock] = c("#f2f1ec");
   p[SLOT.belt] = c("#1b1410");
@@ -280,6 +280,7 @@ vec3 gkDetailN(vec3 n, vec3 pos, vec2 uvq, vec2 dn, float k) {
   return normalize(n + (T * dn.x + B * dn.y) * sc * k);
 }
 int gkSlot() { return int(vMat + 0.5); }
+bool gkIsLeather(int s) { return s == 5 || (s >= 8 && s <= 12) || s == 16; }
 vec4 gkSkin;
 float gkHairy;`,
       )
@@ -287,12 +288,19 @@ float gkHairy;`,
         "#include <clipping_planes_fragment>",
         `#include <clipping_planes_fragment>
 if (uHide.w > 0.0 && distance(vBind, uHide.xyz) < uHide.w) discard;
+{
+  // first person: my own headgear, hair, eyes, lashes and teeth are never drawn (they reached the lens past the hide
+  // sphere in hooks and when looking down: QA-HUM-01)
+  int gkF = int(vMat + 0.5);
+  if (uHide.w > 0.0 && (gkF == 11 || gkF == 12 || (gkF >= 19 && gkF <= 22))) discard;
+}
 if (uNearCut.y > 0.0 && vBind.y > uNearCut.x && length(vViewPosition) < uNearCut.y) discard;
 {
   int gkS = int(vMat + 0.5);
   // the hairline thins out strand by strand (the shell's _ao = distance from the hairline); lashes are strands too
   if (gkS == 19 && gkNoise(vBind * vec3(3200.0, 1400.0, 3200.0)) > min(0.62, vAo * vAo * 0.9)) discard;
-  if (gkS == 21 && gkNoise(vec3(vBind.x * 3000.0, vBind.y * 400.0, 0.0)) < 0.55) discard;
+  // lashes: the upper lid's only (the lower lash helper read as a dark comb under the eye), fine sparse strands
+  if (gkS == 21 && (vBind.y < (vBind.x > 0.0 ? uEyeL.y : uEyeR.y) || gkNoise(vec3(vBind.x * 4200.0, vBind.y * 400.0, 0.0)) < 0.66)) discard;
 }`,
       )
       .replace(
@@ -337,6 +345,8 @@ if (gkM == 0) {
     vec3 sclera = pow(e.rgb, vec3(2.2)) * 0.95;
     vec3 iris = pow(e.rgb, vec3(2.2)) * uIris * 2.4;
     gkBase = mix(sclera, iris, e.a);
+    vec3 eo = normalize(vBind - (vBind.x > 0.0 ? uEyeL : uEyeR));
+    gkBase *= mix(1.0, 0.45, smoothstep(0.05, 0.75, eo.y)) * mix(1.0, 0.8, smoothstep(0.55, 0.95, abs(eo.x)));
   } else {
     vec3 ec = vBind.x > 0.0 ? uEyeL : uEyeR;
     vec3 d = normalize(vBind - ec);
@@ -360,6 +370,8 @@ if (gkM == 0) {
   gkBase *= 0.55 + 0.45 * s1 * (0.6 + 0.4 * s2);
 } else {
   gkBase *= mix(0.9, 1.03, vAo);
+  // leather: tonal mottling and darker creases between the padded panels (a dyed hide is never one flat colour)
+  if (gkIsLeather(gkM)) gkBase *= 0.9 + 0.14 * gkNoise(vBind * 38.0) - 0.06 * gkNoise(vBind * 160.0);
 }
 diffuseColor.rgb = gkBase;`,
       )
@@ -371,7 +383,7 @@ float gkSh = 0.0;
 for (int k = 0; k < ${SLOTS}; k++) { if (k == gkM) { gkR = uRough[k]; gkSh = uSheen[k]; } }
 if (gkM == 0) {
   // pores and creases are rougher; sweat smooths the skin
-  gkR = clamp(gkR + (0.5 - gkSkin.a) * 0.5, 0.3, 0.75);
+  gkR = clamp(gkR + (0.5 - gkSkin.a) * 0.5, 0.42, 0.8);
   gkR = mix(gkR, 0.3, uSweat * 0.8);
   gkR = mix(gkR, 0.8, gkHairy);
 }
@@ -381,11 +393,16 @@ roughnessFactor = gkR;`,
         "#include <normal_fragment_maps>",
         `#include <normal_fragment_maps>
 {
+  bool gkLeather = gkIsLeather(gkM);
   // muscle definition from the cavity field; the skin's fine height (texture) and micro-normal up close;
   // a knit on jersey
   float h = vAo * (gkM == 0 ? 0.03 : 0.006);
   if (gkM == 0 && uTex > 0.5) h += (gkSkin.a - 0.5) * 0.0016;
-  else if (gkM == 8 || gkM == 11 || gkM == 5) h += gkNoise(vBind * 500.0) * 0.0007 * uDetail;
+  else if (gkLeather) {
+    // leather: the padding's soft undulation (no perfect shell), a pebble grain (two octaves) up close
+    h += gkNoise(vBind * 55.0) * 0.0018;
+    h += (gkNoise(vBind * 1100.0) * 0.6 + gkNoise(vBind * 2600.0) * 0.4) * 0.00032 * uDetail;
+  }
   vec2 dh = vec2(dFdx(h), dFdy(h));
   normal = gkPerturb(-vViewPosition, normal, dh, faceDirection);
   if (uTex > 0.5 && uDetail > 0.0) {
@@ -404,8 +421,8 @@ roughnessFactor = gkR;`,
         `#include <lights_physical_fragment>
 // second specular lobe: skin oil / sweat (sharper, weak, grows with sweat); the wet cornea; satin and leather a little;
 // fabric sheen (physical sheen, per slot)
-material.clearcoat = gkM == 0 ? (0.12 + 0.55 * uSweat) * (1.0 - gkHairy) : (gkM == 20 ? 1.0 : (gkM == 3 || gkM == 4 ? 0.25 : (gkM == 8 || gkM == 11 || gkM == 5 || gkM == 16 ? 0.35 : 0.0)));
-material.clearcoatRoughness = gkM == 0 ? mix(0.42, 0.18, uSweat) : (gkM == 20 ? 0.02 : 0.25);
+material.clearcoat = gkM == 0 ? (0.06 + 0.6 * uSweat) * (1.0 - gkHairy) : (gkM == 20 ? 1.0 : (gkM == 3 || gkM == 4 ? 0.25 : (gkIsLeather(gkM) ? 0.1 : 0.0)));
+material.clearcoatRoughness = gkM == 0 ? mix(0.42, 0.18, uSweat) : (gkM == 20 ? 0.02 : (gkIsLeather(gkM) ? 0.45 : 0.25));
 material.sheenColor = gkM == 0 ? gkBase * vec3(0.6, 0.35, 0.3) * 0.25 : mix(vec3(1.0), gkBase, 0.4) * gkSh;
 material.sheenRoughness = gkM == 3 || gkM == 4 ? 0.3 : 0.6;`,
       )
@@ -427,6 +444,6 @@ material.sheenRoughness = gkM == 3 || gkM == 4 ? 0.3 : 0.6;`,
 }`,
       );
   };
-  m.customProgramCacheKey = () => "gk-boxer-v2";
+  m.customProgramCacheKey = () => "gk-boxer-v3";
   return m;
 }

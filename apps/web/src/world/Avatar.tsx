@@ -18,6 +18,7 @@ import type { BodyType, HeadwearKind } from "./outfits";
 import { clipsFor, HumanAnimator } from "./human/animator";
 import { aimBone, ProceduralLayer, type ArmBones } from "./human/procedural";
 import { footstep } from "./human/footsteps";
+import { FootLock } from "./human/foot-lock";
 import { seedOf } from "./human/life";
 import { SeatFit } from "./human/seat-fit";
 import { SEAT_PROFILES, type SeatProfile } from "./human/seat-profiles";
@@ -556,6 +557,8 @@ function HumanBody({
   const animator = useMemo(() => new HumanAnimator(inst.root, clipsFor(meta.anim, anims.animations, meta.hipY), meta.anim, seed), [inst, anims.animations, meta, seed]);
   const proc = useMemo(() => new ProceduralLayer({ root: inst.root, arms: inst.arms, spine: inst.spine, head: inst.head }), [inst]);
   // (built before the first mixer update: it measures the standing foot heights in the bind pose)
+  // planted feet pinned while walking (QA-HUM-01: no skating), measured in the bind pose like the seat fit
+  const footLock = useMemo(() => new FootLock(inst.root, (n) => inst.root.getObjectByName(n)), [inst]);
   const fit = useMemo(() => new SeatFit(inst.root, (n) => (inst.root.getObjectByName(n) as THREE.Bone | undefined) ?? null, inst.spine, inst.head), [inst]);
   // seated hands rest on the thighs / in the lap / on armrests, measured on this body (P2-AVA-09; bind pose too)
   // (a skirt / long wrap, world/human/attachments.ts, drapes over the lap: the hands rest on the cloth, not under it)
@@ -732,6 +735,8 @@ function HumanBody({
         b.quaternion.copy(_q2.invert().multiply(_q));
       }
     }
+    // walking: pin the planted foot (people near enough to see their feet; animated every frame there)
+    if (!animator.out.seated && every === 1 && dist < 25) footLock.apply(step, animator.out.moveW);
     // fit the seated pose to the actual seat (P2-AVA-06): on the cushion, feet planted, clear of seat fronts / rows
     const seatNow = seatRef?.current ?? null;
     if (seatNow) seatLatch.current = seatNow;

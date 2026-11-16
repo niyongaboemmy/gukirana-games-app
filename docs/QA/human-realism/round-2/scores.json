@@ -1,0 +1,56 @@
+{
+  "plaza": {
+    "proportions": [4, "unchanged: adult proportions from every side"],
+    "face": [2, "unchanged (Rocketbox heads; the migration is the fix)"],
+    "eyes": [2, "unchanged"],
+    "skin": [
+      2,
+      "auto now passes against the albedo reference (47 of 48 matrix patches, the darkest tone at night just under), but the shading is still baked photo light with one roughness; lightest tone porcelain"
+    ],
+    "hair": [3, "braids / locs now fall with gravity and rest on the shoulders; still smooth tubes up close"],
+    "hands": [2, "unchanged: paddle hands, lighter band at the wrist"],
+    "clothing": [2, "unchanged: clothes are the body surface"],
+    "motion": [
+      4,
+      "feet stay planted (0.1–0.2 cm per step in the lab and walking in the world); the walk strip reads as a filmed walk"
+    ],
+    "expressions": [2, "unchanged"],
+    "lighting": [3, "unchanged"],
+    "lod": [4, "unchanged"],
+    "perf": [4, "foot locking adds two leg IK solves per near person; tris / calls unchanged"]
+  },
+  "boxer": {
+    "proportions": [4, "7.7–7.9 heads with the headgear off, segments within 13 %"],
+    "face": [3, "generic sculpt; the lash comb under the eye is gone"],
+    "eyes": [3, "lid shadow on the top of the eyeball, upper lashes only; still no wet line / tear duct"],
+    "skin": [3, "less polished at rest, still a broad sheen on dark foreheads under the hall spot"],
+    "hair": [3, "unchanged"],
+    "hands": [
+      3,
+      "gloves now read as matte dyed leather with a padded surface; the shape is still a smooth procedural shell, the knuckle panel boundary a faint saw-tooth"
+    ],
+    "clothing": [
+      3,
+      "at rest garments sit on the body (0.1–0.2 % inside for tee / shirt / polo, was 2–3.4 %); in the guard the forearms still sink into the vest / tee (5–7 %); vest armholes jagged"
+    ],
+    "motion": [3, "unchanged"],
+    "expressions": [3, "unchanged"],
+    "lighting": [3, "unchanged"],
+    "perf": [4, "unchanged; the de-penetration pass runs once per body build"]
+  },
+  "ring": {
+    "face": [3, "same human"],
+    "skin": [3, "same human"],
+    "clothing": [
+      3,
+      "referee / judges 0.3–0.9 % inside in their live poses (was 3–4 %); boxers in the guard 5–7 %"
+    ],
+    "lighting": [2, "judges still near-black at night (hall lighting, outside this task)"]
+  },
+  "fpv": {
+    "fpv": [
+      2,
+      "my headgear / teeth / eyes no longer reach the lens and the near cut is wider, but cut shells of my own jaw / mouth still show in the uppercut, gloves fill the frame at clinch range; option only (side camera default)"
+    ]
+  }
+}

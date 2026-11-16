@@ -1,0 +1,4894 @@
+{
+  "at": "2026-11-16T00:43:25.794Z",
+  "web": "http://localhost:3995",
+  "git": "1562572",
+  "sections": {
+    "fpv": {
+      "frames": {
+        "desktop": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/fpv-desktop.jpg",
+        "phone": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/fpv-phone.jpg"
+      },
+      "intrusion": {
+        "desktop/guard": {
+          "headDist": 0.08,
+          "near": 0.2,
+          "inView": 202,
+          "cutHeadInView": 0,
+          "minDepth": 0.051,
+          "bySlot": {
+            "slot0": 202
+          }
+        },
+        "desktop/jab": {
+          "headDist": 0.091,
+          "near": 0.2,
+          "inView": 237,
+          "cutHeadInView": 0,
+          "minDepth": 0.076,
+          "bySlot": {
+            "slot0": 48,
+            "slot8": 11,
+            "slot10": 31,
+            "slot7": 6,
+            "slot13": 141
+          }
+        },
+        "desktop/cross": {
+          "headDist": 0.086,
+          "near": 0.2,
+          "inView": 457,
+          "cutHeadInView": 0,
+          "minDepth": 0.075,
+          "bySlot": {
+            "slot0": 33,
+            "slot8": 127,
+            "slot7": 3,
+            "slot10": 39,
+            "slot13": 255
+          }
+        },
+        "desktop/lead-hook": {
+          "headDist": 0.112,
+          "near": 0.2,
+          "inView": 148,
+          "cutHeadInView": 0,
+          "minDepth": 0.016,
+          "bySlot": {
+            "slot0": 74,
+            "slot1": 1,
+            "slot2": 4,
+            "slot8": 44,
+            "slot9": 25
+          }
+        },
+        "desktop/uppercut": {
+          "headDist": 0.075,
+          "near": 0.2,
+          "inView": 488,
+          "cutHeadInView": 0,
+          "minDepth": 0.082,
+          "bySlot": {
+            "slot0": 79,
+            "slot8": 22,
+            "slot10": 38,
+            "slot13": 349
+          }
+        },
+        "desktop/block": {
+          "headDist": 0.086,
+          "near": 0.2,
+          "inView": 175,
+          "cutHeadInView": 0,
+          "minDepth": 0.04,
+          "bySlot": {
+            "slot0": 175
+          }
+        },
+        "desktop/look-down": {
+          "headDist": 0.088,
+          "near": 0.2,
+          "inView": 828,
+          "cutHeadInView": 0,
+          "minDepth": 0.074,
+          "bySlot": {
+            "slot0": 565,
+            "slot1": 34,
+            "slot2": 84,
+            "slot10": 5,
+            "slot11": 36,
+            "slot12": 104
+          }
+        },
+        "phone/guard": {
+          "headDist": 0.086,
+          "near": 0.2,
+          "inView": 164,
+          "cutHeadInView": 0,
+          "minDepth": 0.105,
+          "bySlot": {
+            "slot0": 164
+          }
+        },
+        "phone/jab": {
+          "headDist": 0.085,
+          "near": 0.2,
+          "inView": 360,
+          "cutHeadInView": 0,
+          "minDepth": 0.061,
+          "bySlot": {
+            "slot0": 32,
+            "slot8": 53,
+            "slot10": 23,
+            "slot13": 252
+          }
+        },
+        "phone/cross": {
+          "headDist": 0.081,
+          "near": 0.2,
+          "inView": 118,
+          "cutHeadInView": 0,
+          "minDepth": 0.106,
+          "bySlot": {
+            "slot0": 18,
+            "slot10": 17,
+            "slot13": 83
+          }
+        },
+        "phone/lead-hook": {
+          "headDist": 0.087,
+          "near": 0.2,
+          "inView": 191,
+          "cutHeadInView": 0,
+          "minDepth": 0.068,
+          "bySlot": {
+            "slot0": 119,
+            "slot8": 47,
+            "slot9": 17,
+            "slot10": 8
+          }
+        },
+        "phone/uppercut": {
+          "headDist": 0.085,
+          "near": 0.2,
+          "inView": 603,
+          "cutHeadInView": 0,
+          "minDepth": 0.02,
+          "bySlot": {
+            "slot0": 64,
+            "slot8": 127,
+            "slot10": 50,
+            "slot13": 362
+          }
+        },
+        "phone/block": {
+          "headDist": 0.087,
+          "near": 0.2,
+          "inView": 320,
+          "cutHeadInView": 0,
+          "minDepth": 0.105,
+          "bySlot": {
+            "slot0": 72,
+            "slot10": 26,
+            "slot7": 1,
+            "slot13": 221
+          }
+        },
+        "phone/look-down": {
+          "headDist": 0.089,
+          "near": 0.2,
+          "inView": 1481,
+          "cutHeadInView": 0,
+          "minDepth": 0.037,
+          "bySlot": {
+            "slot0": 404,
+            "slot22": 5,
+            "slot1": 24,
+            "slot2": 64,
+            "slot8": 264,
+            "slot10": 88,
+            "slot7": 13,
+            "slot11": 28,
+            "slot12": 84,
+            "slot13": 507
+          }
+        }
+      }
+    },
+    "lab": {
+      "views": {
+        "desktop/f-tee/day": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/lab-desktop-f-tee-day.jpg",
+        "desktop/m-tee/day": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/lab-desktop-m-tee-day.jpg",
+        "desktop/f-tee/sunset": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/lab-desktop-f-tee-sunset.jpg",
+        "desktop/m-tee/sunset": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/lab-desktop-m-tee-sunset.jpg",
+        "desktop/f-tee/night": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/lab-desktop-f-tee-night.jpg",
+        "desktop/m-tee/night": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/lab-desktop-m-tee-night.jpg",
+        "phone/f-tee/day": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/lab-phone-f-tee-day.jpg",
+        "phone/m-tee/day": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/lab-phone-m-tee-day.jpg",
+        "phone/f-tee/sunset": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/lab-phone-f-tee-sunset.jpg",
+        "phone/m-tee/sunset": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/lab-phone-m-tee-sunset.jpg",
+        "phone/f-tee/night": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/lab-phone-f-tee-night.jpg",
+        "phone/m-tee/night": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/lab-phone-m-tee-night.jpg"
+      },
+      "measure": {
+        "f-tee": {
+          "meshes": [
+            {
+              "name": "body_1",
+              "tris": 1543,
+              "verts": 1441,
+              "materials": ["body"],
+              "morphs": 0,
+              "slots": false
+            },
+            {
+              "name": "body_2",
+              "tris": 5224,
+              "verts": 2956,
+              "materials": ["head"],
+              "morphs": 0,
+              "slots": false
+            },
+            {
+              "name": "gk-hair",
+              "tris": 22458,
+              "verts": 13593,
+              "materials": ["gk-hair"],
+              "morphs": 0,
+              "slots": false
+            }
+          ],
+          "bones": 80,
+          "warnings": [],
+          "materials": [
+            {
+              "mesh": "body_1",
+              "name": "body",
+              "type": "MeshStandardMaterial",
+              "roughness": 0.8,
+              "metalness": 0,
+              "map": true,
+              "normalMap": true,
+              "bumpMap": false,
+              "roughnessMap": false,
+              "clearcoat": 0,
+              "sheen": 0,
+              "transmission": 0,
+              "alphaTest": 0,
+              "alphaHash": true,
+              "alphaToCoverage": false,
+              "transparent": false,
+              "customShader": true
+            },
+            {
+              "mesh": "body_2",
+              "name": "head",
+              "type": "MeshStandardMaterial",
+              "roughness": 0.8,
+              "metalness": 0,
+              "map": true,
+              "normalMap": true,
+              "bumpMap": false,
+              "roughnessMap": false,
+              "clearcoat": 0,
+              "sheen": 0,
+              "transmission": 0,
+              "alphaTest": 0,
+              "alphaHash": true,
+              "alphaToCoverage": false,
+              "transparent": false,
+              "customShader": true
+            },
+            {
+              "mesh": "gk-hair",
+              "name": "gk-hair",
+              "type": "MeshStandardMaterial",
+              "roughness": 0.8,
+              "metalness": 0,
+              "map": false,
+              "normalMap": false,
+              "bumpMap": false,
+              "roughnessMap": false,
+              "clearcoat": 0,
+              "sheen": 0,
+              "transmission": 0,
+              "alphaTest": 0,
+              "alphaHash": true,
+              "alphaToCoverage": false,
+              "transparent": false,
+              "customShader": true
+            }
+          ],
+          "textures": [
+            {
+              "name": "feminine_body",
+              "w": 1024,
+              "h": 1024,
+              "mb": 5.32
+            },
+            {
+              "name": "feminine_body_n",
+              "w": 1024,
+              "h": 1024,
+              "mb": 5.32
+            },
+            {
+              "name": "feminine_body_mask",
+              "w": 512,
+              "h": 512,
+              "mb": 1.33
+            },
+            {
+              "name": "feminine_head",
+              "w": 1024,
+              "h": 1024,
+              "mb": 5.32
+            },
+            {
+              "name": "feminine_head_n",
+              "w": 1024,
+              "h": 1024,
+              "mb": 5.32
+            },
+            {
+              "name": "feminine_head_mask",
+              "w": 512,
+              "h": 512,
+              "mb": 1.33
+            }
+          ],
+          "textureMB": 23.9,
+          "tris": 29225,
+          "proportions": {
+            "stature": 1.724,
+            "headHeight": 0.226,
+            "headRatio": 7.63,
+            "upperArmL": 0.147,
+            "forearmL": 0.139,
+            "thighL": 0.247,
+            "shankL": 0.232,
+            "upperArmR": 0.147,
+            "forearmR": 0.139,
+            "thighR": 0.247,
+            "shankR": 0.232,
+            "shoulderJoints": 0.193,
+            "hipJoints": 0.103
+          },
+          "hands": {
+            "L": {
+              "fingers": 5,
+              "segments": [3, 3, 3, 3, 3]
+            },
+            "R": {
+              "fingers": 5,
+              "segments": [3, 3, 3, 3, 3]
+            }
+          },
+          "garments": {
+            "separateGeometry": false,
+            "garmentMeshes": [],
+            "perVertexSlots": false,
+            "garmentVerts": 0,
+            "skinVerts": 4397
+          },
+          "face": {
+            "eyes": 2,
+            "lidBones": 4,
+            "faceBones": 28,
+            "morphs": 0
+          },
+          "isolated": {
+            "calls": 7,
+            "tris": 58452
+          }
+        },
+        "m-tee": {
+          "meshes": [
+            {
+              "name": "body_1",
+              "tris": 1137,
+              "verts": 858,
+              "materials": ["body"],
+              "morphs": 0,
+              "slots": false
+            },
+            {
+              "name": "body_2",
+              "tris": 5564,
+              "verts": 3018,
+              "materials": ["head"],
+              "morphs": 0,
+              "slots": false
+            },
+            {
+              "name": "gk-hair",
+              "tris": 4816,
+              "verts": 2684,
+              "materials": ["gk-hair"],
+              "morphs": 0,
+              "slots": false
+            }
+          ],
+          "bones": 80,
+          "warnings": [],
+          "materials": [
+            {
+              "mesh": "body_1",
+              "name": "body",
+              "type": "MeshStandardMaterial",
+              "roughness": 0.8,
+              "metalness": 0,
+              "map": true,
+              "normalMap": true,
+              "bumpMap": false,
+              "roughnessMap": false,
+              "clearcoat": 0,
+              "sheen": 0,
+              "transmission": 0,
+              "alphaTest": 0,
+              "alphaHash": true,
+              "alphaToCoverage": false,
+              "transparent": false,
+              "customShader": true
+            },
+            {
+              "mesh": "body_2",
+              "name": "head",
+              "type": "MeshStandardMaterial",
+              "roughness": 0.8,
+              "metalness": 0,
+              "map": true,
+              "normalMap": true,
+              "bumpMap": false,
+              "roughnessMap": false,
+              "clearcoat": 0,
+              "sheen": 0,
+              "transmission": 0,
+              "alphaTest": 0,
+              "alphaHash": true,
+              "alphaToCoverage": false,
+              "transparent": false,
+              "customShader": true
+            },
+            {
+              "mesh": "gk-hair",
+              "name": "gk-hair",
+              "type": "MeshStandardMaterial",
+              "roughness": 0.8,
+              "metalness": 0,
+              "map": false,
+              "normalMap": false,
+              "bumpMap": false,
+              "roughnessMap": false,
+              "clearcoat": 0,
+              "sheen": 0,
+              "transmission": 0,
+              "alphaTest": 0,
+              "alphaHash": true,
+              "alphaToCoverage": false,
+              "transparent": false,
+              "customShader": true
+            }
+          ],
+          "textures": [
+            {
+              "name": "masculine_body",
+              "w": 1024,
+              "h": 1024,
+              "mb": 5.32
+            },
+            {
+              "name": "masculine_body_n",
+              "w": 1024,
+              "h": 1024,
+              "mb": 5.32
+            },
+            {
+              "name": "masculine_body_mask",
+              "w": 512,
+              "h": 512,
+              "mb": 1.33
+            },
+            {
+              "name": "masculine_head",
+              "w": 1024,
+              "h": 1024,
+              "mb": 5.32
+            },
+            {
+              "name": "masculine_head_n",
+              "w": 1024,
+              "h": 1024,
+              "mb": 5.32
+            },
+            {
+              "name": "masculine_head_mask",
+              "w": 512,
+              "h": 512,
+              "mb": 1.33
+            }
+          ],
+          "textureMB": 23.9,
+          "tris": 11517,
+          "proportions": {
+            "stature": 1.798,
+            "headHeight": 0.256,
+            "headRatio": 7.03,
+            "upperArmL": 0.159,
+            "forearmL": 0.151,
+            "thighL": 0.222,
+            "shankL": 0.221,
+            "upperArmR": 0.159,
+            "forearmR": 0.151,
+            "thighR": 0.222,
+            "shankR": 0.221,
+            "shoulderJoints": 0.232,
+            "hipJoints": 0.098
+          },
+          "hands": {
+            "L": {
+              "fingers": 5,
+              "segments": [3, 3, 3, 3, 3]
+            },
+            "R": {
+              "fingers": 5,
+              "segments": [3, 3, 3, 3, 3]
+            }
+          },
+          "garments": {
+            "separateGeometry": false,
+            "garmentMeshes": [],
+            "perVertexSlots": false,
+            "garmentVerts": 0,
+            "skinVerts": 3876
+          },
+          "face": {
+            "eyes": 2,
+            "lidBones": 4,
+            "faceBones": 28,
+            "morphs": 0
+          },
+          "isolated": {
+            "calls": 7,
+            "tris": 23036
+          }
+        }
+      },
+      "idle": {
+        "f-tee": {
+          "seconds": 10,
+          "fps": 60,
+          "worstSnap": {
+            "deg": 0.3,
+            "bone": "Bip01_L_Calf",
+            "t": 5.99
+          },
+          "rootSpeed": 0,
+          "steps": [],
+          "blinks": {
+            "count": 3,
+            "perMin": 18,
+            "channels": 2
+          },
+          "saccades": {
+            "count": 3,
+            "perMin": 18,
+            "maxEyeDeg": 8.9
+          },
+          "headSwayMm": 10.8,
+          "armFromDownDeg": 6.2
+        },
+        "m-tee": {
+          "seconds": 10,
+          "fps": 60,
+          "worstSnap": {
+            "deg": 0.3,
+            "bone": "Bip01_L_Foot",
+            "t": 0.51
+          },
+          "rootSpeed": 0,
+          "steps": [],
+          "blinks": {
+            "count": 3,
+            "perMin": 18,
+            "channels": 2
+          },
+          "saccades": {
+            "count": 3,
+            "perMin": 18,
+            "maxEyeDeg": 8.9
+          },
+          "headSwayMm": 8.8,
+          "armFromDownDeg": 9.6
+        }
+      },
+      "walk": {
+        "f-tee@1.4": {
+          "seconds": 5,
+          "fps": 60,
+          "worstSnap": {
+            "deg": 5.8,
+            "bone": "Bip01_L_Calf",
+            "t": 0.99
+          },
+          "rootSpeed": 1.39,
+          "steps": [
+            {
+              "foot": "L",
+              "t": 0.42,
+              "dur": 0.45,
+              "slideCm": 5.3,
+              "netCm": 4.7,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 0.95,
+              "dur": 0.47,
+              "slideCm": 3.6,
+              "netCm": 1.3,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 1.52,
+              "dur": 0.45,
+              "slideCm": 5.4,
+              "netCm": 4.8,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 2.03,
+              "dur": 0.47,
+              "slideCm": 3.4,
+              "netCm": 1.2,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 2.6,
+              "dur": 0.45,
+              "slideCm": 5.4,
+              "netCm": 4.7,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 3.13,
+              "dur": 0.47,
+              "slideCm": 3.5,
+              "netCm": 1.3,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 3.7,
+              "dur": 0.45,
+              "slideCm": 5.4,
+              "netCm": 4.8,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 4.22,
+              "dur": 0.47,
+              "slideCm": 3.4,
+              "netCm": 1.2,
+              "joint": "toe"
+            }
+          ],
+          "footSlide": {
+            "steps": 8,
+            "meanCm": 3,
+            "maxCm": 4.8,
+            "meanPathCm": 4.4
+          },
+          "cadence": 96,
+          "blinks": {
+            "count": 1,
+            "perMin": 12,
+            "channels": 2
+          },
+          "saccades": {
+            "count": 2,
+            "perMin": 24,
+            "maxEyeDeg": 11.5
+          },
+          "headSwayMm": 11.3,
+          "armFromDownDeg": 14.2
+        },
+        "f-tee@2.2": {
+          "seconds": 5,
+          "fps": 60,
+          "worstSnap": {
+            "deg": 9,
+            "bone": "Bip01_R_Calf",
+            "t": 0.55
+          },
+          "rootSpeed": 2.2,
+          "steps": [
+            {
+              "foot": "L",
+              "t": 0.36,
+              "dur": 0.23,
+              "slideCm": 3.8,
+              "netCm": 2.1,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 0.74,
+              "dur": 0.22,
+              "slideCm": 3.1,
+              "netCm": 1.4,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 1.15,
+              "dur": 0.22,
+              "slideCm": 3.4,
+              "netCm": 1.7,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 1.51,
+              "dur": 0.23,
+              "slideCm": 3.6,
+              "netCm": 1.3,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 1.93,
+              "dur": 0.22,
+              "slideCm": 3.4,
+              "netCm": 1.7,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 2.29,
+              "dur": 0.22,
+              "slideCm": 2.9,
+              "netCm": 1.4,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 2.71,
+              "dur": 0.22,
+              "slideCm": 3.2,
+              "netCm": 1.6,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 3.08,
+              "dur": 0.22,
+              "slideCm": 2.9,
+              "netCm": 1.3,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 3.48,
+              "dur": 0.23,
+              "slideCm": 3.8,
+              "netCm": 2.1,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 3.86,
+              "dur": 0.21,
+              "slideCm": 3,
+              "netCm": 1.4,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 4.26,
+              "dur": 0.23,
+              "slideCm": 3.8,
+              "netCm": 2.1,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 4.64,
+              "dur": 0.22,
+              "slideCm": 3,
+              "netCm": 1.4,
+              "joint": "toe"
+            }
+          ],
+          "footSlide": {
+            "steps": 12,
+            "meanCm": 1.6,
+            "maxCm": 2.1,
+            "meanPathCm": 3.3
+          },
+          "cadence": 144,
+          "blinks": {
+            "count": 2,
+            "perMin": 24,
+            "channels": 2
+          },
+          "saccades": {
+            "count": 3,
+            "perMin": 36,
+            "maxEyeDeg": 6.5
+          },
+          "headSwayMm": 8,
+          "armFromDownDeg": 22
+        },
+        "f-tee@3.2": {
+          "seconds": 5,
+          "fps": 60,
+          "worstSnap": {
+            "deg": 10.3,
+            "bone": "Bip01_R_Calf",
+            "t": 1.86
+          },
+          "rootSpeed": 3.2,
+          "steps": [
+            {
+              "foot": "L",
+              "t": 0.16,
+              "dur": 0.17,
+              "slideCm": 3.1,
+              "netCm": 0.8,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 0.53,
+              "dur": 0.15,
+              "slideCm": 2.2,
+              "netCm": 1.4,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 0.9,
+              "dur": 0.17,
+              "slideCm": 2.9,
+              "netCm": 0.7,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 1.26,
+              "dur": 0.15,
+              "slideCm": 2.2,
+              "netCm": 1.1,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 1.65,
+              "dur": 0.17,
+              "slideCm": 3.2,
+              "netCm": 0.8,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 2.01,
+              "dur": 0.15,
+              "slideCm": 2.3,
+              "netCm": 1.4,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 2.38,
+              "dur": 0.17,
+              "slideCm": 2.9,
+              "netCm": 0.7,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 2.75,
+              "dur": 0.15,
+              "slideCm": 2.2,
+              "netCm": 1.1,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 3.13,
+              "dur": 0.17,
+              "slideCm": 3.4,
+              "netCm": 0.8,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 3.5,
+              "dur": 0.15,
+              "slideCm": 2.3,
+              "netCm": 1.4,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 3.88,
+              "dur": 0.15,
+              "slideCm": 2.5,
+              "netCm": 0.8,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 4.23,
+              "dur": 0.17,
+              "slideCm": 2.8,
+              "netCm": 1.5,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 4.61,
+              "dur": 0.17,
+              "slideCm": 3.4,
+              "netCm": 0.8,
+              "joint": "toe"
+            }
+          ],
+          "footSlide": {
+            "steps": 13,
+            "meanCm": 1,
+            "maxCm": 1.5,
+            "meanPathCm": 2.7
+          },
+          "cadence": 156,
+          "blinks": {
+            "count": 2,
+            "perMin": 24,
+            "channels": 2
+          },
+          "saccades": {
+            "count": 0,
+            "perMin": 0,
+            "maxEyeDeg": 7.6
+          },
+          "headSwayMm": 15.3,
+          "armFromDownDeg": 41.6
+        },
+        "m-tee@1.4": {
+          "seconds": 5,
+          "fps": 60,
+          "worstSnap": {
+            "deg": 5.7,
+            "bone": "Bip01_L_Calf",
+            "t": 4.76
+          },
+          "rootSpeed": 1.4,
+          "steps": [
+            {
+              "foot": "R",
+              "t": 0.38,
+              "dur": 0.48,
+              "slideCm": 3.3,
+              "netCm": 1.2,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 0.98,
+              "dur": 0.45,
+              "slideCm": 2.8,
+              "netCm": 2.2,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 1.46,
+              "dur": 0.48,
+              "slideCm": 3.3,
+              "netCm": 1.1,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 2.06,
+              "dur": 0.47,
+              "slideCm": 3.2,
+              "netCm": 2.6,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 2.55,
+              "dur": 0.48,
+              "slideCm": 3.4,
+              "netCm": 1.1,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 3.15,
+              "dur": 0.47,
+              "slideCm": 3.2,
+              "netCm": 2.6,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 3.63,
+              "dur": 0.48,
+              "slideCm": 3.4,
+              "netCm": 1,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 4.23,
+              "dur": 0.46,
+              "slideCm": 3,
+              "netCm": 2.5,
+              "joint": "toe"
+            }
+          ],
+          "footSlide": {
+            "steps": 8,
+            "meanCm": 1.8,
+            "maxCm": 2.6,
+            "meanPathCm": 3.2
+          },
+          "cadence": 96,
+          "blinks": {
+            "count": 1,
+            "perMin": 12,
+            "channels": 2
+          },
+          "saccades": {
+            "count": 2,
+            "perMin": 24,
+            "maxEyeDeg": 11.5
+          },
+          "headSwayMm": 16.1,
+          "armFromDownDeg": 17.3
+        },
+        "m-tee@2.2": {
+          "seconds": 5,
+          "fps": 60,
+          "worstSnap": {
+            "deg": 9.2,
+            "bone": "Bip01_R_Calf",
+            "t": 0.7
+          },
+          "rootSpeed": 2.2,
+          "steps": [
+            {
+              "foot": "R",
+              "t": 0.38,
+              "dur": 0.22,
+              "slideCm": 2.6,
+              "netCm": 0.7,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 0.78,
+              "dur": 0.22,
+              "slideCm": 1.8,
+              "netCm": 1.3,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 1.15,
+              "dur": 0.23,
+              "slideCm": 2.9,
+              "netCm": 0.8,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 1.56,
+              "dur": 0.22,
+              "slideCm": 1.8,
+              "netCm": 1.4,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 1.93,
+              "dur": 0.23,
+              "slideCm": 2.8,
+              "netCm": 0.7,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 2.33,
+              "dur": 0.23,
+              "slideCm": 1.8,
+              "netCm": 1.3,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 2.71,
+              "dur": 0.21,
+              "slideCm": 2.6,
+              "netCm": 0.7,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 3.11,
+              "dur": 0.23,
+              "slideCm": 1.9,
+              "netCm": 1.3,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 3.5,
+              "dur": 0.21,
+              "slideCm": 2.7,
+              "netCm": 0.7,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 3.89,
+              "dur": 0.22,
+              "slideCm": 1.8,
+              "netCm": 1.3,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 4.26,
+              "dur": 0.23,
+              "slideCm": 2.9,
+              "netCm": 0.7,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 4.66,
+              "dur": 0.23,
+              "slideCm": 1.8,
+              "netCm": 1.3,
+              "joint": "toe"
+            }
+          ],
+          "footSlide": {
+            "steps": 12,
+            "meanCm": 1,
+            "maxCm": 1.4,
+            "meanPathCm": 2.3
+          },
+          "cadence": 144,
+          "blinks": {
+            "count": 2,
+            "perMin": 24,
+            "channels": 2
+          },
+          "saccades": {
+            "count": 3,
+            "perMin": 36,
+            "maxEyeDeg": 6.5
+          },
+          "headSwayMm": 21.1,
+          "armFromDownDeg": 21.9
+        },
+        "m-tee@3.2": {
+          "seconds": 5,
+          "fps": 60,
+          "worstSnap": {
+            "deg": 14,
+            "bone": "Bip01_L_Calf",
+            "t": 3.06
+          },
+          "rootSpeed": 3.2,
+          "steps": [
+            {
+              "foot": "R",
+              "t": 0.05,
+              "dur": 0.13,
+              "slideCm": 2.8,
+              "netCm": 1.1,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 0.4,
+              "dur": 0.11,
+              "slideCm": 2.3,
+              "netCm": 0.9,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 0.76,
+              "dur": 0.12,
+              "slideCm": 2.4,
+              "netCm": 1,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 1.11,
+              "dur": 0.1,
+              "slideCm": 2,
+              "netCm": 1.1,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 1.46,
+              "dur": 0.13,
+              "slideCm": 3,
+              "netCm": 1.1,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 1.81,
+              "dur": 0.12,
+              "slideCm": 2.4,
+              "netCm": 0.9,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 2.17,
+              "dur": 0.13,
+              "slideCm": 2.6,
+              "netCm": 1,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 2.51,
+              "dur": 0.12,
+              "slideCm": 2.5,
+              "netCm": 0.8,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 2.88,
+              "dur": 0.12,
+              "slideCm": 2.2,
+              "netCm": 1,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 3.23,
+              "dur": 0.12,
+              "slideCm": 2.4,
+              "netCm": 1.1,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 3.58,
+              "dur": 0.13,
+              "slideCm": 2.7,
+              "netCm": 1,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 3.93,
+              "dur": 0.12,
+              "slideCm": 2.4,
+              "netCm": 0.8,
+              "joint": "toe"
+            },
+            {
+              "foot": "R",
+              "t": 4.3,
+              "dur": 0.12,
+              "slideCm": 2.4,
+              "netCm": 1,
+              "joint": "toe"
+            },
+            {
+              "foot": "L",
+              "t": 4.65,
+              "dur": 0.12,
+              "slideCm": 2.4,
+              "netCm": 1.2,
+              "joint": "toe"
+            }
+          ],
+          "footSlide": {
+            "steps": 14,
+            "meanCm": 1,
+            "maxCm": 1.2,
+            "meanPathCm": 2.5
+          },
+          "cadence": 168,
+          "blinks": {
+            "count": 2,
+            "perMin": 24,
+            "channels": 2
+          },
+          "saccades": {
+            "count": 0,
+            "perMin": 0,
+            "maxEyeDeg": 7.6
+          },
+          "headSwayMm": 32.3,
+          "armFromDownDeg": 38.5
+        }
+      },
+      "face": {
+        "desktop/f-tee/day": {
+          "L": 15.8,
+          "chroma": 23.9,
+          "hue": 43,
+          "blown": 0,
+          "texture": 5.13,
+          "skin": "#5C3A26",
+          "albedoL": 28,
+          "albedoChroma": 22.4,
+          "lRatio": 0.56,
+          "chromaRatio": 1.07
+        },
+        "desktop/m-tee/day": {
+          "L": 8.9,
+          "chroma": 13,
+          "hue": 38,
+          "blown": 0,
+          "texture": 5.25,
+          "skin": "#3B2219",
+          "albedoL": 16.2,
+          "albedoChroma": 15.5,
+          "lRatio": 0.55,
+          "chromaRatio": 0.84
+        },
+        "desktop/f-tee/sunset": {
+          "L": 9.8,
+          "chroma": 25.2,
+          "hue": 33,
+          "blown": 0,
+          "texture": 4.01,
+          "skin": "#5C3A26",
+          "albedoL": 28,
+          "albedoChroma": 22.4,
+          "lRatio": 0.35,
+          "chromaRatio": 1.13
+        },
+        "desktop/m-tee/sunset": {
+          "L": 4.5,
+          "chroma": 14.1,
+          "hue": 27,
+          "blown": 0,
+          "texture": 2.57,
+          "skin": "#3B2219",
+          "albedoL": 16.2,
+          "albedoChroma": 15.5,
+          "lRatio": 0.28,
+          "chromaRatio": 0.91
+        },
+        "desktop/f-tee/night": {
+          "L": 10.4,
+          "chroma": 26.3,
+          "hue": 35,
+          "blown": 0,
+          "texture": 2.58,
+          "skin": "#5C3A26",
+          "albedoL": 28,
+          "albedoChroma": 22.4,
+          "lRatio": 0.37,
+          "chromaRatio": 1.17
+        },
+        "desktop/m-tee/night": {
+          "L": 4.9,
+          "chroma": 13.2,
+          "hue": 32,
+          "blown": 0,
+          "texture": 2.75,
+          "skin": "#3B2219",
+          "albedoL": 16.2,
+          "albedoChroma": 15.5,
+          "lRatio": 0.3,
+          "chromaRatio": 0.85
+        },
+        "phone/f-tee/day": {
+          "L": 14.6,
+          "chroma": 23.1,
+          "hue": 42,
+          "blown": 0,
+          "texture": 5.48,
+          "skin": "#5C3A26",
+          "albedoL": 28,
+          "albedoChroma": 22.4,
+          "lRatio": 0.52,
+          "chromaRatio": 1.03
+        },
+        "phone/m-tee/day": {
+          "L": 8.9,
+          "chroma": 13.1,
+          "hue": 38,
+          "blown": 0,
+          "texture": 4.87,
+          "skin": "#3B2219",
+          "albedoL": 16.2,
+          "albedoChroma": 15.5,
+          "lRatio": 0.55,
+          "chromaRatio": 0.85
+        },
+        "phone/f-tee/sunset": {
+          "L": 9.7,
+          "chroma": 24.9,
+          "hue": 33,
+          "blown": 0,
+          "texture": 4.46,
+          "skin": "#5C3A26",
+          "albedoL": 28,
+          "albedoChroma": 22.4,
+          "lRatio": 0.35,
+          "chromaRatio": 1.11
+        },
+        "phone/m-tee/sunset": {
+          "L": 4.6,
+          "chroma": 14.2,
+          "hue": 27,
+          "blown": 0,
+          "texture": 2.56,
+          "skin": "#3B2219",
+          "albedoL": 16.2,
+          "albedoChroma": 15.5,
+          "lRatio": 0.28,
+          "chromaRatio": 0.92
+        },
+        "phone/f-tee/night": {
+          "L": 9.3,
+          "chroma": 23.9,
+          "hue": 34,
+          "blown": 0,
+          "texture": 3.56,
+          "skin": "#5C3A26",
+          "albedoL": 28,
+          "albedoChroma": 22.4,
+          "lRatio": 0.33,
+          "chromaRatio": 1.07
+        },
+        "phone/m-tee/night": {
+          "L": 4.8,
+          "chroma": 13.1,
+          "hue": 32,
+          "blown": 0,
+          "texture": 2.68,
+          "skin": "#3B2219",
+          "albedoL": 16.2,
+          "albedoChroma": 15.5,
+          "lRatio": 0.3,
+          "chromaRatio": 0.85
+        }
+      }
+    },
+    "matrix": {
+      "face": {
+        "day/feminine/young/s0": {
+          "L": 6,
+          "chroma": 10.7,
+          "hue": 35,
+          "blown": 0,
+          "texture": 2.87,
+          "skin": "#3B2219",
+          "albedoL": 16.2,
+          "albedoChroma": 15.5,
+          "lRatio": 0.37,
+          "chromaRatio": 0.69
+        },
+        "day/feminine/young/s3": {
+          "L": 22.1,
+          "chroma": 30.5,
+          "hue": 44,
+          "blown": 0,
+          "texture": 6.01,
+          "skin": "#6E4530",
+          "albedoL": 33.5,
+          "albedoChroma": 25,
+          "lRatio": 0.66,
+          "chromaRatio": 1.22
+        },
+        "day/feminine/young/s6": {
+          "L": 45.1,
+          "chroma": 46,
+          "hue": 55,
+          "blown": 0,
+          "texture": 10.67,
+          "skin": "#B97A4A",
+          "albedoL": 56.8,
+          "albedoChroma": 41,
+          "lRatio": 0.79,
+          "chromaRatio": 1.12
+        },
+        "day/feminine/young/s10": {
+          "L": 73.4,
+          "chroma": 18.1,
+          "hue": 61,
+          "blown": 0,
+          "texture": 11.2,
+          "skin": "#F1D5BE",
+          "albedoL": 87,
+          "albedoChroma": 16.2,
+          "lRatio": 0.84,
+          "chromaRatio": 1.12
+        },
+        "day/feminine/adult/s0": {
+          "L": 6.3,
+          "chroma": 11.1,
+          "hue": 35,
+          "blown": 0,
+          "texture": 2.95,
+          "skin": "#3B2219",
+          "albedoL": 16.2,
+          "albedoChroma": 15.5,
+          "lRatio": 0.39,
+          "chromaRatio": 0.72
+        },
+        "day/feminine/adult/s3": {
+          "L": 22.3,
+          "chroma": 30.6,
+          "hue": 43,
+          "blown": 0,
+          "texture": 6.3,
+          "skin": "#6E4530",
+          "albedoL": 33.5,
+          "albedoChroma": 25,
+          "lRatio": 0.67,
+          "chromaRatio": 1.22
+        },
+        "day/feminine/adult/s6": {
+          "L": 45.3,
+          "chroma": 46,
+          "hue": 55,
+          "blown": 0,
+          "texture": 11.27,
+          "skin": "#B97A4A",
+          "albedoL": 56.8,
+          "albedoChroma": 41,
+          "lRatio": 0.8,
+          "chromaRatio": 1.12
+        },
+        "day/feminine/adult/s10": {
+          "L": 73.4,
+          "chroma": 18.1,
+          "hue": 61,
+          "blown": 0,
+          "texture": 11.76,
+          "skin": "#F1D5BE",
+          "albedoL": 87,
+          "albedoChroma": 16.2,
+          "lRatio": 0.84,
+          "chromaRatio": 1.12
+        },
+        "day/feminine/senior/s0": {
+          "L": 6.4,
+          "chroma": 11.3,
+          "hue": 35,
+          "blown": 0,
+          "texture": 3.16,
+          "skin": "#3B2219",
+          "albedoL": 16.2,
+          "albedoChroma": 15.5,
+          "lRatio": 0.4,
+          "chromaRatio": 0.73
+        },
+        "day/feminine/senior/s3": {
+          "L": 22.4,
+          "chroma": 31.1,
+          "hue": 43,
+          "blown": 0,
+          "texture": 6.58,
+          "skin": "#6E4530",
+          "albedoL": 33.5,
+          "albedoChroma": 25,
+          "lRatio": 0.67,
+          "chromaRatio": 1.24
+        },
+        "day/feminine/senior/s6": {
+          "L": 45.7,
+          "chroma": 46.2,
+          "hue": 55,
+          "blown": 0,
+          "texture": 11.65,
+          "skin": "#B97A4A",
+          "albedoL": 56.8,
+          "albedoChroma": 41,
+          "lRatio": 0.8,
+          "chromaRatio": 1.13
+        },
+        "day/feminine/senior/s10": {
+          "L": 73.7,
+          "chroma": 18.4,
+          "hue": 61,
+          "blown": 0,
+          "texture": 11.68,
+          "skin": "#F1D5BE",
+          "albedoL": 87,
+          "albedoChroma": 16.2,
+          "lRatio": 0.85,
+          "chromaRatio": 1.14
+        },
+        "day/masculine/young/s0": {
+          "L": 8.8,
+          "chroma": 13,
+          "hue": 39,
+          "blown": 0,
+          "texture": 5.06,
+          "skin": "#3B2219",
+          "albedoL": 16.2,
+          "albedoChroma": 15.5,
+          "lRatio": 0.54,
+          "chromaRatio": 0.84
+        },
+        "day/masculine/young/s3": {
+          "L": 27.8,
+          "chroma": 32.8,
+          "hue": 46,
+          "blown": 0,
+          "texture": 9.46,
+          "skin": "#6E4530",
+          "albedoL": 33.5,
+          "albedoChroma": 25,
+          "lRatio": 0.83,
+          "chromaRatio": 1.31
+        },
+        "day/masculine/young/s6": {
+          "L": 50.2,
+          "chroma": 47,
+          "hue": 56,
+          "blown": 0,
+          "texture": 13.12,
+          "skin": "#B97A4A",
+          "albedoL": 56.8,
+          "albedoChroma": 41,
+          "lRatio": 0.88,
+          "chromaRatio": 1.15
+        },
+        "day/masculine/young/s10": {
+          "L": 74.4,
+          "chroma": 16.8,
+          "hue": 61,
+          "blown": 0,
+          "texture": 13.65,
+          "skin": "#F1D5BE",
+          "albedoL": 87,
+          "albedoChroma": 16.2,
+          "lRatio": 0.86,
+          "chromaRatio": 1.04
+        },
+        "day/masculine/adult/s0": {
+          "L": 9.1,
+          "chroma": 13.2,
+          "hue": 38,
+          "blown": 0,
+          "texture": 5.31,
+          "skin": "#3B2219",
+          "albedoL": 16.2,
+          "albedoChroma": 15.5,
+          "lRatio": 0.56,
+          "chromaRatio": 0.85
+        },
+        "day/masculine/adult/s3": {
+          "L": 28.1,
+          "chroma": 32.9,
+          "hue": 46,
+          "blown": 0,
+          "texture": 10.03,
+          "skin": "#6E4530",
+          "albedoL": 33.5,
+          "albedoChroma": 25,
+          "lRatio": 0.84,
+          "chromaRatio": 1.32
+        },
+        "day/masculine/adult/s6": {
+          "L": 50.4,
+          "chroma": 46.7,
+          "hue": 56,
+          "blown": 0,
+          "texture": 13.64,
+          "skin": "#B97A4A",
+          "albedoL": 56.8,
+          "albedoChroma": 41,
+          "lRatio": 0.89,
+          "chromaRatio": 1.14
+        },
+        "day/masculine/adult/s10": {
+          "L": 74.5,
+          "chroma": 16.7,
+          "hue": 61,
+          "blown": 0,
+          "texture": 13.98,
+          "skin": "#F1D5BE",
+          "albedoL": 87,
+          "albedoChroma": 16.2,
+          "lRatio": 0.86,
+          "chromaRatio": 1.03
+        },
+        "day/masculine/senior/s0": {
+          "L": 9.2,
+          "chroma": 13.1,
+          "hue": 38,
+          "blown": 0,
+          "texture": 6.02,
+          "skin": "#3B2219",
+          "albedoL": 16.2,
+          "albedoChroma": 15.5,
+          "lRatio": 0.57,
+          "chromaRatio": 0.85
+        },
+        "day/masculine/senior/s3": {
+          "L": 28.1,
+          "chroma": 32.9,
+          "hue": 46,
+          "blown": 0,
+          "texture": 11.07,
+          "skin": "#6E4530",
+          "albedoL": 33.5,
+          "albedoChroma": 25,
+          "lRatio": 0.84,
+          "chromaRatio": 1.32
+        },
+        "day/masculine/senior/s6": {
+          "L": 50,
+          "chroma": 46.5,
+          "hue": 56,
+          "blown": 0,
+          "texture": 14.73,
+          "skin": "#B97A4A",
+          "albedoL": 56.8,
+          "albedoChroma": 41,
+          "lRatio": 0.88,
+          "chromaRatio": 1.13
+        },
+        "day/masculine/senior/s10": {
+          "L": 73.8,
+          "chroma": 17.4,
+          "hue": 60,
+          "blown": 0,
+          "texture": 14.82,
+          "skin": "#F1D5BE",
+          "albedoL": 87,
+          "albedoChroma": 16.2,
+          "lRatio": 0.85,
+          "chromaRatio": 1.07
+        },
+        "night/feminine/young/s0": {
+          "L": 3.4,
+          "chroma": 10.3,
+          "hue": 28,
+          "blown": 0,
+          "texture": 1.35,
+          "skin": "#3B2219",
+          "albedoL": 16.2,
+          "albedoChroma": 15.5,
+          "lRatio": 0.21,
+          "chromaRatio": 0.66
+        },
+        "night/feminine/young/s3": {
+          "L": 15.5,
+          "chroma": 34.8,
+          "hue": 39,
+          "blown": 0,
+          "texture": 3.21,
+          "skin": "#6E4530",
+          "albedoL": 33.5,
+          "albedoChroma": 25,
+          "lRatio": 0.46,
+          "chromaRatio": 1.39
+        },
+        "night/feminine/young/s6": {
+          "L": 35.1,
+          "chroma": 57.9,
+          "hue": 47,
+          "blown": 0,
+          "texture": 6.51,
+          "skin": "#B97A4A",
+          "albedoL": 56.8,
+          "albedoChroma": 41,
+          "lRatio": 0.62,
+          "chromaRatio": 1.41
+        },
+        "night/feminine/young/s10": {
+          "L": 60.5,
+          "chroma": 51,
+          "hue": 63,
+          "blown": 0,
+          "texture": 8.94,
+          "skin": "#F1D5BE",
+          "albedoL": 87,
+          "albedoChroma": 16.2,
+          "lRatio": 0.7,
+          "chromaRatio": 3.15
+        },
+        "night/feminine/adult/s0": {
+          "L": 3.5,
+          "chroma": 10.6,
+          "hue": 28,
+          "blown": 0,
+          "texture": 1.38,
+          "skin": "#3B2219",
+          "albedoL": 16.2,
+          "albedoChroma": 15.5,
+          "lRatio": 0.22,
+          "chromaRatio": 0.68
+        },
+        "night/feminine/adult/s3": {
+          "L": 15.6,
+          "chroma": 35,
+          "hue": 39,
+          "blown": 0,
+          "texture": 3.38,
+          "skin": "#6E4530",
+          "albedoL": 33.5,
+          "albedoChroma": 25,
+          "lRatio": 0.47,
+          "chromaRatio": 1.4
+        },
+        "night/feminine/adult/s6": {
+          "L": 35.5,
+          "chroma": 58,
+          "hue": 47,
+          "blown": 0,
+          "texture": 6.98,
+          "skin": "#B97A4A",
+          "albedoL": 56.8,
+          "albedoChroma": 41,
+          "lRatio": 0.63,
+          "chromaRatio": 1.41
+        },
+        "night/feminine/adult/s10": {
+          "L": 60.9,
+          "chroma": 50.8,
+          "hue": 64,
+          "blown": 0,
+          "texture": 9.15,
+          "skin": "#F1D5BE",
+          "albedoL": 87,
+          "albedoChroma": 16.2,
+          "lRatio": 0.7,
+          "chromaRatio": 3.14
+        },
+        "night/feminine/senior/s0": {
+          "L": 3.6,
+          "chroma": 10.9,
+          "hue": 28,
+          "blown": 0,
+          "texture": 1.5,
+          "skin": "#3B2219",
+          "albedoL": 16.2,
+          "albedoChroma": 15.5,
+          "lRatio": 0.22,
+          "chromaRatio": 0.7
+        },
+        "night/feminine/senior/s3": {
+          "L": 15.9,
+          "chroma": 35.5,
+          "hue": 39,
+          "blown": 0,
+          "texture": 3.66,
+          "skin": "#6E4530",
+          "albedoL": 33.5,
+          "albedoChroma": 25,
+          "lRatio": 0.47,
+          "chromaRatio": 1.42
+        },
+        "night/feminine/senior/s6": {
+          "L": 36.1,
+          "chroma": 58.3,
+          "hue": 48,
+          "blown": 0,
+          "texture": 7.75,
+          "skin": "#B97A4A",
+          "albedoL": 56.8,
+          "albedoChroma": 41,
+          "lRatio": 0.64,
+          "chromaRatio": 1.42
+        },
+        "night/feminine/senior/s10": {
+          "L": 61.2,
+          "chroma": 50.5,
+          "hue": 64,
+          "blown": 0,
+          "texture": 9.75,
+          "skin": "#F1D5BE",
+          "albedoL": 87,
+          "albedoChroma": 16.2,
+          "lRatio": 0.7,
+          "chromaRatio": 3.12
+        },
+        "night/masculine/young/s0": {
+          "L": 4.9,
+          "chroma": 13.2,
+          "hue": 31,
+          "blown": 0,
+          "texture": 2.73,
+          "skin": "#3B2219",
+          "albedoL": 16.2,
+          "albedoChroma": 15.5,
+          "lRatio": 0.3,
+          "chromaRatio": 0.85
+        },
+        "night/masculine/young/s3": {
+          "L": 19.3,
+          "chroma": 38.9,
+          "hue": 41,
+          "blown": 0,
+          "texture": 6.11,
+          "skin": "#6E4530",
+          "albedoL": 33.5,
+          "albedoChroma": 25,
+          "lRatio": 0.58,
+          "chromaRatio": 1.56
+        },
+        "night/masculine/young/s6": {
+          "L": 38.7,
+          "chroma": 60.4,
+          "hue": 48,
+          "blown": 0,
+          "texture": 10.3,
+          "skin": "#B97A4A",
+          "albedoL": 56.8,
+          "albedoChroma": 41,
+          "lRatio": 0.68,
+          "chromaRatio": 1.47
+        },
+        "night/masculine/young/s10": {
+          "L": 60.3,
+          "chroma": 49.3,
+          "hue": 63,
+          "blown": 0,
+          "texture": 14.39,
+          "skin": "#F1D5BE",
+          "albedoL": 87,
+          "albedoChroma": 16.2,
+          "lRatio": 0.69,
+          "chromaRatio": 3.04
+        },
+        "night/masculine/adult/s0": {
+          "L": 5,
+          "chroma": 13.4,
+          "hue": 32,
+          "blown": 0,
+          "texture": 2.81,
+          "skin": "#3B2219",
+          "albedoL": 16.2,
+          "albedoChroma": 15.5,
+          "lRatio": 0.31,
+          "chromaRatio": 0.86
+        },
+        "night/masculine/adult/s3": {
+          "L": 19.4,
+          "chroma": 38.9,
+          "hue": 42,
+          "blown": 0,
+          "texture": 6.41,
+          "skin": "#6E4530",
+          "albedoL": 33.5,
+          "albedoChroma": 25,
+          "lRatio": 0.58,
+          "chromaRatio": 1.56
+        },
+        "night/masculine/adult/s6": {
+          "L": 38.8,
+          "chroma": 60.1,
+          "hue": 48,
+          "blown": 0,
+          "texture": 10.67,
+          "skin": "#B97A4A",
+          "albedoL": 56.8,
+          "albedoChroma": 41,
+          "lRatio": 0.68,
+          "chromaRatio": 1.47
+        },
+        "night/masculine/adult/s10": {
+          "L": 60.4,
+          "chroma": 48.9,
+          "hue": 63,
+          "blown": 0,
+          "texture": 14.67,
+          "skin": "#F1D5BE",
+          "albedoL": 87,
+          "albedoChroma": 16.2,
+          "lRatio": 0.69,
+          "chromaRatio": 3.02
+        },
+        "night/masculine/senior/s0": {
+          "L": 5.1,
+          "chroma": 13.5,
+          "hue": 32,
+          "blown": 0,
+          "texture": 3.02,
+          "skin": "#3B2219",
+          "albedoL": 16.2,
+          "albedoChroma": 15.5,
+          "lRatio": 0.31,
+          "chromaRatio": 0.87
+        },
+        "night/masculine/senior/s3": {
+          "L": 19.5,
+          "chroma": 39,
+          "hue": 41,
+          "blown": 0,
+          "texture": 6.85,
+          "skin": "#6E4530",
+          "albedoL": 33.5,
+          "albedoChroma": 25,
+          "lRatio": 0.58,
+          "chromaRatio": 1.56
+        },
+        "night/masculine/senior/s6": {
+          "L": 38.6,
+          "chroma": 59.9,
+          "hue": 48,
+          "blown": 0,
+          "texture": 11.32,
+          "skin": "#B97A4A",
+          "albedoL": 56.8,
+          "albedoChroma": 41,
+          "lRatio": 0.68,
+          "chromaRatio": 1.46
+        },
+        "night/masculine/senior/s10": {
+          "L": 60.1,
+          "chroma": 48.7,
+          "hue": 63,
+          "blown": 0,
+          "texture": 15.35,
+          "skin": "#F1D5BE",
+          "albedoL": 87,
+          "albedoChroma": 16.2,
+          "lRatio": 0.69,
+          "chromaRatio": 3.01
+        }
+      }
+    },
+    "lod": {
+      "sweep": [
+        {
+          "d": 3,
+          "calls": 7,
+          "tris": 58452,
+          "px": 794
+        },
+        {
+          "d": 3.5,
+          "calls": 7,
+          "tris": 58452,
+          "px": 678
+        },
+        {
+          "d": 4,
+          "calls": 7,
+          "tris": 58452,
+          "px": 591
+        },
+        {
+          "d": 4.5,
+          "calls": 7,
+          "tris": 58452,
+          "px": 524
+        },
+        {
+          "d": 5,
+          "calls": 7,
+          "tris": 58452,
+          "px": 471
+        },
+        {
+          "d": 5.5,
+          "calls": 7,
+          "tris": 58452,
+          "px": 428
+        },
+        {
+          "d": 6,
+          "calls": 7,
+          "tris": 58452,
+          "px": 392
+        },
+        {
+          "d": 6.5,
+          "calls": 7,
+          "tris": 58452,
+          "px": 361
+        },
+        {
+          "d": 7,
+          "calls": 7,
+          "tris": 58452,
+          "px": 335
+        },
+        {
+          "d": 7.5,
+          "calls": 7,
+          "tris": 58452,
+          "px": 313
+        },
+        {
+          "d": 8,
+          "calls": 7,
+          "tris": 58452,
+          "px": 293
+        },
+        {
+          "d": 8.5,
+          "calls": 7,
+          "tris": 58452,
+          "px": 275
+        },
+        {
+          "d": 9,
+          "calls": 7,
+          "tris": 16710,
+          "px": 260
+        },
+        {
+          "d": 9.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 246
+        },
+        {
+          "d": 10,
+          "calls": 7,
+          "tris": 16710,
+          "px": 234
+        },
+        {
+          "d": 10.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 223
+        },
+        {
+          "d": 11,
+          "calls": 7,
+          "tris": 16710,
+          "px": 213
+        },
+        {
+          "d": 11.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 203
+        },
+        {
+          "d": 12,
+          "calls": 7,
+          "tris": 16710,
+          "px": 195
+        },
+        {
+          "d": 12.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 188
+        },
+        {
+          "d": 13,
+          "calls": 7,
+          "tris": 16710,
+          "px": 180
+        },
+        {
+          "d": 13.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 174
+        },
+        {
+          "d": 14,
+          "calls": 7,
+          "tris": 16710,
+          "px": 167
+        },
+        {
+          "d": 14.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 161
+        },
+        {
+          "d": 15,
+          "calls": 7,
+          "tris": 16710,
+          "px": 155
+        },
+        {
+          "d": 15.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 151
+        },
+        {
+          "d": 16,
+          "calls": 7,
+          "tris": 16710,
+          "px": 146
+        },
+        {
+          "d": 16.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 141
+        },
+        {
+          "d": 17,
+          "calls": 7,
+          "tris": 16710,
+          "px": 137
+        },
+        {
+          "d": 17.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 134
+        },
+        {
+          "d": 18,
+          "calls": 7,
+          "tris": 16710,
+          "px": 130
+        },
+        {
+          "d": 18.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 126
+        },
+        {
+          "d": 19,
+          "calls": 7,
+          "tris": 16710,
+          "px": 122
+        },
+        {
+          "d": 19.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 120
+        },
+        {
+          "d": 20,
+          "calls": 7,
+          "tris": 16710,
+          "px": 116
+        },
+        {
+          "d": 20.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 114
+        },
+        {
+          "d": 21,
+          "calls": 7,
+          "tris": 16710,
+          "px": 111
+        },
+        {
+          "d": 21.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 108
+        },
+        {
+          "d": 22,
+          "calls": 7,
+          "tris": 16710,
+          "px": 106
+        },
+        {
+          "d": 22.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 104
+        },
+        {
+          "d": 23,
+          "calls": 7,
+          "tris": 16710,
+          "px": 101
+        },
+        {
+          "d": 23.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 99
+        },
+        {
+          "d": 24,
+          "calls": 7,
+          "tris": 16710,
+          "px": 97
+        },
+        {
+          "d": 24.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 95
+        },
+        {
+          "d": 25,
+          "calls": 7,
+          "tris": 16710,
+          "px": 93
+        },
+        {
+          "d": 25.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 91
+        },
+        {
+          "d": 26,
+          "calls": 7,
+          "tris": 16710,
+          "px": 90
+        },
+        {
+          "d": 26.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 88
+        },
+        {
+          "d": 27,
+          "calls": 7,
+          "tris": 16710,
+          "px": 87
+        },
+        {
+          "d": 27.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 85
+        },
+        {
+          "d": 28,
+          "calls": 7,
+          "tris": 16710,
+          "px": 83
+        },
+        {
+          "d": 28.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 82
+        },
+        {
+          "d": 29,
+          "calls": 7,
+          "tris": 16710,
+          "px": 81
+        },
+        {
+          "d": 29.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 79
+        },
+        {
+          "d": 30,
+          "calls": 7,
+          "tris": 16710,
+          "px": 78
+        },
+        {
+          "d": 30.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 77
+        },
+        {
+          "d": 31,
+          "calls": 7,
+          "tris": 16710,
+          "px": 75
+        },
+        {
+          "d": 31.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 74
+        },
+        {
+          "d": 32,
+          "calls": 7,
+          "tris": 16710,
+          "px": 73
+        },
+        {
+          "d": 32.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 72
+        },
+        {
+          "d": 33,
+          "calls": 7,
+          "tris": 16710,
+          "px": 70
+        },
+        {
+          "d": 33.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 70
+        },
+        {
+          "d": 34,
+          "calls": 7,
+          "tris": 16710,
+          "px": 68
+        },
+        {
+          "d": 34.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 68
+        },
+        {
+          "d": 35,
+          "calls": 7,
+          "tris": 16710,
+          "px": 66
+        },
+        {
+          "d": 35.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 66
+        },
+        {
+          "d": 36,
+          "calls": 7,
+          "tris": 16710,
+          "px": 64
+        },
+        {
+          "d": 36.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 64
+        },
+        {
+          "d": 37,
+          "calls": 7,
+          "tris": 16710,
+          "px": 64
+        },
+        {
+          "d": 37.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 62
+        },
+        {
+          "d": 38,
+          "calls": 7,
+          "tris": 16710,
+          "px": 62
+        },
+        {
+          "d": 38.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 60
+        },
+        {
+          "d": 39,
+          "calls": 7,
+          "tris": 16710,
+          "px": 60
+        },
+        {
+          "d": 39.5,
+          "calls": 7,
+          "tris": 16710,
+          "px": 59
+        },
+        {
+          "d": 40,
+          "calls": 7,
+          "tris": 16710,
+          "px": 58
+        }
+      ],
+      "switches": [
+        {
+          "from": 8.5,
+          "to": 9,
+          "trisBefore": 58452,
+          "trisAfter": 16710,
+          "personPx": 260,
+          "rmseSwitch": 17.98,
+          "rmseControl": 19.35,
+          "pop": -1.37
+        }
+      ]
+    },
+    "boxer": {
+      "views": {
+        "desktop/m-boxer": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/boxer-desktop-m-boxer.jpg",
+        "desktop/f-boxer": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/boxer-desktop-f-boxer.jpg",
+        "desktop/m-casual": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/boxer-desktop-m-casual.jpg",
+        "desktop/f-casual-senior": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/boxer-desktop-f-casual-senior.jpg",
+        "desktop/m-referee": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/boxer-desktop-m-referee.jpg",
+        "phone/m-boxer": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/boxer-phone-m-boxer.jpg",
+        "phone/f-boxer": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/boxer-phone-f-boxer.jpg",
+        "phone/m-casual": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/boxer-phone-m-casual.jpg",
+        "phone/f-casual-senior": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/boxer-phone-f-casual-senior.jpg",
+        "phone/m-referee": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/boxer-phone-m-referee.jpg"
+      },
+      "measure": {
+        "m-boxer": [
+          {
+            "meshes": [
+              {
+                "name": "boxer-body",
+                "tris": 26841,
+                "verts": 27007,
+                "materials": ["MeshPhysicalMaterial"],
+                "morphs": 0,
+                "slots": true
+              }
+            ],
+            "bones": 68,
+            "warnings": [],
+            "materials": [
+              {
+                "mesh": "boxer-body",
+                "name": "",
+                "type": "MeshPhysicalMaterial",
+                "roughness": 0.6,
+                "metalness": 0,
+                "map": false,
+                "normalMap": false,
+                "bumpMap": false,
+                "roughnessMap": false,
+                "clearcoat": 1,
+                "sheen": 1,
+                "transmission": 0,
+                "alphaTest": 0,
+                "alphaHash": false,
+                "alphaToCoverage": false,
+                "transparent": false,
+                "customShader": true
+              }
+            ],
+            "textures": [
+              {
+                "name": "",
+                "w": 2048,
+                "h": 2048,
+                "mb": 21.28
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              }
+            ],
+            "textureMB": 23.9,
+            "tris": 26841,
+            "proportions": {
+              "stature": 1.647,
+              "headHeight": 0.178,
+              "headRatio": 9.26,
+              "upperArmL": 0.155,
+              "forearmL": 0.162,
+              "thighL": 0.257,
+              "shankL": 0.274,
+              "upperArmR": 0.155,
+              "forearmR": 0.162,
+              "thighR": 0.257,
+              "shankR": 0.274,
+              "shoulderJoints": 0.253,
+              "hipJoints": 0.133
+            },
+            "hands": {
+              "L": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              },
+              "R": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              }
+            },
+            "garments": {
+              "separateGeometry": true,
+              "garmentMeshes": [],
+              "perVertexSlots": true,
+              "garmentVerts": 10567,
+              "skinVerts": 5430,
+              "penetration": {
+                "tested": 5298,
+                "inside": 327,
+                "fraction": 0.0617,
+                "worstMm": 38,
+                "samples": [
+                  [-0.24, 1.29, 0.09, -3.8],
+                  [-0.24, 1.3, 0.08, -4.8],
+                  [-0.23, 1.26, 0.11, -8.7],
+                  [-0.21, 1.24, 0.13, -7.8],
+                  [-0.24, 1.27, 0.09, -18.5],
+                  [-0.22, 1.24, 0.11, -21.4],
+                  [-0.22, 1.22, 0.14, -16.4],
+                  [-0.23, 1.24, 0.1, -26],
+                  [-0.23, 1.21, 0.12, -28.8],
+                  [-0.22, 1.2, 0.14, -22.8],
+                  [-0.23, 1.22, 0.1, -27.9],
+                  [-0.24, 1.22, 0.08, -17.6]
+                ]
+              }
+            },
+            "face": {
+              "eyes": 2,
+              "lidBones": 4,
+              "faceBones": 11,
+              "morphs": 0
+            }
+          }
+        ],
+        "f-boxer": [
+          {
+            "meshes": [
+              {
+                "name": "boxer-body",
+                "tris": 26332,
+                "verts": 26375,
+                "materials": ["MeshPhysicalMaterial"],
+                "morphs": 0,
+                "slots": true
+              }
+            ],
+            "bones": 68,
+            "warnings": [],
+            "materials": [
+              {
+                "mesh": "boxer-body",
+                "name": "",
+                "type": "MeshPhysicalMaterial",
+                "roughness": 0.6,
+                "metalness": 0,
+                "map": false,
+                "normalMap": false,
+                "bumpMap": false,
+                "roughnessMap": false,
+                "clearcoat": 1,
+                "sheen": 1,
+                "transmission": 0,
+                "alphaTest": 0,
+                "alphaHash": false,
+                "alphaToCoverage": false,
+                "transparent": false,
+                "customShader": true
+              }
+            ],
+            "textures": [
+              {
+                "name": "",
+                "w": 2048,
+                "h": 2048,
+                "mb": 21.28
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              }
+            ],
+            "textureMB": 23.9,
+            "tris": 26332,
+            "proportions": {
+              "stature": 1.582,
+              "headHeight": 0.16,
+              "headRatio": 9.89,
+              "upperArmL": 0.156,
+              "forearmL": 0.143,
+              "thighL": 0.244,
+              "shankL": 0.273,
+              "upperArmR": 0.156,
+              "forearmR": 0.143,
+              "thighR": 0.244,
+              "shankR": 0.273,
+              "shoulderJoints": 0.206,
+              "hipJoints": 0.119
+            },
+            "hands": {
+              "L": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              },
+              "R": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              }
+            },
+            "garments": {
+              "separateGeometry": true,
+              "garmentMeshes": [],
+              "perVertexSlots": true,
+              "garmentVerts": 10032,
+              "skinVerts": 5472,
+              "penetration": {
+                "tested": 4962,
+                "inside": 256,
+                "fraction": 0.0516,
+                "worstMm": 37.8,
+                "samples": [
+                  [-0.21, 1.26, 0.11, -5.7],
+                  [-0.21, 1.25, 0.11, -10.2],
+                  [-0.22, 1.24, 0.11, -12.3],
+                  [-0.21, 1.25, 0.11, -6.6],
+                  [-0.21, 1.24, 0.11, -16.3],
+                  [-0.2, 1.22, 0.13, -8.2],
+                  [-0.22, 1.23, 0.1, -20.8],
+                  [-0.21, 1.24, 0.1, -2.4],
+                  [-0.21, 1.21, 0.12, -22.3],
+                  [-0.2, 1.2, 0.14, -23.5],
+                  [-0.21, 1.19, 0.12, -26.7],
+                  [-0.21, 1.18, 0.14, -36.3]
+                ]
+              }
+            },
+            "face": {
+              "eyes": 2,
+              "lidBones": 4,
+              "faceBones": 11,
+              "morphs": 0
+            }
+          }
+        ],
+        "m-casual": [
+          {
+            "meshes": [
+              {
+                "name": "boxer-body",
+                "tris": 28304,
+                "verts": 22343,
+                "materials": ["MeshPhysicalMaterial"],
+                "morphs": 0,
+                "slots": true
+              }
+            ],
+            "bones": 68,
+            "warnings": [],
+            "materials": [
+              {
+                "mesh": "boxer-body",
+                "name": "",
+                "type": "MeshPhysicalMaterial",
+                "roughness": 0.6,
+                "metalness": 0,
+                "map": false,
+                "normalMap": false,
+                "bumpMap": false,
+                "roughnessMap": false,
+                "clearcoat": 1,
+                "sheen": 1,
+                "transmission": 0,
+                "alphaTest": 0,
+                "alphaHash": false,
+                "alphaToCoverage": false,
+                "transparent": false,
+                "customShader": true
+              }
+            ],
+            "textures": [
+              {
+                "name": "",
+                "w": 2048,
+                "h": 2048,
+                "mb": 21.28
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              }
+            ],
+            "textureMB": 23.9,
+            "tris": 28304,
+            "proportions": {
+              "stature": 1.637,
+              "headHeight": 0.248,
+              "headRatio": 6.61,
+              "upperArmL": 0.157,
+              "forearmL": 0.163,
+              "thighL": 0.26,
+              "shankL": 0.277,
+              "upperArmR": 0.157,
+              "forearmR": 0.163,
+              "thighR": 0.26,
+              "shankR": 0.277,
+              "shoulderJoints": 0.255,
+              "hipJoints": 0.134
+            },
+            "hands": {
+              "L": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              },
+              "R": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              }
+            },
+            "garments": {
+              "separateGeometry": true,
+              "garmentMeshes": [],
+              "perVertexSlots": true,
+              "garmentVerts": 5589,
+              "skinVerts": 9166,
+              "penetration": {
+                "tested": 1922,
+                "inside": 164,
+                "fraction": 0.0853,
+                "worstMm": 34.9,
+                "samples": [
+                  [-0.11, 1.37, 0.18, -9.2],
+                  [-0.11, 1.37, 0.18, -9.6],
+                  [-0.12, 1.37, 0.18, -9],
+                  [-0.11, 1.37, 0.18, -9.7],
+                  [-0.12, 1.37, 0.18, -7.1],
+                  [-0.12, 1.37, 0.18, -6.8],
+                  [-0.11, 1.37, 0.18, -7.8],
+                  [-0.11, 1.37, 0.19, -8.6],
+                  [-0.11, 1.37, 0.19, -8.5],
+                  [-0.22, 1.28, 0.1, -3.5],
+                  [-0.22, 1.26, 0.09, -10.8],
+                  [-0.24, 1.3, 0.09, -4.6]
+                ]
+              }
+            },
+            "face": {
+              "eyes": 2,
+              "lidBones": 4,
+              "faceBones": 11,
+              "morphs": 0
+            }
+          }
+        ],
+        "f-casual-senior": [
+          {
+            "meshes": [
+              {
+                "name": "boxer-body",
+                "tris": 28276,
+                "verts": 22227,
+                "materials": ["MeshPhysicalMaterial"],
+                "morphs": 0,
+                "slots": true
+              }
+            ],
+            "bones": 68,
+            "warnings": [],
+            "materials": [
+              {
+                "mesh": "boxer-body",
+                "name": "",
+                "type": "MeshPhysicalMaterial",
+                "roughness": 0.6,
+                "metalness": 0,
+                "map": false,
+                "normalMap": false,
+                "bumpMap": false,
+                "roughnessMap": false,
+                "clearcoat": 1,
+                "sheen": 1,
+                "transmission": 0,
+                "alphaTest": 0,
+                "alphaHash": false,
+                "alphaToCoverage": false,
+                "transparent": false,
+                "customShader": true
+              }
+            ],
+            "textures": [
+              {
+                "name": "",
+                "w": 2048,
+                "h": 2048,
+                "mb": 21.28
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              }
+            ],
+            "textureMB": 23.9,
+            "tris": 28276,
+            "proportions": {
+              "stature": 1.567,
+              "headHeight": 0.23,
+              "headRatio": 6.81,
+              "upperArmL": 0.157,
+              "forearmL": 0.146,
+              "thighL": 0.248,
+              "shankL": 0.277,
+              "upperArmR": 0.157,
+              "forearmR": 0.146,
+              "thighR": 0.248,
+              "shankR": 0.277,
+              "shoulderJoints": 0.209,
+              "hipJoints": 0.12
+            },
+            "hands": {
+              "L": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              },
+              "R": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              }
+            },
+            "garments": {
+              "separateGeometry": true,
+              "garmentMeshes": [],
+              "perVertexSlots": true,
+              "garmentVerts": 5565,
+              "skinVerts": 9247,
+              "penetration": {
+                "tested": 1850,
+                "inside": 88,
+                "fraction": 0.0476,
+                "worstMm": 34.5,
+                "samples": [
+                  [-0.2, 1.23, 0.13, -4.5],
+                  [-0.2, 1.24, 0.13, -6.5],
+                  [-0.19, 1.21, 0.13, -10.5],
+                  [-0.18, 1.2, 0.13, -3.8],
+                  [-0.19, 1.2, 0.11, -13.4],
+                  [-0.2, 1.22, 0.13, -9.9],
+                  [-0.21, 1.19, 0.1, -28.1],
+                  [-0.18, 1.18, 0.12, -5.1],
+                  [-0.21, 1.21, 0.14, -22.9],
+                  [-0.21, 1.18, 0.09, -12.6],
+                  [-0.21, 1.19, 0.14, -34.5],
+                  [-0.22, 1.18, 0.13, -26.2]
+                ]
+              }
+            },
+            "face": {
+              "eyes": 2,
+              "lidBones": 4,
+              "faceBones": 11,
+              "morphs": 0
+            }
+          }
+        ],
+        "m-referee": [
+          {
+            "meshes": [
+              {
+                "name": "boxer-body",
+                "tris": 28702,
+                "verts": 22494,
+                "materials": ["MeshPhysicalMaterial"],
+                "morphs": 0,
+                "slots": true
+              }
+            ],
+            "bones": 68,
+            "warnings": [],
+            "materials": [
+              {
+                "mesh": "boxer-body",
+                "name": "",
+                "type": "MeshPhysicalMaterial",
+                "roughness": 0.6,
+                "metalness": 0,
+                "map": false,
+                "normalMap": false,
+                "bumpMap": false,
+                "roughnessMap": false,
+                "clearcoat": 1,
+                "sheen": 1,
+                "transmission": 0,
+                "alphaTest": 0,
+                "alphaHash": false,
+                "alphaToCoverage": false,
+                "transparent": false,
+                "customShader": true
+              }
+            ],
+            "textures": [
+              {
+                "name": "",
+                "w": 2048,
+                "h": 2048,
+                "mb": 21.28
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              }
+            ],
+            "textureMB": 23.9,
+            "tris": 28702,
+            "proportions": {
+              "stature": 1.637,
+              "headHeight": 0.248,
+              "headRatio": 6.61,
+              "upperArmL": 0.157,
+              "forearmL": 0.163,
+              "thighL": 0.26,
+              "shankL": 0.277,
+              "upperArmR": 0.157,
+              "forearmR": 0.163,
+              "thighR": 0.26,
+              "shankR": 0.277,
+              "shoulderJoints": 0.255,
+              "hipJoints": 0.134
+            },
+            "hands": {
+              "L": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              },
+              "R": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              }
+            },
+            "garments": {
+              "separateGeometry": true,
+              "garmentMeshes": [],
+              "perVertexSlots": true,
+              "garmentVerts": 5740,
+              "skinVerts": 9166,
+              "penetration": {
+                "tested": 2081,
+                "inside": 192,
+                "fraction": 0.0923,
+                "worstMm": 34.7,
+                "samples": [
+                  [-0.11, 1.37, 0.18, -8.6],
+                  [-0.11, 1.37, 0.18, -9],
+                  [-0.12, 1.37, 0.18, -8.3],
+                  [-0.11, 1.37, 0.18, -9],
+                  [-0.12, 1.37, 0.18, -6.6],
+                  [-0.12, 1.37, 0.18, -6.3],
+                  [-0.11, 1.37, 0.18, -7.2],
+                  [-0.11, 1.37, 0.18, -8.1],
+                  [-0.11, 1.37, 0.18, -7.9],
+                  [-0.22, 1.28, 0.1, -3.8],
+                  [-0.22, 1.26, 0.09, -11.1],
+                  [-0.24, 1.3, 0.09, -4.5]
+                ]
+              }
+            },
+            "face": {
+              "eyes": 2,
+              "lidBones": 4,
+              "faceBones": 11,
+              "morphs": 0
+            }
+          }
+        ]
+      },
+      "idle": {
+        "m-boxer": {
+          "seconds": 8,
+          "fps": 60,
+          "worstSnap": {
+            "deg": 0,
+            "bone": "Bip01_R_UpperArm",
+            "t": 8.01
+          },
+          "rootSpeed": 0,
+          "steps": [],
+          "blinks": {
+            "count": 0,
+            "perMin": 0,
+            "channels": 2
+          },
+          "saccades": {
+            "count": 0,
+            "perMin": 0,
+            "maxEyeDeg": 0
+          },
+          "headSwayMm": 0,
+          "armFromDownDeg": 60.2
+        },
+        "f-boxer": {
+          "seconds": 8,
+          "fps": 60,
+          "worstSnap": {
+            "deg": 0,
+            "bone": "Bip01_R_UpperArm",
+            "t": 8.01
+          },
+          "rootSpeed": 0,
+          "steps": [],
+          "blinks": {
+            "count": 0,
+            "perMin": 0,
+            "channels": 2
+          },
+          "saccades": {
+            "count": 0,
+            "perMin": 0,
+            "maxEyeDeg": 0
+          },
+          "headSwayMm": 0,
+          "armFromDownDeg": 65.1
+        },
+        "m-casual": {
+          "seconds": 8,
+          "fps": 60,
+          "worstSnap": {
+            "deg": 0,
+            "bone": "Bip01_R_Calf",
+            "t": 8.01
+          },
+          "rootSpeed": 0,
+          "steps": [],
+          "blinks": {
+            "count": 0,
+            "perMin": 0,
+            "channels": 2
+          },
+          "saccades": {
+            "count": 0,
+            "perMin": 0,
+            "maxEyeDeg": 0
+          },
+          "headSwayMm": 0,
+          "armFromDownDeg": 60.2
+        },
+        "f-casual-senior": {
+          "seconds": 8,
+          "fps": 60,
+          "worstSnap": {
+            "deg": 0,
+            "bone": "Bip01_R_Foot",
+            "t": 8
+          },
+          "rootSpeed": 0,
+          "steps": [],
+          "blinks": {
+            "count": 0,
+            "perMin": 0,
+            "channels": 2
+          },
+          "saccades": {
+            "count": 0,
+            "perMin": 0,
+            "maxEyeDeg": 0
+          },
+          "headSwayMm": 0,
+          "armFromDownDeg": 64.8
+        },
+        "m-referee": {
+          "seconds": 8,
+          "fps": 60,
+          "worstSnap": {
+            "deg": 0,
+            "bone": "Bip01_R_Calf",
+            "t": 8.01
+          },
+          "rootSpeed": 0,
+          "steps": [],
+          "blinks": {
+            "count": 0,
+            "perMin": 0,
+            "channels": 2
+          },
+          "saccades": {
+            "count": 0,
+            "perMin": 0,
+            "maxEyeDeg": 0
+          },
+          "headSwayMm": 0,
+          "armFromDownDeg": 60.2
+        }
+      },
+      "bind": {
+        "m-boxer": [
+          {
+            "meshes": [
+              {
+                "name": "boxer-body",
+                "tris": 26841,
+                "verts": 27007,
+                "materials": ["MeshPhysicalMaterial"],
+                "morphs": 0,
+                "slots": true
+              }
+            ],
+            "bones": 68,
+            "warnings": [],
+            "materials": [
+              {
+                "mesh": "boxer-body",
+                "name": "",
+                "type": "MeshPhysicalMaterial",
+                "roughness": 0.6,
+                "metalness": 0,
+                "map": false,
+                "normalMap": false,
+                "bumpMap": false,
+                "roughnessMap": false,
+                "clearcoat": 1,
+                "sheen": 1,
+                "transmission": 0,
+                "alphaTest": 0,
+                "alphaHash": false,
+                "alphaToCoverage": false,
+                "transparent": false,
+                "customShader": true
+              }
+            ],
+            "textures": [
+              {
+                "name": "",
+                "w": 2048,
+                "h": 2048,
+                "mb": 21.28
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              }
+            ],
+            "textureMB": 23.9,
+            "tris": 26841,
+            "proportions": {
+              "stature": 1.763,
+              "headHeight": 0.165,
+              "headRatio": 10.67,
+              "upperArmL": 0.145,
+              "forearmL": 0.151,
+              "thighL": 0.24,
+              "shankL": 0.256,
+              "upperArmR": 0.145,
+              "forearmR": 0.151,
+              "thighR": 0.24,
+              "shankR": 0.256,
+              "shoulderJoints": 0.235,
+              "hipJoints": 0.124
+            },
+            "hands": {
+              "L": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              },
+              "R": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              }
+            },
+            "garments": {
+              "separateGeometry": true,
+              "garmentMeshes": [],
+              "perVertexSlots": true,
+              "garmentVerts": 10567,
+              "skinVerts": 5430,
+              "penetration": {
+                "tested": 4664,
+                "inside": 116,
+                "fraction": 0.0249,
+                "worstMm": 20.4,
+                "samples": [
+                  [0.51, 1.09, 0.2, -20.4],
+                  [0.51, 1.09, 0.2, -20.4],
+                  [0.51, 1.09, 0.2, -20.4],
+                  [0.51, 1.09, 0.2, -20.4],
+                  [0.51, 1.09, 0.2, -20.4],
+                  [0.51, 1.09, 0.2, -20.4],
+                  [0.51, 1.09, 0.2, -20.4],
+                  [0.51, 1.09, 0.2, -20.4],
+                  [0.51, 1.09, 0.2, -20.4],
+                  [0.51, 1.09, 0.2, -20.4],
+                  [0.51, 1.09, 0.2, -20.4],
+                  [0.51, 1.09, 0.2, -20.4]
+                ]
+              }
+            },
+            "face": {
+              "eyes": 2,
+              "lidBones": 4,
+              "faceBones": 11,
+              "morphs": 0
+            }
+          }
+        ],
+        "f-boxer": [
+          {
+            "meshes": [
+              {
+                "name": "boxer-body",
+                "tris": 26332,
+                "verts": 26375,
+                "materials": ["MeshPhysicalMaterial"],
+                "morphs": 0,
+                "slots": true
+              }
+            ],
+            "bones": 68,
+            "warnings": [],
+            "materials": [
+              {
+                "mesh": "boxer-body",
+                "name": "",
+                "type": "MeshPhysicalMaterial",
+                "roughness": 0.6,
+                "metalness": 0,
+                "map": false,
+                "normalMap": false,
+                "bumpMap": false,
+                "roughnessMap": false,
+                "clearcoat": 1,
+                "sheen": 1,
+                "transmission": 0,
+                "alphaTest": 0,
+                "alphaHash": false,
+                "alphaToCoverage": false,
+                "transparent": false,
+                "customShader": true
+              }
+            ],
+            "textures": [
+              {
+                "name": "",
+                "w": 2048,
+                "h": 2048,
+                "mb": 21.28
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              }
+            ],
+            "textureMB": 23.9,
+            "tris": 26332,
+            "proportions": {
+              "stature": 1.689,
+              "headHeight": 0.15,
+              "headRatio": 11.27,
+              "upperArmL": 0.146,
+              "forearmL": 0.134,
+              "thighL": 0.229,
+              "shankL": 0.256,
+              "upperArmR": 0.146,
+              "forearmR": 0.134,
+              "thighR": 0.229,
+              "shankR": 0.256,
+              "shoulderJoints": 0.192,
+              "hipJoints": 0.111
+            },
+            "hands": {
+              "L": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              },
+              "R": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              }
+            },
+            "garments": {
+              "separateGeometry": true,
+              "garmentMeshes": [],
+              "perVertexSlots": true,
+              "garmentVerts": 10032,
+              "skinVerts": 5472,
+              "penetration": {
+                "tested": 4230,
+                "inside": 84,
+                "fraction": 0.0199,
+                "worstMm": 9.5,
+                "samples": [
+                  [-0.19, 0.14, 0.05, -5.9],
+                  [-0.13, 0.15, 0.02, -3.8],
+                  [-0.14, 0.12, 0.03, -4.8],
+                  [0.19, 0.14, 0.05, -5.9],
+                  [0.13, 0.15, 0.02, -3.8],
+                  [0.14, 0.12, 0.03, -4.8],
+                  [0.45, 1.03, 0.17, -9.5],
+                  [0.45, 1.03, 0.17, -9.5],
+                  [0.45, 1.03, 0.17, -9.5],
+                  [0.45, 1.03, 0.17, -9.5],
+                  [0.45, 1.03, 0.17, -9.5],
+                  [0.45, 1.03, 0.17, -9.5]
+                ]
+              }
+            },
+            "face": {
+              "eyes": 2,
+              "lidBones": 4,
+              "faceBones": 11,
+              "morphs": 0
+            }
+          }
+        ],
+        "m-casual": [
+          {
+            "meshes": [
+              {
+                "name": "boxer-body",
+                "tris": 28304,
+                "verts": 22343,
+                "materials": ["MeshPhysicalMaterial"],
+                "morphs": 0,
+                "slots": true
+              }
+            ],
+            "bones": 68,
+            "warnings": [],
+            "materials": [
+              {
+                "mesh": "boxer-body",
+                "name": "",
+                "type": "MeshPhysicalMaterial",
+                "roughness": 0.6,
+                "metalness": 0,
+                "map": false,
+                "normalMap": false,
+                "bumpMap": false,
+                "roughnessMap": false,
+                "clearcoat": 1,
+                "sheen": 1,
+                "transmission": 0,
+                "alphaTest": 0,
+                "alphaHash": false,
+                "alphaToCoverage": false,
+                "transparent": false,
+                "customShader": true
+              }
+            ],
+            "textures": [
+              {
+                "name": "",
+                "w": 2048,
+                "h": 2048,
+                "mb": 21.28
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              }
+            ],
+            "textureMB": 23.9,
+            "tris": 28304,
+            "proportions": {
+              "stature": 1.752,
+              "headHeight": 0.227,
+              "headRatio": 7.72,
+              "upperArmL": 0.147,
+              "forearmL": 0.153,
+              "thighL": 0.243,
+              "shankL": 0.259,
+              "upperArmR": 0.147,
+              "forearmR": 0.153,
+              "thighR": 0.243,
+              "shankR": 0.259,
+              "shoulderJoints": 0.236,
+              "hipJoints": 0.125
+            },
+            "hands": {
+              "L": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              },
+              "R": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              }
+            },
+            "garments": {
+              "separateGeometry": true,
+              "garmentMeshes": [],
+              "perVertexSlots": true,
+              "garmentVerts": 5589,
+              "skinVerts": 9166,
+              "penetration": {
+                "tested": 1723,
+                "inside": 46,
+                "fraction": 0.0267,
+                "worstMm": 27.1,
+                "samples": [
+                  [0.2, 0.07, -0.04, -3.5],
+                  [0.2, 0.08, -0.03, -6.8],
+                  [0.23, 0.07, -0.01, -3.1],
+                  [0.22, 0.08, -0.01, -5.3],
+                  [0.2, 0.09, -0.01, -16.8],
+                  [0.18, 0.08, -0.01, -8.7],
+                  [0.24, 0.06, 0, -6.7],
+                  [0.23, 0.07, 0, -5.5],
+                  [0.22, 0.08, 0, -14.5],
+                  [0.2, 0.09, 0, -26.5],
+                  [0.18, 0.08, 0.01, -12.8],
+                  [0.17, 0.07, 0.01, -2.1]
+                ]
+              }
+            },
+            "face": {
+              "eyes": 2,
+              "lidBones": 4,
+              "faceBones": 11,
+              "morphs": 0
+            }
+          }
+        ],
+        "f-casual-senior": [
+          {
+            "meshes": [
+              {
+                "name": "boxer-body",
+                "tris": 28276,
+                "verts": 22227,
+                "materials": ["MeshPhysicalMaterial"],
+                "morphs": 0,
+                "slots": true
+              }
+            ],
+            "bones": 68,
+            "warnings": [],
+            "materials": [
+              {
+                "mesh": "boxer-body",
+                "name": "",
+                "type": "MeshPhysicalMaterial",
+                "roughness": 0.6,
+                "metalness": 0,
+                "map": false,
+                "normalMap": false,
+                "bumpMap": false,
+                "roughnessMap": false,
+                "clearcoat": 1,
+                "sheen": 1,
+                "transmission": 0,
+                "alphaTest": 0,
+                "alphaHash": false,
+                "alphaToCoverage": false,
+                "transparent": false,
+                "customShader": true
+              }
+            ],
+            "textures": [
+              {
+                "name": "",
+                "w": 2048,
+                "h": 2048,
+                "mb": 21.28
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              }
+            ],
+            "textureMB": 23.9,
+            "tris": 28276,
+            "proportions": {
+              "stature": 1.674,
+              "headHeight": 0.212,
+              "headRatio": 7.89,
+              "upperArmL": 0.147,
+              "forearmL": 0.136,
+              "thighL": 0.232,
+              "shankL": 0.259,
+              "upperArmR": 0.147,
+              "forearmR": 0.136,
+              "thighR": 0.232,
+              "shankR": 0.259,
+              "shoulderJoints": 0.194,
+              "hipJoints": 0.112
+            },
+            "hands": {
+              "L": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              },
+              "R": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              }
+            },
+            "garments": {
+              "separateGeometry": true,
+              "garmentMeshes": [],
+              "perVertexSlots": true,
+              "garmentVerts": 5565,
+              "skinVerts": 9247,
+              "penetration": {
+                "tested": 1732,
+                "inside": 39,
+                "fraction": 0.0225,
+                "worstMm": 16.5,
+                "samples": [
+                  [-0.19, 1.25, 0.04, -2.1],
+                  [-0.05, 1.42, -0.03, -2.7],
+                  [-0.19, 1.25, 0, -5.4],
+                  [-0.19, 1.24, 0.01, -6.5],
+                  [-0.19, 1.25, 0.02, -2.7],
+                  [-0.19, 1.25, 0.02, -2.3],
+                  [0.05, 1.42, -0.03, -2.7],
+                  [0.19, 1.25, 0, -5.4],
+                  [0.19, 1.24, 0.01, -6.5],
+                  [0.19, 1.25, 0.02, -2.7],
+                  [0.19, 1.25, 0.02, -2.2],
+                  [0.18, 0.08, -0.01, -3.2]
+                ]
+              }
+            },
+            "face": {
+              "eyes": 2,
+              "lidBones": 4,
+              "faceBones": 11,
+              "morphs": 0
+            }
+          }
+        ],
+        "m-referee": [
+          {
+            "meshes": [
+              {
+                "name": "boxer-body",
+                "tris": 28702,
+                "verts": 22494,
+                "materials": ["MeshPhysicalMaterial"],
+                "morphs": 0,
+                "slots": true
+              }
+            ],
+            "bones": 68,
+            "warnings": [],
+            "materials": [
+              {
+                "mesh": "boxer-body",
+                "name": "",
+                "type": "MeshPhysicalMaterial",
+                "roughness": 0.6,
+                "metalness": 0,
+                "map": false,
+                "normalMap": false,
+                "bumpMap": false,
+                "roughnessMap": false,
+                "clearcoat": 1,
+                "sheen": 1,
+                "transmission": 0,
+                "alphaTest": 0,
+                "alphaHash": false,
+                "alphaToCoverage": false,
+                "transparent": false,
+                "customShader": true
+              }
+            ],
+            "textures": [
+              {
+                "name": "",
+                "w": 2048,
+                "h": 2048,
+                "mb": 21.28
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              },
+              {
+                "name": "",
+                "w": 512,
+                "h": 512,
+                "mb": 1.33
+              }
+            ],
+            "textureMB": 23.9,
+            "tris": 28702,
+            "proportions": {
+              "stature": 1.752,
+              "headHeight": 0.227,
+              "headRatio": 7.72,
+              "upperArmL": 0.147,
+              "forearmL": 0.153,
+              "thighL": 0.243,
+              "shankL": 0.259,
+              "upperArmR": 0.147,
+              "forearmR": 0.153,
+              "thighR": 0.243,
+              "shankR": 0.259,
+              "shoulderJoints": 0.236,
+              "hipJoints": 0.125
+            },
+            "hands": {
+              "L": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              },
+              "R": {
+                "fingers": 5,
+                "segments": [3, 3, 3, 3, 3]
+              }
+            },
+            "garments": {
+              "separateGeometry": true,
+              "garmentMeshes": [],
+              "perVertexSlots": true,
+              "garmentVerts": 5740,
+              "skinVerts": 9166,
+              "penetration": {
+                "tested": 1890,
+                "inside": 64,
+                "fraction": 0.0339,
+                "worstMm": 27.1,
+                "samples": [
+                  [0.09, 1.48, 0, -13.5],
+                  [0.08, 1.48, -0.01, -11.1],
+                  [0.07, 1.48, -0.03, -2.9],
+                  [-0.07, 1.48, -0.03, -2.9],
+                  [-0.08, 1.48, -0.01, -11.1],
+                  [-0.09, 1.48, 0, -13.5],
+                  [0.07, 1.5, 0.01, -4.5],
+                  [0.07, 1.5, -0.01, -4.5],
+                  [-0.07, 1.5, -0.01, -4.5],
+                  [-0.07, 1.5, 0.01, -4.5],
+                  [0.06, 1.51, 0.01, -3.1],
+                  [0.06, 1.51, 0, -3]
+                ]
+              }
+            },
+            "face": {
+              "eyes": 2,
+              "lidBones": 4,
+              "faceBones": 11,
+              "morphs": 0
+            }
+          }
+        ]
+      }
+    },
+    "world": {
+      "views": {
+        "desktop/day": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/world-desktop-day.jpg",
+        "desktop/sunset": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/world-desktop-sunset.jpg",
+        "desktop/night": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/world-desktop-night.jpg",
+        "phone/day": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/world-phone-day.jpg",
+        "phone/sunset": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/world-phone-sunset.jpg",
+        "phone/night": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/world-phone-night.jpg"
+      },
+      "self": {
+        "meshes": [
+          {
+            "name": "body_1",
+            "tris": 1137,
+            "verts": 858,
+            "materials": ["body"],
+            "morphs": 0,
+            "slots": false
+          },
+          {
+            "name": "body_2",
+            "tris": 5564,
+            "verts": 3018,
+            "materials": ["head"],
+            "morphs": 0,
+            "slots": false
+          },
+          {
+            "name": "gk-hair",
+            "tris": 14756,
+            "verts": 8770,
+            "materials": ["gk-hair"],
+            "morphs": 0,
+            "slots": false
+          }
+        ],
+        "bones": 80,
+        "warnings": [],
+        "materials": [
+          {
+            "mesh": "body_1",
+            "name": "body",
+            "type": "MeshStandardMaterial",
+            "roughness": 0.8,
+            "metalness": 0,
+            "map": true,
+            "normalMap": true,
+            "bumpMap": false,
+            "roughnessMap": false,
+            "clearcoat": 0,
+            "sheen": 0,
+            "transmission": 0,
+            "alphaTest": 0,
+            "alphaHash": true,
+            "alphaToCoverage": false,
+            "transparent": false,
+            "customShader": true
+          },
+          {
+            "mesh": "body_2",
+            "name": "head",
+            "type": "MeshStandardMaterial",
+            "roughness": 0.8,
+            "metalness": 0,
+            "map": true,
+            "normalMap": true,
+            "bumpMap": false,
+            "roughnessMap": false,
+            "clearcoat": 0,
+            "sheen": 0,
+            "transmission": 0,
+            "alphaTest": 0,
+            "alphaHash": true,
+            "alphaToCoverage": false,
+            "transparent": false,
+            "customShader": true
+          },
+          {
+            "mesh": "gk-hair",
+            "name": "gk-hair",
+            "type": "MeshStandardMaterial",
+            "roughness": 0.8,
+            "metalness": 0,
+            "map": false,
+            "normalMap": false,
+            "bumpMap": false,
+            "roughnessMap": false,
+            "clearcoat": 0,
+            "sheen": 0,
+            "transmission": 0,
+            "alphaTest": 0,
+            "alphaHash": true,
+            "alphaToCoverage": false,
+            "transparent": false,
+            "customShader": true
+          }
+        ],
+        "textures": [
+          {
+            "name": "masculine_body",
+            "w": 1024,
+            "h": 1024,
+            "mb": 5.32
+          },
+          {
+            "name": "masculine_body_n",
+            "w": 1024,
+            "h": 1024,
+            "mb": 5.32
+          },
+          {
+            "name": "masculine_body_mask",
+            "w": 512,
+            "h": 512,
+            "mb": 1.33
+          },
+          {
+            "name": "",
+            "w": 256,
+            "h": 256,
+            "mb": 0.33
+          },
+          {
+            "name": "masculine_head",
+            "w": 1024,
+            "h": 1024,
+            "mb": 5.32
+          },
+          {
+            "name": "masculine_head_n",
+            "w": 1024,
+            "h": 1024,
+            "mb": 5.32
+          },
+          {
+            "name": "masculine_head_mask",
+            "w": 512,
+            "h": 512,
+            "mb": 1.33
+          }
+        ],
+        "textureMB": 24.3,
+        "tris": 21457,
+        "proportions": {
+          "stature": 1.804,
+          "headHeight": 0.242,
+          "headRatio": 7.46,
+          "upperArmL": 0.158,
+          "forearmL": 0.15,
+          "thighL": 0.221,
+          "shankL": 0.22,
+          "upperArmR": 0.158,
+          "forearmR": 0.15,
+          "thighR": 0.221,
+          "shankR": 0.22,
+          "shoulderJoints": 0.23,
+          "hipJoints": 0.098
+        },
+        "hands": {
+          "L": {
+            "fingers": 5,
+            "segments": [3, 3, 3, 3, 3]
+          },
+          "R": {
+            "fingers": 5,
+            "segments": [3, 3, 3, 3, 3]
+          }
+        },
+        "garments": {
+          "separateGeometry": false,
+          "garmentMeshes": [],
+          "perVertexSlots": false,
+          "garmentVerts": 0,
+          "skinVerts": 3876
+        },
+        "face": {
+          "eyes": 2,
+          "lidBones": 4,
+          "faceBones": 28,
+          "morphs": 0
+        },
+        "isolated": {
+          "calls": 4,
+          "tris": 21459
+        }
+      },
+      "walk": {
+        "seconds": 4.01,
+        "fps": 60,
+        "worstSnap": {
+          "deg": 6.5,
+          "bone": "Bip01_L_Calf",
+          "t": 0.48
+        },
+        "rootSpeed": 1.4,
+        "steps": [
+          {
+            "foot": "R",
+            "t": 0.4,
+            "dur": 0.48,
+            "slideCm": 12.5,
+            "netCm": 0.5,
+            "joint": "toe"
+          },
+          {
+            "foot": "L",
+            "t": 1,
+            "dur": 0.46,
+            "slideCm": 5.5,
+            "netCm": 2.5,
+            "joint": "toe"
+          },
+          {
+            "foot": "R",
+            "t": 1.48,
+            "dur": 0.49,
+            "slideCm": 5.2,
+            "netCm": 1.5,
+            "joint": "toe"
+          },
+          {
+            "foot": "L",
+            "t": 2.08,
+            "dur": 0.46,
+            "slideCm": 3.1,
+            "netCm": 2.4,
+            "joint": "toe"
+          },
+          {
+            "foot": "R",
+            "t": 2.59,
+            "dur": 0.46,
+            "slideCm": 9.4,
+            "netCm": 1,
+            "joint": "toe"
+          },
+          {
+            "foot": "L",
+            "t": 3.17,
+            "dur": 0.47,
+            "slideCm": 3.2,
+            "netCm": 2.4,
+            "joint": "toe"
+          }
+        ],
+        "footSlide": {
+          "steps": 6,
+          "meanCm": 1.7,
+          "maxCm": 2.5,
+          "meanPathCm": 6.5
+        },
+        "cadence": 90,
+        "blinks": {
+          "count": 1,
+          "perMin": 14.9,
+          "channels": 2
+        },
+        "saccades": {
+          "count": 2,
+          "perMin": 29.9,
+          "maxEyeDeg": 5.5
+        },
+        "headSwayMm": 16.1,
+        "armFromDownDeg": 17.3
+      },
+      "crowd": [
+        {
+          "d": 6,
+          "tris": 10139,
+          "meshes": 3
+        },
+        {
+          "d": 20.3,
+          "tris": 4553,
+          "meshes": 3
+        },
+        {
+          "d": 7.8,
+          "tris": 21457,
+          "meshes": 3
+        }
+      ],
+      "perf": {
+        "desktop/day": {
+          "calls": 236,
+          "tris": 1157052,
+          "textures": 108,
+          "fps": 0
+        },
+        "desktop/sunset": {
+          "calls": 240,
+          "tris": 1158014,
+          "textures": 108,
+          "fps": 0
+        },
+        "desktop/night": {
+          "calls": 241,
+          "tris": 1158078,
+          "textures": 108,
+          "fps": 0
+        },
+        "phone/day": {
+          "calls": 263,
+          "tris": 1137951,
+          "textures": 106,
+          "fps": 0
+        },
+        "phone/sunset": {
+          "calls": 265,
+          "tris": 1138873,
+          "textures": 108,
+          "fps": 0
+        },
+        "phone/night": {
+          "calls": 267,
+          "tris": 1138973,
+          "textures": 108,
+          "fps": 0
+        }
+      }
+    },
+    "hall": {
+      "people": [
+        {
+          "i": 0,
+          "d": 0.7,
+          "name": "boxer-body",
+          "tris": 26841
+        },
+        {
+          "i": 1,
+          "d": 0.9,
+          "name": "boxer-body",
+          "tris": 26332
+        },
+        {
+          "i": 2,
+          "d": 2,
+          "name": "boxer-body",
+          "tris": 28702
+        },
+        {
+          "i": 5,
+          "d": 4.2,
+          "name": "boxer-body",
+          "tris": 28702
+        },
+        {
+          "i": 3,
+          "d": 4.7,
+          "name": "boxer-body",
+          "tris": 28702
+        },
+        {
+          "i": 4,
+          "d": 5.3,
+          "name": "boxer-body",
+          "tris": 28702
+        }
+      ],
+      "views": {
+        "desktop": "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/hum/r1/sheets/hall-people.jpg"
+      },
+      "perf": {
+        "calls": 38,
+        "tris": 49449,
+        "textures": 144
+      },
+      "measure": [
+        {
+          "i": 0,
+          "meshes": [
+            {
+              "name": "boxer-body",
+              "tris": 26841,
+              "verts": 27007,
+              "materials": ["MeshPhysicalMaterial"],
+              "morphs": 0,
+              "slots": true
+            }
+          ],
+          "bones": 68,
+          "warnings": [],
+          "materials": [
+            {
+              "mesh": "boxer-body",
+              "name": "",
+              "type": "MeshPhysicalMaterial",
+              "roughness": 0.6,
+              "metalness": 0,
+              "map": false,
+              "normalMap": false,
+              "bumpMap": false,
+              "roughnessMap": false,
+              "clearcoat": 1,
+              "sheen": 1,
+              "transmission": 0,
+              "alphaTest": 0,
+              "alphaHash": false,
+              "alphaToCoverage": false,
+              "transparent": false,
+              "customShader": true
+            }
+          ],
+          "textures": [
+            {
+              "name": "",
+              "w": 2048,
+              "h": 2048,
+              "mb": 21.28
+            },
+            {
+              "name": "",
+              "w": 512,
+              "h": 512,
+              "mb": 1.33
+            },
+            {
+              "name": "",
+              "w": 512,
+              "h": 512,
+              "mb": 1.33
+            }
+          ],
+          "textureMB": 23.9,
+          "tris": 26841,
+          "proportions": {
+            "stature": 1.708,
+            "headHeight": 0.2,
+            "headRatio": 8.52,
+            "upperArmL": 0.154,
+            "forearmL": 0.158,
+            "thighL": 0.255,
+            "shankL": 0.275,
+            "upperArmR": 0.154,
+            "forearmR": 0.158,
+            "thighR": 0.255,
+            "shankR": 0.275,
+            "shoulderJoints": 0.25,
+            "hipJoints": 0.133
+          },
+          "hands": {
+            "L": {
+              "fingers": 5,
+              "segments": [3, 3, 3, 3, 3]
+            },
+            "R": {
+              "fingers": 5,
+              "segments": [3, 3, 3, 3, 3]
+            }
+          },
+          "garments": {
+            "separateGeometry": true,
+            "garmentMeshes": [],
+            "perVertexSlots": true,
+            "garmentVerts": 10567,
+            "skinVerts": 5430,
+            "penetration": {
+              "tested": 5118,
+              "inside": 405,
+              "fraction": 0.0791,
+              "worstMm": 39.8,
+              "samples": [
+                [-0.69, 3.37, 4.81, -6.4],
+                [-0.69, 3.36, 4.81, -2.1],
+                [-0.68, 3.33, 4.82, -2.1],
+                [-0.69, 3.36, 4.81, -2.2],
+                [-0.78, 3.47, 4.77, -7],
+                [-0.84, 3.42, 4.82, -13.7],
+                [-0.83, 3.41, 4.84, -7.6],
+                [-0.82, 3.41, 4.8, -10.9],
+                [-0.82, 3.41, 4.81, -8.7],
+                [-0.82, 3.41, 4.81, -8.2],
+                [-0.7, 3.32, 4.81, -4.1],
+                [-0.69, 3.46, 4.54, -6.2]
+              ]
+            }
+          },
+          "face": {
+            "eyes": 2,
+            "lidBones": 4,
+            "faceBones": 11,
+            "morphs": 0
+          }
+        },
+        {
+          "i": 1,
+          "meshes": [
+            {
+              "name": "boxer-body",
+              "tris": 26332,
+              "verts": 26375,
+              "materials": ["MeshPhysicalMaterial"],
+              "morphs": 0,
+              "slots": true
+            }
+          ],
+          "bones": 68,
+          "warnings": [],
+          "materials": [
+            {
+              "mesh": "boxer-body",
+              "name": "",
+              "type": "MeshPhysicalMaterial",
+              "roughness": 0.6,
+              "metalness": 0,
+              "map": false,
+              "normalMap": false,
+              "bumpMap": false,
+              "roughnessMap": false,
+              "clearcoat": 1,
+              "sheen": 1,
+              "transmission": 0,
+              "alphaTest": 0,
+              "alphaHash": false,
+              "alphaToCoverage": false,
+              "transparent": false,
+              "customShader": true
+            }
+          ],
+          "textures": [
+            {
+              "name": "",
+              "w": 2048,
+              "h": 2048,
+              "mb": 21.28
+            },
+            {
+              "name": "",
+              "w": 512,
+              "h": 512,
+              "mb": 1.33
+            },
+            {
+              "name": "",
+              "w": 512,
+              "h": 512,
+              "mb": 1.33
+            }
+          ],
+          "textureMB": 23.9,
+          "tris": 26332,
+          "proportions": {
+            "stature": 1.608,
+            "headHeight": 0.165,
+            "headRatio": 9.76,
+            "upperArmL": 0.157,
+            "forearmL": 0.144,
+            "thighL": 0.246,
+            "shankL": 0.274,
+            "upperArmR": 0.157,
+            "forearmR": 0.144,
+            "thighR": 0.246,
+            "shankR": 0.274,
+            "shoulderJoints": 0.205,
+            "hipJoints": 0.118
+          },
+          "hands": {
+            "L": {
+              "fingers": 5,
+              "segments": [3, 3, 3, 3, 3]
+            },
+            "R": {
+              "fingers": 5,
+              "segments": [3, 3, 3, 3, 3]
+            }
+          },
+          "garments": {
+            "separateGeometry": true,
+            "garmentMeshes": [],
+            "perVertexSlots": true,
+            "garmentVerts": 10032,
+            "skinVerts": 5472,
+            "penetration": {
+              "tested": 4752,
+              "inside": 368,
+              "fraction": 0.0774,
+              "worstMm": 39.8,
+              "samples": [
+                [-0.12, 3.29, 4.4, -9.6],
+                [-0.12, 3.28, 4.4, -15.3],
+                [-0.16, 3.26, 4.41, -12.3],
+                [-0.12, 3.28, 4.39, -20.7],
+                [-0.12, 3.29, 4.4, -6.9],
+                [-0.12, 3.27, 4.4, -18.9],
+                [-0.15, 3.25, 4.41, -19.1],
+                [-0.13, 3.25, 4.4, -22],
+                [-0.16, 3.23, 4.41, -28.3],
+                [-0.13, 3.23, 4.4, -27.9],
+                [-0.16, 3.21, 4.4, -20.9],
+                [-0.12, 3.23, 4.39, -24.6]
+              ]
+            }
+          },
+          "face": {
+            "eyes": 2,
+            "lidBones": 4,
+            "faceBones": 11,
+            "morphs": 0
+          }
+        },
+        {
+          "i": 2,
+          "meshes": [
+            {
+              "name": "boxer-body",
+              "tris": 28702,
+              "verts": 22494,
+              "materials": ["MeshPhysicalMaterial"],
+              "morphs": 0,
+              "slots": true
+            }
+          ],
+          "bones": 68,
+          "warnings": [],
+          "materials": [
+            {
+              "mesh": "boxer-body",
+              "name": "",
+              "type": "MeshPhysicalMaterial",
+              "roughness": 0.6,
+              "metalness": 0,
+              "map": false,
+              "normalMap": false,
+              "bumpMap": false,
+              "roughnessMap": false,
+              "clearcoat": 1,
+              "sheen": 1,
+              "transmission": 0,
+              "alphaTest": 0,
+              "alphaHash": false,
+              "alphaToCoverage": false,
+              "transparent": false,
+              "customShader": true
+            }
+          ],
+          "textures": [
+            {
+              "name": "",
+              "w": 2048,
+              "h": 2048,
+              "mb": 21.28
+            },
+            {
+              "name": "",
+              "w": 512,
+              "h": 512,
+              "mb": 1.33
+            },
+            {
+              "name": "",
+              "w": 512,
+              "h": 512,
+              "mb": 1.33
+            }
+          ],
+          "textureMB": 23.9,
+          "tris": 28702,
+          "proportions": {
+            "stature": 1.719,
+            "headHeight": 0.215,
+            "headRatio": 7.99,
+            "upperArmL": 0.152,
+            "forearmL": 0.157,
+            "thighL": 0.251,
+            "shankL": 0.267,
+            "upperArmR": 0.152,
+            "forearmR": 0.157,
+            "thighR": 0.251,
+            "shankR": 0.267,
+            "shoulderJoints": 0.243,
+            "hipJoints": 0.129
+          },
+          "hands": {
+            "L": {
+              "fingers": 5,
+              "segments": [3, 3, 3, 3, 3]
+            },
+            "R": {
+              "fingers": 5,
+              "segments": [3, 3, 3, 3, 3]
+            }
+          },
+          "garments": {
+            "separateGeometry": true,
+            "garmentMeshes": [],
+            "perVertexSlots": true,
+            "garmentVerts": 5740,
+            "skinVerts": 9166,
+            "penetration": {
+              "tested": 1973,
+              "inside": 141,
+              "fraction": 0.0715,
+              "worstMm": 29.3,
+              "samples": [
+                [0.05, 3.48, 3.12, -2.2],
+                [-0.03, 3.28, 3.07, -2.6],
+                [0.05, 3.48, 3.12, -2.1],
+                [0.05, 3.48, 3.12, -2.1],
+                [0, 3.28, 3.02, -6.1],
+                [-0.01, 3.28, 3.02, -9.8],
+                [0, 3.28, 3.03, -6.1],
+                [-0.02, 3.27, 3.04, -5.1],
+                [-0.02, 3.28, 3.05, -4.1],
+                [-0.02, 3.24, 3.03, -6],
+                [-0.02, 3.23, 3.03, -2.6],
+                [0.24, 3.48, 3.19, -4]
+              ]
+            }
+          },
+          "face": {
+            "eyes": 2,
+            "lidBones": 4,
+            "faceBones": 11,
+            "morphs": 0
+          }
+        },
+        {
+          "i": 5,
+          "meshes": [
+            {
+              "name": "boxer-body",
+              "tris": 28702,
+              "verts": 22494,
+              "materials": ["MeshPhysicalMaterial"],
+              "morphs": 0,
+              "slots": true
+            }
+          ],
+          "bones": 68,
+          "warnings": [],
+          "materials": [
+            {
+              "mesh": "boxer-body",
+              "name": "",
+              "type": "MeshPhysicalMaterial",
+              "roughness": 0.6,
+              "metalness": 0,
+              "map": false,
+              "normalMap": false,
+              "bumpMap": false,
+              "roughnessMap": false,
+              "clearcoat": 1,
+              "sheen": 1,
+              "transmission": 0,
+              "alphaTest": 0,
+              "alphaHash": false,
+              "alphaToCoverage": false,
+              "transparent": false,
+              "customShader": true
+            }
+          ],
+          "textures": [
+            {
+              "name": "",
+              "w": 1024,
+              "h": 1024,
+              "mb": 5.32
+            },
+            {
+              "name": "",
+              "w": 512,
+              "h": 512,
+              "mb": 1.33
+            },
+            {
+              "name": "",
+              "w": 512,
+              "h": 512,
+              "mb": 1.33
+            }
+          ],
+          "textureMB": 8,
+          "tris": 28702,
+          "proportions": {
+            "stature": 1.41,
+            "headHeight": 0.232,
+            "headRatio": 6.08,
+            "upperArmL": 0.186,
+            "forearmL": 0.192,
+            "thighL": 0.307,
+            "shankL": 0.326,
+            "upperArmR": 0.186,
+            "forearmR": 0.192,
+            "thighR": 0.307,
+            "shankR": 0.326,
+            "shoulderJoints": 0.296,
+            "hipJoints": 0.157
+          },
+          "hands": {
+            "L": {
+              "fingers": 5,
+              "segments": [3, 3, 3, 3, 3]
+            },
+            "R": {
+              "fingers": 5,
+              "segments": [3, 3, 3, 3, 3]
+            }
+          },
+          "garments": {
+            "separateGeometry": true,
+            "garmentMeshes": [],
+            "perVertexSlots": true,
+            "garmentVerts": 5740,
+            "skinVerts": 9166,
+            "penetration": {
+              "tested": 1874,
+              "inside": 71,
+              "fraction": 0.0379,
+              "worstMm": 27.7,
+              "samples": [
+                [-4.31, 2.35, 4.51, -10.7],
+                [-4.33, 2.35, 4.52, -17.5],
+                [-4.34, 2.35, 4.53, -8.8],
+                [-4.36, 2.35, 4.54, -4.3],
+                [-4.36, 2.35, 4.66, -4.9],
+                [-4.34, 2.35, 4.67, -9.2],
+                [-4.32, 2.35, 4.68, -18.4],
+                [-4.3, 2.35, 4.69, -14.9],
+                [-4.3, 2.36, 4.53, -9.1],
+                [-4.32, 2.37, 4.53, -9.7],
+                [-4.33, 2.37, 4.54, -5.6],
+                [-4.33, 2.37, 4.66, -6.1]
+              ]
+            }
+          },
+          "face": {
+            "eyes": 2,
+            "lidBones": 4,
+            "faceBones": 11,
+            "morphs": 0
+          }
+        },
+        {
+          "i": 3,
+          "meshes": [
+            {
+              "name": "boxer-body",
+              "tris": 28702,
+              "verts": 22494,
+              "materials": ["MeshPhysicalMaterial"],
+              "morphs": 0,
+              "slots": true
+            }
+          ],
+          "bones": 68,
+          "warnings": [],
+          "materials": [
+            {
+              "mesh": "boxer-body",
+              "name": "",
+              "type": "MeshPhysicalMaterial",
+              "roughness": 0.6,
+              "metalness": 0,
+              "map": false,
+              "normalMap": false,
+              "bumpMap": false,
+              "roughnessMap": false,
+              "clearcoat": 1,
+              "sheen": 1,
+              "transmission": 0,
+              "alphaTest": 0,
+              "alphaHash": false,
+              "alphaToCoverage": false,
+              "transparent": false,
+              "customShader": true
+            }
+          ],
+          "textures": [
+            {
+              "name": "",
+              "w": 1024,
+              "h": 1024,
+              "mb": 5.32
+            },
+            {
+              "name": "",
+              "w": 512,
+              "h": 512,
+              "mb": 1.33
+            },
+            {
+              "name": "",
+              "w": 512,
+              "h": 512,
+              "mb": 1.33
+            }
+          ],
+          "textureMB": 8,
+          "tris": 28702,
+          "proportions": {
+            "stature": 1.39,
+            "headHeight": 0.22,
+            "headRatio": 6.31,
+            "upperArmL": 0.185,
+            "forearmL": 0.192,
+            "thighL": 0.306,
+            "shankL": 0.327,
+            "upperArmR": 0.185,
+            "forearmR": 0.192,
+            "thighR": 0.306,
+            "shankR": 0.327,
+            "shoulderJoints": 0.297,
+            "hipJoints": 0.158
+          },
+          "hands": {
+            "L": {
+              "fingers": 5,
+              "segments": [3, 3, 3, 3, 3]
+            },
+            "R": {
+              "fingers": 5,
+              "segments": [3, 3, 3, 3, 3]
+            }
+          },
+          "garments": {
+            "separateGeometry": true,
+            "garmentMeshes": [],
+            "perVertexSlots": true,
+            "garmentVerts": 5740,
+            "skinVerts": 9166,
+            "penetration": {
+              "tested": 1888,
+              "inside": 58,
+              "fraction": 0.0307,
+              "worstMm": 25.9,
+              "samples": [
+                [-0.09, 2.31, 8.92, -10.1],
+                [-0.08, 2.32, 8.94, -9.2],
+                [0.07, 2.32, 8.96, -2.1],
+                [0.08, 2.32, 8.94, -11.6],
+                [0.09, 2.31, 8.92, -9.6],
+                [-0.07, 2.33, 8.92, -4.4],
+                [-0.07, 2.33, 8.93, -3.2],
+                [0.07, 2.33, 8.94, -3.6],
+                [0.07, 2.33, 8.92, -4.4],
+                [-0.06, 2.35, 8.92, -3.1],
+                [-0.06, 2.35, 8.93, -2.4],
+                [0.06, 2.35, 8.93, -2.6]
+              ]
+            }
+          },
+          "face": {
+            "eyes": 2,
+            "lidBones": 4,
+            "faceBones": 11,
+            "morphs": 0
+          }
+        },
+        {
+          "i": 4,
+          "meshes": [
+            {
+              "name": "boxer-body",
+              "tris": 28702,
+              "verts": 22494,
+              "materials": ["MeshPhysicalMaterial"],
+              "morphs": 0,
+              "slots": true
+            }
+          ],
+          "bones": 68,
+          "warnings": [],
+          "materials": [
+            {
+              "mesh": "boxer-body",
+              "name": "",
+              "type": "MeshPhysicalMaterial",
+              "roughness": 0.6,
+              "metalness": 0,
+              "map": false,
+              "normalMap": false,
+              "bumpMap": false,
+              "roughnessMap": false,
+              "clearcoat": 1,
+              "sheen": 1,
+              "transmission": 0,
+              "alphaTest": 0,
+              "alphaHash": false,
+              "alphaToCoverage": false,
+              "transparent": false,
+              "customShader": true
+            }
+          ],
+          "textures": [
+            {
+              "name": "",
+              "w": 1024,
+              "h": 1024,
+              "mb": 5.32
+            },
+            {
+              "name": "",
+              "w": 512,
+              "h": 512,
+              "mb": 1.33
+            },
+            {
+              "name": "",
+              "w": 512,
+              "h": 512,
+              "mb": 1.33
+            }
+          ],
+          "textureMB": 8,
+          "tris": 28702,
+          "proportions": {
+            "stature": 1.414,
+            "headHeight": 0.28,
+            "headRatio": 5.04,
+            "upperArmL": 0.185,
+            "forearmL": 0.192,
+            "thighL": 0.307,
+            "shankL": 0.326,
+            "upperArmR": 0.185,
+            "forearmR": 0.192,
+            "thighR": 0.307,
+            "shankR": 0.326,
+            "shoulderJoints": 0.296,
+            "hipJoints": 0.157
+          },
+          "hands": {
+            "L": {
+              "fingers": 5,
+              "segments": [3, 3, 3, 3, 3]
+            },
+            "R": {
+              "fingers": 5,
+              "segments": [3, 3, 3, 3, 3]
+            }
+          },
+          "garments": {
+            "separateGeometry": true,
+            "garmentMeshes": [],
+            "perVertexSlots": true,
+            "garmentVerts": 5740,
+            "skinVerts": 9166,
+            "penetration": {
+              "tested": 1877,
+              "inside": 74,
+              "fraction": 0.0394,
+              "worstMm": 27.8,
+              "samples": [
+                [4.29, 2.34, 4.69, -9.2],
+                [4.3, 2.35, 4.68, -17.5],
+                [4.32, 2.35, 4.67, -10.1],
+                [4.34, 2.36, 4.66, -5.8],
+                [4.34, 2.36, 4.54, -7.2],
+                [4.32, 2.35, 4.53, -11.3],
+                [4.3, 2.35, 4.52, -22.5],
+                [4.29, 2.34, 4.51, -11.2],
+                [4.28, 2.36, 4.67, -9.5],
+                [4.29, 2.37, 4.67, -10.4],
+                [4.31, 2.37, 4.66, -6.5],
+                [4.31, 2.37, 4.54, -7.9]
+              ]
+            }
+          },
+          "face": {
+            "eyes": 2,
+            "lidBones": 4,
+            "faceBones": 11,
+            "morphs": 0
+          }
+        }
+      ]
+    }
+  }
+}

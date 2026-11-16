@@ -1,0 +1,90 @@
+{
+  "_doc": "QA-HUM-01 shot list (assess.mjs). Looks are plaza look codes (world/outfits.ts encodeLook, '|' as %7C). Boxer jobs are /play/boxing-lab queries; cams are BoxerLab VIEWS. world.tod = minutes after midnight for window.__gkTod.pin. hall.fpv = an expression evaluated in the page to switch the fight camera to first person (empty until it exists).",
+  "lab": {
+    "lights": ["day", "sunset", "night"],
+    "looks": [
+      {
+        "id": "f-tee",
+        "query": "look=1%7Cf%7C5C3A26%7Cbraids%7C141010%7Ctee%7Cjeans%7Csneakers%7Cnone%7Cno-hat%7C7a4a2a%7C3a5f7a"
+      },
+      {
+        "id": "m-tee",
+        "query": "look=1%7Cm%7C3B2219%7Cshort%7C141010%7Ctee%7Cchinos%7Csneakers%7Cnone%7Cno-hat%7C7a4a2a%7C8a8a80"
+      }
+    ],
+    "views": [
+      "full",
+      "full34",
+      "side",
+      "back",
+      "face",
+      "face34",
+      "faceSide",
+      "eyes",
+      "torso",
+      "torso34",
+      "torsoBack",
+      "hips",
+      "handR",
+      "handL",
+      "feet"
+    ],
+    "phoneViews": ["full", "face", "handR", "torso34", "feet", "back"],
+    "walkSpeeds": [1.4, 2.2, 3.2]
+  },
+  "matrix": {
+    "base": "look=1%7Cn%7C6E4530%7Cshort%7C141010%7Ctee%7Cjeans%7Csneakers%7Cnone%7Cno-hat%7C7a4a2a%7C5a6a5a",
+    "lights": ["day", "night"],
+    "bodies": ["feminine", "masculine"],
+    "ages": ["young", "adult", "senior"],
+    "skins": [0, 3, 6, 10]
+  },
+  "boxer": {
+    "jobs": [
+      {
+        "id": "m-boxer",
+        "query": "mode=boxer&gender=m&clip=guard"
+      },
+      {
+        "id": "f-boxer",
+        "query": "mode=boxer&gender=f&clip=guard"
+      },
+      {
+        "id": "m-casual",
+        "query": "mode=boxer&gender=m&outfit=casual&clip=guard&tone=0"
+      },
+      {
+        "id": "f-casual-senior",
+        "query": "mode=boxer&gender=f&outfit=casual&clip=guard&tone=6&age=senior"
+      },
+      {
+        "id": "m-referee",
+        "query": "mode=boxer&gender=m&outfit=referee&clip=guard&tone=3"
+      }
+    ],
+    "cams": ["full", "fullSide", "fullBack", "front", "face", "face34", "shoulderL", "armpitL"],
+    "phoneCams": ["full", "face", "front"]
+  },
+  "world": {
+    "tod": {
+      "day": 600,
+      "sunset": 1085,
+      "night": 1290
+    }
+  },
+  "hall": {
+    "practice": true,
+    "ring": "R1",
+    "people": 6,
+    "fpv": ""
+  },
+  "fpv": {
+    "query": "scene=1&auto=1&level=1&rounds=2&secs=20&name=Aline&fcam=first",
+    "punches": [
+      ["j", "jab", 170],
+      ["k", "cross", 230],
+      ["u", "lead-hook", 260],
+      ["o", "uppercut", 260]
+    ]
+  }
+}

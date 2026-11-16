@@ -1,0 +1,80 @@
+{
+  "plaza": {
+    "proportions": [
+      4,
+      "adult proportions from every side (7.0–7.7 heads); the Rocketbox upper-arm joint sits high, not visible"
+    ],
+    "face": [
+      2,
+      "photo-textured Rocketbox heads with the P2-AVA-11 age / face work, but low-detail geometry; flat profile, decal-like moles; lightest tone reads porcelain"
+    ],
+    "eyes": [
+      2,
+      "textured iris, catchlight, blinks and saccades; no wet line or lid shadow; sockets go black under the night lamp on light skin"
+    ],
+    "skin": [
+      2,
+      "one roughness everywhere, photo light baked in; darkest tones lose all form at sunset / night"
+    ],
+    "hair": [2, "braids stand out from the head like spokes, short hair a soft shell; locs read better"],
+    "hands": [
+      2,
+      "5 × 3 finger bones but faceted paddle hands; a lighter / pinkish band at the wrist where the hand texture meets the arm"
+    ],
+    "clothing": [
+      2,
+      "clothes are the body surface (one mesh, painted folds); the chosen 'tee' renders as the base model's jacket"
+    ],
+    "motion": [
+      3,
+      "speed-matched gait with idle life and no snaps; the planted foot still drifts 2–3 cm per step at slow walking"
+    ],
+    "expressions": [2, "blinks, gaze, jaw while talking; no brows / cheeks / mouth-corner expression"],
+    "lighting": [
+      3,
+      "consistent in day / sunset / night; dark faces go to black at sunset / night, light faces get raccoon sockets at night"
+    ],
+    "lod": [4, "the 9 m head-detail switch is not measurable in the sweep (pop −1.4)"],
+    "perf": [4, "12–29k tris, 4 calls with shadow, 24 MB textures per body type, shared"]
+  },
+  "boxer": {
+    "proportions": [
+      4,
+      "casual bodies 7.7–7.9 heads, segments within 22 %; boxers measured with headgear on (re-measured without in round 2)"
+    ],
+    "face": [
+      3,
+      "MakeHuman CC0 photo skin on a generic sculpt: reads as a person at 3–8 m, generic and slightly waxy up close"
+    ],
+    "eyes": [
+      3,
+      "photographic iris under a wet cornea, catchlight; lashes a dark stippled comb under the eye, no lid shadow on the eyeball"
+    ],
+    "skin": [3, "real pores, lips, palms, hairline; too polished on dark tones (wet-mahogany arms)"],
+    "hair": [3, "close crop as strands over the photo scalp: reads as real hair at 2 m+"],
+    "hands": [3, "finger poses (fists, count); gloves are smooth procedural shells"],
+    "clothing": [
+      2,
+      "garments are real geometry; still 2–3 % of garment vertices inside the body at rest (referee collar 13 mm into the neck, shoes into the feet) and 5–9 % in the guard (forearms into the chest); vest armholes jagged; headgear / gloves glossy plastic with a saw-tooth white target; flat bow tie"
+    ],
+    "motion": [3, "IK boxing motion library (frozen in the lab; live in the hall)"],
+    "expressions": [3, "focus / effort / wince / flush channels, believable but subtle"],
+    "lighting": [3, "reads right under the hall lights; judges at their tables are in the dark at night"],
+    "perf": [4, "26–29k tris, 1 skinned mesh, 24 MB of shared textures (2K skin + detail + iris)"]
+  },
+  "ring": {
+    "face": [3, "same human as the boxers"],
+    "skin": [3, "same as the boxers"],
+    "clothing": [
+      2,
+      "referee shirt / judges' polos: 3–8 % of garment vertices inside the body in the live poses, worst 4 cm"
+    ],
+    "lighting": [2, "judges' faces almost black at night in the hall (21:30)"]
+  },
+  "fpv": {
+    "fpv": [
+      2,
+      "own body slivers and cut edges at the bottom of the frame (skin, teeth and headgear within 2–20 cm of the lens in the cross / uppercut / look-down), the opponent's gloves fill most frames at clinch range, on phones the guard frame is own-body only; the side camera reads far better"
+    ]
+  }
+}
