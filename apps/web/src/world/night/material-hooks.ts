@@ -77,9 +77,9 @@ export function arenaScreenNight(m: THREE.MeshStandardMaterial): THREE.MeshStand
     float gkCell = floor(gkAng * 72.0);
     float gkSeq = gkSwell(uGkShowT / ${SHOW_PERIODS_GLSL.lozenges} - fract(gkCell / 24.0) - gkRow * 0.06);
     float gkWv = gkWave(uGkShowT, gkH * 0.85 - gkAng * 2.0, ${SHOW_PERIODS_GLSL.arenaWave});
-    float gkA = mix(0.75, 0.3 + 0.6 * gkWv + 0.75 * gkSeq, uGkShowK);
+    float gkA = mix(0.62, 0.1 + 0.75 * gkWv + 1.1 * gkSeq, uGkShowK);
     vec3 gkWarm = vec3(1.0, 0.6, 0.3);
-    totalEmissiveRadiance += uGkNight * (gkWarm * gkHole * gkA * 2.4
+    totalEmissiveRadiance += uGkNight * (gkWarm * gkHole * gkA * 2.2
       + (1.0 - gkHole) * diffuseColor.rgb * gkWarm * (0.12 + 1.1 * exp(-gkH * 5.0)));
   }`,
     );
@@ -158,7 +158,7 @@ export function agasekeNight(m: THREE.MeshStandardMaterial): THREE.MeshStandardM
     gkAcc += vec3(1.0, 0.8, 0.58) * gkLid * 0.08 + vec3(1.0, 0.85, 0.6) * smoothstep(3.3, 3.75, gkH) * 0.5;
     // the lit water's cool bounce on the lower body
     gkAcc += vec3(0.35, 0.55, 0.6) * (1.0 - smoothstep(0.0, 1.2, gkH)) * 0.35;
-    totalEmissiveRadiance += diffuseColor.rgb * gkAcc * uGkNight * 1.6;
+    totalEmissiveRadiance += diffuseColor.rgb * gkAcc * uGkNight * 1.3;
   }`,
     );
   });

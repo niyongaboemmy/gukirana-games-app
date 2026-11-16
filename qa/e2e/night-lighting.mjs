@@ -48,7 +48,8 @@ const phaseArg = process.argv.find((a) => a.startsWith("--phase="))?.slice(8);
 const PHASES = [
   ["night", 21 * 60],
   ["dusk", 18 * 60 + 30],
-].filter(([n]) => !phaseArg || n === phaseArg);
+  ["midday", 12 * 60 + 30],
+].filter(([n]) => (phaseArg ? phaseArg.split(",").includes(n) : n !== "midday"));
 
 const b = await puppeteer.launch({
   executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -62,6 +63,10 @@ async function signedInPage(viewport = { width: 1280, height: 720 }) {
   const p = await b.newPage();
   await p.setViewport(viewport);
   p.on("pageerror", (e) => results.notes.push(`pageerror: ${String(e).slice(0, 200)}`));
+  // shader compile errors (a fog / light change surfacing a broken program) are failures
+  p.on("console", (m) => {
+    if (m.type() === "error" && /Shader Error|WebGLProgram/.test(m.text())) results.notes.push(`shader: ${m.text().slice(0, 300)}`);
+  });
   await p.goto(`${BASE}/gate`, { waitUntil: "domcontentloaded" });
   await p.evaluate(async () => {
     const phone = "0788" + String(Date.now() % 1000000).padStart(6, "0");
@@ -158,8 +163,11 @@ if (what === "all" || what === "strip") {
   await toWorld(p);
   await closeCards(p);
   await setTime(p, 21 * 60, true);
-  await place(p, { x: 0, z: -12, yaw: 0, pitch: 0.06, distance: 10 });
+  const showPose = { x: 0, z: -22, yaw: 0, pitch: 0.22, distance: 70 };
+  await place(p, showPose);
   await sleep(3000);
+  await place(p, showPose);
+  await sleep(1500);
   for (let i = 0; i < 12; i++) {
     await shot(p, `${TAG}-arena-show-${String(i).padStart(2, "0")}${sfx}`);
     results.strip.push({ i, t: Date.now() });

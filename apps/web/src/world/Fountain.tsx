@@ -306,6 +306,7 @@ function Droplets({ uTime }: { uTime: { value: number } }) {
             vUv = uv;
             vA = smoothstep(0.0, 0.06, t) * (1.0 - smoothstep(0.9, 1.0, t));
             gl_Position = projectionMatrix * mv;
+            vec4 mvPosition = mv; // (fog_vertex reads mvPosition: undeclared here until the scene fog was really on, P2-WLD-21)
             #include <fog_vertex>
           }`,
         fragmentShader: /* glsl */ `
