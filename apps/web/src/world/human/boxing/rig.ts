@@ -492,6 +492,21 @@ export class BoxingRig {
       solve(lead, 0, rear, ARM_SIZE);
       solve(rear, ARM_SIZE, lead, 0);
     }
+    // the canvas: a glove (the knockdown's hand reaching down, a glove on the knee) never goes into the floor — it rests
+    // on it (the root stands on the canvas)
+    this.root.getWorldPosition(_kv);
+    const floorY = _kv.y + ARM_R.glove;
+    for (const [arm, o] of [
+      [lead, 0],
+      [rear, ARM_SIZE],
+    ] as const) {
+      armPoints(arm.dims, A, o, _kp1);
+      fk.toWorld(_kp1.gl, rootQ, delta, _ke);
+      if (_ke.y >= floorY) continue;
+      _ke.y = floorY;
+      fk.toChest(_ke, rootQ, delta, _kh);
+      aimArm(arm.dims, A, o, _kh, 1);
+    }
     fk.apply(lead, A, 0, rootQ, delta, w);
     fk.apply(rear, A, ARM_SIZE, rootQ, delta, w);
   }

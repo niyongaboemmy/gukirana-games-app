@@ -22,7 +22,7 @@ export type BoxerOutfit = "boxer" | "referee" | "staff" | "casual";
 export const BOXER_URL: Record<BoxerGender, string> = { m: "/assets/characters/boxer-m.glb", f: "/assets/characters/boxer-f.glb" };
 
 /** body cover bits (build.mjs COVER) */
-const COVER = { vest: 1, trunks: 2, boots: 4, gloves: 8, headgear: 16, shirt: 32, trousers: 64, shoes: 128, hair: 256, sock: 512 } as const;
+const COVER = { vest: 1, trunks: 2, boots: 4, gloves: 8, headgear: 16, shirt: 32, trousers: 64, shoes: 128, hair: 256, sock: 512, vestCore: 1024 } as const;
 
 const OUTFIT_MESHES: Record<BoxerOutfit, { meshes: string[]; cover: number; headgear: boolean }> = {
   boxer: { meshes: ["body", "kit_vest", "kit_trunks", "kit_boots", "kit_socks", "kit_gloves", "kit_headgear", "kit_wraps"], cover: COVER.vest | COVER.trunks | COVER.boots | COVER.gloves | COVER.headgear, headgear: true },
@@ -130,7 +130,14 @@ export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: Boxer
         const a = idx[t]!,
           b = idx[t + 1]!,
           c = idx[t + 2]!;
-        if (cov.getX(a) & cov.getX(b) & cov.getX(c) & cover) continue;
+        const ca = cov.getX(a),
+          cb = cov.getX(b),
+          cc = cov.getX(c);
+        if (ca & cb & cc & cover) continue;
+        // P3-FGT-16: under the vest a face with two of its three corners well inside (≥ 1 cm from the edge: the vestCore
+        // bit) goes too — the narrow straps over the trapezius left slivers of skin that rose through the cloth when the
+        // shoulders shrugged; the edge itself is untouched (no hole can open beside the binding)
+        if (cover & COVER.vest && ((ca & cb) | (cb & cc) | (ca & cc)) & COVER.vestCore) continue;
         keep.push(a, b, c);
       }
       // the boxer's socks: the band above the boot top is painted white (sock slot)

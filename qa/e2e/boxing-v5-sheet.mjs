@@ -30,6 +30,8 @@ const ACTIONS = [
   ["hit-reaction", "hitHeadHeavy", "impact", "&gap=1.1"],
   ["knockdown", "knockdown", "1.5", ""],
   ["referee-count", "knockdown", "2.6", ""],
+  ["knockdown-landing", "knockdown", "0.72", ""],
+  ["get-up", "getUp", "0.5", ""],
 ];
 const CAMS = (process.env.CAMS ?? "side,close,front").split(",");
 const SIZES = (process.env.SIZES ?? "1280x720,844x390").split(",");

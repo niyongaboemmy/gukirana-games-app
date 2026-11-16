@@ -225,6 +225,31 @@ function shot(ring: RingPlace, snap: BoxingSnapshot | null, me: 0 | 1, side: num
 }
 
 /**
+ * Body work from the side (P3-FGT-16): a lead-hand body shot (the lead hook / jab to the body, `body` on the punch) lands
+ * on the puncher's lead side — from the far side of the pair the camera sees only his back and the glove is hidden.
+ * While one is thrown the broadcast wants the puncher's lead side (`side`, the same sign convention as the shots: the
+ * camera on +(−az, ax) for 1) and drops ~30 cm to body height (`low`). Fighters box orthodox (lead = left). null = no
+ * body work now. Pure (the snapshot only): the same on every screen.
+ */
+export function bodyWorkShot(snap: Pick<BoxingSnapshot, "fighters" | "phase"> | null, ax: number, az: number): { side: 1 | -1; low: number } | null {
+  if (!snap || snap.phase !== "round") return null;
+  for (let i = 0; i < snap.fighters.length; i++) {
+    const f = snap.fighters[i]!;
+    if (!f.body || (f.act !== "hook" && f.act !== "jab")) continue;
+    // the puncher stands at −ax (fighter 0) / +ax (fighter 1) on the pair axis, facing the other: forward = −s·(ax, az),
+    // his left (the lead) = (fz, −fx)
+    const s = i === 0 ? -1 : 1;
+    const fx = -s * ax,
+      fz = -s * az;
+    const lx = fz,
+      lz = -fx;
+    // camera side 1 sits on (−az, ax)
+    return { side: -az * lx + ax * lz >= 0 ? 1 : -1, low: 1 };
+  }
+  return null;
+}
+
+/**
  * Which shot a camera choice gives right now: side (default) / behind as picked; auto = the side broadcast with an
  * over-the-shoulder view for ~5 s of every 20 s of round time (deterministic from the tick: the same on replays).
  */
@@ -256,6 +281,8 @@ export function FightCamera() {
   const seen = useRef(0);
   const clock = useRef(0);
   const lastCut = useRef(-10);
+  /** P3-FGT-16: the body-work drop (0…1, eased) */
+  const bodyLow = useRef(0);
   /** P3-FGT-13: the impact camera — a short push-in on a big hit (0 → 1 → 0 over IMPACT_S) */
   const impact = useRef(-10);
   /** P3-FGT-15: first person — blend weight, smoothed eye / view, the lens it replaced, the body whose head is hidden */
@@ -366,7 +393,20 @@ export function FightCamera() {
         lastCut.current = clock.current;
       }
     }
-    if (mine) fightShot(r, snap, me, side.current, shotMode, _eye, _look, aspect);
+    // body work (P3-FGT-16): a lead-hand body shot is seen from the puncher's lead side, a little lower (a broadcast cut
+    // when the camera is on the far side; at most one every 1.2 s)
+    const bw = mine && shotMode === "fight" ? bodyWorkShot(snap, ax, az) : null;
+    if (bw && bw.side !== side.current && clock.current - lastCut.current > 1.2 && shotOutside(r, snap, me, bw.side, shotMode, aspect) < 0.35) {
+      side.current = bw.side;
+      seeded.current = false;
+      lastCut.current = clock.current;
+    }
+    bodyLow.current += ((bw?.low ?? 0) - bodyLow.current) * Math.min(1, dt * 5);
+    if (mine) {
+      fightShot(r, snap, me, side.current, shotMode, _eye, _look, aspect);
+      _eye.y -= 0.3 * bodyLow.current;
+      _look.y -= 0.22 * bodyLow.current;
+    }
     else if (mode === "overhead") {
       _eye.set(r.x + -az * side.current * 2.2, r.canvasY + 6.8, r.z + ax * side.current * 2.2);
       _look.set(r.x, r.canvasY + 0.6, r.z);
