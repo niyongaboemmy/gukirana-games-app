@@ -55,8 +55,10 @@ const _kfw = new THREE.Vector3();
  * (build.mjs `torsoSlices`). A slice is a superellipse round (0, (front + back) / 2).
  */
 export type TorsoSlices = readonly (readonly [number, number, number, number])[];
-/** keep-out radii (m): glove padding round the wrist target, elbow, the middle of the upper arm / forearm */
-export const KEEP = { glove: 0.06, elbow: 0.05, upper: 0.045, fore: 0.045 } as const;
+/** keep-out radii (m): glove padding round the wrist target, elbow, the middle of the upper arm / forearm. The torso
+ * slices are the bare body: the arm radii carry the clothes' stand-off too (vest / tee drape ~1.4 cm + 5 mm fabric),
+ * else the forearms sank into the chest of the garment in the guard (QA-HUM-01: 5–9 % of garment vertices inside) */
+export const KEEP = { glove: 0.06, elbow: 0.065, upper: 0.06, fore: 0.062 } as const;
 const SE = 2.6;
 /** points along the forearm (elbow → wrist) checked against the trunk */
 const FORE_SAMPLES = [0.3, 0.6, 0.85] as const;

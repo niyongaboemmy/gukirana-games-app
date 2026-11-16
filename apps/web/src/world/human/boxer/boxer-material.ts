@@ -108,7 +108,7 @@ export function boxerPalette(col: BoxerColors): THREE.Color[] {
   p[SLOT.sole] = c("#d8d4cc");
   p[SLOT.lace] = c("#f0efea");
   p[SLOT.glove] = c(kit);
-  p[SLOT.gloveTarget] = shade(kit, 0.86);
+  p[SLOT.gloveTarget] = shade(kit, 0.96);
   p[SLOT.gloveCuff] = shade(kit, 0.82);
   p[SLOT.headgear] = c(kit);
   p[SLOT.headgearTrim] = shade(kit, 0.6);

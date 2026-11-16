@@ -1,0 +1,47 @@
+{
+  "plaza": {
+    "proportions": [4, "unchanged since round 2 (not re-run: no plaza change this round)"],
+    "face": [2, "Rocketbox heads: needs the migration"],
+    "eyes": [2, "Rocketbox eyes: needs the migration"],
+    "skin": [2, "baked photo light, one roughness: needs the migration"],
+    "hair": [3, "braids / locs fall with gravity"],
+    "hands": [2, "paddle hands, wrist band: needs the migration"],
+    "clothing": [2, "clothes are the body surface: needs the migration"],
+    "motion": [4, "feet planted (0.1–0.2 cm per step)"],
+    "expressions": [2, "no brow / cheek / mouth expression on Rocketbox"],
+    "lighting": [3, "unchanged"],
+    "lod": [4, "unchanged"],
+    "perf": [4, "unchanged"]
+  },
+  "boxer": {
+    "proportions": [4, "unchanged"],
+    "face": [3, "generic sculpt (scanned head needed for 4)"],
+    "eyes": [3, "no wet line / tear duct mesh"],
+    "skin": [3, "2K body map, no SSS pass"],
+    "hair": [3, "close crop strands"],
+    "hands": [
+      3,
+      "gloves read as dyed matte leather without the saw-tooth panel; shape still a smooth procedural shell (no seams / laces / thumb stitching)"
+    ],
+    "clothing": [
+      3,
+      "rest 0.1–0.2 %; guard 2.0–4.5 % (was 5–7 %): the arm keep-out now carries the clothes' stand-off; the rest is the glove cuff on the forearm and vest armhole edges"
+    ],
+    "motion": [3, "unchanged"],
+    "expressions": [3, "unchanged"],
+    "lighting": [3, "unchanged"],
+    "perf": [4, "unchanged"]
+  },
+  "ring": {
+    "face": [3, "same human"],
+    "skin": [3, "same human"],
+    "clothing": [
+      3,
+      "referee / judges 0.6–1.2 %, boxers in a live fight 6.8–8.3 % (gloves on forearms / faces in clinches and punches)"
+    ],
+    "lighting": [2, "judges near-black at night (hall lighting, P2-WLD-21)"]
+  },
+  "fpv": {
+    "fpv": [2, "unchanged since round 2: needs a first-person viewmodel; option only, side camera default"]
+  }
+}
