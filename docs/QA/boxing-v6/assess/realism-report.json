@@ -1,0 +1,121 @@
+{
+ "at": "2026-11-16T10:28:59.683Z",
+ "pass": 4,
+ "subjects": {
+  "plaza": [],
+  "boxer": [
+   {
+    "id": "proportions",
+    "label": "Proportions",
+    "auto": 4,
+    "visual": 4,
+    "score": 4,
+    "pass": true,
+    "autoNote": "7.71 heads, worst segment 9 % off; 7.91 heads, worst segment 12 % off; 7.72 heads, worst segment 9 % off; 7.89 heads, worst segment 12 % off; 7.72 heads, worst segment 9 % off",
+    "visualNote": "athletic sculpt (MakeHuman regional CC0 targets): V-taper, deltoid cap, thicker neck into the trapezius, forearm / calf mass; 7.7–7.9 heads, segments within 9–12 %"
+   },
+   {
+    "id": "face",
+    "label": "Face",
+    "auto": null,
+    "visual": 3,
+    "score": 3,
+    "pass": false,
+    "autoNote": "",
+    "visualNote": "unchanged generic MakeHuman sculpt; the open-face headgear now shows brows, eyes, nose, mouth (scanned head needed for 4)"
+   },
+   {
+    "id": "eyes",
+    "label": "Eyes",
+    "auto": null,
+    "visual": 3,
+    "score": 3,
+    "pass": false,
+    "autoNote": "",
+    "visualNote": "unchanged"
+   },
+   {
+    "id": "skin",
+    "label": "Skin",
+    "auto": null,
+    "visual": 3,
+    "score": 3,
+    "pass": false,
+    "autoNote": "",
+    "visualNote": "v6: analytic pre-integrated diffuse (warm terminator), baked anatomy normal + cavity, roughness and tonal breakup — better at 1–3 m; close-up still the 2K whole-body CC0 photo skin, no scanned pore detail / SSS pass (paid scan for 4)"
+   },
+   {
+    "id": "hair",
+    "label": "Hair",
+    "auto": null,
+    "visual": 3,
+    "score": 3,
+    "pass": false,
+    "autoNote": "",
+    "visualNote": "unchanged"
+   },
+   {
+    "id": "hands",
+    "label": "Hands and fingers",
+    "auto": 5,
+    "visual": 4,
+    "score": 4,
+    "pass": true,
+    "autoNote": "5 fingers × 3 segments on both hands",
+    "visualNote": "gloves at product size (≈ 28.5 cm, 11.6 cm at the knuckles, 8.8 cm cuff) with the white competition scoring panel and a clean edge; tells: no stitching / lacing detail"
+   },
+   {
+    "id": "clothing",
+    "label": "Clothing",
+    "auto": 2,
+    "visual": 3,
+    "score": 2,
+    "pass": false,
+    "autoNote": "rest: inside 0.00 %, worst 0 mm; inside 0.13 %, worst 5.9 mm; inside 0.91 %, worst 10.7 mm; inside 0.47 %, worst 5.8 mm; inside 0.75 %, worst 11.5 mm; in the pose: worst 8.1 % of garment vertices inside",
+    "visualNote": "4 at gameplay distance: arm hole lies on the body (no cavity), fitted singlet taper, facing hides the shell's inside, snug 11 mm waistband, fluted trunks legs; close-up tells: procedural folds, no cloth sim, small skin slivers at the strap top in a shrug. Boxers: rest 0–0.13 %, pose 2.0–2.9 % inside (round 3: 3.5–4.5 %)"
+   },
+   {
+    "id": "motion",
+    "label": "Motion",
+    "auto": null,
+    "visual": 3,
+    "score": 3,
+    "pass": false,
+    "autoNote": "",
+    "visualNote": "unchanged keyed motion (P3-FGT-16); arms 4 by the P3-FGT-16 measure (hinge elbows 0° sideways)"
+   },
+   {
+    "id": "expressions",
+    "label": "Expressions",
+    "auto": null,
+    "visual": 3,
+    "score": 3,
+    "pass": false,
+    "autoNote": "",
+    "visualNote": "unchanged"
+   },
+   {
+    "id": "lighting",
+    "label": "Lighting response",
+    "auto": null,
+    "visual": 3,
+    "score": 3,
+    "pass": false,
+    "autoNote": "",
+    "visualNote": "skin keeps a warm terminator under the lab key light; hall night lighting unchanged"
+   },
+   {
+    "id": "perf",
+    "label": "Performance",
+    "auto": 5,
+    "visual": 5,
+    "score": 5,
+    "pass": true,
+    "autoNote": "≤ 28345 tris, ≤ 0 calls (incl. shadow), ≤ 29.3 MB textures per person",
+    "visualNote": "28.1–28.3k triangles per boxer, one draw call + shadow, 29.3 MB textures desktop (13.3 MB phone); practice ring 8 calls, 98.8k tris, 60 fps at 1280×720 and 844×390 DPR 2"
+   }
+  ],
+  "fpv": [],
+  "ring": []
+ }
+}

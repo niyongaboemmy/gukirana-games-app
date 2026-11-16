@@ -166,6 +166,25 @@ See docs/PEOPLE-BEHAVIOUR.md.
   colour under alpha). The eye texture's iris turned to luminance (tinted with the player's eye colour at runtime) with an
   iris mask in alpha. The eye proxy fitted to each body with MakeHuman's own proxy maths (`mh.mjs readProxy`), its clear
   cornea layer dropped. The body GLBs now carry MakeHuman's UV layout (from `base.obj`).
+- **P3-FGT-17** (docs/HUMAN-REALISM-VR-RESEARCH.md): the bodies rebuilt from the same commit — new sources are
+  MakeHuman's regional targets (CC0, same repository and commit `a8bc2d54…`): `data/targets/torso/torso-vshape-incr`,
+  `torso-muscle-dorsi-incr`, `torso-muscle-pectoral-incr`, `measure/measure-waist-circ-decr`,
+  `stomach/stomach-tone-incr`, `neck/neck-scale-horiz-incr`, `neck/neck-back-scale-depth-incr`,
+  `buttocks/buttocks-volume-incr`, `armslegs/{l,r}-{upperarm-shoulder,upperarm,lowerarm,upperleg,lowerleg}-muscle-incr`,
+  `breast/female-young-maxmuscle-averageweight-mincup-maxfirmness`, `breast/breast-point-decr`. New files:
+
+  | File | Source | Author | Licence |
+  | --- | --- | --- | --- |
+  | `boxer-m.glb`, `boxer-f.glb` (rebuilt, 3.24 / 3.20 MB) | as above + the regional targets listed | MakeHuman team; build Gukirana | CC0 1.0 (sources) / original work (build) |
+  | `body-detail-m.webp`, `body-detail-f.webp` (1024², 249 / 227 KB) | baked by `apps/web/scripts/boxer/anatomy-bake.mjs` from MakeHuman's max-muscle macro shape + the regional targets (band-passed height → detail normal + cavity in MakeHuman's UV) | Gukirana (from CC0 MakeHuman data) | original work |
+  | `boxer-m-v5.glb`, `boxer-f-v5.glb` (3.22 / 3.16 MB) | the P3-FGT-16 bodies, kept as the `NEXT_PUBLIC_FF_BODY_V6=0` fallback | as above | CC0 1.0 / original work |
+
+  Evaluated in the research, **not used**: 3D Scan Store free samples and Texturing.xyz free items (commercial use
+  needs written permission), Renderpeople (its terms forbid making the 3D data easily extractable — a GLB served to a
+  browser), Sketchfab CC-BY body scans / gloves / headgear (usable with credits, but raw scans need retopology to the
+  rig and we had no gain over the product-sized procedural kit), Smokeworks Skins Vol.0 (CC-BY 4.0, MakeHuman UV,
+  normal + ORM: an albedo set, not the anatomy we needed), MetaHuman (excluded by the brief). Nothing was bought; the
+  paid options are listed in docs/HUMAN-REALISM-VR-RESEARCH.md §11.
 - Evaluated, not shipped: MakeHuman community "Toigo" light skins (CC0, OpenGameArt mirror) — superseded by the system
   dark-skinned skins; MakeHuman system hair / brows / lashes / clothes proxies (CC0) — not used yet (alpha cards cost a
   second draw call per person; the close crop is the scalp texture plus a shell).

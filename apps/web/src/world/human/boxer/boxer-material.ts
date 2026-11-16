@@ -89,13 +89,16 @@ export interface BoxerUniforms {
   uNearCut: { value: THREE.Vector2 };
   /** flushed face 0…1 (effort, heat), separate from the hit redness */
   uFlush: { value: number };
+  /** P3-FGT-17: the v6 shading (1) or the P3-FGT-16 look (0); the anatomy detail map (body-detail-{m,f}.webp) */
+  uV6: { value: number };
+  uAnatMap: { value: THREE.Texture | null };
 }
 
 const c = (hex: string) => new THREE.Color(hex);
 /** a darker / lighter shade of a colour (sRGB space multiply) */
 const shade = (hex: string, k: number) => new THREE.Color(hex).multiplyScalar(k);
 
-export function boxerPalette(col: BoxerColors): THREE.Color[] {
+export function boxerPalette(col: BoxerColors, v6 = false): THREE.Color[] {
   const kit = col.kit ?? "#B3282D";
   const trim = col.trim ?? "#F2F2EE";
   const p: THREE.Color[] = new Array(SLOTS).fill(0).map(() => c("#888888"));
@@ -108,7 +111,8 @@ export function boxerPalette(col: BoxerColors): THREE.Color[] {
   p[SLOT.sole] = c("#d8d4cc");
   p[SLOT.lace] = c("#f0efea");
   p[SLOT.glove] = c(kit);
-  p[SLOT.gloveTarget] = shade(kit, 0.96);
+  // (P3-FGT-17: amateur competition gloves carry a white scoring area over the knuckles)
+  p[SLOT.gloveTarget] = v6 ? c("#e9e6df") : shade(kit, 0.96);
   p[SLOT.gloveCuff] = shade(kit, 0.82);
   p[SLOT.headgear] = c(kit);
   p[SLOT.headgearTrim] = shade(kit, 0.6);
@@ -133,6 +137,8 @@ export const HUMAN_TEX = {
   skin: (g: "m" | "f", lite: boolean) => `/assets/characters/skin-${g}${lite ? "-1k" : ""}.webp`,
   detail: "/assets/characters/human-detail.webp",
   iris: "/assets/characters/eye-iris.webp",
+  /** P3-FGT-17: baked anatomy detail (RG detail normal, B cavity), 1K, both tiers */
+  anatomy: (g: "m" | "f") => `/assets/characters/body-detail-${g}.webp`,
 };
 function tex(url: string, repeat: boolean, onLoad: () => void): THREE.Texture {
   const hit = TEX[url];
@@ -159,10 +165,10 @@ export function boxerMaterial(
   eyes: { L: THREE.Vector3; R: THREE.Vector3 },
   face: { beard: number; brow: number },
   kit: readonly number[] = [0.1, 0.85, 1.05, 0.62],
-  opts: { gender?: "m" | "f"; lite?: boolean } = {},
+  opts: { gender?: "m" | "f"; lite?: boolean; v6?: boolean } = {},
 ): THREE.MeshPhysicalMaterial & { userData: { u: BoxerUniforms } } {
   const u: BoxerUniforms = {
-    uCol: { value: boxerPalette(col) },
+    uCol: { value: boxerPalette(col, !!opts.v6) },
     uRough: { value: ROUGH },
     uSheen: { value: SHEEN },
     uSweat: { value: 0.3 },
@@ -182,13 +188,16 @@ export function boxerMaterial(
     uHide: { value: new THREE.Vector4(0, 0, 0, 0) },
     uNearCut: { value: new THREE.Vector2(0, 0) },
     uFlush: { value: 0 },
+    uV6: { value: opts.v6 ? 1 : 0 },
+    uAnatMap: { value: null },
   };
   if (typeof window !== "undefined") {
     let n = 0;
     const done = () => {
       n++;
-      if (n >= 3) u.uTex.value = 1;
+      if (n >= (opts.v6 ? 4 : 3)) u.uTex.value = 1;
     };
+    if (opts.v6) u.uAnatMap.value = tex(HUMAN_TEX.anatomy(opts.gender ?? "m"), false, done);
     u.uSkinMap.value = tex(HUMAN_TEX.skin(opts.gender ?? "m", !!opts.lite), false, done);
     u.uDetailMap.value = tex(HUMAN_TEX.detail, true, done);
     u.uIrisMap.value = tex(HUMAN_TEX.iris, false, done);
@@ -247,6 +256,8 @@ uniform float uTex;
 uniform vec4 uHide;
 uniform vec2 uNearCut;
 uniform float uFlush;
+uniform float uV6;
+uniform sampler2D uAnatMap;
 flat varying float vMat;
 varying float vAo;
 varying float vZone;
@@ -282,7 +293,10 @@ vec3 gkDetailN(vec3 n, vec3 pos, vec2 uvq, vec2 dn, float k) {
 int gkSlot() { return int(vMat + 0.5); }
 bool gkIsLeather(int s) { return s == 5 || (s >= 8 && s <= 12) || s == 16; }
 vec4 gkSkin;
-float gkHairy;`,
+float gkHairy;
+vec4 gkAnat;
+float gkSkinLit;
+float gkCurv;`,
       )
       .replace(
         "#include <clipping_planes_fragment>",
@@ -311,6 +325,9 @@ vec3 gkBase = uCol[0];
 for (int k = 0; k < ${SLOTS}; k++) { if (k == gkM) gkBase = uCol[k]; }
 gkSkin = vec4(0.5);
 gkHairy = 0.0;
+gkAnat = vec4(0.5, 0.5, 0.5, 1.0);
+gkSkinLit = 0.0;
+gkCurv = 0.0;
 if (gkM == 0) {
   // skin: the tone x the photo skin's relative variation (in sRGB: ratio^2.2 in linear), its chroma eased on darker
   // tones (a light skin's pink lips / cheeks become a deeper, browner flush on dark skin, as on real dark skin)
@@ -337,7 +354,16 @@ if (gkM == 0) {
   gkBase = mix(gkBase, uHair * 0.5 + gkBase * 0.35, clamp(stub, 0.0, 1.0) * 0.7);
   float red = vZone > 1.5 ? uRed.y : (vZone > 0.5 ? max(uRed.x, uFlush * 0.35) : 0.0);
   gkBase = mix(gkBase, gkBase * vec3(1.3, 0.74, 0.7), red * 0.5);
-  gkBase *= mix(0.86, 1.04, vAo);
+  if (uV6 > 0.5 && uTex > 0.5) {
+    // P3-FGT-17: the baked anatomy map's cavity (grooves between muscles a little darker, never black) and a gentle
+    // tonal breakup (real skin is never one flat colour: blotches of a few cm, a touch warmer / cooler)
+    gkAnat = texture2D(uAnatMap, vGkUv);
+    gkBase *= clamp(1.0 + (gkAnat.b - 0.5) * 0.9, 0.8, 1.05);
+    float bl = gkNoise(vBind * 14.0) - 0.5;
+    gkBase *= vec3(1.0 + bl * 0.07, 1.0 + bl * 0.035, 1.0 + bl * 0.02);
+  } else {
+    gkBase *= mix(0.86, 1.04, vAo);
+  }
 } else if (gkM == 20) {
   if (uTex > 0.5) {
     // eye texture: veined sclera; the iris (alpha) is the photo's luminance tinted with the player's eye colour
@@ -362,11 +388,22 @@ if (gkM == 0) {
   float cs = (ax - cx) / max(1e-4, length(vec2(ax - cx, vBind.z * mix(1.0, 1.35, hip))));
   float aa = max(fwidth(cs), 1e-4);
   float stripe = smoothstep(0.915 - aa, 0.915 + aa, cs);
-  float by = uKit.z - 0.06;
+  float by = uKit.z - (uV6 > 0.5 ? 0.045 : 0.06);
   float ab = max(fwidth(vBind.y), 1e-4);
   float band = smoothstep(by - ab, by + ab, vBind.y);
   gkBase = mix(gkBase, uCol[4], max(stripe, band));
   gkBase *= mix(0.9, 1.03, vAo);
+} else if (gkM == 8 && uV6 > 0.5) {
+  // P3-FGT-17: the competition glove's white scoring panel over the knuckles and the front roll (glove coordinates in
+  // the uv: x = (cos θ + 1) / 2 round the section, 0 = the back of the hand; y = (x + 0.15) / 0.35 along it)
+  float gx = vGkUv.y * 0.35 - 0.15;
+  float aaX = max(fwidth(gx), 1e-4);
+  float aaC = max(fwidth(vGkUv.x), 1e-4);
+  float panel = (1.0 - smoothstep(0.375 - aaC, 0.375 + aaC, vGkUv.x)) * smoothstep(0.08 - aaX, 0.08 + aaX, gx);
+  panel = max(panel, smoothstep(0.152 - aaX, 0.152 + aaX, gx) * (1.0 - smoothstep(0.62 - aaC, 0.62 + aaC, vGkUv.x)));
+  gkBase = mix(gkBase, uCol[9], panel);
+  gkBase *= mix(0.9, 1.03, vAo);
+  gkBase *= (0.9 + 0.14 * gkNoise(vBind * 38.0) - 0.06 * gkNoise(vBind * 160.0)) * mix(0.62, 1.0, smoothstep(0.15, 0.45, vAo));
 } else if (gkM == 19) {
   // short hair: dense coils / strands (fine noise, darker roots between them)
   float s1 = gkNoise(vBind * vec3(900.0, 300.0, 900.0));
@@ -390,6 +427,12 @@ if (gkM == 0) {
   gkR = clamp(gkR + (0.5 - gkSkin.a) * 0.5, 0.5, 0.8);
   gkR = mix(gkR, 0.42, max(0.0, uSweat - 0.3) * 0.7);
   gkR = mix(gkR, 0.8, gkHairy);
+  if (uV6 > 0.5) {
+    // P3-FGT-17: specular breakup — oilier, smoother patches over a few cm (forehead / nose / chest), drier elsewhere;
+    // grooves a little rougher (the light breaks into the skin's own pattern instead of one broad sheen)
+    gkR += (gkNoise(vBind * 9.0) - 0.5) * 0.14 + (0.5 - gkAnat.b) * 0.12;
+    gkR = clamp(gkR, 0.42, 0.82);
+  }
 }
 roughnessFactor = gkR;`,
       )
@@ -400,7 +443,25 @@ roughnessFactor = gkR;`,
   bool gkLeather = gkIsLeather(gkM);
   // muscle definition from the cavity field; the skin's fine height (texture) and micro-normal up close;
   // a knit on jersey
-  float h = vAo * (gkM == 0 ? 0.03 : 0.006);
+  float h = vAo * (gkM == 0 ? (uV6 > 0.5 && uTex > 0.5 ? 0.0 : 0.03) : 0.006);
+  if (uV6 > 0.5) {
+    // P3-FGT-17: fabric folds as a normal effect (no simulation): the vest bunches in soft horizontal ripples above
+    // the trunks' waistband and wrinkles a little everywhere (jersey is never a shell); the trunks hang in vertical
+    // folds that open towards the hem, and crease across the hip
+    if (gkM == 1) {
+      float yb = vBind.y - uKit.z;
+      float tuck = (1.0 - smoothstep(0.0, 0.16, yb)) * smoothstep(-0.04, 0.01, yb);
+      h += sin(vBind.y * 140.0 + vBind.x * 30.0 + gkNoise(vBind * 22.0) * 7.0) * 0.0007 * tuck * gkNoise(vBind * 31.0);
+      h += (gkNoise(vBind * vec3(9.0, 4.0, 9.0)) - 0.5) * 0.003 + (gkNoise(vBind * 23.0) - 0.5) * 0.001;
+    } else if (gkM == 3) {
+      float leg = 1.0 - smoothstep(uKit.y - 0.02, uKit.y + 0.05, vBind.y);
+      float ang = atan(vBind.z, abs(vBind.x) - uKit.x);
+      float hem = 1.0 - smoothstep(uKit.w, uKit.y, vBind.y);
+      h += sin(ang * 7.0 + gkNoise(vBind * 9.0) * 3.0) * 0.0035 * leg * (0.35 + 0.65 * hem);
+      h += sin(vBind.y * 70.0 + ang * 2.0) * 0.0009 * (1.0 - leg);
+      h += (gkNoise(vBind * 13.0) - 0.5) * 0.003;
+    }
+  }
   if (gkM == 0 && uTex > 0.5) h += (gkSkin.a - 0.5) * 0.0016;
   else if (gkLeather) {
     // leather: the padding's soft undulation (no perfect shell), a pebble grain (two octaves) up close
@@ -413,14 +474,48 @@ roughnessFactor = gkR;`,
   normal = gkPerturb(-vViewPosition, normal, dh, faceDirection);
   if (uTex > 0.5 && uDetail > 0.0) {
     if (gkM == 0) {
+      // P3-FGT-17: the baked anatomy (muscle separations, the rib / pelvis landmarks) on the body uv
+      if (uV6 > 0.5) normal = gkDetailN(normal, -vViewPosition, vGkUv, gkAnat.rg * 2.0 - 1.0, 1.0);
       vec2 dn = texture2D(uDetailMap, vGkUv * 56.0).rg * 2.0 - 1.0;
-      normal = gkDetailN(normal, -vViewPosition, vGkUv * 56.0, dn, 0.2 * uDetail);
+      normal = gkDetailN(normal, -vViewPosition, vGkUv * 56.0, dn, (uV6 > 0.5 ? 0.3 : 0.2) * uDetail);
     } else if (gkM == 1 || gkM == 14 || gkM == 18 || gkM == 23) {
       vec2 dn = texture2D(uDetailMap, vGkUv * 70.0).ba * 2.0 - 1.0;
       normal = gkDetailN(normal, -vViewPosition, vGkUv * 70.0, dn, 0.8 * uDetail);
     }
   }
 }`,
+      )
+      .replace(
+        "#include <lights_physical_pars_fragment>",
+        `#include <lights_physical_pars_fragment>
+// P3-FGT-17 (docs/HUMAN-REALISM-VR-RESEARCH.md §5): skin diffuse in the spirit of Penner's pre-integrated skin
+// (SIGGRAPH 2011) without the LUT: a per-channel wrap of N·L that widens with the surface's curvature, red widest —
+// light scattered under the skin carries past the terminator as a warm band, the shadow side never goes grey. Specular,
+// sheen and the clearcoat lobe keep the physical model; every other slot is unchanged.
+void RE_Direct_Gk( const in IncidentLight directLight, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in PhysicalMaterial material, inout ReflectedLight reflectedLight ) {
+  if ( gkSkinLit < 0.01 ) {
+    RE_Direct_Physical( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );
+    return;
+  }
+  float nl = dot( geometryNormal, directLight.direction );
+  float dotNL = saturate( nl );
+  vec3 irradiance = dotNL * directLight.color;
+  #ifdef USE_CLEARCOAT
+    float dotNLcc = saturate( dot( geometryClearcoatNormal, directLight.direction ) );
+    clearcoatSpecularDirect += dotNLcc * directLight.color * BRDF_GGX_Clearcoat( directLight.direction, geometryViewDir, geometryClearcoatNormal, material );
+  #endif
+  #ifdef USE_SHEEN
+    sheenSpecularDirect += irradiance * BRDF_Sheen( directLight.direction, geometryViewDir, geometryNormal, material.sheenColor, material.sheenRoughness );
+  #endif
+  reflectedLight.directSpecular += irradiance * BRDF_GGX( directLight.direction, geometryViewDir, geometryNormal, material );
+  vec3 w = gkCurv * vec3( 0.36, 0.15, 0.1 );
+  vec3 wrapped = saturate( ( vec3( nl ) + w ) / ( 1.0 + w ) );
+  // (a soft shoulder, energy kept near the lit side: the wrap only adds light round the terminator)
+  vec3 diff = mix( vec3( dotNL ), wrapped * wrapped * ( 3.0 - 2.0 * wrapped ), gkSkinLit );
+  reflectedLight.directDiffuse += directLight.color * diff * BRDF_Lambert( material.diffuseColor );
+}
+#undef RE_Direct
+#define RE_Direct RE_Direct_Gk`,
       )
       .replace(
         "#include <lights_physical_fragment>",
@@ -430,7 +525,10 @@ roughnessFactor = gkR;`,
 material.clearcoat = gkM == 0 ? (0.4 * max(0.0, uSweat - 0.35)) * (1.0 - gkHairy) : (gkM == 20 ? 1.0 : (gkM == 3 || gkM == 4 ? 0.06 : (gkIsLeather(gkM) ? 0.04 : 0.0)));
 material.clearcoatRoughness = gkM == 0 ? mix(0.42, 0.18, uSweat) : (gkM == 20 ? 0.02 : (gkIsLeather(gkM) ? 0.45 : 0.25));
 material.sheenColor = gkM == 0 ? gkBase * vec3(0.6, 0.35, 0.3) * 0.25 : mix(vec3(1.0), gkBase, 0.4) * gkSh;
-material.sheenRoughness = gkM == 3 || gkM == 4 ? 0.3 : 0.6;`,
+material.sheenRoughness = gkM == 3 || gkM == 4 ? 0.3 : 0.6;
+// P3-FGT-17: skin takes the pre-integrated-style diffuse (RE_Direct_Gk); thin parts (ears, nose: the head) scatter more
+gkSkinLit = uV6 > 0.5 && gkM == 0 ? 1.0 - gkHairy : 0.0;
+gkCurv = vZone > 0.5 && vZone < 1.5 ? 1.0 : 0.65;`,
       )
       .replace(
         "#include <lights_fragment_end>",
@@ -443,15 +541,20 @@ material.sheenRoughness = gkM == 3 || gkM == 4 ? 0.3 : 0.6;`,
     // subsurface: light bleeding through at grazing angles and lifting the shadow side warm (blood under the skin),
     // stronger in thin parts (ears, nose: the high cavity) — never a grey, plastic shadow
     vec3 scatter = gkBase * vec3(0.62, 0.18, 0.1);
-    reflectedLight.indirectDiffuse += scatter * rim * 0.35;
-    reflectedLight.indirectDiffuse += scatter * 0.06;
-    reflectedLight.directDiffuse *= vec3(1.05, 0.98, 0.95);
+    if (uV6 > 0.5) {
+      // (v6: the terminator's red bleed is in the direct diffuse; only a thin translucent rim stays)
+      reflectedLight.indirectDiffuse += scatter * rim * 0.16;
+    } else {
+      reflectedLight.indirectDiffuse += scatter * rim * 0.35;
+      reflectedLight.indirectDiffuse += scatter * 0.06;
+      reflectedLight.directDiffuse *= vec3(1.05, 0.98, 0.95);
+    }
   }
 }`,
       );
   };
   // P3-FGT-16: the inside of a garment shows through its openings (both sides drawn; a closed body hides its back faces)
   m.side = THREE.DoubleSide;
-  m.customProgramCacheKey = () => "gk-boxer-v4";
+  m.customProgramCacheKey = () => "gk-boxer-v6";
   return m;
 }

@@ -1,0 +1,422 @@
+[
+ {
+  "group": "body",
+  "label": "m deep tone: front",
+  "which": "before",
+  "calls": 3,
+  "tris": 55260
+ },
+ {
+  "group": "body",
+  "label": "m deep tone: front",
+  "which": "after",
+  "calls": 3,
+  "tris": 56692
+ },
+ {
+  "group": "body",
+  "label": "m deep tone: side",
+  "which": "before",
+  "calls": 3,
+  "tris": 55260
+ },
+ {
+  "group": "body",
+  "label": "m deep tone: side",
+  "which": "after",
+  "calls": 3,
+  "tris": 56692
+ },
+ {
+  "group": "body",
+  "label": "m deep tone: back",
+  "which": "before",
+  "calls": 3,
+  "tris": 55260
+ },
+ {
+  "group": "body",
+  "label": "m deep tone: back",
+  "which": "after",
+  "calls": 3,
+  "tris": 56692
+ },
+ {
+  "group": "body",
+  "label": "f medium tone: front",
+  "which": "before",
+  "calls": 3,
+  "tris": 54386
+ },
+ {
+  "group": "body",
+  "label": "f medium tone: front",
+  "which": "after",
+  "calls": 3,
+  "tris": 56238
+ },
+ {
+  "group": "body",
+  "label": "f medium tone: side",
+  "which": "before",
+  "calls": 3,
+  "tris": 54386
+ },
+ {
+  "group": "body",
+  "label": "f medium tone: side",
+  "which": "after",
+  "calls": 3,
+  "tris": 56238
+ },
+ {
+  "group": "body",
+  "label": "f medium tone: back",
+  "which": "before",
+  "calls": 3,
+  "tris": 54386
+ },
+ {
+  "group": "body",
+  "label": "f medium tone: back",
+  "which": "after",
+  "calls": 3,
+  "tris": 56238
+ },
+ {
+  "group": "body",
+  "label": "m light tone: 3/4",
+  "which": "before",
+  "calls": 3,
+  "tris": 55260
+ },
+ {
+  "group": "body",
+  "label": "m light tone: 3/4",
+  "which": "after",
+  "calls": 3,
+  "tris": 56692
+ },
+ {
+  "group": "body",
+  "label": "f light tone: 3/4",
+  "which": "before",
+  "calls": 3,
+  "tris": 54386
+ },
+ {
+  "group": "body",
+  "label": "f light tone: 3/4",
+  "which": "after",
+  "calls": 3,
+  "tris": 56238
+ },
+ {
+  "group": "actions-desktop",
+  "label": "guard",
+  "which": "before",
+  "calls": 11,
+  "tris": 126936
+ },
+ {
+  "group": "actions-desktop",
+  "label": "guard",
+  "which": "after",
+  "calls": 11,
+  "tris": 130220
+ },
+ {
+  "group": "actions-desktop",
+  "label": "jab (impact)",
+  "which": "before",
+  "calls": 11,
+  "tris": 126936
+ },
+ {
+  "group": "actions-desktop",
+  "label": "jab (impact)",
+  "which": "after",
+  "calls": 11,
+  "tris": 130220
+ },
+ {
+  "group": "actions-desktop",
+  "label": "lead hook (impact)",
+  "which": "before",
+  "calls": 11,
+  "tris": 126936
+ },
+ {
+  "group": "actions-desktop",
+  "label": "lead hook (impact)",
+  "which": "after",
+  "calls": 11,
+  "tris": 130220
+ },
+ {
+  "group": "actions-desktop",
+  "label": "clinch",
+  "which": "before",
+  "calls": 13,
+  "tris": 182384
+ },
+ {
+  "group": "actions-desktop",
+  "label": "clinch",
+  "which": "after",
+  "calls": 13,
+  "tris": 185700
+ },
+ {
+  "group": "actions-desktop",
+  "label": "guard, close",
+  "which": "before",
+  "calls": 11,
+  "tris": 126936
+ },
+ {
+  "group": "actions-desktop",
+  "label": "guard, close",
+  "which": "after",
+  "calls": 11,
+  "tris": 130220
+ },
+ {
+  "group": "actions-desktop",
+  "label": "jab, front",
+  "which": "before",
+  "calls": 11,
+  "tris": 126936
+ },
+ {
+  "group": "actions-desktop",
+  "label": "jab, front",
+  "which": "after",
+  "calls": 11,
+  "tris": 130220
+ },
+ {
+  "group": "actions-phone",
+  "label": "guard",
+  "which": "before",
+  "calls": 11,
+  "tris": 126936
+ },
+ {
+  "group": "actions-phone",
+  "label": "guard",
+  "which": "after",
+  "calls": 11,
+  "tris": 130220
+ },
+ {
+  "group": "actions-phone",
+  "label": "jab (impact)",
+  "which": "before",
+  "calls": 11,
+  "tris": 126936
+ },
+ {
+  "group": "actions-phone",
+  "label": "jab (impact)",
+  "which": "after",
+  "calls": 11,
+  "tris": 130220
+ },
+ {
+  "group": "actions-phone",
+  "label": "lead hook (impact)",
+  "which": "before",
+  "calls": 11,
+  "tris": 126936
+ },
+ {
+  "group": "actions-phone",
+  "label": "lead hook (impact)",
+  "which": "after",
+  "calls": 11,
+  "tris": 130220
+ },
+ {
+  "group": "actions-phone",
+  "label": "clinch",
+  "which": "before",
+  "calls": 13,
+  "tris": 182384
+ },
+ {
+  "group": "actions-phone",
+  "label": "clinch",
+  "which": "after",
+  "calls": 13,
+  "tris": 185700
+ },
+ {
+  "group": "closeups",
+  "label": "shoulder (m, guard)",
+  "which": "before",
+  "calls": 3,
+  "tris": 57312
+ },
+ {
+  "group": "closeups",
+  "label": "shoulder (m, guard)",
+  "which": "after",
+  "calls": 3,
+  "tris": 58460
+ },
+ {
+  "group": "closeups",
+  "label": "shoulder (f, jab)",
+  "which": "before",
+  "calls": 3,
+  "tris": 56278
+ },
+ {
+  "group": "closeups",
+  "label": "shoulder (f, jab)",
+  "which": "after",
+  "calls": 3,
+  "tris": 57918
+ },
+ {
+  "group": "closeups",
+  "label": "arm hole (m, hook)",
+  "which": "before",
+  "calls": 3,
+  "tris": 57312
+ },
+ {
+  "group": "closeups",
+  "label": "arm hole (m, hook)",
+  "which": "after",
+  "calls": 3,
+  "tris": 58460
+ },
+ {
+  "group": "closeups",
+  "label": "arm hole (f, guard)",
+  "which": "before",
+  "calls": 3,
+  "tris": 56278
+ },
+ {
+  "group": "closeups",
+  "label": "arm hole (f, guard)",
+  "which": "after",
+  "calls": 3,
+  "tris": 57918
+ },
+ {
+  "group": "closeups",
+  "label": "waistband (m)",
+  "which": "before",
+  "calls": 3,
+  "tris": 55260
+ },
+ {
+  "group": "closeups",
+  "label": "waistband (m)",
+  "which": "after",
+  "calls": 3,
+  "tris": 56692
+ },
+ {
+  "group": "closeups",
+  "label": "waistband (f)",
+  "which": "before",
+  "calls": 3,
+  "tris": 54386
+ },
+ {
+  "group": "closeups",
+  "label": "waistband (f)",
+  "which": "after",
+  "calls": 3,
+  "tris": 56238
+ },
+ {
+  "group": "closeups",
+  "label": "gloves + headgear (m)",
+  "which": "before",
+  "calls": 3,
+  "tris": 55260
+ },
+ {
+  "group": "closeups",
+  "label": "gloves + headgear (m)",
+  "which": "after",
+  "calls": 3,
+  "tris": 56692
+ },
+ {
+  "group": "closeups",
+  "label": "gloves + headgear (f)",
+  "which": "before",
+  "calls": 3,
+  "tris": 54386
+ },
+ {
+  "group": "closeups",
+  "label": "gloves + headgear (f)",
+  "which": "after",
+  "calls": 3,
+  "tris": 56238
+ },
+ {
+  "group": "closeups",
+  "label": "face (m)",
+  "which": "before",
+  "calls": 3,
+  "tris": 57312
+ },
+ {
+  "group": "closeups",
+  "label": "face (m)",
+  "which": "after",
+  "calls": 3,
+  "tris": 58460
+ },
+ {
+  "group": "closeups",
+  "label": "face (f)",
+  "which": "before",
+  "calls": 3,
+  "tris": 56278
+ },
+ {
+  "group": "closeups",
+  "label": "face (f)",
+  "which": "after",
+  "calls": 3,
+  "tris": 57918
+ },
+ {
+  "group": "closeups",
+  "label": "back (m, guard)",
+  "which": "before",
+  "calls": 3,
+  "tris": 57312
+ },
+ {
+  "group": "closeups",
+  "label": "back (m, guard)",
+  "which": "after",
+  "calls": 3,
+  "tris": 58460
+ },
+ {
+  "group": "closeups",
+  "label": "chest (f, guard)",
+  "which": "before",
+  "calls": 3,
+  "tris": 56278
+ },
+ {
+  "group": "closeups",
+  "label": "chest (f, guard)",
+  "which": "after",
+  "calls": 3,
+  "tris": 57918
+ }
+]

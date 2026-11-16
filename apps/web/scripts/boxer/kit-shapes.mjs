@@ -25,7 +25,7 @@ const smooth = (e0, e1, x) => {
 const spow = (x, e) => Math.sign(x) * Math.abs(x) ** e;
 
 /** a grid of positions [rows][cols] (cols wrap) → vertices with smooth normals from the grid, quads as faces */
-function gridSurface(m, G, skinOf, matOf, aoOf, centreOf, closeEnds = false) {
+function gridSurface(m, G, skinOf, matOf, aoOf, centreOf, closeEnds = false, uvOf = null) {
   const R = G.length,
     C = G[0].length;
   const id = [];
@@ -38,7 +38,7 @@ function gridSurface(m, G, skinOf, matOf, aoOf, centreOf, closeEnds = false) {
       let n = norm(cross(dv, du));
       if (Math.hypot(...n) < 0.5 || !Number.isFinite(n[0])) n = norm(sub(p, centreOf(v)));
       if (dot(n, sub(p, centreOf(v))) < 0) n = scl(n, -1);
-      row.push(m.vert(p, n, skinOf(v, u), matOf(v, u), { ao: aoOf(v, u) }));
+      row.push(m.vert(p, n, skinOf(v, u), matOf(v, u), uvOf ? { ao: aoOf(v, u), uv: uvOf(v, u) } : { ao: aoOf(v, u) }));
     }
     id.push(row);
   }
@@ -59,10 +59,39 @@ function gridSurface(m, G, skinOf, matOf, aoOf, centreOf, closeEnds = false) {
  * One glove. Frame: wrist (the hand joint), f (towards the middle finger), n (palm normal, + = palm side), s (n × f:
  * the thumb's side). Bones: hand (rigid) and the forearm-twist bone (the cuff's far end follows the forearm).
  */
-export function buildGlove(m, { wrist, f, n, s }, { hand, fore }, MAT) {
-  const P3 = (x, y, z) => add(wrist, add(scl(f, x), add(scl(n, y), scl(s, z))));
+export function buildGlove(m, { wrist, f, n, s }, { hand, fore }, MAT, { v6 = false, scale = 1 } = {}) {
+  const P3 = (x, y, z) => add(wrist, add(scl(f, x * scale), add(scl(n, y * scale), scl(s, z * scale))));
   // stations along the hand: x, half width (z), back height (−y), palm height (+y), raised strap (m)
-  const ST = [
+  const ST = (v6 ? GLOVE_V6 : GLOVE_V5).map((r) => [...r]);
+  if (ST.length) return gloveBody(m, P3, ST, { hand, fore }, MAT, wrist, v6);
+}
+/**
+ * P3-FGT-17 (docs/HUMAN-REALISM-VR-RESEARCH.md §7): a 10–12 oz amateur glove re-proportioned against product
+ * references — the P3-FGT-16 glove was a box of one width from the wrist to the knuckles (13 cm) on a 10 cm-wide cuff,
+ * which read as a blob. Now: a wrist cuff 8.8 × 7 cm (a hand wrap and a wrist fit inside, no more), 6 cm of cuff and
+ * strap, the hand body narrow at the heel of the palm (9.6 cm) widening to 11.6 cm across the knuckles, the back rising
+ * into a domed knuckle pad (the striking surface), a flatter palm, ≈ 28.5 cm overall (the feminine body: × 0.94, a
+ * 10 oz glove).
+ */
+const GLOVE_V6 = [
+  [-0.1, 0.044, 0.036, 0.034, 0],
+  [-0.096, 0.045, 0.037, 0.035, 0],
+  [-0.088, 0.046, 0.038, 0.036, 0],
+  [-0.083, 0.046, 0.038, 0.036, 0.004],
+  [-0.064, 0.046, 0.038, 0.036, 0.004],
+  [-0.045, 0.046, 0.039, 0.036, 0.004],
+  [-0.04, 0.046, 0.04, 0.037, 0],
+  [-0.016, 0.047, 0.043, 0.039, 0],
+  [0.0, 0.048, 0.046, 0.041, 0],
+  [0.024, 0.052, 0.053, 0.044, 0],
+  [0.05, 0.056, 0.06, 0.046, 0],
+  [0.078, 0.058, 0.065, 0.047, 0],
+  [0.104, 0.058, 0.066, 0.046, 0],
+  [0.126, 0.056, 0.062, 0.044, 0],
+  [0.142, 0.052, 0.055, 0.041, 0],
+];
+const GLOVE_V5 = [
+
     [-0.118, 0.05, 0.05, 0.049, 0],
     [-0.112, 0.052, 0.052, 0.051, 0],
     [-0.1, 0.053, 0.052, 0.051, 0],
@@ -78,10 +107,11 @@ export function buildGlove(m, { wrist, f, n, s }, { hand, fore }, MAT) {
     [0.11, 0.065, 0.07, 0.056, 0],
     [0.135, 0.062, 0.065, 0.054, 0],
     [0.155, 0.057, 0.058, 0.05, 0],
-  ];
+];
+function gloveBody(m, P3, ST, { hand, fore }, MAT, wrist, v6) {
   // the front roll: a quarter ellipse closing the last station
   const last = ST[ST.length - 1];
-  const R = 0.05;
+  const R = v6 ? 0.043 : 0.05;
   for (let k = 1; k <= 7; k++) {
     const ph = (Math.PI / 2) * (k / 7);
     const c = Math.cos(ph);
@@ -124,9 +154,11 @@ export function buildGlove(m, { wrist, f, n, s }, { hand, fore }, MAT) {
     const x = ST[v][0];
     if (ST[v][4] > 0) return MAT.gloveCuff;
     if (x < -0.04) return MAT.gloveCuff;
+    // (P3-FGT-17: the white scoring panel is a smooth mask in the shader on the glove's own coordinates, uvOf)
+    if (v6) return MAT.glove;
     // the target area: the knuckle face (back side towards the front) in the lighter leather
     const cy = Math.cos((2 * Math.PI * u) / C);
-    if ((x > 0.09 && cy < -0.25) || x > 0.162) return MAT.gloveTarget;
+    if ((x > (v6 ? 0.08 : 0.09) && cy < -0.25) || x > (v6 ? 0.15 : 0.162)) return MAT.gloveTarget;
     return MAT.glove;
   };
   const aoOf = (v, u) => {
@@ -135,10 +167,14 @@ export function buildGlove(m, { wrist, f, n, s }, { hand, fore }, MAT) {
     // seams darken: the strap's edges, the cuff joint, the side seam, the target panel's edge
     if (v === 3 || v === 5 || v === 6 || v === 8) return 0.22;
     if (Math.abs(cy) < 0.09) return 0.3;
-    if (Math.abs(x - 0.09) < 0.012 && cy < -0.25) return 0.3;
+    if (Math.abs(x - (v6 ? 0.08 : 0.09)) < 0.012 && cy < -0.25) return 0.3;
     return 0.55 + 0.1 * smooth(0.0, 0.1, x);
   };
-  gridSurface(m, G, skinOf, matOf, aoOf, (v) => centre[v]);
+  // P3-FGT-17: the glove's own smooth coordinates in the uv channel (unused by its shading otherwise): u = (cos θ + 1) / 2
+  // round the section (0 = the back of the hand), v = (x + 0.15) / 0.35 along it — the shader draws the competition
+  // glove's white knuckle panel with an anti-aliased edge instead of a per-vertex slot's saw-tooth
+  const uvGlove = v6 ? (v, u) => [(Math.cos((2 * Math.PI * u) / C) + 1) / 2, Math.min(1, Math.max(0, (ST[v][0] + 0.15) / 0.35))] : null;
+  gridSurface(m, G, skinOf, matOf, aoOf, (v) => centre[v], false, uvGlove);
   // the cuff opening: a rolled lip inwards (the lining shows as a dark ring)
   {
     const lip = [];
@@ -164,14 +200,22 @@ export function buildGlove(m, { wrist, f, n, s }, { hand, fore }, MAT) {
   }
   // the thumb: a tapering tube along the thumb side, its base in the body, its tip tied to the front
   {
-    const path = [
-      [0.035, 0.016, 0.05],
-      [0.07, 0.03, 0.06],
-      [0.105, 0.036, 0.062],
-      [0.138, 0.032, 0.056],
-      [0.156, 0.024, 0.048],
-    ];
-    const rad = [0.024, 0.025, 0.023, 0.02, 0.015];
+    const path = v6
+      ? [
+          [0.03, 0.014, 0.044],
+          [0.062, 0.026, 0.053],
+          [0.094, 0.031, 0.055],
+          [0.122, 0.028, 0.05],
+          [0.14, 0.021, 0.043],
+        ]
+      : [
+          [0.035, 0.016, 0.05],
+          [0.07, 0.03, 0.06],
+          [0.105, 0.036, 0.062],
+          [0.138, 0.032, 0.056],
+          [0.156, 0.024, 0.048],
+        ];
+    const rad = v6 ? [0.021, 0.022, 0.0205, 0.018, 0.0135] : [0.024, 0.025, 0.023, 0.02, 0.015];
     const CT = 16;
     const T = [];
     const cen = [];
@@ -222,27 +266,37 @@ export function buildGlove(m, { wrist, f, n, s }, { hand, fore }, MAT) {
 }
 
 /**
+ * The face opening and pad scale: P3-FGT-16 (the opening ±47° round the face, up to just above the eyes) and P3-FGT-17
+ * (an amateur open-face guard as worn in competition: the opening ±53°, up over the brows — the forehead bolster sits on
+ * the forehead, the eyebrows show — thinner cheek pads, so the face reads instead of peeping out of a helmet).
+ */
+export const HEADGEAR_V5 = { open: 0.68, top: 0.2, pad: 1, cheek: 1, crown: 1, rollMin: 0.35, rollW: 0.14 };
+export const HEADGEAR_V6 = { open: 0.6, top: 0.25, pad: 0.85, cheek: 0.7, crown: 0.85, rollMin: 0.18, rollW: 0.2 };
+
+/**
  * Headgear thickness (m) over the head shell by direction (el = elevation, az = azimuth, front = cos az): an amateur
  * open-face headgear — a thick forehead pad, cheek pads down the sides of the face, padded ear pieces, a thinner
  * crown in quilted panels; seams between the pads are grooves (headgearSeam).
  */
-export function headgearThickness(el, az, d, eyeEl, chinEl) {
+export function headgearThickness(el, az, d, eyeEl, chinEl, hg = HEADGEAR_V5) {
   const front = Math.cos(az);
   const side = Math.abs(Math.sin(az));
-  const crown = 0.013 + 0.003 * Math.max(0, d[1]);
+  const crown = (0.013 + 0.003 * Math.max(0, d[1])) * hg.crown;
   // forehead pad: a rounded bolster across the brow (thickest in the middle, 2.6 cm)
-  const brow = 0.014 * smooth(0.45, 0.8, front) * smooth(eyeEl + 0.02, eyeEl + 0.14, el) * (1 - smooth(eyeEl + 0.38, eyeEl + 0.52, el));
+  // (the bolster starts above the opening's top edge: raised in v6, so the pad never forms a visor over the face)
+  const dt = hg.top - 0.2;
+  const brow = 0.014 * hg.pad * smooth(0.45, 0.8, front) * smooth(eyeEl + 0.02 + dt, eyeEl + 0.14 + dt * 1.6, el) * (1 - smooth(eyeEl + 0.38 + dt, eyeEl + 0.52 + dt, el));
   // cheek pads: in front of the ears, down to the jaw line (2.4 cm)
-  const cheek = 0.012 * smooth(0.25, 0.42, side) * smooth(0.05, 0.3, front) * (1 - smooth(eyeEl + 0.05, eyeEl + 0.25, el)) * smooth(chinEl - 0.2, chinEl, el);
+  const cheek = 0.012 * hg.cheek * smooth(0.25, 0.42, side) * smooth(0.05, 0.3, front) * (1 - smooth(eyeEl + 0.05, eyeEl + 0.25, el)) * smooth(chinEl - 0.2, chinEl, el);
   // ear pieces: a padded disc round the ear (1.9 cm)
   const ear = 0.006 * smooth(0.82, 0.95, side) * (1 - smooth(eyeEl + 0.1, eyeEl + 0.35, el)) * smooth(chinEl - 0.1, chinEl + 0.12, el);
   // the pads roll down to the face opening (a padded edge, not a shelf): the extra padding fades over the last ~6°
   // before the opening (front > 0.68 between the brow and the chin, build.mjs region)
-  const inBand = el < eyeEl + 0.2 && el > chinEl - 0.05;
-  const dSide = inBand ? 0.68 - front : 1;
-  const dTop = front > 0.68 ? el - (eyeEl + 0.2) : 1;
+  const inBand = el < eyeEl + hg.top && el > chinEl - 0.05;
+  const dSide = inBand ? hg.open - front : 1;
+  const dTop = front > hg.open ? el - (eyeEl + hg.top) : 1;
   const edge = Math.max(0, Math.min(dSide * 1.4, dTop));
-  const roll = 0.35 + 0.65 * smooth(0.0, 0.14, edge);
+  const roll = hg.rollMin + (1 - hg.rollMin) * smooth(0.0, hg.rollW, edge);
   return crown * (0.7 + 0.3 * roll) + (brow + cheek + ear) * roll;
 }
 
