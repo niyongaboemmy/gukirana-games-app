@@ -574,11 +574,12 @@ function towerCrane(b: GeoBatch, cx: number, cz: number, tier: string) {
   for (let z = -1; z > -7; z -= 1.5) member(b, "paint-yellow", v(-0.45, jy, z), v(0.45, jy, z - 0.75), 0.025);
   for (let i = 0; i < 3; i++) b.box("concrete", 1.6, 1.0, 0.6, { p: [cx, jy - 0.6, cz - 5.2 - i * 0.65], tile: 2 });
   // pendant ties from the apex, trolley, hook cable and hook block
-  member(b, "steel", v(0, H + 4.2, 0), v(0, jy + jh * 0.4, L * 0.85), 0.012);
-  member(b, "steel", v(0, H + 4.2, 0), v(0, jy, -6.8), 0.012);
+  // (P2-WLD-22: ropes thick enough to stay a continuous line from across the plaza; the 8–12 mm ropes fell under a
+  // pixel and broke up into a dotted vertical line in the sky; no shadow: their thin shadows streaked across the plaza)
+  member(b, "screenFrame", v(0, H + 4.2, 0), v(0, jy + jh * 0.4, L * 0.85), 0.022);
+  member(b, "screenFrame", v(0, H + 4.2, 0), v(0, jy, -6.8), 0.022);
   b.box("steel", 0.9, 0.3, 0.7, { p: [cx, jy - 0.2, cz + 11] });
-  member(b, "steel", v(-0.08, jy - 0.3, 11), v(-0.08, 12.6, 11), 0.008);
-  member(b, "steel", v(0.08, jy - 0.3, 11), v(0.08, 12.6, 11), 0.008);
+  member(b, "screenFrame", v(0, jy - 0.3, 11), v(0, 12.6, 11), 0.03);
   b.box("paint-yellow", 0.45, 0.6, 0.3, { p: [cx, 12.3, cz + 11] });
   b.add("steel", new THREE.TorusGeometry(0.16, 0.035, 5, 10, Math.PI * 1.4), { p: [cx, 11.85, cz + 11], r: [0, 0, Math.PI * 0.8] });
   b.box("led-red", 0.2, 0.2, 0.2, { p: [cx, H + 4.35, cz] });

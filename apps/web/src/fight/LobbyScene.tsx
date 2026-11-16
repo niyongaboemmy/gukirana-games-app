@@ -7,6 +7,7 @@ import { FIGHT_SUBHALLS, CORNER_COLORS } from "@gukirana/contracts";
 import { selfPose, useWorld } from "@/lib/world-store";
 import { atlasPlane, labelAtlas, type LabelAtlas } from "@/world/label-atlas";
 import { concreteTexture, woodTexture } from "@/world/textures";
+import { weather } from "@/world/weathering";
 import { enterSubhall, getArea, isOnScreen, useArea, useStage } from "@/world/stage";
 import type { HallLayout } from "@/rooms/layouts";
 import { STATUS_LAMP } from "./assets-shim";
@@ -137,8 +138,9 @@ function LobbyShell({ layout }: { layout: HallLayout }) {
     sl.repeat.set(6, 1);
     sl.needsUpdate = true;
     return {
-      floor: new THREE.MeshStandardMaterial({ map: fl, color: "#8f8b84", roughness: 0.7 }),
-      wall: new THREE.MeshStandardMaterial({ map: concreteTexture(), color: "#8a847a", roughness: 0.9 }),
+      // (P2-WLD-22: worn-in, not showroom-new: tone breakup, scuffs, a darker band where the walls meet the floor)
+      floor: weather(new THREE.MeshStandardMaterial({ map: fl, color: "#8f8b84", roughness: 0.7 }), { macro: 0.16, base: 0, streak: 0, scale: 1.6 }),
+      wall: weather(new THREE.MeshStandardMaterial({ map: concreteTexture(), color: "#8a847a", roughness: 0.9 }), { macro: 0.12, base: 0.3, baseH: 0.35, streak: 0.05, scale: 1.4 }),
       slats: new THREE.MeshStandardMaterial({ map: sl, color: "#b07c50", roughness: 0.75 }),
       ceil: new THREE.MeshStandardMaterial({ color: "#4a4641", roughness: 0.95 }),
       panel: new THREE.MeshBasicMaterial({ color: new THREE.Color("#fff4e6").multiplyScalar(1.1), toneMapped: false }),

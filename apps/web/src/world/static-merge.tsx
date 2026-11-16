@@ -42,8 +42,11 @@ const TEX_KEYS = ["map", "normalMap", "roughnessMap", "metalnessMap", "emissiveM
 function signature(m: THREE.Material, withColor = true): string {
   const r = m as unknown as Record<string, unknown>;
   // a custom shader hook / program key makes the material unique (it may hold per-material uniforms)
-  if (m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile || (m as THREE.ShaderMaterial).isShaderMaterial) return `uuid:${m.uuid}`;
-  const parts: string[] = [];
+  // (except a "pure" hook — no uniforms of its own, a function of its key only: world/weathering.ts — which is part of
+  // the value signature, so weathered materials of one look still batch and colour-fold together)
+  const pure = m.userData.gkPureHook as string | undefined;
+  if ((m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile && !pure) || (m as THREE.ShaderMaterial).isShaderMaterial) return `uuid:${m.uuid}`;
+  const parts: string[] = pure ? [pure] : [];
   for (const k of SIG_KEYS) {
     const v = r[k];
     if (v === undefined) continue;
@@ -213,6 +216,11 @@ class Batch {
       let material = first.material as THREE.Material;
       if (fold) {
         const fm = (material as THREE.MeshStandardMaterial).clone();
+        // (clone() does not carry shader hooks: a pure hook comes along, it only depends on its key)
+        if (material.userData.gkPureHook) {
+          fm.onBeforeCompile = material.onBeforeCompile;
+          fm.customProgramCacheKey = material.customProgramCacheKey;
+        }
         fm.vertexColors = true;
         fm.color.setRGB(1, 1, 1);
         this.owned.push(fm);

@@ -11,7 +11,8 @@ import { Flowers } from "./Flowers";
 import { sessionMemo } from "./session-cache";
 import { BitmapTextureLoader } from "./bitmap-texture";
 import { COMPOUND_R } from "./layout";
-import { campusOutside, campusTrees, PUBLIC_ROAD, roadDist, roadY } from "./campus";
+import { bleedCanvas } from "./alpha-bleed";
+import { campusOutside, campusShrubs, campusTrees, PUBLIC_ROAD, roadDist, roadY } from "./campus";
 import { mistUniform } from "./activities";
 import { buildCountryside, countrysideMask, polyDist, type Countryside } from "./countryside";
 import { terrainMaterial } from "./terrain-shader";
@@ -271,11 +272,11 @@ interface Volcano {
 export const VOLCANOES: Volcano[] = [
   // pushed back to ~1.7–2.3 km (inside the sky dome) and kept to the real 5–8° of elevation seen from Musanze
   // azimuths frame the open sight-lines either side of the arena drum (Bisoke ≈ −22°, Muhabura ≈ +22°)
-  { name: "Karisimbi", az: -46, dist: 2250, h: 420, r: 1750, p: 1.55 },
-  { name: "Bisoke", az: -23, dist: 1900, h: 300, r: 1150, p: 1.35, crater: 0.05 },
-  { name: "Sabyinyo", az: -6, dist: 1800, h: 275, r: 1100, p: 1.5, teeth: true, elong: 1.3 },
-  { name: "Gahinga", az: 9, dist: 1700, h: 230, r: 900, p: 1.3, crater: 0.04 },
-  { name: "Muhabura", az: 22, dist: 2000, h: 385, r: 1300, p: 1.12 },
+  { name: "Karisimbi", az: -46, dist: 2250, h: 500, r: 1750, p: 1.55 },
+  { name: "Bisoke", az: -23, dist: 1900, h: 355, r: 1150, p: 1.35, crater: 0.05 },
+  { name: "Sabyinyo", az: -6, dist: 1800, h: 325, r: 1100, p: 1.5, teeth: true, elong: 1.3 },
+  { name: "Gahinga", az: 9, dist: 1700, h: 272, r: 900, p: 1.3, crater: 0.04 },
+  { name: "Muhabura", az: 22, dist: 2000, h: 455, r: 1300, p: 1.12 },
 ];
 
 const BAND = {
@@ -502,7 +503,10 @@ function Vegetation({ tier }: { tier: Tier }) {
     };
     const country = countryside();
     // shade trees inside the compound: car-park planters, along the district walks, lawn clusters (P2-WLD-12)
-    for (const t of campusTrees()) acacia.push({ x: t.x, y: -0.05, z: t.z, rotY: t.rotY, s: t.s });
+    // (P2-WLD-22: by species, shadow-casting: the campus trees are where people walk)
+    const campus: Record<string, Placement[]> = { acacia: [], jacaranda: [], eucalyptus: [] };
+    for (const t of campusTrees()) campus[t.kind]!.push({ x: t.x, y: -0.05, z: t.z, rotY: t.rotY, s: t.s });
+    for (const b of campusShrubs()) bushes.push({ x: b.x, y: -0.05, z: b.z, rotY: b.rotY, s: b.s });
     /** on (or within `m` m of) a road or the river water */
     const near = (x: number, z: number, m: number) =>
       roadDist(x, z) < 7 + m ||
@@ -603,7 +607,7 @@ function Vegetation({ tier }: { tier: Tier }) {
           else acacia.push({ x, y, z, rotY: r() * 6, s: 0.7 + r() * 0.4 });
         }
       }
-    return { acacia, euca, bushes, rocks, boulders, bananas, walls, roofs };
+    return { acacia, euca, bushes, rocks, boulders, bananas, walls, roofs, campus };
   }), [lite]);
 
   const geos = useMemo(
@@ -631,6 +635,9 @@ function Vegetation({ tier }: { tier: Tier }) {
       <Suspense fallback={null}>
         <InstancedSpecies id="acacia" items={data.acacia} lite={lite} shadows={false} />
         <InstancedSpecies id="eucalyptus" items={data.euca} lite={lite} shadows={false} />
+        <InstancedSpecies id="acaciaC" items={data.campus.acacia!} lite={lite} shadows={shadows} />
+        <InstancedSpecies id="jacaranda" items={data.campus.jacaranda!} lite={lite} shadows={shadows} />
+        <InstancedSpecies id="eucalyptusC" items={data.campus.eucalyptus!} lite={lite} shadows={shadows} />
         <InstancedSpecies id="bush" items={data.bushes} lite={lite} shadows={false} />
         <InstancedSpecies id="rock" items={data.rocks} lite={lite} shadows={shadows} />
         <InstancedSpecies id="boulder" items={data.boulders} lite={lite} shadows={shadows} />
@@ -669,7 +676,7 @@ function bananaGeometry(): THREE.BufferGeometry {
   return g;
 }
 
-function bananaLeafTexture(): THREE.CanvasTexture {
+function bananaLeafTexture(): THREE.Texture {
   const c = document.createElement("canvas");
   c.width = 128;
   c.height = 256;
@@ -703,9 +710,8 @@ function bananaLeafTexture(): THREE.CanvasTexture {
   // pseudo-stem strip (bottom-left corner)
   g.fillStyle = "#6b6a3a";
   g.fillRect(0, 240, 12, 16);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+  // (P2-WLD-22: colour bled into the transparent texels: no black leaf edges)
+  return bleedCanvas(c, 6);
 }
 
 /* ---------------- mist ---------------- */
@@ -885,10 +891,10 @@ export function Landscape({ tier }: { tier: Tier }) {
           `#include <fog_fragment>
         {
           float gkD = length(vViewPosition);
-          float gkK = 1.0 - exp(-gkD * 0.00046 * (1.0 + 1.6 * uMorning));
+          float gkK = 1.0 - exp(-gkD * 0.00031 * (1.0 + 1.6 * uMorning));
           gl_FragColor.rgb *= uGkFar;
           vec3 gkG = vec3(dot(gl_FragColor.rgb, vec3(0.3, 0.59, 0.11)));
-          gl_FragColor.rgb = mix(mix(gl_FragColor.rgb, gkG, 0.45 * gkK), uGkHaze, gkK);
+          gl_FragColor.rgb = mix(mix(gl_FragColor.rgb, gkG, 0.35 * gkK), uGkHaze, gkK);
         }`,
         );
     };

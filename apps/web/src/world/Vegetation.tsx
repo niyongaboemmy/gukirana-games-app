@@ -36,6 +36,8 @@ export interface SpeciesDef {
   shadows?: boolean;
   /** wind sway amplitude (m per m of height) */
   sway?: number;
+  /** recolour the foliage towards this colour (keeps the leaf texture's light and shade): jacaranda in bloom */
+  tint?: string;
 }
 
 const BASE = "/assets/env";
@@ -45,6 +47,11 @@ export const SPECIES = {
   eucalyptus: { url: `${BASE}/eucalyptus.glb`, dist: [50, 120], impostor: { url: `${BASE}/eucalyptus-imp.webp`, frames: 8, w: 19.6, h: 16.6, y0: -0.2 }, shadows: false, sway: 0.01 },
   bush: { url: `${BASE}/bush.glb`, dist: [60, 140], sway: 0.012 },
   rock: { url: `${BASE}/rock.glb`, dist: [60, 160], shadows: true },
+  // campus trees (P2-WLD-22): shadow-casting near the plaza. Jacaranda (Jacaranda mimosifolia, the avenue tree of
+  // Rwandan towns, in violet bloom in October–November): the acacia's fern-leaved crown and spreading habit, re-tinted
+  jacaranda: { url: `${BASE}/acacia.glb`, dist: [60, 120], impostor: { url: `${BASE}/acacia-imp.webp`, frames: 8, w: 14.4, h: 11.2, y0: -0.2 }, shadows: true, sway: 0.008, tint: "#8f6fd8" },
+  eucalyptusC: { url: `${BASE}/eucalyptus.glb`, dist: [50, 120], impostor: { url: `${BASE}/eucalyptus-imp.webp`, frames: 8, w: 19.6, h: 16.6, y0: -0.2 }, shadows: true, sway: 0.01 },
+  acaciaC: { url: `${BASE}/acacia.glb`, dist: [60, 120], impostor: { url: `${BASE}/acacia-imp.webp`, frames: 8, w: 14.4, h: 11.2, y0: -0.2 }, shadows: true, sway: 0.006 },
   boulder: { url: `${BASE}/boulder.glb`, dist: [80, 220], shadows: true },
 } satisfies Record<string, SpeciesDef>;
 export type SpeciesId = keyof typeof SPECIES;
@@ -78,8 +85,39 @@ export function addWind(mat: THREE.Material, sway: number) {
   m.customProgramCacheKey = () => `gk-wind-${sway}`;
 }
 
+/** GLSL that pulls the albedo towards a tint while keeping its light and shade (blossom colour over the leaf texture). */
+const tintGlsl = (tint: string, k: number) => {
+  const c = new THREE.Color(tint);
+  return `{ float gkL = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${c.r.toFixed(3)}, ${c.g.toFixed(3)}, ${c.b.toFixed(3)}) * gkL * 2.6, ${k.toFixed(2)}); }`;
+};
+/** Chain a foliage tint onto a material's existing shader hook. */
+function addTint(mat: THREE.Material, tint: string, k = 0.78) {
+  const prev = mat.onBeforeCompile;
+  const prevKey = mat.customProgramCacheKey;
+  mat.onBeforeCompile = function (sh, r) {
+    prev.call(this, sh, r);
+    sh.fragmentShader = sh.fragmentShader.replace("#include <map_fragment>", `#include <map_fragment>\n${tintGlsl(tint, k)}`);
+  };
+  mat.customProgramCacheKey = () => `${prevKey.call(mat)}|tint-${tint}-${k}`;
+}
+
+/**
+ * Leaves lit as thin, translucent blades (P2-WLD-22): a double-sided material flips the normal of every leaf card seen
+ * from behind, so half a crown faced away from the sky and rendered almost black. Undo the flip (both faces take the
+ * light of the side facing the sun — what a sunlit leaf looks like from below) and lift the shaded side a little.
+ */
+function addLeafLight(mat: THREE.Material) {
+  const prev = mat.onBeforeCompile;
+  const prevKey = mat.customProgramCacheKey;
+  mat.onBeforeCompile = function (sh, r) {
+    prev.call(this, sh, r);
+    sh.fragmentShader = sh.fragmentShader.replace("#include <normal_fragment_begin>", "#include <normal_fragment_begin>\n#ifdef DOUBLE_SIDED\n  normal *= faceDirection;\n#endif");
+  };
+  mat.customProgramCacheKey = () => `${prevKey.call(mat)}|leaflit`;
+}
+
 /** Camera-facing (cylindrical) impostor quad that picks one of N baked views by viewing angle. */
-function impostorMaterial(tex: THREE.Texture, frames: number): THREE.MeshBasicMaterial {
+function impostorMaterial(tex: THREE.Texture, frames: number, tint?: string): THREE.MeshBasicMaterial {
   // (unlit: the baked daylight follows the time of day, P2-WLD-19)
   const m = tintByDaylight(new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.45, side: THREE.DoubleSide, fog: true }));
   m.onBeforeCompile = (shader) => {
@@ -105,6 +143,7 @@ function impostorMaterial(tex: THREE.Texture, frames: number): THREE.MeshBasicMa
     );
   };
   m.customProgramCacheKey = () => "gk-impostor";
+  if (tint) addTint(m, tint, 0.6);
   return m;
 }
 
@@ -161,7 +200,7 @@ function ImpostorsOnly({ id, items }: SpeciesProps) {
   const mesh = useMemo(() => {
     const imp = def.impostor!;
     const g = new THREE.PlaneGeometry(imp.w, imp.h).translate(0, imp.h / 2 + imp.y0, 0);
-    const im = new THREE.InstancedMesh(g, impostorMaterial(impostorSheet(imp), imp.frames), Math.max(1, items.length));
+    const im = new THREE.InstancedMesh(g, impostorMaterial(impostorSheet(imp), imp.frames, def.tint), Math.max(1, items.length));
     items.forEach((p, i) => im.setMatrixAt(i, compose(p, _m)));
     im.count = items.length;
     im.frustumCulled = false;
@@ -203,6 +242,9 @@ function SpeciesLods({ id, items, lite = false, shadows = true, maxLod = 2 }: Sp
           mat.alphaTest = 0.5;
           mat.alphaToCoverage = true; // smooth alpha-cut edges with MSAA, no shimmer
           if (def.sway) addWind(mat, def.sway);
+          if (def.tint) addTint(mat, def.tint, 0.9);
+          mat.side = THREE.DoubleSide;
+          addLeafLight(mat);
         }
         if (mat.map) mat.map.anisotropy = 4;
         const im = new THREE.InstancedMesh(src.geometry, mat, n);
@@ -216,7 +258,7 @@ function SpeciesLods({ id, items, lite = false, shadows = true, maxLod = 2 }: Sp
     }
     if (def.impostor && impTex) {
       const g = new THREE.PlaneGeometry(def.impostor.w, def.impostor.h).translate(0, def.impostor.h / 2 + def.impostor.y0, 0);
-      const im = new THREE.InstancedMesh(g, impostorMaterial(impTex, def.impostor.frames), n);
+      const im = new THREE.InstancedMesh(g, impostorMaterial(impTex, def.impostor.frames, def.tint), n);
       im.count = 0;
       im.frustumCulled = false;
       out.push({ meshes: [im] });

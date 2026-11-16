@@ -1,0 +1,3138 @@
+{
+ "task": "P2-WLD-22",
+ "note": "headless Chrome (Metal), M2 Pro, standard tier; calls/tris = whole-frame renderer.info median of 1.5 s (shadow + post passes included); texMB = uploaded 2D texture estimate",
+ "poses": [
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "aerial-campus",
+   "before": {
+    "calls": 265,
+    "tris": 2202824,
+    "fps": 61,
+    "texMB": 210.3
+   },
+   "after": {
+    "calls": 272,
+    "tris": 2227840,
+    "fps": 61,
+    "texMB": 256
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "aerial-plaza",
+   "before": {
+    "calls": 302,
+    "tris": 1211976,
+    "fps": 61,
+    "texMB": 210.3
+   },
+   "after": {
+    "calls": 321,
+    "tris": 1643214,
+    "fps": 61,
+    "texMB": 256
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "arena",
+   "before": {
+    "calls": 166,
+    "tris": 1018862,
+    "fps": 61,
+    "texMB": 210.3
+   },
+   "after": {
+    "calls": 170,
+    "tris": 970854,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "court-east",
+   "before": {
+    "calls": 231,
+    "tris": 1089134,
+    "fps": 61,
+    "texMB": 210.3
+   },
+   "after": {
+    "calls": 280,
+    "tris": 1081334,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "court-west",
+   "before": {
+    "calls": 204,
+    "tris": 1040412,
+    "fps": 61,
+    "texMB": 210.3
+   },
+   "after": {
+    "calls": 243,
+    "tris": 1065956,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "district-walk",
+   "before": {
+    "calls": 139,
+    "tris": 1083621,
+    "fps": 61,
+    "texMB": 210.3
+   },
+   "after": {
+    "calls": 165,
+    "tris": 1221256,
+    "fps": 61,
+    "texMB": 256
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "entry-gate",
+   "before": {
+    "calls": 255,
+    "tris": 1134612,
+    "fps": 61,
+    "texMB": 210.3
+   },
+   "after": {
+    "calls": 292,
+    "tris": 1417069,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "fight",
+   "before": {
+    "calls": 188,
+    "tris": 1095926,
+    "fps": 61,
+    "texMB": 210.3
+   },
+   "after": {
+    "calls": 203,
+    "tris": 1195328,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "forecourt",
+   "before": {
+    "calls": 278,
+    "tris": 1245364,
+    "fps": 61,
+    "texMB": 210.3
+   },
+   "after": {
+    "calls": 296,
+    "tris": 1664974,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "fountain",
+   "before": {
+    "calls": 200,
+    "tris": 994980,
+    "fps": 61,
+    "texMB": 210.3
+   },
+   "after": {
+    "calls": 239,
+    "tris": 1022102,
+    "fps": 61,
+    "texMB": 255.3
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "igisoro",
+   "before": {
+    "calls": 154,
+    "tris": 1159168,
+    "fps": 61,
+    "texMB": 210.3
+   },
+   "after": {
+    "calls": 169,
+    "tris": 1227886,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "ludo",
+   "before": {
+    "calls": 188,
+    "tris": 1058718,
+    "fps": 61,
+    "texMB": 210.3
+   },
+   "after": {
+    "calls": 207,
+    "tris": 1175424,
+    "fps": 60,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "parking",
+   "before": {
+    "calls": 117,
+    "tris": 1230748,
+    "fps": 61,
+    "texMB": 210.3
+   },
+   "after": {
+    "calls": 135,
+    "tris": 1652636,
+    "fps": 61,
+    "texMB": 256
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "plaza-edge",
+   "before": {
+    "calls": 212,
+    "tris": 1264639,
+    "fps": 61,
+    "texMB": 210.3
+   },
+   "after": {
+    "calls": 256,
+    "tris": 1579793,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "pool",
+   "before": {
+    "calls": 164,
+    "tris": 1081295,
+    "fps": 61,
+    "texMB": 210.3
+   },
+   "after": {
+    "calls": 181,
+    "tris": 1092848,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "promenade-w",
+   "before": {
+    "calls": 141,
+    "tris": 1286463,
+    "fps": 61,
+    "texMB": 210.3
+   },
+   "after": {
+    "calls": 173,
+    "tris": 1506092,
+    "fps": 61,
+    "texMB": 256
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "public-road",
+   "before": {
+    "calls": 175,
+    "tris": 1211808,
+    "fps": 61,
+    "texMB": 210.3
+   },
+   "after": {
+    "calls": 207,
+    "tris": 1634524,
+    "fps": 60,
+    "texMB": 256
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "spawn-north",
+   "before": {
+    "calls": 242,
+    "tris": 1084605,
+    "fps": 51,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 282,
+    "tris": 1248613,
+    "fps": 61,
+    "texMB": 249
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "08:00",
+   "area": "campus",
+   "pose": "volcano-view",
+   "before": {
+    "calls": 97,
+    "tris": 606396,
+    "fps": 61,
+    "texMB": 210.3
+   },
+   "after": {
+    "calls": 102,
+    "tris": 868674,
+    "fps": 61,
+    "texMB": 256
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "aerial-campus",
+   "before": {
+    "calls": 255,
+    "tris": 2200890,
+    "fps": 61,
+    "texMB": 205.1
+   },
+   "after": {
+    "calls": 265,
+    "tris": 2229672,
+    "fps": 61,
+    "texMB": 261.6
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "aerial-plaza",
+   "before": {
+    "calls": 286,
+    "tris": 1208136,
+    "fps": 61,
+    "texMB": 205.1
+   },
+   "after": {
+    "calls": 311,
+    "tris": 1646906,
+    "fps": 61,
+    "texMB": 261.6
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "arena",
+   "before": {
+    "calls": 151,
+    "tris": 1010664,
+    "fps": 61,
+    "texMB": 205.1
+   },
+   "after": {
+    "calls": 173,
+    "tris": 1012574,
+    "fps": 61,
+    "texMB": 261.3
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "court-east",
+   "before": {
+    "calls": 216,
+    "tris": 1081152,
+    "fps": 60,
+    "texMB": 205.1
+   },
+   "after": {
+    "calls": 254,
+    "tris": 1075726,
+    "fps": 61,
+    "texMB": 261.3
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "court-west",
+   "before": {
+    "calls": 187,
+    "tris": 1032118,
+    "fps": 61,
+    "texMB": 205.1
+   },
+   "after": {
+    "calls": 244,
+    "tris": 1061404,
+    "fps": 61,
+    "texMB": 261.3
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "district-walk",
+   "before": {
+    "calls": 115,
+    "tris": 1073579,
+    "fps": 61,
+    "texMB": 205.1
+   },
+   "after": {
+    "calls": 147,
+    "tris": 1224910,
+    "fps": 61,
+    "texMB": 261.6
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "entry-gate",
+   "before": {
+    "calls": 236,
+    "tris": 1126550,
+    "fps": 61,
+    "texMB": 205.1
+   },
+   "after": {
+    "calls": 276,
+    "tris": 1420285,
+    "fps": 61,
+    "texMB": 261.3
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "fight",
+   "before": {
+    "calls": 167,
+    "tris": 1087104,
+    "fps": 61,
+    "texMB": 205.1
+   },
+   "after": {
+    "calls": 188,
+    "tris": 1200202,
+    "fps": 61,
+    "texMB": 261.3
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "forecourt",
+   "before": {
+    "calls": 260,
+    "tris": 1237194,
+    "fps": 61,
+    "texMB": 205.1
+   },
+   "after": {
+    "calls": 284,
+    "tris": 1670500,
+    "fps": 61,
+    "texMB": 261.3
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "fountain",
+   "before": {
+    "calls": 184,
+    "tris": 986926,
+    "fps": 61,
+    "texMB": 205.1
+   },
+   "after": {
+    "calls": 207,
+    "tris": 1009076,
+    "fps": 61,
+    "texMB": 261.3
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "igisoro",
+   "before": {
+    "calls": 136,
+    "tris": 1150850,
+    "fps": 61,
+    "texMB": 205.1
+   },
+   "after": {
+    "calls": 172,
+    "tris": 1241320,
+    "fps": 61,
+    "texMB": 261.3
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "ludo",
+   "before": {
+    "calls": 172,
+    "tris": 1050496,
+    "fps": 61,
+    "texMB": 205.1
+   },
+   "after": {
+    "calls": 185,
+    "tris": 1155262,
+    "fps": 61,
+    "texMB": 261.3
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "parking",
+   "before": {
+    "calls": 98,
+    "tris": 1222470,
+    "fps": 61,
+    "texMB": 205.1
+   },
+   "after": {
+    "calls": 122,
+    "tris": 1658054,
+    "fps": 61,
+    "texMB": 261.6
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "plaza-edge",
+   "before": {
+    "calls": 196,
+    "tris": 1258093,
+    "fps": 61,
+    "texMB": 205.1
+   },
+   "after": {
+    "calls": 256,
+    "tris": 1595769,
+    "fps": 61,
+    "texMB": 261.3
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "pool",
+   "before": {
+    "calls": 145,
+    "tris": 1071973,
+    "fps": 61,
+    "texMB": 205.1
+   },
+   "after": {
+    "calls": 168,
+    "tris": 1086122,
+    "fps": 61,
+    "texMB": 261.3
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "promenade-w",
+   "before": {
+    "calls": 116,
+    "tris": 1277509,
+    "fps": 61,
+    "texMB": 205.1
+   },
+   "after": {
+    "calls": 144,
+    "tris": 1506342,
+    "fps": 61,
+    "texMB": 261.6
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "public-road",
+   "before": {
+    "calls": 158,
+    "tris": 1203662,
+    "fps": 61,
+    "texMB": 205.1
+   },
+   "after": {
+    "calls": 196,
+    "tris": 1640074,
+    "fps": 61,
+    "texMB": 261.6
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "spawn-north",
+   "before": {
+    "calls": 213,
+    "tris": 1083458,
+    "fps": 61,
+    "texMB": 198.8
+   },
+   "after": {
+    "calls": 260,
+    "tris": 1253335,
+    "fps": 61,
+    "texMB": 255
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "volcano-view",
+   "before": {
+    "calls": 82,
+    "tris": 598918,
+    "fps": 60,
+    "texMB": 205.1
+   },
+   "after": {
+    "calls": 93,
+    "tris": 874892,
+    "fps": 61,
+    "texMB": 261.6
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "fight",
+   "pose": "corner",
+   "before": {
+    "calls": 68,
+    "tris": 30834,
+    "fps": 61,
+    "texMB": 325.9
+   },
+   "after": {
+    "calls": 82,
+    "tris": 26491,
+    "fps": 37,
+    "texMB": 368.4
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "fight",
+   "pose": "door",
+   "before": {
+    "calls": 50,
+    "tris": 37010,
+    "fps": 61,
+    "texMB": 325.9
+   },
+   "after": {
+    "calls": 51,
+    "tris": 24214,
+    "fps": 61,
+    "texMB": 368.4
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "fight",
+   "pose": "far",
+   "before": {
+    "calls": 57,
+    "tris": 29666,
+    "fps": 61,
+    "texMB": 325.9
+   },
+   "after": {
+    "calls": 58,
+    "tris": 25310,
+    "fps": 61,
+    "texMB": 368.4
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "fight",
+   "pose": "high",
+   "before": {
+    "calls": 39,
+    "tris": 38249,
+    "fps": 61,
+    "texMB": 325.9
+   },
+   "after": {
+    "calls": 40,
+    "tris": 25453,
+    "fps": 60,
+    "texMB": 368.4
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "fight",
+   "pose": "low",
+   "before": {
+    "calls": 47,
+    "tris": 65927,
+    "fps": 60,
+    "texMB": 325.9
+   },
+   "after": {
+    "calls": 48,
+    "tris": 53131,
+    "fps": 61,
+    "texMB": 368.4
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "igisoro",
+   "pose": "corner",
+   "before": {
+    "calls": 143,
+    "tris": 374574,
+    "fps": 61,
+    "texMB": 327.4
+   },
+   "after": {
+    "calls": 146,
+    "tris": 360763,
+    "fps": 60,
+    "texMB": 379.1
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "igisoro",
+   "pose": "door",
+   "before": {
+    "calls": 132,
+    "tris": 412619,
+    "fps": 61,
+    "texMB": 327.4
+   },
+   "after": {
+    "calls": 122,
+    "tris": 366611,
+    "fps": 61,
+    "texMB": 379.1
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "igisoro",
+   "pose": "far",
+   "before": {
+    "calls": 152,
+    "tris": 379946,
+    "fps": 61,
+    "texMB": 327.4
+   },
+   "after": {
+    "calls": 142,
+    "tris": 366122,
+    "fps": 61,
+    "texMB": 379.1
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "igisoro",
+   "pose": "high",
+   "before": {
+    "calls": 118,
+    "tris": 412568,
+    "fps": 61,
+    "texMB": 327.4
+   },
+   "after": {
+    "calls": 108,
+    "tris": 366560,
+    "fps": 61,
+    "texMB": 379.1
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "igisoro",
+   "pose": "low",
+   "before": {
+    "calls": 107,
+    "tris": 362514,
+    "fps": 61,
+    "texMB": 327.4
+   },
+   "after": {
+    "calls": 97,
+    "tris": 348690,
+    "fps": 61,
+    "texMB": 379.1
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "ludo",
+   "pose": "corner",
+   "before": {
+    "calls": 136,
+    "tris": 357887,
+    "fps": 18,
+    "texMB": 322.5
+   },
+   "after": {
+    "calls": 142,
+    "tris": 360277,
+    "fps": 49,
+    "texMB": 379.4
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "ludo",
+   "pose": "door",
+   "before": {
+    "calls": 115,
+    "tris": 367493,
+    "fps": 61,
+    "texMB": 322.5
+   },
+   "after": {
+    "calls": 121,
+    "tris": 365281,
+    "fps": 61,
+    "texMB": 379.4
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "ludo",
+   "pose": "far",
+   "before": {
+    "calls": 120,
+    "tris": 358514,
+    "fps": 61,
+    "texMB": 322.5
+   },
+   "after": {
+    "calls": 126,
+    "tris": 360904,
+    "fps": 61,
+    "texMB": 379.4
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "ludo",
+   "pose": "high",
+   "before": {
+    "calls": 100,
+    "tris": 367442,
+    "fps": 60,
+    "texMB": 322.5
+   },
+   "after": {
+    "calls": 106,
+    "tris": 365230,
+    "fps": 61,
+    "texMB": 379.4
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "ludo",
+   "pose": "low",
+   "before": {
+    "calls": 96,
+    "tris": 335486,
+    "fps": 61,
+    "texMB": 322.5
+   },
+   "after": {
+    "calls": 102,
+    "tris": 337876,
+    "fps": 61,
+    "texMB": 379.4
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "pool",
+   "pose": "corner",
+   "before": {
+    "calls": 133,
+    "tris": 351811,
+    "fps": 61,
+    "texMB": 308.9
+   },
+   "after": {
+    "calls": 146,
+    "tris": 350232,
+    "fps": 60,
+    "texMB": 360.6
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "pool",
+   "pose": "door",
+   "before": {
+    "calls": 131,
+    "tris": 368826,
+    "fps": 61,
+    "texMB": 308.9
+   },
+   "after": {
+    "calls": 131,
+    "tris": 355946,
+    "fps": 61,
+    "texMB": 360.6
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "pool",
+   "pose": "far",
+   "before": {
+    "calls": 143,
+    "tris": 357528,
+    "fps": 61,
+    "texMB": 308.9
+   },
+   "after": {
+    "calls": 143,
+    "tris": 355936,
+    "fps": 61,
+    "texMB": 360.6
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "pool",
+   "pose": "high",
+   "before": {
+    "calls": 120,
+    "tris": 368825,
+    "fps": 61,
+    "texMB": 308.9
+   },
+   "after": {
+    "calls": 120,
+    "tris": 355945,
+    "fps": 61,
+    "texMB": 360.6
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "13:00",
+   "area": "pool",
+   "pose": "low",
+   "before": {
+    "calls": 102,
+    "tris": 333555,
+    "fps": 61,
+    "texMB": 308.9
+   },
+   "after": {
+    "calls": 102,
+    "tris": 331963,
+    "fps": 60,
+    "texMB": 360.6
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "aerial-campus",
+   "before": {
+    "calls": 259,
+    "tris": 2201844,
+    "fps": 61,
+    "texMB": 204.7
+   },
+   "after": {
+    "calls": 269,
+    "tris": 2230266,
+    "fps": 61,
+    "texMB": 261.2
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "aerial-plaza",
+   "before": {
+    "calls": 290,
+    "tris": 1209090,
+    "fps": 61,
+    "texMB": 204.7
+   },
+   "after": {
+    "calls": 319,
+    "tris": 1647022,
+    "fps": 61,
+    "texMB": 261.2
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "arena",
+   "before": {
+    "calls": 169,
+    "tris": 1018670,
+    "fps": 61,
+    "texMB": 204.7
+   },
+   "after": {
+    "calls": 165,
+    "tris": 970364,
+    "fps": 61,
+    "texMB": 261.2
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "court-east",
+   "before": {
+    "calls": 220,
+    "tris": 1082106,
+    "fps": 61,
+    "texMB": 204.7
+   },
+   "after": {
+    "calls": 258,
+    "tris": 1063800,
+    "fps": 61,
+    "texMB": 261.2
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "court-west",
+   "before": {
+    "calls": 191,
+    "tris": 1033072,
+    "fps": 61,
+    "texMB": 204.7
+   },
+   "after": {
+    "calls": 231,
+    "tris": 1050216,
+    "fps": 61,
+    "texMB": 261.2
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "district-walk",
+   "before": {
+    "calls": 119,
+    "tris": 1074533,
+    "fps": 61,
+    "texMB": 204.7
+   },
+   "after": {
+    "calls": 143,
+    "tris": 1214478,
+    "fps": 61,
+    "texMB": 261.2
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "entry-gate",
+   "before": {
+    "calls": 240,
+    "tris": 1127504,
+    "fps": 61,
+    "texMB": 204.7
+   },
+   "after": {
+    "calls": 278,
+    "tris": 1408341,
+    "fps": 61,
+    "texMB": 261.2
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "fight",
+   "before": {
+    "calls": 185,
+    "tris": 1095074,
+    "fps": 61,
+    "texMB": 204.7
+   },
+   "after": {
+    "calls": 192,
+    "tris": 1194178,
+    "fps": 61,
+    "texMB": 261.2
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "forecourt",
+   "before": {
+    "calls": 263,
+    "tris": 1238040,
+    "fps": 61,
+    "texMB": 204.7
+   },
+   "after": {
+    "calls": 289,
+    "tris": 1664452,
+    "fps": 61,
+    "texMB": 261.2
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "fountain",
+   "before": {
+    "calls": 188,
+    "tris": 987880,
+    "fps": 61,
+    "texMB": 204.7
+   },
+   "after": {
+    "calls": 218,
+    "tris": 1019390,
+    "fps": 61,
+    "texMB": 261.2
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "igisoro",
+   "before": {
+    "calls": 140,
+    "tris": 1151804,
+    "fps": 61,
+    "texMB": 204.7
+   },
+   "after": {
+    "calls": 163,
+    "tris": 1227324,
+    "fps": 61,
+    "texMB": 261.2
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "ludo",
+   "before": {
+    "calls": 176,
+    "tris": 1051450,
+    "fps": 61,
+    "texMB": 204.7
+   },
+   "after": {
+    "calls": 191,
+    "tris": 1149322,
+    "fps": 61,
+    "texMB": 261.2
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "parking",
+   "before": {
+    "calls": 102,
+    "tris": 1223424,
+    "fps": 61,
+    "texMB": 204.7
+   },
+   "after": {
+    "calls": 128,
+    "tris": 1652114,
+    "fps": 61,
+    "texMB": 261.2
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "plaza-edge",
+   "before": {
+    "calls": 216,
+    "tris": 1264471,
+    "fps": 60,
+    "texMB": 204.7
+   },
+   "after": {
+    "calls": 251,
+    "tris": 1592793,
+    "fps": 61,
+    "texMB": 261.2
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "pool",
+   "before": {
+    "calls": 149,
+    "tris": 1072927,
+    "fps": 61,
+    "texMB": 204.7
+   },
+   "after": {
+    "calls": 164,
+    "tris": 1075690,
+    "fps": 61,
+    "texMB": 261.2
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "promenade-w",
+   "before": {
+    "calls": 120,
+    "tris": 1278463,
+    "fps": 61,
+    "texMB": 204.7
+   },
+   "after": {
+    "calls": 150,
+    "tris": 1500402,
+    "fps": 61,
+    "texMB": 261.2
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "public-road",
+   "before": {
+    "calls": 162,
+    "tris": 1204616,
+    "fps": 61,
+    "texMB": 204.7
+   },
+   "after": {
+    "calls": 188,
+    "tris": 1620800,
+    "fps": 61,
+    "texMB": 261.2
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "spawn-north",
+   "before": {
+    "calls": 234,
+    "tris": 1109618,
+    "fps": 61,
+    "texMB": 198.5
+   },
+   "after": {
+    "calls": 255,
+    "tris": 1232361,
+    "fps": 61,
+    "texMB": 255
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "18:30",
+   "area": "campus",
+   "pose": "volcano-view",
+   "before": {
+    "calls": 84,
+    "tris": 598624,
+    "fps": 61,
+    "texMB": 204.7
+   },
+   "after": {
+    "calls": 97,
+    "tris": 867704,
+    "fps": 61,
+    "texMB": 261.2
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "aerial-campus",
+   "before": {
+    "calls": 265,
+    "tris": 2204780,
+    "fps": 61,
+    "texMB": 210.7
+   },
+   "after": {
+    "calls": 269,
+    "tris": 2227612,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "aerial-plaza",
+   "before": {
+    "calls": 304,
+    "tris": 1216470,
+    "fps": 60,
+    "texMB": 210.7
+   },
+   "after": {
+    "calls": 315,
+    "tris": 1643180,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "arena",
+   "before": {
+    "calls": 168,
+    "tris": 1019272,
+    "fps": 61,
+    "texMB": 210.7
+   },
+   "after": {
+    "calls": 164,
+    "tris": 962302,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "court-east",
+   "before": {
+    "calls": 234,
+    "tris": 1090500,
+    "fps": 61,
+    "texMB": 210.7
+   },
+   "after": {
+    "calls": 234,
+    "tris": 1037094,
+    "fps": 60,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "court-west",
+   "before": {
+    "calls": 206,
+    "tris": 1041802,
+    "fps": 61,
+    "texMB": 210.7
+   },
+   "after": {
+    "calls": 214,
+    "tris": 1026932,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "district-walk",
+   "before": {
+    "calls": 135,
+    "tris": 1082307,
+    "fps": 61,
+    "texMB": 210.7
+   },
+   "after": {
+    "calls": 143,
+    "tris": 1206488,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "entry-gate",
+   "before": {
+    "calls": 253,
+    "tris": 1132718,
+    "fps": 60,
+    "texMB": 210.7
+   },
+   "after": {
+    "calls": 270,
+    "tris": 1392999,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "fight",
+   "before": {
+    "calls": 190,
+    "tris": 1096384,
+    "fps": 61,
+    "texMB": 210.7
+   },
+   "after": {
+    "calls": 220,
+    "tris": 1250146,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "forecourt",
+   "before": {
+    "calls": 276,
+    "tris": 1245298,
+    "fps": 61,
+    "texMB": 210.7
+   },
+   "after": {
+    "calls": 286,
+    "tris": 1655946,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "fountain",
+   "before": {
+    "calls": 200,
+    "tris": 995302,
+    "fps": 61,
+    "texMB": 210.7
+   },
+   "after": {
+    "calls": 202,
+    "tris": 985892,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "igisoro",
+   "before": {
+    "calls": 156,
+    "tris": 1159530,
+    "fps": 61,
+    "texMB": 210.7
+   },
+   "after": {
+    "calls": 163,
+    "tris": 1219286,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "ludo",
+   "before": {
+    "calls": 192,
+    "tris": 1059224,
+    "fps": 61,
+    "texMB": 210.7
+   },
+   "after": {
+    "calls": 191,
+    "tris": 1141332,
+    "fps": 60,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "parking",
+   "before": {
+    "calls": 114,
+    "tris": 1230574,
+    "fps": 61,
+    "texMB": 210.7
+   },
+   "after": {
+    "calls": 124,
+    "tris": 1643500,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "plaza-edge",
+   "before": {
+    "calls": 213,
+    "tris": 1264593,
+    "fps": 61,
+    "texMB": 210.7
+   },
+   "after": {
+    "calls": 236,
+    "tris": 1558615,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "pool",
+   "before": {
+    "calls": 163,
+    "tris": 1081153,
+    "fps": 61,
+    "texMB": 210.7
+   },
+   "after": {
+    "calls": 162,
+    "tris": 1068152,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "promenade-w",
+   "before": {
+    "calls": 139,
+    "tris": 1287901,
+    "fps": 61,
+    "texMB": 210.7
+   },
+   "after": {
+    "calls": 153,
+    "tris": 1494076,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "public-road",
+   "before": {
+    "calls": 172,
+    "tris": 1211634,
+    "fps": 61,
+    "texMB": 210.7
+   },
+   "after": {
+    "calls": 182,
+    "tris": 1612054,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "spawn-north",
+   "before": {
+    "calls": 229,
+    "tris": 1084474,
+    "fps": 60,
+    "texMB": 204.4
+   },
+   "after": {
+    "calls": 246,
+    "tris": 1233209,
+    "fps": 61,
+    "texMB": 249.4
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "volcano-view",
+   "before": {
+    "calls": 96,
+    "tris": 605774,
+    "fps": 60,
+    "texMB": 210.7
+   },
+   "after": {
+    "calls": 93,
+    "tris": 859090,
+    "fps": 61,
+    "texMB": 255.7
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "fight",
+   "pose": "corner",
+   "before": {
+    "calls": 69,
+    "tris": 26427,
+    "fps": 56,
+    "texMB": 292.8
+   },
+   "after": {
+    "calls": 81,
+    "tris": 25555,
+    "fps": 55,
+    "texMB": 368.8
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "fight",
+   "pose": "door",
+   "before": {
+    "calls": 51,
+    "tris": 18701,
+    "fps": 61,
+    "texMB": 292.8
+   },
+   "after": {
+    "calls": 50,
+    "tris": 18646,
+    "fps": 60,
+    "texMB": 368.8
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "fight",
+   "pose": "far",
+   "before": {
+    "calls": 58,
+    "tris": 25259,
+    "fps": 61,
+    "texMB": 292.8
+   },
+   "after": {
+    "calls": 57,
+    "tris": 24374,
+    "fps": 61,
+    "texMB": 368.8
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "fight",
+   "pose": "high",
+   "before": {
+    "calls": 40,
+    "tris": 19940,
+    "fps": 61,
+    "texMB": 292.8
+   },
+   "after": {
+    "calls": 39,
+    "tris": 19885,
+    "fps": 61,
+    "texMB": 368.8
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "fight",
+   "pose": "low",
+   "before": {
+    "calls": 48,
+    "tris": 47618,
+    "fps": 61,
+    "texMB": 292.8
+   },
+   "after": {
+    "calls": 47,
+    "tris": 47563,
+    "fps": 61,
+    "texMB": 368.8
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "igisoro",
+   "pose": "corner",
+   "before": {
+    "calls": 135,
+    "tris": 363962,
+    "fps": 41,
+    "texMB": 328.1
+   },
+   "after": {
+    "calls": 158,
+    "tris": 367621,
+    "fps": 39,
+    "texMB": 379.1
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "igisoro",
+   "pose": "door",
+   "before": {
+    "calls": 124,
+    "tris": 369155,
+    "fps": 61,
+    "texMB": 328.1
+   },
+   "after": {
+    "calls": 134,
+    "tris": 376047,
+    "fps": 61,
+    "texMB": 379.1
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "igisoro",
+   "pose": "far",
+   "before": {
+    "calls": 144,
+    "tris": 369334,
+    "fps": 61,
+    "texMB": 328.1
+   },
+   "after": {
+    "calls": 154,
+    "tris": 372980,
+    "fps": 61,
+    "texMB": 379.1
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "igisoro",
+   "pose": "high",
+   "before": {
+    "calls": 110,
+    "tris": 369104,
+    "fps": 61,
+    "texMB": 328.1
+   },
+   "after": {
+    "calls": 120,
+    "tris": 375996,
+    "fps": 61,
+    "texMB": 379.1
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "igisoro",
+   "pose": "low",
+   "before": {
+    "calls": 99,
+    "tris": 351902,
+    "fps": 61,
+    "texMB": 328.1
+   },
+   "after": {
+    "calls": 111,
+    "tris": 355562,
+    "fps": 61,
+    "texMB": 379.1
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "ludo",
+   "pose": "corner",
+   "before": {
+    "calls": 129,
+    "tris": 360264,
+    "fps": 61,
+    "texMB": 328.1
+   },
+   "after": {
+    "calls": 136,
+    "tris": 357591,
+    "fps": 61,
+    "texMB": 379.4
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "ludo",
+   "pose": "door",
+   "before": {
+    "calls": 125,
+    "tris": 365309,
+    "fps": 60,
+    "texMB": 328.1
+   },
+   "after": {
+    "calls": 115,
+    "tris": 359349,
+    "fps": 61,
+    "texMB": 379.4
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "ludo",
+   "pose": "far",
+   "before": {
+    "calls": 126,
+    "tris": 360904,
+    "fps": 60,
+    "texMB": 328.1
+   },
+   "after": {
+    "calls": 120,
+    "tris": 358218,
+    "fps": 61,
+    "texMB": 379.4
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "ludo",
+   "pose": "high",
+   "before": {
+    "calls": 106,
+    "tris": 365230,
+    "fps": 61,
+    "texMB": 328.1
+   },
+   "after": {
+    "calls": 100,
+    "tris": 359298,
+    "fps": 61,
+    "texMB": 379.4
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "ludo",
+   "pose": "low",
+   "before": {
+    "calls": 102,
+    "tris": 337876,
+    "fps": 61,
+    "texMB": 328.1
+   },
+   "after": {
+    "calls": 96,
+    "tris": 335190,
+    "fps": 61,
+    "texMB": 379.4
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "pool",
+   "pose": "corner",
+   "before": {
+    "calls": 135,
+    "tris": 354675,
+    "fps": 41,
+    "texMB": 309.2
+   },
+   "after": {
+    "calls": 146,
+    "tris": 350232,
+    "fps": 61,
+    "texMB": 360.6
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "pool",
+   "pose": "door",
+   "before": {
+    "calls": 133,
+    "tris": 359994,
+    "fps": 61,
+    "texMB": 309.2
+   },
+   "after": {
+    "calls": 131,
+    "tris": 353538,
+    "fps": 61,
+    "texMB": 360.6
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "pool",
+   "pose": "far",
+   "before": {
+    "calls": 145,
+    "tris": 360392,
+    "fps": 61,
+    "texMB": 309.2
+   },
+   "after": {
+    "calls": 143,
+    "tris": 355936,
+    "fps": 61,
+    "texMB": 360.6
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "pool",
+   "pose": "high",
+   "before": {
+    "calls": 122,
+    "tris": 359993,
+    "fps": 61,
+    "texMB": 309.2
+   },
+   "after": {
+    "calls": 120,
+    "tris": 353537,
+    "fps": 61,
+    "texMB": 360.6
+   }
+  },
+  {
+   "vp": "desktop",
+   "time": "21:30",
+   "area": "pool",
+   "pose": "low",
+   "before": {
+    "calls": 104,
+    "tris": 336419,
+    "fps": 61,
+    "texMB": 309.2
+   },
+   "after": {
+    "calls": 102,
+    "tris": 331963,
+    "fps": 61,
+    "texMB": 360.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "aerial-campus",
+   "before": {
+    "calls": 256,
+    "tris": 2207956,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 269,
+    "tris": 2236266,
+    "fps": 61,
+    "texMB": 255
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "aerial-plaza",
+   "before": {
+    "calls": 292,
+    "tris": 1226206,
+    "fps": 60,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 323,
+    "tris": 1664032,
+    "fps": 61,
+    "texMB": 255
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "arena",
+   "before": {
+    "calls": 153,
+    "tris": 1057342,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 169,
+    "tris": 1020926,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "court-east",
+   "before": {
+    "calls": 224,
+    "tris": 1128248,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 274,
+    "tris": 1154300,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "court-west",
+   "before": {
+    "calls": 198,
+    "tris": 1079512,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 255,
+    "tris": 1138859,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "district-walk",
+   "before": {
+    "calls": 117,
+    "tris": 1120155,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 145,
+    "tris": 1264890,
+    "fps": 61,
+    "texMB": 255
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "entry-gate",
+   "before": {
+    "calls": 256,
+    "tris": 1174882,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 307,
+    "tris": 1469825,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "fight",
+   "before": {
+    "calls": 171,
+    "tris": 1158016,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 220,
+    "tris": 1370198,
+    "fps": 60,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "forecourt",
+   "before": {
+    "calls": 268,
+    "tris": 1283930,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 298,
+    "tris": 1715132,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "fountain",
+   "before": {
+    "calls": 201,
+    "tris": 1034370,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 253,
+    "tris": 1077936,
+    "fps": 61,
+    "texMB": 254.3
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "igisoro",
+   "before": {
+    "calls": 140,
+    "tris": 1221762,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 187,
+    "tris": 1362526,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "ludo",
+   "before": {
+    "calls": 179,
+    "tris": 1097358,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 198,
+    "tris": 1200020,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "parking",
+   "before": {
+    "calls": 101,
+    "tris": 1269550,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 131,
+    "tris": 1703030,
+    "fps": 61,
+    "texMB": 255
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "plaza-edge",
+   "before": {
+    "calls": 214,
+    "tris": 1305791,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 273,
+    "tris": 1632841,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "pool",
+   "before": {
+    "calls": 147,
+    "tris": 1118549,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 166,
+    "tris": 1126102,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "promenade-w",
+   "before": {
+    "calls": 144,
+    "tris": 1327365,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 170,
+    "tris": 1535534,
+    "fps": 61,
+    "texMB": 255
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "public-road",
+   "before": {
+    "calls": 176,
+    "tris": 1263014,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 220,
+    "tris": 1697322,
+    "fps": 61,
+    "texMB": 255
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "spawn-north",
+   "before": {
+    "calls": 256,
+    "tris": 1133054,
+    "fps": 61,
+    "texMB": 202.5
+   },
+   "after": {
+    "calls": 313,
+    "tris": 1308353,
+    "fps": 61,
+    "texMB": 252.7
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "campus",
+   "pose": "volcano-view",
+   "before": {
+    "calls": 84,
+    "tris": 645494,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 101,
+    "tris": 919364,
+    "fps": 61,
+    "texMB": 255
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "fight",
+   "pose": "corner",
+   "before": {
+    "calls": 68,
+    "tris": 25542,
+    "fps": 55,
+    "texMB": 295.7
+   },
+   "after": {
+    "calls": 69,
+    "tris": 27490,
+    "fps": 47,
+    "texMB": 386.4
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "fight",
+   "pose": "door",
+   "before": {
+    "calls": 50,
+    "tris": 18646,
+    "fps": 61,
+    "texMB": 295.7
+   },
+   "after": {
+    "calls": 51,
+    "tris": 18996,
+    "fps": 61,
+    "texMB": 386.4
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "fight",
+   "pose": "far",
+   "before": {
+    "calls": 60,
+    "tris": 24728,
+    "fps": 61,
+    "texMB": 295.7
+   },
+   "after": {
+    "calls": 61,
+    "tris": 26676,
+    "fps": 61,
+    "texMB": 386.4
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "fight",
+   "pose": "high",
+   "before": {
+    "calls": 39,
+    "tris": 19885,
+    "fps": 61,
+    "texMB": 295.7
+   },
+   "after": {
+    "calls": 40,
+    "tris": 20235,
+    "fps": 61,
+    "texMB": 386.4
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "fight",
+   "pose": "low",
+   "before": {
+    "calls": 52,
+    "tris": 49015,
+    "fps": 61,
+    "texMB": 295.7
+   },
+   "after": {
+    "calls": 53,
+    "tris": 49365,
+    "fps": 61,
+    "texMB": 386.4
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "igisoro",
+   "pose": "corner",
+   "before": {
+    "calls": 133,
+    "tris": 359506,
+    "fps": 61,
+    "texMB": 323.1
+   },
+   "after": {
+    "calls": 150,
+    "tris": 364855,
+    "fps": 61,
+    "texMB": 380.3
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "igisoro",
+   "pose": "door",
+   "before": {
+    "calls": 124,
+    "tris": 360317,
+    "fps": 61,
+    "texMB": 323.1
+   },
+   "after": {
+    "calls": 128,
+    "tris": 372061,
+    "fps": 61,
+    "texMB": 380.3
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "igisoro",
+   "pose": "far",
+   "before": {
+    "calls": 142,
+    "tris": 364878,
+    "fps": 61,
+    "texMB": 323.1
+   },
+   "after": {
+    "calls": 146,
+    "tris": 370214,
+    "fps": 61,
+    "texMB": 380.3
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "igisoro",
+   "pose": "high",
+   "before": {
+    "calls": 116,
+    "tris": 360348,
+    "fps": 61,
+    "texMB": 323.1
+   },
+   "after": {
+    "calls": 120,
+    "tris": 372092,
+    "fps": 61,
+    "texMB": 380.3
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "igisoro",
+   "pose": "low",
+   "before": {
+    "calls": 101,
+    "tris": 347498,
+    "fps": 61,
+    "texMB": 323.1
+   },
+   "after": {
+    "calls": 105,
+    "tris": 352834,
+    "fps": 61,
+    "texMB": 380.3
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "ludo",
+   "pose": "corner",
+   "before": {
+    "calls": 124,
+    "tris": 363906,
+    "fps": 49,
+    "texMB": 329.3
+   },
+   "after": {
+    "calls": 135,
+    "tris": 356699,
+    "fps": 58,
+    "texMB": 380.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "ludo",
+   "pose": "door",
+   "before": {
+    "calls": 118,
+    "tris": 377433,
+    "fps": 61,
+    "texMB": 329.3
+   },
+   "after": {
+    "calls": 116,
+    "tris": 355977,
+    "fps": 61,
+    "texMB": 380.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "ludo",
+   "pose": "far",
+   "before": {
+    "calls": 122,
+    "tris": 364096,
+    "fps": 61,
+    "texMB": 329.3
+   },
+   "after": {
+    "calls": 120,
+    "tris": 356876,
+    "fps": 61,
+    "texMB": 380.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "ludo",
+   "pose": "high",
+   "before": {
+    "calls": 105,
+    "tris": 377614,
+    "fps": 61,
+    "texMB": 329.3
+   },
+   "after": {
+    "calls": 103,
+    "tris": 356158,
+    "fps": 61,
+    "texMB": 380.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "ludo",
+   "pose": "low",
+   "before": {
+    "calls": 97,
+    "tris": 342170,
+    "fps": 61,
+    "texMB": 329.3
+   },
+   "after": {
+    "calls": 95,
+    "tris": 334950,
+    "fps": 61,
+    "texMB": 380.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "pool",
+   "pose": "corner",
+   "before": {
+    "calls": 138,
+    "tris": 361578,
+    "fps": 40,
+    "texMB": 310.1
+   },
+   "after": {
+    "calls": 151,
+    "tris": 356271,
+    "fps": 58,
+    "texMB": 361.8
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "pool",
+   "pose": "door",
+   "before": {
+    "calls": 145,
+    "tris": 376727,
+    "fps": 61,
+    "texMB": 310.1
+   },
+   "after": {
+    "calls": 141,
+    "tris": 363337,
+    "fps": 61,
+    "texMB": 361.8
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "pool",
+   "pose": "far",
+   "before": {
+    "calls": 145,
+    "tris": 365712,
+    "fps": 61,
+    "texMB": 310.1
+   },
+   "after": {
+    "calls": 145,
+    "tris": 360392,
+    "fps": 61,
+    "texMB": 361.8
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "pool",
+   "pose": "high",
+   "before": {
+    "calls": 126,
+    "tris": 376648,
+    "fps": 61,
+    "texMB": 310.1
+   },
+   "after": {
+    "calls": 126,
+    "tris": 363286,
+    "fps": 61,
+    "texMB": 361.8
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "13:00",
+   "area": "pool",
+   "pose": "low",
+   "before": {
+    "calls": 108,
+    "tris": 341781,
+    "fps": 61,
+    "texMB": 310.1
+   },
+   "after": {
+    "calls": 106,
+    "tris": 336447,
+    "fps": 61,
+    "texMB": 361.8
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "aerial-campus",
+   "before": {
+    "calls": 265,
+    "tris": 2206600,
+    "fps": 60,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 270,
+    "tris": 2230586,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "aerial-plaza",
+   "before": {
+    "calls": 308,
+    "tris": 1224048,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 325,
+    "tris": 1653094,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "arena",
+   "before": {
+    "calls": 168,
+    "tris": 1038496,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 182,
+    "tris": 1010354,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "court-east",
+   "before": {
+    "calls": 240,
+    "tris": 1110142,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 253,
+    "tris": 1056490,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "court-west",
+   "before": {
+    "calls": 215,
+    "tris": 1061742,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 254,
+    "tris": 1058747,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "district-walk",
+   "before": {
+    "calls": 135,
+    "tris": 1101429,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 149,
+    "tris": 1218216,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "entry-gate",
+   "before": {
+    "calls": 271,
+    "tris": 1153596,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 299,
+    "tris": 1411275,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "fight",
+   "before": {
+    "calls": 192,
+    "tris": 1139842,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 205,
+    "tris": 1254712,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "forecourt",
+   "before": {
+    "calls": 282,
+    "tris": 1264580,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 298,
+    "tris": 1667834,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "fountain",
+   "before": {
+    "calls": 215,
+    "tris": 1015292,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 232,
+    "tris": 1005134,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "igisoro",
+   "before": {
+    "calls": 158,
+    "tris": 1202988,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 171,
+    "tris": 1287174,
+    "fps": 60,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "ludo",
+   "before": {
+    "calls": 197,
+    "tris": 1078632,
+    "fps": 60,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 202,
+    "tris": 1153346,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "parking",
+   "before": {
+    "calls": 115,
+    "tris": 1250200,
+    "fps": 60,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 131,
+    "tris": 1655732,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "plaza-edge",
+   "before": {
+    "calls": 229,
+    "tris": 1284837,
+    "fps": 60,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 270,
+    "tris": 1597101,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "pool",
+   "before": {
+    "calls": 163,
+    "tris": 1100275,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 168,
+    "tris": 1079880,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "promenade-w",
+   "before": {
+    "calls": 165,
+    "tris": 1310303,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 177,
+    "tris": 1490524,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "public-road",
+   "before": {
+    "calls": 188,
+    "tris": 1243532,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 204,
+    "tris": 1636558,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "spawn-north",
+   "before": {
+    "calls": 270,
+    "tris": 1106616,
+    "fps": 61,
+    "texMB": 202.5
+   },
+   "after": {
+    "calls": 286,
+    "tris": 1225885,
+    "fps": 61,
+    "texMB": 253
+   }
+  },
+  {
+   "vp": "phone",
+   "time": "21:30",
+   "area": "campus",
+   "pose": "volcano-view",
+   "before": {
+    "calls": 96,
+    "tris": 624896,
+    "fps": 61,
+    "texMB": 204
+   },
+   "after": {
+    "calls": 99,
+    "tris": 870818,
+    "fps": 61,
+    "texMB": 254.6
+   }
+  }
+ ]
+}

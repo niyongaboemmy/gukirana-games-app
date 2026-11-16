@@ -8,6 +8,7 @@ import { POOL_BAR, type HallLayout, type Table } from "./layouts";
 import { BlobShadows, GltfInstances, Instanced, LightPools, model, usePbr, type Blob, type Xform } from "./interior-kit";
 import { ballAtlas, feltTexture, loungeRug } from "./room-textures";
 import { SouthWall, WindowWall } from "./shell";
+import { weather } from "@/world/weathering";
 import { STATUS_COLOR, tableNo, tableStatuses } from "./table-status";
 
 /**
@@ -350,6 +351,11 @@ export function PoolHall({ layout, lite }: { layout: HallLayout; lite: boolean }
   const box = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
   const cue = useMemo(() => cueGeometry(), []);
   const smallN = useMemo(() => new THREE.Vector2(0.25, 0.25), []);
+  // micro-cement with its hand-trowelled clouding and foot-traffic tone (P2-WLD-22: was one flat value, a placeholder look)
+  const floorMat = useMemo(
+    () => weather(new THREE.MeshStandardMaterial({ map: floorTex.map ?? null, normalMap: floorTex.normalMap ?? null, normalScale: smallN, color: "#a29d95", roughness: 0.95, metalness: 0, envMapIntensity: 0.1 }), { macro: 0.2, base: 0, streak: 0, scale: 1.8 }),
+    [floorTex, smallN],
+  );
 
   const barLen = POOL_BAR.z1 - POOL_BAR.z0;
   const barZ = (POOL_BAR.z0 + POOL_BAR.z1) / 2;
@@ -468,7 +474,7 @@ export function PoolHall({ layout, lite }: { layout: HallLayout; lite: boolean }
       {/* micro-cement floor, dead matte (the texture's own roughness map is ignored) */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[w, d]} />
-        <meshStandardMaterial normalMap={floorTex.normalMap} normalScale={smallN} color="#a29d95" roughness={0.95} metalness={0} envMapIntensity={0.1} />
+        <primitive object={floorMat} attach="material" />
       </mesh>
       {/* low-pile carpet under each table (and its chairs): quiet, warm underfoot, absorbs the light */}
       <Instanced geometry={rugGeo} items={rugs}>

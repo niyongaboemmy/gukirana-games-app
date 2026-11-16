@@ -139,7 +139,7 @@ interface Key {
 }
 
 /**
- * Keyframes over the sun's altitude. 17° is the hand-tuned P1-WLD-03 morning (hemisphere #c9def0 / #4a5236 × 0.45,
+ * Keyframes over the sun's altitude. 17° is the hand-tuned P1-WLD-03 morning (hemisphere #c9def0 / #4a5236; P2-WLD-22 raised its × 0.45 to 0.6 and env 0.55 → 0.68,
  * fog #c4d2dc, env × 0.55): from there the day only gets a little deeper blue and clearer; the evening and night
  * entries follow photographs of the Virunga foothills (short equatorial twilight: deep blue within ~25 min).
  */
@@ -266,8 +266,8 @@ const KEYS: Key[] = [
     fogK: 1.0,
     hemiSky: "#d2d4d8",
     hemiGround: "#4e5034",
-    hemiI: 0.5,
-    envI: 0.55,
+    hemiI: 0.54,
+    envI: 0.6,
     cloud: "#f6dfc6",
     cloudA: 0.62,
     unlit: "#eee4d8",
@@ -282,8 +282,8 @@ const KEYS: Key[] = [
     fogK: 1.0,
     hemiSky: "#c9def0",
     hemiGround: "#4a5236",
-    hemiI: 0.45,
-    envI: 0.55,
+    hemiI: 0.56,
+    envI: 0.64,
     cloud: "#f4f6f8",
     cloudA: 0.62,
     unlit: "#ffffff",
@@ -298,8 +298,8 @@ const KEYS: Key[] = [
     fogK: 1.0,
     hemiSky: "#c9def0",
     hemiGround: "#4a5236",
-    hemiI: 0.45,
-    envI: 0.55,
+    hemiI: 0.6,
+    envI: 0.68,
     cloud: "#f4f6f8",
     cloudA: 0.62,
     unlit: "#ffffff",
@@ -314,8 +314,8 @@ const KEYS: Key[] = [
     fogK: 0.95,
     hemiSky: "#c9def0",
     hemiGround: "#4c5538",
-    hemiI: 0.48,
-    envI: 0.55,
+    hemiI: 0.63,
+    envI: 0.7,
     cloud: "#f6f8fa",
     cloudA: 0.62,
     unlit: "#ffffff",
@@ -330,8 +330,8 @@ const KEYS: Key[] = [
     fogK: 0.92,
     hemiSky: "#cce0f2",
     hemiGround: "#4e573a",
-    hemiI: 0.5,
-    envI: 0.55,
+    hemiI: 0.65,
+    envI: 0.7,
     cloud: "#f8f9fb",
     cloudA: 0.6,
     unlit: "#ffffff",

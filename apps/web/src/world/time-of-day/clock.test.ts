@@ -169,10 +169,12 @@ describe("phases and look", () => {
     expect(lightsOn(0)).toBeGreaterThan(0.1);
     expect(lightsOn(0)).toBeLessThan(0.9);
   });
-  it("the 17° morning reproduces the hand-tuned P1-WLD-03 light", () => {
+  it("the 17° morning keeps the hand-tuned P1-WLD-03 sun, with the P2-WLD-22 sky fill", () => {
     const l = computeLook(17, true, { el: -30, fraction: 0.5 });
     expect(l.sunI).toBeCloseTo(2.6, 1);
-    expect(l.hemiI).toBeCloseTo(0.45, 2);
+    // (P2-WLD-22: the sky fill was raised from 0.45 — shaded facades read near black at an equatorial 1,850 m)
+    expect(l.hemiI).toBeCloseTo(0.6, 2);
+    expect(l.envI).toBeCloseTo(0.68, 2);
     expect(l.shadow).toBe(1);
     expect(l.lights).toBe(0);
   });

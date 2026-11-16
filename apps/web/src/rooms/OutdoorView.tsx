@@ -9,6 +9,7 @@ import { TodSky } from "@/world/time-of-day/TodSky";
 import { TodEnvironment } from "@/world/time-of-day/TodEnvironment";
 import { ringPoint } from "@/world/layout";
 import { LAWN_BEDS } from "@/world/beds";
+import { grassTexture } from "@/world/textures";
 import type { HallLayout } from "./layouts";
 import { hallDoor, impostorBlocks, type ImpostorMat } from "./plaza-impostor";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
@@ -184,6 +185,16 @@ export function OutdoorView({
   // the sky, sun / moon light and image lighting of the shown time of day, turned into the hall's frame (P2-WLD-19)
   const L = tod.look;
   const keyPos = useMemo(() => frame.sun.clone().multiplyScalar(120), [frame]);
+  // the district lawn through the windows (P2-WLD-22): a mown-grass texture instead of a flat green disc, and as dark
+  // as the campus lawn after dusk (the capture's night fill is raised for the landscape; the lawn is right outside)
+  const lawn = useMemo(() => {
+    const t = grassTexture().clone();
+    t.repeat.set(70, 70);
+    t.needsUpdate = true;
+    return t;
+  }, []);
+  useEffect(() => () => lawn.dispose(), [lawn]);
+  const lawnColour = useMemo(() => new THREE.Color("#c9dcb6").multiplyScalar(1 - 0.82 * L.lights), [key, L.lights]);
   if (captured) return null;
   return createPortal(
     <>
@@ -197,7 +208,7 @@ export function OutdoorView({
           {/* district ground inside the landscape's inner ring (the plaza itself is not needed through the window) */}
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.07, 0]}>
             <circleGeometry args={[95, 48]} />
-            <meshStandardMaterial color="#6f9a4f" roughness={1} />
+            <meshStandardMaterial map={lawn} color={lawnColour} roughness={1} />
           </mesh>
           {/* the neighbouring buildings seen through the side windows (P2-WLD-15), at their real places */}
           <CampusBlocks layout={layout} centre={frame.centre} />

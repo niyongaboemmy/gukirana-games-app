@@ -24,6 +24,7 @@ import { emissiveByTime } from "./time-of-day/hooks";
 import { agasekeNight, arenaLedNight, arenaScreenNight, fightLedNight } from "./night/material-hooks";
 import { glazingMaterial } from "./glazing";
 import { GLAZED } from "./glass-capture";
+import { weather } from "./weathering";
 import { BENCHES, FOUNTAIN_COURT, FOUNTAIN_RADIUS, PAVING_R, PLAZA_RADIUS, PORTALS, ringPoint, SPAWN } from "./layout";
 
 export type Tier = "lite" | "standard";
@@ -94,6 +95,10 @@ function pavingMaterial(): THREE.MeshStandardMaterial {
 export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
   if (shared && shared.tier === tier) return shared.m;
   const std = (p: THREE.MeshStandardMaterialParameters) => new THREE.MeshStandardMaterial(p);
+  // weathering (P2-WLD-22, world/weathering.ts): world-space breakup, a soil-splash band at wall feet, rain streaks
+  const W = <M extends THREE.Material>(mm: M, o: Parameters<typeof weather>[1]) => weather(mm, o, tier === "lite");
+  // (one look for all masonry, render and board: materials with the same hook key still colour-fold into one batch)
+  const STONE = { macro: 0.12, base: 0.32, baseH: 0.5, streak: 0.08 };
   const glassTex = curtainWallTextures(3);
   const glassTexCool = curtainWallTextures(8);
   const glassP = (t: { map: THREE.Texture; emissive: THREE.Texture }): THREE.MeshStandardMaterialParameters => ({
@@ -106,13 +111,13 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     envMapIntensity: 1.0,
   });
   const m: Record<string, THREE.Material> = {
-    lava: std({ map: lavaStoneTexture(), bumpMap: lavaStoneTexture(), bumpScale: 1.2, roughness: 0.95, color: "#8e8b84" }),
+    lava: W(std({ map: lavaStoneTexture(), bumpMap: lavaStoneTexture(), bumpScale: 1.2, roughness: 0.95, color: "#8e8b84" }), STONE),
     // honed granite slabs, albedo ≈ 0.35, with world-space grime / foot-traffic wear
-    paving: pavingMaterial(),
+    paving: W(pavingMaterial(), { macro: 0.14, base: 0, streak: 0, scale: 0.7 }),
     // flush sawn-basalt band under the wayfinding LEDs, granite + brass spawn medallion
     // (P2-WLD-09: a softer charcoal — the many kerb lines read as calm joints, not black stripes across the plaza)
     basalt: std({ map: concreteTexture(), color: "#605d57", roughness: 0.78 }),
-    granite: std({ map: concreteTexture(), color: "#a8a196", roughness: 0.7 }),
+    granite: W(std({ map: concreteTexture(), color: "#a8a196", roughness: 0.7 }), STONE),
     // each hall's glazing: smoked glass, the real forecourt reflected on it (P2-WLD-18, P2-WLD-20: no interior)
     ...Object.fromEntries(GLAZED.map((g) => [`glazing-${g}`, glazingMaterial(g, tier)])),
     basinFloor: std({ map: concreteTexture(), color: "#6d6a64", roughness: 0.9 }),
@@ -123,16 +128,16 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     lampHead: emissiveByTime(std({ color: "#f4f0e6", emissive: new THREE.Color("#ffe2b8"), emissiveIntensity: 1, roughness: 0.4 }), "uGkLamp", "gk-tod-lamp"),
     // soft contact / ambient-occlusion decals under furniture (the only grounding on Lite)
     ao: new THREE.MeshBasicMaterial({ map: blobTexture(), color: "#000000", transparent: true, opacity: tier === "lite" ? 0.5 : 0.32, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
-    concrete: std({ map: concreteTexture(), roughness: 0.85, color: "#e9e4da" }),
+    concrete: W(std({ map: concreteTexture(), roughness: 0.85, color: "#e9e4da" }), STONE),
     // flat-roof single-ply membrane (P2-WLD-11, world/roofs.ts)
-    roofMembrane: std({ map: roofMembraneTexture(), roughness: 0.8, color: "#e4e5e2" }),
+    roofMembrane: W(std({ map: roofMembraneTexture(), roughness: 0.8, color: "#e4e5e2" }), { macro: 0.16, base: 0, streak: 0 }),
     // Administrative Block: honed limestone cladding and dark bronze-anodised fins (matte)
-    limestone: std({ map: concreteTexture(), roughness: 0.88, color: "#d8d0bf" }),
+    limestone: W(std({ map: concreteTexture(), roughness: 0.88, color: "#d8d0bf" }), STONE),
     bronze: std({ color: "#3f382f", roughness: 0.75, metalness: 0.2 }),
-    concreteDark: std({ map: concreteTexture(), roughness: 0.8, color: "#6f6c68" }),
+    concreteDark: W(std({ map: concreteTexture(), roughness: 0.8, color: "#8a857e" }), STONE),
     wood: std({ map: woodTexture(), roughness: 0.6, color: "#f0d6b8" }),
     woodDark: std({ map: woodTexture(), roughness: 0.55, color: "#7a5236" }),
-    brick: std({ map: brickTexture(), roughness: 0.88 }),
+    brick: W(std({ map: brickTexture(), roughness: 0.88 }), STONE),
     // dark neutral glazing reflecting the sky (no baked sunset), sparse warm interior panes
     // (P2-WLD-19: the lit interior panes glow ~4× after dusk: time-of-day uniform uGkWin)
     glass: emissiveByTime(std(glassP(glassTex)), "uGkWin", "gk-tod-win"),
@@ -141,7 +146,7 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     glassClear: std({ color: "#3a4a52", metalness: 0, roughness: 0.04, envMapIntensity: 1.0, transparent: true, opacity: 0.32, depthWrite: false }),
     alu: std({ color: "#d8dce2", metalness: 1, roughness: 0.32 }),
     steel: std({ color: "#3a3f47", metalness: 0.9, roughness: 0.4 }),
-    white: std({ color: "#f3f1ec", roughness: 0.45, metalness: 0.05 }),
+    white: W(std({ color: "#f3f1ec", roughness: 0.45, metalness: 0.05 }), STONE),
     imigongo: std({ map: imigongoTexture(1), roughness: 0.75 }),
     diamond: std({ map: imigongoDiamondTexture(), roughness: 0.6, metalness: 0.2, side: THREE.DoubleSide }),
     // Tournament Arena (P2-WLD-17): dark chocolate (crown, canopy, fascias, mullions, columns, inner drum) with a soft
@@ -152,16 +157,17 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     arenaRoof: std({ map: standingSeamTexture(), roughness: 0.48, metalness: 0.5 }),
     diamondDark: std({ map: imigongoDiamondTexture("#14161c", "#7a3a22", "#2c2f37"), roughness: 0.5, metalness: 0.6 }),
     grass: std({ map: grassTexture(), roughness: 1, color: "#d8f0c8" }),
-    hedge: std({ color: "#2f6b33", roughness: 0.95 }),
+    // clipped hedges: leaf clumps from world-space noise (were one flat green: P2-WLD-22)
+    hedge: W(std({ color: "#33672d", roughness: 0.95 }), { macro: 0.18, base: 0.3, baseH: 0.35, streak: 0, leaf: true }),
     soil: std({ color: "#2b2420", roughness: 1 }),
     water: std({ color: "#2b4a52", metalness: 0, roughness: 0.04, envMapIntensity: 1.6, transparent: true, opacity: 0.9 }),
     fabric: std({ color: "#f4efe6", roughness: 0.9, side: THREE.DoubleSide }),
     screenFrame: std({ color: "#15171d", metalness: 0.6, roughness: 0.35 }),
     asphalt: std({ map: concreteTexture(), color: "#3a3c40", roughness: 0.95 }),
-    thatch: std({ map: thatchTexture(), bumpMap: thatchTexture(), bumpScale: 1.5, color: "#c2a47a", roughness: 1, side: THREE.DoubleSide }),
+    thatch: W(std({ map: thatchTexture(), bumpMap: thatchTexture(), bumpScale: 1.5, color: "#c2a47a", roughness: 1, side: THREE.DoubleSide }), { macro: 0.2, base: 0, streak: 0, scale: 0.7 }),
     // (the fountain sculpture only; P2-WLD-21: grazed by six basin uplights at night)
     agaseke: agasekeNight(std({ map: agasekeTexture(), bumpMap: agasekeTextures().bump, bumpScale: 0.8, roughness: 0.88 })),
-    hoarding: std({ map: hoardingTexture(), roughness: 0.7 }),
+    hoarding: W(std({ map: hoardingTexture(), roughness: 0.7 }), STONE),
     "paint-orange": std({ color: "#F28C28", roughness: 0.7, side: THREE.DoubleSide }),
     "paint-teal": std({ color: "#159A9C", roughness: 0.7, side: THREE.DoubleSide }),
     "paint-pink": std({ color: "#E4508F", roughness: 0.7, side: THREE.DoubleSide }),
@@ -179,7 +185,7 @@ export function worldMaterials(tier: Tier): Record<string, THREE.Material> {
     // (Fight Games' red / blue lines; P2-WLD-21: a slow night pulse, red and blue trading places)
     "led-fight": fightLedNight(ledMaterial(GAME_COLORS.fight, tier), 0),
     "led-corner-blue": fightLedNight(ledMaterial("#2F5DB0", tier, 0.9), 0.5),
-    charcoal: std({ map: concreteTexture(), color: "#6a6a70", roughness: 0.85 }),
+    charcoal: W(std({ map: concreteTexture(), color: "#6a6a70", roughness: 0.85 }), STONE),
     "led-soon": ledMaterial(GAME_COLORS.soon, tier, 0.5),
     "led-sky": ledMaterial(GAME_COLORS.sky, tier),
     "led-gold": ledMaterial(GAME_COLORS.gold, tier, 0.9),
