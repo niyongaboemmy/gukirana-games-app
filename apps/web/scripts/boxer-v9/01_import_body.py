@@ -67,6 +67,19 @@ with ctx(skin[0], skin):
 body = bpy.context.view_layer.objects.active
 body.name = "body"
 body.data.name = "body"
+# (P3-FGT-23) glTF stores one UV per vertex, so a GLB arrives split into islands along every UV seam (a scan's texture
+# atlas has hundreds). Weld the coincident vertices back (Blender keeps UVs per face corner, so nothing is lost):
+# otherwise the decimation cannot cross a seam and step 5 cut the garments from one tiny island (2 triangles)
+import bmesh  # noqa: E402
+
+_bm = bmesh.new()
+_bm.from_mesh(body.data)
+_n0 = len(_bm.verts)
+bmesh.ops.remove_doubles(_bm, verts=_bm.verts, dist=1e-5)
+_bm.to_mesh(body.data)
+_bm.free()
+if _n0 != len(body.data.vertices):
+    log(f"welded {_n0 - len(body.data.vertices)} seam vertices")
 
 # feet on the floor, centred, facing -Y (MetaHuman and Mixamo already face -Y in Blender after FBX import; a scan
 # may not: check the printed facing and pass the turn in pipeline.json -> gear/rotate if needed)

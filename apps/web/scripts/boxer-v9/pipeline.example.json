@@ -2,6 +2,7 @@
   "_doc": "Copy to work/pipeline.json and edit (node run.mjs --init does it). Paths are relative to apps/web/scripts/boxer-v9. run.mjs runs the steps in order; a step whose input is missing stops and says what to do. See docs/design/boxer-v9/BLENDER-PIPELINE.md.",
   "fighter": "m",
   "body": { "input": "work/in/metahuman/m/boxer_m_full.fbx", "height": 1.80, "target": 19000 },
+  "scan": { "input": "work/in/scan/m/body.obj", "joints": "" },
   "mixamo_character": "work/in/mixamo/m/character.fbx",
   "mixamo_clips_dir": "work/in/mixamo/m",
   "cloth": { "garments": ["singlet", "trunks"], "target": 3500, "source_singlet": "", "source_trunks": "" },
