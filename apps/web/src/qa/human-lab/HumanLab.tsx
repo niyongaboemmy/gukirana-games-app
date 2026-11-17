@@ -6,7 +6,10 @@
  * Query: `look=<look code>` · `body=feminine|masculine|neutral` · `skin=<0…10 index into SKIN_TONES>` ·
  * `age=young|adult|senior` · `light=day|sunset|night|studio` · `cam=<preset>` · `anim=0|1|2|10|11|12` ·
  *   `walk=<m/s>` (walks a straight line, the camera tracks) · `lod=1` (the remote-player distance LOD) · `dpr` ·
- *   `crowd=<n>` (n more people round the lab person, P2-AVA-12 perf) · `people=v1` (the people before P2-AVA-12).
+ *   `crowd=<n>` (n more people round the lab person, P2-AVA-12 perf) · `people=v1` (the people before P2-AVA-12) ·
+ *   P2-AVA-13: `v9=only` (the lab person is a v9 scanned person instead) · `v9=side` (current person left, v9 right) ·
+ *   `v9person=<id>` · `v9clip=<idle|walk|talk|sit|wave|cheer…>` · with `crowd`, the crowd is v9 people when `v9` is set
+ *   (needs the git-ignored apps/web/public/assets/characters/_v9humans/, filled by scripts/human-v9/run.mjs --publish).
  *
  * window.__gkHuman (read / write from the QA script, no reloads):
  *   { ready, frames, scene, gl, camera, person, view: { az, el, dist, target, fov }, look: "<code>" | undefined,
@@ -21,6 +24,8 @@ import { Avatar } from "@/world/Avatar";
 import { decodeLook, SKIN_TONES, type AvatarLook, type BodyType } from "@/world/outfits";
 import { AGE_GROUPS, type AgeGroup } from "@/world/age";
 import { releaseDeferred } from "@/world/deferred";
+import { ScannedPerson } from "@/world/human/v9/ScannedPerson";
+import type { V9Clip } from "@/world/human/v9/logic";
 
 type Target = "body" | "head" | "eyes" | "chest" | "handL" | "handR" | "feet" | "hips";
 /** [azimuth ° around the person (0 = in front), elevation °, distance m, target, fov °] */
@@ -306,7 +311,7 @@ function Reference({ person, color }: { person: React.RefObject<THREE.Group | nu
  * standing, the rest strolling, walking briskly or running round their ring, each with their own seeded look, with the
  * plaza's remote-player distance LOD; the first ring casts shadows. qa/e2e/human-assess/crowd-perf.mjs measures it.
  */
-function Crowd({ n }: { n: number }) {
+function Crowd({ n, v9 }: { n: number; v9: boolean }) {
   const list = useMemo(
     () =>
       Array.from({ length: n }, (_, i) => {
@@ -318,12 +323,12 @@ function Crowd({ n }: { n: number }) {
   return (
     <>
       {list.map((p) => (
-        <CrowdPerson key={p.i} {...p} />
+        <CrowdPerson key={p.i} {...p} v9={v9} />
       ))}
     </>
   );
 }
-function CrowdPerson({ i, r, a0, speed, look }: { i: number; r: number; a0: number; speed: number; look: AvatarLook }) {
+function CrowdPerson({ i, r, a0, speed, look, v9 }: { i: number; r: number; a0: number; speed: number; look: AvatarLook; v9: boolean }) {
   const g = useRef<THREE.Group>(null);
   const anim = useRef(0);
   const a = useRef(a0);
@@ -336,7 +341,11 @@ function CrowdPerson({ i, r, a0, speed, look }: { i: number; r: number; a0: numb
   });
   return (
     <group ref={g}>
-      <Avatar look={look} animRef={anim} showTag={false} lod shadows={i < 8} seedId={`crowd-${i}`} />
+      {v9 ? (
+        <ScannedPerson seedId={`crowd-${i}`} animRef={anim} shadows={i < 8} phase={i * 1.7} />
+      ) : (
+        <Avatar look={look} animRef={anim} showTag={false} lod shadows={i < 8} seedId={`crowd-${i}`} />
+      )}
     </group>
   );
 }
@@ -381,6 +390,7 @@ export default function HumanLab() {
     (window as unknown as { __gkHumanViews?: typeof VIEWS }).__gkHumanViews = VIEWS;
   }, [q]);
   const dpr = Number(q.get("dpr") ?? 0) || undefined;
+  const v9 = q.get("v9") as "only" | "side" | null;
   return (
     <div className="fixed inset-0" style={{ background: rig.bg }}>
       <Canvas
@@ -452,20 +462,37 @@ export default function HumanLab() {
         </mesh>
         <group ref={person}>
           <Suspense fallback={null}>
-            <Avatar
-              look={look}
-              animRef={anim}
-              showTag={false}
-              shadows
-              lod={q.get("lod") === "1"}
-              seedId="qa-human-lab"
-            />
+            {v9 !== "only" && (
+              <group position={[v9 === "side" ? -0.45 : 0, 0, 0]}>
+                <Avatar
+                  look={look}
+                  animRef={anim}
+                  showTag={false}
+                  shadows
+                  lod={q.get("lod") === "1"}
+                  seedId="qa-human-lab"
+                />
+              </group>
+            )}
+            {v9 && (
+              <group position={[v9 === "side" ? 0.45 : 0, 0, 0]}>
+                <ScannedPerson
+                  seedId="qa-human-lab"
+                  personId={q.get("v9person") ?? undefined}
+                  animRef={anim}
+                  clip={(q.get("v9clip") as V9Clip | null) ?? undefined}
+                  seated={q.get("v9clip") === "sit"}
+                  shadows
+                  lod={q.get("lod") === "1" ? 1 : 0}
+                />
+              </group>
+            )}
           </Suspense>
         </group>
         <Reference person={person} color={look.skinTone} />
         {Number(q.get("crowd") ?? 0) > 0 && (
           <Suspense fallback={null}>
-            <Crowd n={Math.min(80, Number(q.get("crowd")))} />
+            <Crowd n={Math.min(80, Number(q.get("crowd")))} v9={!!v9} />
           </Suspense>
         )}
         <Walker person={person} anim={anim} yaw={yaw} />

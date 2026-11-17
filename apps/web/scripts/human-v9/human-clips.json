@@ -1,0 +1,15 @@
+[
+  {"clip": "walk", "file": "07_01.bvh", "cmu": "07_01 walk (subject 7)", "find": "gait", "loop": true, "strip_root": true, "face": "chest", "yaw": 0, "hand": null},
+  {"clip": "walkSlow", "file": "07_04.bvh", "cmu": "07_04 slow walk (subject 7)", "find": "gait", "loop": true, "strip_root": true, "face": "chest", "yaw": 0, "hand": null},
+  {"clip": "idle", "file": "139_02.bvh", "cmu": "139_02 shifting weight (subject 139)", "find": "loop", "min": 4, "max": 9, "loop": true, "strip_root": true, "face": "chest", "yaw": 0, "hand": null},
+  {"clip": "idleWait", "file": "137_28.bvh", "cmu": "137_28 normal wait (subject 137)", "find": "loop", "min": 4, "max": 9, "loop": true, "strip_root": true, "face": "chest", "yaw": 0, "hand": null},
+  {"clip": "lookAround", "file": "139_01.bvh", "cmu": "139_01 looking around (subject 139)", "find": "loop", "min": 4, "max": 8, "loop": true, "strip_root": true, "face": "hips", "yaw": 0, "hand": null},
+  {"clip": "talk", "file": "18_08.bvh", "cmu": "18_08 conversation, explaining with hand gestures (subject 18)", "find": "loop", "min": 5, "max": 9, "loop": true, "strip_root": true, "face": "chest", "yaw": 0, "hand": null},
+  {"clip": "talk2", "file": "138_11.bvh", "cmu": "138_11 story telling (subject 138; walks a little: the root is held in place)", "find": "loop", "min": 2.5, "max": 3.6, "loop": true, "strip_root": true, "face": "chest", "yaw": 0, "hand": null},
+  {"clip": "wave", "file": "143_25.bvh", "cmu": "143_25 waving (subject 143)", "find": "loop", "min": 2, "max": 4, "loop": true, "strip_root": true, "face": "chest", "yaw": 0, "hand": null},
+  {"clip": "cheer", "file": "142_06.bvh", "cmu": "142_06 elated (subject 142)", "find": "loop", "min": 2, "max": 4, "loop": true, "strip_root": true, "face": "chest", "yaw": 0, "hand": null},
+  {"clip": "sitDown", "file": "143_18.bvh", "cmu": "143_18 sit down and get up (subject 143): the sitting down", "find": "sit_down", "loop": false, "strip_root": false, "face": "chest", "yaw": 0, "hand": null},
+  {"clip": "sit", "file": "114_05.bvh", "cmu": "114_05 sitting in chair (subject 114): the seated part", "find": "sit", "min": 3, "max": 7, "loop": true, "strip_root": false, "face": "chest", "yaw": 0, "hand": null},
+  {"clip": "standUp", "file": "143_18.bvh", "cmu": "143_18 sit down and get up: the getting up", "find": "stand_up", "loop": false, "strip_root": false, "face": "chest", "yaw": 0, "hand": null},
+  {"clip": "jump", "file": "13_39.bvh", "cmu": "13_39 jump (subject 13)", "find": "fixed", "start": 0.0, "end": 3.0, "loop": false, "strip_root": true, "face": "chest", "yaw": 0, "hand": null}
+]
