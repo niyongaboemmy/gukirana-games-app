@@ -31,5 +31,8 @@ packages/games/pool/wasm/
 *.log
 .data/
 
+# boxer v9 pipeline test outputs copied for the dev-only BoxerLab (P3-FGT-22): never committed
+apps/web/public/assets/characters/_v9test/
+
 # Claude Code agent worktrees
 .claude/worktrees/

@@ -1,26 +1,48 @@
 #!/usr/bin/env node
-// P3-FGT-21: boxer v9 pipeline runner (docs/design/boxer-v9/BLENDER-PIPELINE.md). Finds Blender, says what to install
-// when something is missing, and runs the Blender steps headless (`blender -b -P <step>.py -- ...`) in order.
+// P3-FGT-21 / P3-FGT-22: boxer v9 pipeline runner (docs/design/boxer-v9/BLENDER-PIPELINE.md). Finds Blender, says what
+// is missing, and runs the Blender steps headless (`blender -b -P <step>.py -- ...`) in order, timing each step.
 //
-//   node apps/web/scripts/boxer-v9/run.mjs --check            # what is installed, what is missing (runs nothing else)
-//   node apps/web/scripts/boxer-v9/run.mjs --init             # make work/ (git-ignored) and work/pipeline.json
-//   node apps/web/scripts/boxer-v9/run.mjs [--dry-run] [--from rig] [--only cloth]
+//   node apps/web/scripts/boxer-v9/run.mjs --check                 # what is installed, what is missing
+//   node apps/web/scripts/boxer-v9/run.mjs --init                  # make work/ (git-ignored) and work/pipeline.json
+//   node apps/web/scripts/boxer-v9/run.mjs --body metahuman|scan|test --clips mixamo|cmu [--gear sketchfab|placeholder]
+//        [--fighter m|f] [--dry-run] [--from <step>] [--only <step>] [--fast] [--publish-test] [--config <json>]
 //
-// Steps: import, decimate, rig, clips, cloth, gear, bake, export, library, ktx2. Between "decimate" and "rig" there
-// is one manual web step (Mixamo auto-rig): the runner stops there and prints exactly what to upload and download.
-// The Python steps are UNTESTED (written before Blender was installed); this runner's --check / --init / --dry-run
-// paths were run with Node 24.
+// --body test runs the whole pipeline on stand-ins that need no login: the shipped v8 GLB as the body AND as the
+// rig source (its own Bip01 skeleton, so the Mixamo web step is skipped). --clips cmu takes the CMU BVH takes listed
+// in cmu-clips.json from work/in/cmu/. --gear placeholder makes a primitive glove (make_placeholder_gear.py).
+// --fast bakes 1k maps with 16 samples (test runs). --publish-test copies a --body test result into the git-ignored
+// apps/web/public/assets/characters/_v9test/ for the dev-only lab (/play/boxing-lab?mode=boxer&v9=1).
+//
+// Steps: placeholder (only with --gear placeholder), import, decimate, rig, clips, cloth, gear, bake, export, library,
+// ktx2, publish (only with --publish-test). With --body metahuman|scan the runner stops before "rig" until the Mixamo
+// auto-rig download is in place, and prints exactly what to upload and download.
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, platform } from "node:os";
-import { delimiter, dirname, join, resolve } from "node:path";
+import { basename, delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WORK = join(HERE, "work");
 const KTX2 = resolve(HERE, "../boxer/ktx2.mjs");
+const PUBLIC_TEST = resolve(HERE, "../../public/assets/characters/_v9test");
+const V8_TEST_BODY = "../../public/assets/characters/v8/boxer-m.glb";
 const MIN_BLENDER = [4, 2];
-const STEPS = ["import", "decimate", "rig", "clips", "cloth", "gear", "bake", "export", "library", "ktx2"];
+const STEPS = [
+  "placeholder",
+  "import",
+  "decimate",
+  "rig",
+  "clips",
+  "cloth",
+  "gear",
+  "bake",
+  "export",
+  "library",
+  "ktx2",
+  "publish",
+];
+const CMU_MIRROR = "https://raw.githubusercontent.com/una-dinosauria/cmu-mocap/master/data";
 
 const argv = process.argv.slice(2);
 const flag = (k) => argv.includes(`--${k}`);
@@ -44,9 +66,15 @@ function which(name) {
 export function blenderCandidates(env = process.env, os = platform(), home = homedir()) {
   const c = [];
   if (env.BLENDER) c.push(env.BLENDER);
-  if (os === "darwin") c.push("/Applications/Blender.app/Contents/MacOS/Blender", join(home, "Applications/Blender.app/Contents/MacOS/Blender"));
+  if (os === "darwin")
+    c.push(
+      "/Applications/Blender.app/Contents/MacOS/Blender",
+      join(home, "Applications/Blender.app/Contents/MacOS/Blender"),
+    );
   if (os === "linux") c.push("/usr/bin/blender", "/snap/bin/blender", join(home, "blender/blender"));
-  if (os === "win32") for (const v of ["5.0", "4.5", "4.4", "4.3", "4.2"]) c.push(`C:\\Program Files\\Blender Foundation\\Blender ${v}\\blender.exe`);
+  if (os === "win32")
+    for (const v of ["5.2", "5.1", "5.0", "4.5", "4.4", "4.3", "4.2"])
+      c.push(`C:\\Program Files\\Blender Foundation\\Blender ${v}\\blender.exe`);
   return c;
 }
 
@@ -58,48 +86,206 @@ function findBlender() {
   return { path: p, version: m ? [Number(m[1]), Number(m[2]), Number(m[3] ?? 0)] : null };
 }
 
-const okVersion = (v) => !!v && (v[0] > MIN_BLENDER[0] || (v[0] === MIN_BLENDER[0] && v[1] >= MIN_BLENDER[1]));
+const okVersion = (v) =>
+  !!v && (v[0] > MIN_BLENDER[0] || (v[0] === MIN_BLENDER[0] && v[1] >= MIN_BLENDER[1]));
 
-function check() {
+function check(quiet = false) {
   const b = findBlender();
   const tools = { basisu: which("basisu"), magick: which("magick") };
-  console.log("boxer v9 pipeline: tool check\n");
+  const say = quiet ? () => {} : console.log;
+  say("boxer v9 pipeline: tool check\n");
   if (!b) {
-    console.log("  Blender      MISSING");
-    console.log("    install: free from https://www.blender.org/download/ (4.2 LTS or newer; 4.5 LTS recommended).");
-    console.log("    macOS: drag Blender.app into /Applications (found automatically), or set BLENDER=/path/to/Blender.");
+    say("  Blender      MISSING");
+    say(
+      "    install: free from https://www.blender.org/download/ (4.2 LTS or newer; verified on 5.2.4 LTS).",
+    );
+    say(
+      "    macOS: drag Blender.app into /Applications (found automatically), or set BLENDER=/path/to/Blender.",
+    );
   } else {
     const v = b.version ? b.version.join(".") : "unknown";
-    console.log(`  Blender      ${b.path} (version ${v})${okVersion(b.version) ? "" : `  TOO OLD: need ${MIN_BLENDER.join(".")}+`}`);
+    say(
+      `  Blender      ${b.path} (version ${v})${okVersion(b.version) ? "" : `  TOO OLD: need ${MIN_BLENDER.join(".")}+`}`,
+    );
   }
-  console.log(`  basisu       ${tools.basisu ?? "MISSING (only for the ktx2 step): brew install basis_universal"}`);
-  console.log(`  magick       ${tools.magick ?? "MISSING (only for the ktx2 step): brew install imagemagick"}`);
-  console.log("\n  Accounts the steps need (free, made by you, never by the agent): Epic Games (MetaHuman Creator in Unreal");
-  console.log("  Engine 5.7+), Adobe ID (mixamo.com), Sketchfab (to download the CC-BY gear).");
+  say(`  basisu       ${tools.basisu ?? "MISSING (only for the ktx2 step): brew install basis_universal"}`);
+  say(`  magick       ${tools.magick ?? "MISSING (only for the ktx2 step): brew install imagemagick"}`);
+  say(
+    "\n  Accounts the real inputs need (free, made by you, never by the agent): Epic Games (MetaHuman Creator in Unreal",
+  );
+  say(
+    "  Engine 5.7+), Adobe ID (mixamo.com), Sketchfab (to download the CC-BY gear). --body test --clips cmu needs none.",
+  );
   return { blender: b && okVersion(b.version) ? b : null, tools };
 }
 
 function init() {
-  for (const d of ["in/metahuman/m", "in/metahuman/f", "in/mixamo/m", "in/mixamo/f", "in/gear/glove", "in/gear/headgear", "in/gear/shoe", "out"]) mkdirSync(join(WORK, d), { recursive: true });
+  for (const d of [
+    "in/metahuman/m",
+    "in/metahuman/f",
+    "in/scan/m",
+    "in/scan/f",
+    "in/mixamo/m",
+    "in/mixamo/f",
+    "in/cmu",
+    "in/gear/glove",
+    "in/gear/headgear",
+    "in/gear/shoe",
+    "out",
+  ])
+    mkdirSync(join(WORK, d), { recursive: true });
   const cfg = join(WORK, "pipeline.json");
   if (!existsSync(cfg)) copyFileSync(join(HERE, "pipeline.example.json"), cfg);
-  console.log(`made ${WORK} (git-ignored) and ${cfg}. Put the downloads in work/in/ as README.md says, then run without --init.`);
+  console.log(
+    `made ${WORK} (git-ignored) and ${cfg}. Put the downloads in work/in/ as BLENDER-PIPELINE.md says, then run without --init.`,
+  );
 }
 
-/** the Blender command lines for every step (pure: no I/O) */
+/**
+ * The effective config: pipeline.json (or the example) with the --body / --clips / --gear choices applied (pure).
+ * body: metahuman (cfg.body.input), scan (cfg.scan.input) or test (the v8 GLB, rigged by its own skeleton).
+ */
+export function profile(base, { body, clips, gear, fast } = {}) {
+  const cfg = structuredClone(base);
+  const f = cfg.fighter ?? "m";
+  cfg.rig = {
+    source: cfg.mixamo_character,
+    map: "mixamo",
+    source_mesh: "",
+    manual: true,
+    ...(cfg.rig ?? {}),
+  };
+  if (body === "test") {
+    cfg.body = { ...cfg.body, input: V8_TEST_BODY, include: ["body", "hair_cap"], height: 0, unwrap: true };
+    cfg.rig = { source: V8_TEST_BODY, map: "bip01", source_mesh: "body", manual: false };
+    cfg.kind = "test";
+  } else if (body === "scan") {
+    cfg.body = { ...cfg.body, ...(cfg.scan ?? {}), input: cfg.scan?.input ?? `work/in/scan/${f}/body.glb` };
+    cfg.kind = "scan";
+  } else {
+    cfg.kind = "metahuman";
+  }
+  if (clips === "cmu") cfg.clips = { list: "cmu-clips.json", dir: cfg.cmu_dir ?? "work/in/cmu", map: "cmu" };
+  else cfg.clips = { list: "mixamo-clips.json", dir: cfg.mixamo_clips_dir, map: "mixamo" };
+  if (gear === "placeholder") {
+    const g = "work/in/gear/placeholder/glove.glb";
+    cfg.placeholder = g;
+    cfg.gear = [
+      { input: g, mode: "glove", side: "L", length: 0.3, target: 2200, hide_hands: true },
+      { input: g, mode: "glove", side: "R", mirror: true, length: 0.3, target: 2200, hide_hands: true },
+    ];
+  }
+  if (fast) cfg.bake = { ...(cfg.bake ?? {}), size: 1024, samples: 16 };
+  return cfg;
+}
+
+/** the command lines for every step (pure: no I/O) */
 export function plan(cfg) {
   const f = cfg.fighter ?? "m";
   const o = (n) => `work/out/${f}/${n}`;
   const py = (s) => join(HERE, s);
   const step = (name, blend, script, args, needs) => ({ name, blend, script: py(script), args, needs });
   const gear = (cfg.gear ?? []).filter((g) => g.enabled !== false);
-  const out = [
-    step("import", null, "01_import_body.py", ["--input", cfg.body.input, "--out", o("01-body.blend"), ...(cfg.body.height ? ["--height", String(cfg.body.height)] : [])], [cfg.body.input]),
-    step("decimate", o("01-body.blend"), "02_decimate.py", ["--out", o("02-body.blend"), "--fbx", o("body-for-mixamo.fbx"), "--target", String(cfg.body.target ?? 19000)], [o("01-body.blend")]),
-    step("rig", o("02-body.blend"), "03_rig.py", ["--mixamo", cfg.mixamo_character, "--out", o("03-rigged.blend")], [o("02-body.blend"), cfg.mixamo_character]),
-    step("clips", o("03-rigged.blend"), "04_retarget_clips.py", ["--clips", py("mixamo-clips.json"), "--dir", cfg.mixamo_clips_dir, "--out", o("04-clips.blend"), "--report", o("clips-report.json")], [o("03-rigged.blend")]),
-    step("cloth", o("04-clips.blend"), "05_cloth.py", ["--poses", py("cloth-poses.json"), "--out", o("05-cloth.blend"), "--report", o("correctives.json"), "--garments", (cfg.cloth?.garments ?? ["singlet", "trunks"]).join(","), "--target", String(cfg.cloth?.target ?? 3500), ...(cfg.cloth?.source_singlet ? ["--source-singlet", cfg.cloth.source_singlet] : []), ...(cfg.cloth?.source_trunks ? ["--source-trunks", cfg.cloth.source_trunks] : [])], [o("04-clips.blend")]),
-  ];
+  const rig = cfg.rig ?? { source: cfg.mixamo_character, map: "mixamo" };
+  const clips = cfg.clips ?? { list: "mixamo-clips.json", dir: cfg.mixamo_clips_dir, map: "mixamo" };
+  const out = [];
+  if (cfg.placeholder)
+    out.push({
+      ...step(
+        "placeholder",
+        null,
+        "make_placeholder_gear.py",
+        ["--out", cfg.placeholder, "--kind", "glove"],
+        [],
+      ),
+      produces: cfg.placeholder,
+    });
+  out.push(
+    step(
+      "import",
+      null,
+      "01_import_body.py",
+      [
+        "--input",
+        cfg.body.input,
+        "--out",
+        o("01-body.blend"),
+        ...(cfg.body.height ? ["--height", String(cfg.body.height)] : []),
+        ...(cfg.body.include?.length ? ["--include", cfg.body.include.join(",")] : []),
+      ],
+      [cfg.body.input],
+    ),
+    step(
+      "decimate",
+      o("01-body.blend"),
+      "02_decimate.py",
+      [
+        "--out",
+        o("02-body.blend"),
+        "--fbx",
+        o("body-for-mixamo.fbx"),
+        "--target",
+        String(cfg.body.target ?? 19000),
+        "--face-tris",
+        String(cfg.body.face_tris ?? 5000),
+        ...(cfg.body.unwrap ? ["--unwrap"] : []),
+      ],
+      [o("01-body.blend")],
+    ),
+    step(
+      "rig",
+      o("02-body.blend"),
+      "03_rig.py",
+      [
+        "--mixamo",
+        rig.source,
+        "--map",
+        rig.map,
+        ...(rig.source_mesh ? ["--source-mesh", rig.source_mesh] : []),
+        "--out",
+        o("03-rigged.blend"),
+      ],
+      [o("02-body.blend"), rig.source],
+    ),
+    step(
+      "clips",
+      o("03-rigged.blend"),
+      "04_retarget_clips.py",
+      [
+        "--clips",
+        py(clips.list),
+        "--dir",
+        clips.dir,
+        "--map",
+        clips.map,
+        "--out",
+        o("04-clips.blend"),
+        "--report",
+        o("clips-report.json"),
+      ],
+      [o("03-rigged.blend"), clips.dir],
+    ),
+    step(
+      "cloth",
+      o("04-clips.blend"),
+      "05_cloth.py",
+      [
+        "--poses",
+        py("cloth-poses.json"),
+        "--out",
+        o("05-cloth.blend"),
+        "--report",
+        o("correctives.json"),
+        "--garments",
+        (cfg.cloth?.garments ?? ["singlet", "trunks"]).join(","),
+        "--target",
+        String(cfg.cloth?.target ?? 3500),
+        ...(cfg.cloth?.source_singlet ? ["--source-singlet", cfg.cloth.source_singlet] : []),
+        ...(cfg.cloth?.source_trunks ? ["--source-trunks", cfg.cloth.source_trunks] : []),
+      ],
+      [o("04-clips.blend")],
+    ),
+  );
   let prev = o("05-cloth.blend");
   gear.forEach((g, i) => {
     const next = o(`06-gear-${i + 1}.blend`);
@@ -114,9 +300,55 @@ export function plan(cfg) {
     out.push(step("gear", prev, "06_fit_gear.py", a, [prev, g.input]));
     prev = next;
   });
-  out.push(step("bake", prev, "07_bake.py", ["--out-dir", o("maps"), "--out", o("07-baked.blend"), "--plan", o("ktx2-plan.json"), "--size", String(cfg.bake?.size ?? 2048), "--rough-min", String(cfg.bake?.rough_min ?? 0.42)], [prev]));
-  out.push(step("export", o("07-baked.blend"), "08_export.py", ["--what", "fighter", "--out", o(`boxer-${f}.glb`), "--lod1", o(`boxer-${f}-lod1.glb`), "--lod1-tris", String(cfg.lod1_tris ?? 12000)], [o("07-baked.blend")]));
-  out.push(step("library", o("07-baked.blend"), "08_export.py", ["--what", "clips", "--out", "work/out/clips/boxer-clips.glb"], [o("07-baked.blend")]));
+  out.push(
+    step(
+      "bake",
+      prev,
+      "07_bake.py",
+      [
+        "--out-dir",
+        o("maps"),
+        "--out",
+        o("07-baked.blend"),
+        "--plan",
+        o("ktx2-plan.json"),
+        "--size",
+        String(cfg.bake?.size ?? 2048),
+        "--samples",
+        String(cfg.bake?.samples ?? 64),
+        "--rough-min",
+        String(cfg.bake?.rough_min ?? 0.42),
+      ],
+      [prev],
+    ),
+  );
+  out.push(
+    step(
+      "export",
+      o("07-baked.blend"),
+      "08_export.py",
+      [
+        "--what",
+        "fighter",
+        "--out",
+        o(`boxer-${f}.glb`),
+        "--lod1",
+        o(`boxer-${f}-lod1.glb`),
+        "--lod1-tris",
+        String(cfg.lod1_tris ?? 12000),
+      ],
+      [o("07-baked.blend")],
+    ),
+  );
+  out.push(
+    step(
+      "library",
+      o("07-baked.blend"),
+      "08_export.py",
+      ["--what", "clips", "--out", "work/out/clips/boxer-clips.glb"],
+      [o("07-baked.blend")],
+    ),
+  );
   out.push({ name: "ktx2", node: [KTX2, "--plan", o("ktx2-plan.json")], needs: [o("ktx2-plan.json")] });
   return out;
 }
@@ -127,58 +359,205 @@ const MANUAL = {
     `  1. open https://www.mixamo.com, sign in, "Upload Character", choose work/out/${cfg.fighter ?? "m"}/body-for-mixamo.fbx;\n` +
     `  2. place the markers (chin, wrists, elbows, knees, groin), skeleton LOD "Standard Skeleton (65)", Next;\n` +
     `  3. with that character selected: Download, Format "FBX Binary (.fbx)", Pose "T-pose", Skin "With Skin";\n` +
-    `  4. save it as ${cfg.mixamo_character}, then the clips (docs/design/boxer-v9/MIXAMO-MOVES.md) into ${cfg.mixamo_clips_dir};\n` +
+    `  4. save it as ${cfg.rig?.source ?? cfg.mixamo_character}, then the clips (docs/design/boxer-v9/MIXAMO-MOVES.md) into ${cfg.mixamo_clips_dir};\n` +
     `  5. run this again with --from rig.`,
+  import: (cfg) =>
+    cfg.kind === "scan"
+      ? `The scanned body is missing: put the FBX / GLB / OBJ at ${cfg.body.input} (or set scan.input in work/pipeline.json). ASSET-SOURCES.md lists free scans.`
+      : `The MetaHuman export is missing: follow docs/design/boxer-v9/METAHUMAN-SPEC.md and save the full-body FBX as ${cfg.body.input}.\n` +
+        `  (No MetaHuman yet? --body test runs the whole pipeline on the v8 stand-in body.)`,
+  placeholder: () => "",
 };
+
+/** the clip files a clip list needs that are not in its folder */
+function missingClips(cfg) {
+  const list = JSON.parse(readFileSync(join(HERE, cfg.clips.list), "utf8"));
+  const have = existsSync(resolve(HERE, cfg.clips.dir))
+    ? new Set(readdirSync(resolve(HERE, cfg.clips.dir)))
+    : new Set();
+  return {
+    all: [...new Set(list.map((c) => c.file))],
+    missing: [...new Set(list.map((c) => c.file).filter((f) => !have.has(f)))],
+  };
+}
+
+function clipHelp(cfg, missing, all) {
+  if (cfg.clips.map === "cmu") {
+    return (
+      `CMU clips missing in ${cfg.clips.dir}: ${missing.join(", ")}. They are free (CMU Graphics Lab Motion Capture Database, BVH conversion\n` +
+      `by B. Hahne). Download them yourself into that folder (untrusted data: a folder of their own, nothing else in it), e.g.\n` +
+      missing
+        .map(
+          (f) => `  curl -fL -o ${cfg.clips.dir}/${f} ${CMU_MIRROR}/${f.slice(0, 2).padStart(3, "0")}/${f}`,
+        )
+        .join("\n")
+    );
+  }
+  return `Mixamo clips missing in ${cfg.clips.dir}: ${missing.length} of ${all.length} (${missing.slice(0, 6).join(", ")}${missing.length > 6 ? " ..." : ""}). Download them as docs/design/boxer-v9/MIXAMO-MOVES.md says. Missing ones are skipped; none at all stops the step.`;
+}
+
+function publishTest(cfg) {
+  const f = cfg.fighter ?? "m";
+  if (cfg.kind !== "test")
+    throw new Error(
+      "--publish-test only copies a --body test result: real MetaHuman / Mixamo / scan outputs never go into public/ (LICENCES.md)",
+    );
+  const src = join(WORK, "out", f);
+  mkdirSync(join(PUBLIC_TEST, "maps"), { recursive: true });
+  copyFileSync(join(src, `boxer-${f}.glb`), join(PUBLIC_TEST, "boxer-m.glb"));
+  copyFileSync(join(WORK, "out/clips/boxer-clips.glb"), join(PUBLIC_TEST, "boxer-clips.glb"));
+  // the phone-size KTX2 maps and an index { object: { normal: file, color: file, ... } } for the lab
+  const planFile = join(src, "ktx2-plan.json");
+  const jobs = existsSync(planFile)
+    ? JSON.parse(readFileSync(planFile, "utf8")).filter(
+        (j) => j.variant === "phone" && existsSync(resolve(HERE, j.out)),
+      )
+    : [];
+  const index = {};
+  for (const j of jobs) {
+    copyFileSync(resolve(HERE, j.out), join(PUBLIC_TEST, "maps", basename(j.out)));
+    (index[j.object] ??= {})[j.map] = basename(j.out);
+  }
+  writeFileSync(join(PUBLIC_TEST, "maps.json"), JSON.stringify(index, null, 2));
+  console.log(
+    `copied the test fighter, the clip library and ${jobs.length} KTX2 maps to ${PUBLIC_TEST} (git-ignored)`,
+  );
+}
+
+const fmt = (ms) =>
+  ms < 60_000
+    ? `${(ms / 1000).toFixed(1)} s`
+    : `${Math.floor(ms / 60_000)} min ${Math.round((ms % 60_000) / 1000)} s`;
 
 function main() {
   if (flag("check")) return void check();
   if (flag("init")) return void init();
   const cfgPath = opt("config") ?? join(WORK, "pipeline.json");
-  if (!existsSync(cfgPath)) {
-    console.log(`no ${cfgPath}: run with --init first (it copies pipeline.example.json).`);
+  const body = opt("body") ?? "metahuman";
+  const clipsKind = opt("clips") ?? "mixamo";
+  const gearKind = opt("gear") ?? (body === "test" ? "placeholder" : "sketchfab");
+  for (const [k, v, ok] of [
+    ["body", body, ["metahuman", "scan", "test"]],
+    ["clips", clipsKind, ["mixamo", "cmu"]],
+    ["gear", gearKind, ["sketchfab", "placeholder"]],
+  ])
+    if (!ok.includes(v)) throw new Error(`--${k} is ${ok.join(" | ")} (got ${v})`);
+  if (!existsSync(cfgPath) && body !== "test") {
+    console.log(
+      `no ${cfgPath}: run with --init first (it copies pipeline.example.json), or try --body test --clips cmu.`,
+    );
     process.exitCode = 1;
     return;
   }
-  const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
+  const base = JSON.parse(
+    readFileSync(existsSync(cfgPath) ? cfgPath : join(HERE, "pipeline.example.json"), "utf8"),
+  );
+  const cfg = profile(base, { body, clips: clipsKind, gear: gearKind, fast: flag("fast") });
   const steps = plan(cfg);
+  if (flag("publish-test")) steps.push({ name: "publish", publish: true, needs: [] });
   const from = opt("from"),
     only = opt("only");
-  for (const s of [from, only]) if (s && !STEPS.includes(s)) throw new Error(`unknown step ${s} (${STEPS.join(", ")})`);
-  const start = from ? steps.findIndex((s) => s.name === from) : 0;
+  for (const s of [from, only])
+    if (s && !STEPS.includes(s)) throw new Error(`unknown step ${s} (${STEPS.join(", ")})`);
+  const start = from
+    ? Math.max(
+        0,
+        steps.findIndex((s) => s.name === from),
+      )
+    : 0;
   const todo = steps.slice(start).filter((s) => !only || s.name === only);
   const dry = flag("dry-run");
-  const blender = dry ? { path: "blender" } : check().blender;
+  console.log(
+    `boxer v9: body ${body}, clips ${clipsKind}, gear ${gearKind}, fighter ${cfg.fighter ?? "m"}${flag("fast") ? ", fast bake" : ""}`,
+  );
+  const blender = dry ? { path: "blender" } : check(true).blender;
   if (!blender && todo.some((s) => s.script)) {
+    check();
     console.log("\nBlender is needed for these steps: install it (above) and run again.");
     process.exitCode = 1;
     return;
   }
+  const times = [];
   for (const s of todo) {
+    if (s.name === "clips" && !dry) {
+      // (checked when the step is reached: the first MetaHuman run does steps 1-2 before any clip exists)
+      const c = missingClips(cfg);
+      if (c.missing.length === c.all.length) {
+        console.log(`\n[clips] ${clipHelp(cfg, c.missing, c.all)}`);
+        process.exitCode = 1;
+        return;
+      }
+      if (c.missing.length) console.log(`\n[clips] note: ${clipHelp(cfg, c.missing, c.all)}`);
+    }
     const missing = s.needs.filter((p) => !existsSync(resolve(HERE, p)));
+    if (s.produces && existsSync(resolve(HERE, s.produces)) && !only) {
+      console.log(`\n[${s.name}] ${s.produces} exists: skipped`);
+      continue;
+    }
     if (missing.length && !dry) {
       console.log(`\n[${s.name}] waiting for: ${missing.join(", ")}`);
-      if (MANUAL[s.name]) console.log(MANUAL[s.name](cfg));
+      const m = MANUAL[s.name === "rig" && cfg.rig?.manual === false ? "none" : s.name];
+      if (m) console.log(m(cfg));
       process.exitCode = 1;
       return;
     }
-    if (s.node) {
+    const t0 = Date.now();
+    if (s.publish) {
+      if (!dry) publishTest(cfg);
+    } else if (s.node) {
       console.log(`\n[${s.name}] node ${s.node.join(" ")}`);
-      if (!dry) execFileSync(process.execPath, s.node, { cwd: HERE, stdio: "inherit" });
-      continue;
+      if (!dry) {
+        const tools = check(true).tools;
+        if (!tools.basisu || !tools.magick) {
+          console.log(`[${s.name}] needs basisu and magick (run --check): skipped`);
+          process.exitCode = 1;
+          return;
+        }
+        execFileSync(process.execPath, s.node, { cwd: HERE, stdio: "inherit" });
+      }
+    } else {
+      const cmd = ["--factory-startup", "-b", ...(s.blend ? [s.blend] : []), "-P", s.script, "--", ...s.args];
+      console.log(`\n[${s.name}] ${blender.path} ${cmd.join(" ")}`);
+      if (dry) continue;
+      for (const p of s.args)
+        if (p.startsWith("work/")) mkdirSync(dirname(resolve(HERE, p)), { recursive: true });
+      const r = spawnSync(blender.path, cmd, { cwd: HERE, stdio: "inherit" });
+      if (r.status !== 0) {
+        console.log(
+          `[${s.name}] failed (exit ${r.status}) after ${fmt(Date.now() - t0)}: read the [boxer-v9] ERROR above.`,
+        );
+        process.exitCode = r.status ?? 1;
+        return;
+      }
     }
-    const cmd = ["--factory-startup", "-b", ...(s.blend ? [s.blend] : []), "-P", s.script, "--", ...s.args];
-    console.log(`\n[${s.name}] ${blender.path} ${cmd.join(" ")}`);
-    if (dry) continue;
-    for (const p of s.args) if (p.startsWith("work/out/")) mkdirSync(dirname(resolve(HERE, p)), { recursive: true });
-    const r = spawnSync(blender.path, cmd, { cwd: HERE, stdio: "inherit" });
-    if (r.status !== 0) {
-      console.log(`[${s.name}] failed (exit ${r.status}). The scripts are untested: read the error above, fix the script or the config.`);
-      process.exitCode = r.status ?? 1;
-      return;
+    if (!dry) {
+      times.push({
+        step:
+          s.name +
+          (s.name === "gear" ? ` ${basename(String(s.args[s.args.indexOf("--out") + 1]), ".blend")}` : ""),
+        ms: Date.now() - t0,
+      });
+      console.log(`[${s.name}] done in ${fmt(times.at(-1).ms)}`);
     }
   }
-  console.log(`\ndone. Outputs in work/out/. Judge them with docs/design/boxer-v9/CHECKLIST.md before anything ships.`);
+  if (dry) return;
+  console.log("\nstep timings:");
+  for (const t of times) console.log(`  ${t.step.padEnd(22)} ${fmt(t.ms)}`);
+  const total = times.reduce((a, t) => a + t.ms, 0);
+  console.log(`  ${"total".padEnd(22)} ${fmt(total)}`);
+  const tf = join(WORK, "out", cfg.fighter ?? "m", "timings.json");
+  mkdirSync(dirname(tf), { recursive: true });
+  writeFileSync(
+    tf,
+    JSON.stringify(
+      { body, clips: clipsKind, gear: gearKind, fast: flag("fast"), steps: times, total_ms: total },
+      null,
+      2,
+    ),
+  );
+  console.log(
+    `\ndone. Outputs in work/out/. Judge them with docs/design/boxer-v9/CHECKLIST.md before anything ships.`,
+  );
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main();

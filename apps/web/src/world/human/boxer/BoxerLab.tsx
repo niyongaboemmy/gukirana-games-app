@@ -12,6 +12,7 @@ import { Avatar } from "../../Avatar";
 import { BoxerAvatar, type BoxerProbe } from "./BoxerAvatar";
 import type { BoxerOutfit } from "./boxer-body";
 import { countSign } from "../boxing/count-signs";
+import { BoxerV9Lab, V9_LAB, type V9Probe } from "./v9-lab.dev";
 
 /**
  * Boxer body debug view (P3-FGT-14, dev-only, /play/boxing-lab?mode=boxer): one ring person on the boxer body, one clip
@@ -25,11 +26,24 @@ import { countSign } from "../boxing/count-signs";
  * count=<1…10> (the referee's finger count over the clip, e.g. clip=refCount / refCount2) ·
  * glb=before (the P3-FGT-13 GLB, kept untracked under public/assets/characters/_before/ for comparisons) ·
  * cam=<VIEWS key> (in the chest frame; az / el / dist / fov override it) · headgear=0 · cmp=1 (the old Rocketbox fighter beside it, same
- * clip and clock: the rig's reference body).
+ * clip and clock: the rig's reference body) · v9=1 (P3-FGT-22, development only: the boxer v9 Blender pipeline's test
+ * output instead, see v9-lab.dev.tsx).
  */
 const LOOK: Record<"m" | "f", AvatarLook> = {
-  m: { ...DEFAULT_LOOK, bodyType: "masculine", skinTone: SKIN_TONES[4]!, hairColor: HAIR_COLORS[0]!, face: { ...DEFAULT_LOOK.face } },
-  f: { ...DEFAULT_LOOK, bodyType: "feminine", skinTone: SKIN_TONES[5]!, hairColor: HAIR_COLORS[0]!, face: { ...DEFAULT_LOOK.face } },
+  m: {
+    ...DEFAULT_LOOK,
+    bodyType: "masculine",
+    skinTone: SKIN_TONES[4]!,
+    hairColor: HAIR_COLORS[0]!,
+    face: { ...DEFAULT_LOOK.face },
+  },
+  f: {
+    ...DEFAULT_LOOK,
+    bodyType: "feminine",
+    skinTone: SKIN_TONES[5]!,
+    hairColor: HAIR_COLORS[0]!,
+    face: { ...DEFAULT_LOOK.face },
+  },
 };
 
 const ARM_COLORS: Record<string, [number, number, number]> = {
@@ -106,17 +120,23 @@ const VIEWS: Record<string, [number, number, number, "chest" | "shL" | "shR" | "
   fullSide: [90, 6, 3.6, "body", 36],
 };
 
-function CamRig({ q, probe }: { q: URLSearchParams; probe: React.RefObject<BoxerProbe | null> }) {
+function CamRig({
+  q,
+  bones,
+}: {
+  q: URLSearchParams;
+  bones: () => ((n: string) => THREE.Object3D | null) | null;
+}) {
   const { camera } = useThree();
   const v = VIEWS[q.get("cam") ?? "front"] ?? VIEWS.front!;
   useFrame(() => {
-    const p = probe.current;
-    if (!p) return;
+    const bone = bones();
+    if (!bone) return;
     const b = (n: string) => {
-      const o = p.inst.bone(n);
+      const o = bone(n);
       return o ? o.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(0, 1.3, 0);
     };
-    const sp = p.inst.bone("Bip01_Spine2");
+    const sp = bone("Bip01_Spine2");
     const fwd = new THREE.Vector3(0, 0, 1);
     if (sp) fwd.applyQuaternion(sp.getWorldQuaternion(new THREE.Quaternion()));
     fwd.y = 0;
@@ -125,8 +145,22 @@ function CamRig({ q, probe }: { q: URLSearchParams; probe: React.RefObject<Boxer
     const az = THREE.MathUtils.degToRad(Number(q.get("az") ?? v[0]));
     const el = THREE.MathUtils.degToRad(Number(q.get("el") ?? v[1]));
     const dist = Number(q.get("dist") ?? v[2]);
-    const tgt = v[3] === "head" ? b("Bip01_Head").add(new THREE.Vector3(0, 0.02, 0)) : v[3] === "shL" ? b("Bip01_L_UpperArm") : v[3] === "shR" ? b("Bip01_R_UpperArm") : v[3] === "body" ? b("Bip01_Pelvis").setY(0.95) : b("Bip01_Spine2").add(new THREE.Vector3(0, 0.08, 0));
-    const dir = fwd.clone().multiplyScalar(Math.cos(az)).addScaledVector(left, Math.sin(az)).multiplyScalar(Math.cos(el)).add(new THREE.Vector3(0, Math.sin(el), 0));
+    const tgt =
+      v[3] === "head"
+        ? b("Bip01_Head").add(new THREE.Vector3(0, 0.02, 0))
+        : v[3] === "shL"
+          ? b("Bip01_L_UpperArm")
+          : v[3] === "shR"
+            ? b("Bip01_R_UpperArm")
+            : v[3] === "body"
+              ? b("Bip01_Pelvis").setY(0.95)
+              : b("Bip01_Spine2").add(new THREE.Vector3(0, 0.08, 0));
+    const dir = fwd
+      .clone()
+      .multiplyScalar(Math.cos(az))
+      .addScaledVector(left, Math.sin(az))
+      .multiplyScalar(Math.cos(el))
+      .add(new THREE.Vector3(0, Math.sin(el), 0));
     camera.position.copy(tgt).addScaledVector(dir, dist);
     camera.lookAt(tgt);
     const pc = camera as THREE.PerspectiveCamera;
@@ -137,15 +171,40 @@ function CamRig({ q, probe }: { q: URLSearchParams; probe: React.RefObject<Boxer
   return null;
 }
 
-export function BoxerLab({ q, setInfo }: { q: URLSearchParams; setInfo: (s: string) => void }) {
-  const clip = ((q.get("clip") as BoxingClipName) ?? "guard") in BOXING_CLIPS ? ((q.get("clip") as BoxingClipName) ?? "guard") : "guard";
+export function BoxerLab(props: { q: URLSearchParams; setInfo: (s: string) => void }) {
+  if (V9_LAB && props.q.get("v9") === "1") return <BoxerLabV9 {...props} />;
+  return <BoxerLabV8 {...props} />;
+}
+
+/** P3-FGT-22 (development only): the v9 pipeline's test GLB with the same lab cameras */
+function BoxerLabV9({ q, setInfo }: { q: URLSearchParams; setInfo: (s: string) => void }) {
+  const probe = useRef<V9Probe | null>(null);
+  const bones = useMemo(() => () => probe.current?.bone ?? null, []);
+  return (
+    <>
+      <BoxerV9Lab q={q} setInfo={setInfo} probe={probe} />
+      <CamRig q={q} bones={bones} />
+    </>
+  );
+}
+
+function BoxerLabV8({ q, setInfo }: { q: URLSearchParams; setInfo: (s: string) => void }) {
+  const clip =
+    ((q.get("clip") as BoxingClipName) ?? "guard") in BOXING_CLIPS
+      ? ((q.get("clip") as BoxingClipName) ?? "guard")
+      : "guard";
   const gender = q.get("gender") === "f" ? "f" : "m";
   const outfit = (q.get("outfit") as BoxerOutfit) ?? "boxer";
   const debug = q.get("debug") ?? "";
   const bind = q.get("bind") === "1";
   const info = BOXING_CLIPS[clip];
   const atQ = q.get("at");
-  const at = atQ === "impact" ? (info.impact ?? 0) : atQ !== null ? Number(atQ) : (info.impact ?? Math.min(0.5, info.duration * 0.5));
+  const at =
+    atQ === "impact"
+      ? (info.impact ?? 0)
+      : atQ !== null
+        ? Number(atQ)
+        : (info.impact ?? Math.min(0.5, info.duration * 0.5));
   const motion = useMemo(() => {
     const m = new BoxingMotion();
     m.play({ clip, start: 0, blend: 0 });
@@ -156,7 +215,11 @@ export function BoxerLab({ q, setInfo }: { q: URLSearchParams; setInfo: (s: stri
   const clock = useMemo(() => (play ? () => at + performance.now() / 1000 : () => at), [at, play]);
   const weight = useMemo(() => ({ current: bind ? 0 : 1 }), [bind]);
   const probe = useRef<BoxerProbe | null>(null);
-  const fingers = useMemo(() => ({ current: q.get("count") ? countSign(Number(q.get("count"))) : null }), [q]);
+  const camBones = useMemo(() => () => probe.current?.inst.bone ?? null, []);
+  const fingers = useMemo(
+    () => ({ current: q.get("count") ? countSign(Number(q.get("count"))) : null }),
+    [q],
+  );
   // face choices (world/face.ts) over the default look: fshape / feyes / fnose / flips
   const look = useMemo(() => {
     const f = { ...LOOK[gender].face } as AvatarLook["face"];
@@ -170,11 +233,27 @@ export function BoxerLab({ q, setInfo }: { q: URLSearchParams; setInfo: (s: stri
     // P3-FGT-15: tone=<SKIN_TONES index> · age=young|adult|senior · top / bottom=<outfit item id> (the everyday person)
     const base = LOOK[gender];
     const tone = q.get("tone");
-    const outfitQ = { ...base.outfit, ...(q.get("top") ? { top: q.get("top")! } : {}), ...(q.get("bottom") ? { bottom: q.get("bottom")! } : {}) };
-    return { ...base, face: f, outfit: outfitQ, ...(tone ? { skinTone: SKIN_TONES[Number(tone)] ?? base.skinTone } : {}), ...(q.get("age") ? { age: q.get("age") as AvatarLook["age"] } : {}) };
+    const outfitQ = {
+      ...base.outfit,
+      ...(q.get("top") ? { top: q.get("top")! } : {}),
+      ...(q.get("bottom") ? { bottom: q.get("bottom")! } : {}),
+    };
+    return {
+      ...base,
+      face: f,
+      outfit: outfitQ,
+      ...(tone ? { skinTone: SKIN_TONES[Number(tone)] ?? base.skinTone } : {}),
+      ...(q.get("age") ? { age: q.get("age") as AvatarLook["age"] } : {}),
+    };
   }, [q, gender]);
   const { scene } = useThree();
-  useEffect(() => setInfo(`boxer ${gender} ${outfit} · ${clip} @ ${at.toFixed(2)} s${debug ? ` · ${debug}` : ""}${bind ? " · bind" : ""}`), [gender, outfit, clip, at, debug, bind, setInfo]);
+  useEffect(
+    () =>
+      setInfo(
+        `boxer ${gender} ${outfit} · ${clip} @ ${at.toFixed(2)} s${debug ? ` · ${debug}` : ""}${bind ? " · bind" : ""}`,
+      ),
+    [gender, outfit, clip, at, debug, bind, setInfo],
+  );
   // debug overlays once the person exists
   useEffect(() => {
     let helper: THREE.SkeletonHelper | null = null;
@@ -182,7 +261,8 @@ export function BoxerLab({ q, setInfo }: { q: URLSearchParams; setInfo: (s: stri
       const p = probe.current;
       if (!p) return;
       clearInterval(id);
-      if (debug === "weights") p.inst.mesh.material = debugMaterial(p.inst.mesh, q.get("bone") ?? "arm") as never;
+      if (debug === "weights")
+        p.inst.mesh.material = debugMaterial(p.inst.mesh, q.get("bone") ?? "arm") as never;
       // P3-FGT-16: arms=ik shows the P3-FGT-14 wrist-target IK arms (before / after comparisons and metrics)
       if (q.get("arms") === "ik") (p.rig as unknown as { armFk: null }).armFk = null;
       if (debug === "bones" || q.get("bones") === "1") {
@@ -199,7 +279,16 @@ export function BoxerLab({ q, setInfo }: { q: URLSearchParams; setInfo: (s: stri
         }
       }
       // (P3-FGT-19B: the clip sampler and the pose layout for the fighter-v8 harness's pose fitter)
-      (window as unknown as { __gkBoxer?: object }).__gkBoxer = { ready: true, bones: p.inst.mesh.skeleton.bones.length, probe: p, scene, sampleClip, clips: BOXING_CLIPS, P, ARM };
+      (window as unknown as { __gkBoxer?: object }).__gkBoxer = {
+        ready: true,
+        bones: p.inst.mesh.skeleton.bones.length,
+        probe: p,
+        scene,
+        sampleClip,
+        clips: BOXING_CLIPS,
+        P,
+        ARM,
+      };
     }, 50);
     return () => {
       clearInterval(id);
@@ -208,9 +297,32 @@ export function BoxerLab({ q, setInfo }: { q: URLSearchParams; setInfo: (s: stri
   }, [debug, q, scene]);
   return (
     <>
-      <BoxerAvatar look={look} outfit={outfit} kit="#c0262d" polo={outfit === "casual" ? undefined : "#2b2e34"} motion={motion} clock={clock} weight={weight} seed={7} klass={0} noHeadgear={q.get("headgear") === "0"} bare={q.get("bare") === "1"} fingers={fingers} src={q.get("glb") === "before" ? `/assets/characters/boxer-${gender}-v5.glb` : q.get("glb") === "v6" ? `/assets/characters/boxer-${gender}-v6.glb` : undefined} v5={q.get("glb") === "before"} v6={q.get("glb") === "v6"} probe={probe} />
+      <BoxerAvatar
+        look={look}
+        outfit={outfit}
+        kit="#c0262d"
+        polo={outfit === "casual" ? undefined : "#2b2e34"}
+        motion={motion}
+        clock={clock}
+        weight={weight}
+        seed={7}
+        klass={0}
+        noHeadgear={q.get("headgear") === "0"}
+        bare={q.get("bare") === "1"}
+        fingers={fingers}
+        src={
+          q.get("glb") === "before"
+            ? `/assets/characters/boxer-${gender}-v5.glb`
+            : q.get("glb") === "v6"
+              ? `/assets/characters/boxer-${gender}-v6.glb`
+              : undefined
+        }
+        v5={q.get("glb") === "before"}
+        v6={q.get("glb") === "v6"}
+        probe={probe}
+      />
       {q.get("cmp") === "1" && <Reference look={LOOK[gender]} motion={motion} clock={clock} />}
-      <CamRig q={q} probe={probe} />
+      <CamRig q={q} bones={camBones} />
     </>
   );
 }

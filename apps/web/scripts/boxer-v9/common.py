@@ -1,6 +1,6 @@
 """Shared helpers for the boxer v9 Blender scripts (P3-FGT-21, docs/design/boxer-v9/BLENDER-PIPELINE.md).
 
-UNTESTED: needs Blender. Written for Blender 4.2 LTS or newer (4.5 LTS / 5.x expected); nothing here was run yet.
+Verified on Blender 5.2.4 LTS (P3-FGT-22). Written for 4.2+; see BLENDER-PIPELINE.md "Blender 5.2".
 
 Every step script is run headless by run.mjs:
 
@@ -100,7 +100,16 @@ def import_any(path):
     if ext == ".fbx":
         # Mixamo and Unreal FBX: keep the file's bone orientation, drop the _end leaf bones
         bpy.ops.import_scene.fbx(filepath=path, ignore_leaf_bones=True, automatic_bone_orientation=False)
-    elif ext in (".glb", ".gltf"):
+    elif ext == ".glb":
+        # Blender 5.2's glTF importer crashes on 8-bit custom vertex attributes ("_AO", "_MAT" ... as in our own v8
+        # GLBs: "couldn't access the py sequence"). We never need them, so import a copy without them.
+        clean = strip_custom_attributes(path)
+        try:
+            bpy.ops.import_scene.gltf(filepath=clean)
+        finally:
+            if clean != path:
+                os.remove(clean)
+    elif ext == ".gltf":
         bpy.ops.import_scene.gltf(filepath=path)
     elif ext == ".obj":
         bpy.ops.wm.obj_import(filepath=path)
@@ -114,6 +123,38 @@ def import_any(path):
     return new
 
 
+def strip_custom_attributes(path):
+    """A copy of a GLB without the application-specific vertex attributes (names starting with "_"), next to the
+    system temp dir. Returns the original path when there are none. Pure byte surgery on the JSON chunk."""
+    import struct
+    import tempfile
+
+    with open(path, "rb") as f:
+        data = f.read()
+    magic, version, _total = struct.unpack_from("<III", data, 0)
+    if magic != 0x46546C67:
+        fail(f"{path}: not a GLB")
+    jlen, jtype = struct.unpack_from("<II", data, 12)
+    doc = json.loads(data[20 : 20 + jlen].decode("utf8"))
+    dropped = set()
+    for m in doc.get("meshes", []):
+        for p in m.get("primitives", []):
+            for k in [k for k in p.get("attributes", {}) if k.startswith("_")]:
+                dropped.add(k)
+                del p["attributes"][k]
+    if not dropped:
+        return path
+    js = json.dumps(doc, separators=(",", ":")).encode("utf8")
+    js += b" " * ((4 - len(js) % 4) % 4)
+    rest = data[20 + jlen :]
+    out = struct.pack("<III", magic, version, 12 + 8 + len(js) + len(rest)) + struct.pack("<II", len(js), jtype) + js + rest
+    fd, tmp = tempfile.mkstemp(suffix=".glb", prefix="boxer-v9-")
+    with os.fdopen(fd, "wb") as f:
+        f.write(out)
+    log(f"{os.path.basename(path)}: importing without the custom attributes {', '.join(sorted(dropped))}")
+    return tmp
+
+
 def ctx(obj, selected=None):
     """A context override for operators that act on the active / selected objects (background mode has no UI)."""
     sel = selected if selected is not None else [obj]
@@ -121,8 +162,11 @@ def ctx(obj, selected=None):
 
 
 def select_only(objs, active=None):
+    # (Blender 5.2: after bpy.data.objects.remove() the view layer can still yield None until it is updated)
+    bpy.context.view_layer.update()
     for o in bpy.context.view_layer.objects:
-        o.select_set(False)
+        if o is not None:
+            o.select_set(False)
     for o in objs:
         o.select_set(True)
     bpy.context.view_layer.objects.active = active or (objs[0] if objs else None)
@@ -163,9 +207,22 @@ def mixamo_name(name):
     return _PREFIX.sub("", name)
 
 
-def bip_of(source_name):
+def source_map(kind):
+    """source bone name -> Bip01 name, for a source skeleton of this kind:
+    mixamo (Mixamo auto-rig / clips), cmu (the CMU BVH conversions, cmu_to_bip01) or bip01 (a skeleton that already
+    uses our names, e.g. the v8 test body: identity, the helper bones left out so 03_rig.py re-makes them)."""
+    if kind == "mixamo":
+        return dict(BONE_MAP["mixamo_to_bip01"])
+    if kind == "cmu":
+        return dict(BONE_MAP["cmu_to_bip01"])
+    if kind == "bip01":
+        return {b: b for b in BONE_MAP["bip01_parent"] if not b.endswith(("ShoulderHelper", "ForearmTwist", "Pelvis"))}
+    fail(f"unknown skeleton kind {kind} (mixamo, cmu, bip01)")
+
+
+def bip_of(source_name, kind="mixamo"):
     """Our Bip01 name for a Mixamo (or other mapped) bone, or None."""
-    return BONE_MAP["mixamo_to_bip01"].get(mixamo_name(source_name))
+    return source_map(kind).get(mixamo_name(source_name))
 
 
 def world_head(arm_obj, bone_name):
@@ -218,6 +275,7 @@ __all__ = [
     "apply_modifier",
     "mixamo_name",
     "bip_of",
+    "source_map",
     "world_head",
     "skin_matrix",
     "hip_height",

@@ -1,6 +1,6 @@
 """Step 8: export the fighter (LOD0 + LOD1) and the shared clip library as GLB.
 
-UNTESTED: needs Blender (4.2+, its bundled glTF exporter).
+Verified on Blender 5.2.4 (P3-FGT-22): fighter, LOD1 and clip library; every bind rotation exported as identity.
 
     blender -b work/out/m/07-baked.blend -P apps/web/scripts/boxer-v9/08_export.py -- \
         --what fighter --out work/out/m/boxer-m.glb [--lod1 work/out/m/boxer-m-lod1.glb] [--lod1-tris 12000]

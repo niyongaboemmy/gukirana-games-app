@@ -1,9 +1,9 @@
 """Step 1: import the source body (MetaHuman full-body FBX, or a scanned body) into a clean .blend.
 
-UNTESTED: needs Blender (4.2+). Run through run.mjs, or:
+Verified on Blender 5.2.4 (P3-FGT-22, test body). Run through run.mjs, or:
 
     blender -b -P apps/web/scripts/boxer-v9/01_import_body.py -- \
-        --input work/in/metahuman/boxer_m_full.fbx --out work/out/m/01-body.blend [--height 1.80] [--keep-skeleton]
+        --input work/in/metahuman/boxer_m_full.fbx --out work/out/m/01-body.blend [--height 1.80] [--keep-skeleton] [--include body] [--keep-shape-keys]
 
 What it does:
   1. imports the file; joins all its meshes into one object named "body" (MetaHuman exports head and body as two
@@ -21,12 +21,25 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bpy  # noqa: E402
 from common import Vector, apply_transforms, args, armature, ctx, fail, import_any, log, meshes, reset_scene, save, select_only, tris  # noqa: E402
 
-A = args({"input": None, "out": None, "height": 0.0, "keep_skeleton": False})
+A = args({"input": None, "out": None, "height": 0.0, "keep_skeleton": False, "include": [], "keep_shape_keys": False})
 reset_scene()
+if not os.path.exists(A["input"]):
+    fail(f"body input not found: {A['input']} (see METAHUMAN-SPEC.md, or run.mjs --body test)")
 objs = import_any(os.path.abspath(A["input"]))
 ms = meshes(objs)
+if A["include"]:  # e.g. the v8 test body: only its "body" mesh, not the code-made kit
+    for m in [m for m in ms if m.name not in A["include"]]:
+        objs.remove(m)
+        bpy.data.objects.remove(m, do_unlink=True)
+    ms = meshes(objs)
 if not ms:
-    fail("no mesh in " + A["input"])
+    fail("no mesh in " + A["input"] + (f" named {A['include']}" if A["include"] else ""))
+# MetaHuman / v8 morph targets cannot survive the decimation (step 2) and the re-rig: drop them here
+if not A["keep_shape_keys"]:
+    for m in ms:
+        if m.data.shape_keys:
+            log(f"{m.name}: dropped {len(m.data.shape_keys.key_blocks) - 1} shape keys")
+            m.shape_key_clear()
 
 # keep hair / brows / lashes apart (they become cards with alpha in later steps)
 EXTRA = ("hair", "brow", "lash", "groom", "beard", "fuzz")
@@ -70,7 +83,13 @@ if A["height"] > 0:
     pts = [body.matrix_world @ v.co for v in body.data.vertices]
     lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
     hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
-shift = Vector((-(lo.x + hi.x) / 2, -(lo.y + hi.y) / 2, -lo.z))
+# centre on the hips, not the bounding box: the arms of an A-pose (or the v8 test body's forward fists) move the box
+# (the pelvis: a thin slice at 52 % of the height, within 12 cm of the middle, which leaves out hands hanging there)
+mid_x = (lo.x + hi.x) / 2
+band = [p for p in pts if lo.z + 0.50 * (hi.z - lo.z) < p.z < lo.z + 0.54 * (hi.z - lo.z) and abs(p.x - mid_x) < 0.12]
+cx = (min(p.x for p in band) + max(p.x for p in band)) / 2 if band else (lo.x + hi.x) / 2
+cy = (min(p.y for p in band) + max(p.y for p in band)) / 2 if band else (lo.y + hi.y) / 2
+shift = Vector((-cx, -cy, -lo.z))
 for m in ms:
     m.location += shift
 apply_transforms(ms)
