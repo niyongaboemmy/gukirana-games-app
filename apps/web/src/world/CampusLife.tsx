@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { Avatar } from "./Avatar";
+import { humansV9On } from "./human/v9/flag";
+import { ScannedPerson, useV9Manifest } from "./human/v9/ScannedPerson";
 import { seededLook } from "./outfits";
 import { selfPose } from "@/lib/world-store";
 import { planRoute, plazaObstacles } from "./obstacles";
@@ -41,7 +43,10 @@ import type { Tier } from "./materials";
  * LOD, no name tag, never clickable); the traffic is three instanced meshes (cars, motorbikes + riders, minibuses)
  * drawn only while the road is in view. Everything follows the wall clock (identical on every screen); at night most
  * of the people go home (a fade), a few stay on the lit plaza.
+ * P2-AVA-13: with NEXT_PUBLIC_FF_HUMANS_V9=1 (default off) and published v9 people, the ambient people are the v9
+ * scanned people (world/human/v9/ScannedPerson) instead; without a published manifest nothing changes.
  */
+const V9_ON = humansV9On();
 export function CampusLife({ tier }: { tier: Tier }) {
   if (!COMPOUND_LIFE_ON) return null;
   return (
@@ -165,6 +170,7 @@ function cull(
 
 function StrollPerson({ n, tier }: { n: Stroller; tier: Tier }) {
   const look = useLook(n);
+  const v9 = useV9Manifest(V9_ON);
   const group = useRef<THREE.Group>(null);
   const anim = useRef(0);
   const fade = useRef(1);
@@ -199,22 +205,27 @@ function StrollPerson({ n, tier }: { n: Stroller; tier: Tier }) {
   });
   return (
     <group ref={group} userData={{ noMerge: true, gkAmbient: true }}>
-      <Avatar
-        look={look}
-        animRef={anim}
-        showTag={false}
-        lod
-        shadows={tier !== "lite"}
-        quality={tier}
-        seedId={`campus:${n.id}`}
-        fadeRef={fade}
-      />
+      {v9 ? (
+        <ScannedPerson seedId={`campus:${n.id}`} animRef={anim} fadeRef={fade} shadows={tier !== "lite"} quality={tier} phase={n.phase} />
+      ) : (
+        <Avatar
+          look={look}
+          animRef={anim}
+          showTag={false}
+          lod
+          shadows={tier !== "lite"}
+          quality={tier}
+          seedId={`campus:${n.id}`}
+          fadeRef={fade}
+        />
+      )}
     </group>
   );
 }
 
 function StandPerson({ n, partner, tier }: { n: Stander; partner?: Stander; tier: Tier }) {
   const look = useLook(n);
+  const v9 = useV9Manifest(V9_ON);
   const group = useRef<THREE.Group>(null);
   const anim = useRef(0);
   const fade = useRef(1);
@@ -253,19 +264,23 @@ function StandPerson({ n, partner, tier }: { n: Stander; partner?: Stander; tier
       rotation={[0, n.yaw, 0]}
       userData={{ noMerge: true, gkAmbient: true }}
     >
-      <Avatar
-        look={look}
-        animRef={anim}
-        showTag={false}
-        lod
-        shadows={tier !== "lite"}
-        quality={tier}
-        seedId={`campus:${n.id}`}
-        fadeRef={fade}
-        talkRef={talk}
-        socialRef={social}
-        lookAtRef={lookAt}
-      />
+      {v9 ? (
+        <ScannedPerson seedId={`campus:${n.id}`} animRef={anim} talkRef={talk} fadeRef={fade} shadows={tier !== "lite"} quality={tier} />
+      ) : (
+        <Avatar
+          look={look}
+          animRef={anim}
+          showTag={false}
+          lod
+          shadows={tier !== "lite"}
+          quality={tier}
+          seedId={`campus:${n.id}`}
+          fadeRef={fade}
+          talkRef={talk}
+          socialRef={social}
+          lookAtRef={lookAt}
+        />
+      )}
     </group>
   );
 }

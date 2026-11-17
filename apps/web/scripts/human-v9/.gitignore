@@ -1,0 +1,3 @@
+# P2-AVA-13: never commit third-party scans, CMU takes or built files
+work/
+__pycache__/

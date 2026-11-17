@@ -36,3 +36,7 @@ apps/web/public/assets/characters/_v9test/
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# human v9 pipeline (P2-AVA-13): third-party scans, CMU takes and built GLBs are never committed
+apps/web/scripts/human-v9/work/
+apps/web/public/assets/characters/_v9humans/

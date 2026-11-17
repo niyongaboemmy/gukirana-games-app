@@ -1,0 +1,54 @@
+{
+  "_doc": "P2-AVA-13: the scanned campus people the v9 pipeline builds (docs/design/human-v9/ASSET-SOURCES.md). Every source is CC BY 4.0, checked on its official Sketchfab page on 2026-11-17, and fetched without a login from the Objaverse 1.0 mirror (Hugging Face allenai/objaverse, which redistributes the creators' CC BY files under their own licence). Heights are what we scale the scan to; sex and age band are how the person reads (apparent, adults only). The files are third-party: they stay in the git-ignored work/ folder and are never committed. QUALITY: none of these pass the P2-AVA-13 source bar (texture >= 4k, source mesh >= ~100k triangles, a face with clear eyes, lips and ears, arms not clamped to the body); they are kept ONLY as pipeline test inputs, and the v9 flag stays off. A fourth candidate (dwsd 'Robert Full Body') was dropped: its vertex colours are blank white.",
+  "objaverse": "https://huggingface.co/datasets/allenai/objaverse/resolve/main/",
+  "people": [
+    {
+      "id": "in3d-woman",
+      "title": "Woman",
+      "author": "in3D (in3D_io)",
+      "page": "https://sketchfab.com/3d-models/woman-4188f7fc248c4f20a6e00744ad394f9e",
+      "uid": "4188f7fc248c4f20a6e00744ad394f9e",
+      "shard": "000-039",
+      "licence": "CC BY 4.0",
+      "scanner": "in3D iPhone app (photogrammetry + depth), 14k triangles, 1k texture",
+      "height": 1.65,
+      "sex": "f",
+      "age": "31-50",
+      "look": "striped long-sleeve top, dark trousers, ankle boots, hair in a bun",
+      "qualifies": false,
+      "fails": "texture 1k, 14k triangles, soft face"
+    },
+    {
+      "id": "in3d-dima",
+      "title": "Dima",
+      "author": "in3D (in3D_io)",
+      "page": "https://sketchfab.com/3d-models/dima-3a606acdfbe04478b0ab8dfe0f1de978",
+      "uid": "3a606acdfbe04478b0ab8dfe0f1de978",
+      "shard": "000-110",
+      "licence": "CC BY 4.0",
+      "scanner": "in3D iPhone app, 17k triangles, 1k texture",
+      "height": 1.76,
+      "sex": "m",
+      "age": "18-30",
+      "look": "yellow short-sleeve shirt, dark jeans, trainers",
+      "qualifies": false,
+      "fails": "texture 1k, 17k triangles, soft face"
+    },
+    {
+      "id": "fwild-fullbody",
+      "title": "Full body",
+      "author": "fwild",
+      "page": "https://sketchfab.com/3d-models/full-body-a5986a27070c465280d7419cf783de31",
+      "uid": "a5986a27070c465280d7419cf783de31",
+      "shard": "000-007",
+      "licence": "CC BY 4.0",
+      "scanner": "itSeez3D (structure sensor), 200k triangles, photo texture",
+      "height": 1.66,
+      "sex": "f",
+      "age": "31-50",
+      "look": "beige knit jumper, black trousers, long hair",
+      "qualifies": false,
+      "fails": "texture 1k (200k triangles), arms close to the body"
+    }
+  ]
+}
