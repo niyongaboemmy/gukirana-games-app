@@ -1,6 +1,7 @@
 "use client";
 import { create } from "zustand";
 import {
+  BoxingHallEvt,
   MmEvt,
   MmMsg,
   type InviteClosedMsg,
@@ -136,4 +137,11 @@ if (typeof window !== "undefined" && MM_V2) {
   onRoomMessage<OnlineMsg>(MmEvt.online, (m) => useMm.setState({ online: m.people }));
   // a match started: nothing of the matchmaking is open any more
   onRoomMessage("match-ready", () => useMm.setState({ go: null, found: null, search: { status: "idle" } }));
+  // Boxing has no "match-ready": the meeting ends when the hall gives me my ring / the fight room (P3-FGT-24: the
+  // "Go to a ring" card stayed on screen through the whole fight, frozen at "0 s to get there")
+  const boxingMet = () => {
+    if (useMm.getState().go?.game === "boxing") useMm.setState({ go: null, found: null, search: { status: "idle" } });
+  };
+  onRoomMessage<{ ring: string | null }>(BoxingHallEvt.assigned, (a) => a.ring && boxingMet());
+  onRoomMessage(BoxingHallEvt.fightReady, boxingMet);
 }

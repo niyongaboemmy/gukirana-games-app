@@ -172,6 +172,21 @@ describe("matchmaking service (P2-MM-05)", () => {
     expect(w.last("b", "invite-closed")).toMatchObject({ reason: "CROSSED" });
   });
 
+  it("a challenge reaches someone who has not accepted that game's rules yet (they accept them on Accept)", async () => {
+    const w = world({ refuse: { fresh: "RULES_NOT_ACCEPTED" } });
+    w.join("a");
+    w.join("fresh");
+    await w.svc.invite("a", { to: "fresh", game: "boxing", stake: 0 });
+    expect(w.last("a", "invite-closed")).toBeUndefined();
+    expect(w.last("fresh", "invite")).toMatchObject({ from: { name: "A" }, game: "boxing" });
+    // my own rules card still comes first (the web asks for it before sending)
+    const w2 = world({ refuse: { a: "RULES_NOT_ACCEPTED" } });
+    w2.join("a");
+    w2.join("b");
+    await w2.svc.invite("a", { to: "b", game: "boxing", stake: 0 });
+    expect(w2.last("a", "invite-closed")).toMatchObject({ reason: "RULES_NOT_ACCEPTED" });
+  });
+
   it("a hall change does not cancel anything; gone past the grace does", async () => {
     const w = world();
     w.join("a");

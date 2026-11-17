@@ -20,7 +20,7 @@ import {
   type RingState,
 } from "@gukirana/contracts";
 import { onRoomMessage, roomSend } from "@/lib/realtime";
-import { useSession } from "@/lib/session";
+import { loadMe, useSession } from "@/lib/session";
 import { notify } from "@/social/social-store";
 import { useFightBridge, type MyFight } from "../../bridge";
 import { registerLiveFight, type LiveFight } from "../actions";
@@ -215,6 +215,9 @@ function bindFight(room: Room, m: FightReady): void {
     if (me && opp && r.stats?.[me] && r.stats[opp]) useFightUi.getState().setSkill({ mine: r.stats[me]!, theirs: r.stats[opp]! });
     useFightRating.getState().setChange(me ? (r.settlement?.fightRating?.[me] ?? null) : null);
     void useFightRating.getState().loadMe();
+    // the settled Stars / XP on the HUD's wallet pill and level (as the turn games' LiveMatch does): it showed the
+    // balance from before the fight until the next page load
+    void loadMe().catch(() => undefined);
     // the result card reads the outcome from the feed: make sure it is there even when no `over` event came
     if (r.outcome && !useFightUi.getState().result) useFightUi.getState().push([{ k: "over", t: cur?.snap?.tick ?? 0, result: r.outcome }]);
     useBoxingNet.setState({ oppAway: null, reconnecting: null });

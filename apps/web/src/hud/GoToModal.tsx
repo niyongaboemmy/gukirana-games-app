@@ -9,6 +9,7 @@ import { useStage } from "@/world/stage";
 import { useDoorRefusal } from "@/world/door-access";
 import { DESTINATIONS, destDistance, destination, FEATURED, FIRST_VISIT_DEST, reachable, type Destination, type DestId } from "@/world/destinations";
 import { backToMe, closeGoTo, destStatus, endGuide, firstVisitSeen, guideTo, markFirstVisitSeen, showOnMap, useGoTo, walkThere, type DestStatus } from "@/world/goto";
+import { useMm } from "@/lib/mm-store";
 import { GO } from "./goto-strings";
 
 /**
@@ -245,7 +246,9 @@ export function GoToCard() {
     if (dest && view && view !== "plaza") endGuide();
   }, [dest, view]);
   useFirstVisit();
-  if (!d || view !== "plaza") return null;
+  // a Quick Play / challenge sheet is a modal: the guide card (on <body>, above the HUD layer) must not cover it
+  const sheetOpen = useMm((s) => !!s.quickPlay || !!s.challenge);
+  if (!d || view !== "plaza" || sheetOpen) return null;
   const left = destDistance({ x: selfPose.x, z: selfPose.z }, d);
   const name = nameOf(d);
   let body: ReactNode;
@@ -313,6 +316,9 @@ function useFirstVisit() {
     const t = window.setTimeout(() => {
       const s = useGoTo.getState();
       if (s.dest || s.open || useStage.getState().view !== "plaza") return;
+      // the person is already choosing a game (Quick Play / challenge sheet): not now, next plaza visit
+      const mm = useMm.getState();
+      if (mm.quickPlay || mm.challenge) return;
       markFirstVisitSeen(user);
       guideTo(FIRST_VISIT_DEST, { firstVisit: true, turn: false });
     }, 2500);

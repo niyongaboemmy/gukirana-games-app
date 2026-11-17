@@ -22,8 +22,27 @@ import { F } from "./strings";
 import { useFightFocus } from "./focus";
 import { usePendingRingWalk, useRingGoto } from "./ring-goto";
 import { useRingPlaceSync } from "./place-sync";
+import { useBoxingNetClient } from "./game/net/client";
+import { fightMockOn } from "./mock";
 
 const glass = "glass rounded-card";
+
+/**
+ * The live boxing client (hall ring registry, claim / join / quick / watch, the fight room) for as long as the Boxing
+ * hall page is open (P3-FGT-24). It lives in the DOM overlay, not in the 3D scene: the scene's Suspense boundaries
+ * hide and re-show its subtree whenever a model streams in, and every such pass used to stop the client — closing the
+ * fight room with a deliberate leave, which the referee scores as LEFT_BEFORE_START (fight voided) — and it ran in the
+ * lobby too (the hall is warmed there), sending ring messages to the lobby room. Mounted by app/room/[game] for the
+ * Boxing hall outside the HUD's boot gate (the HUD hides while the stage boots). The mock replaces it (?fightmock=1).
+ */
+export function LiveBoxingNet() {
+  const [on] = useState(() => !fightMockOn());
+  return on ? <LiveBoxingNetOn /> : null;
+}
+function LiveBoxingNetOn() {
+  useBoxingNetClient();
+  return null;
+}
 
 /** the free standard ring whose red steps are the shortest walk from where you stand (null: none free) */
 function nearestFreeRing(): RingPlace | null {

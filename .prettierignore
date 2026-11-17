@@ -7,3 +7,4 @@ pnpm-lock.yaml
 crates/**/target
 packages/games/pool/wasm
 docs/*.md
+.claude

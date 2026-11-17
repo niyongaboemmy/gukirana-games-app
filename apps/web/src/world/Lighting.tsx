@@ -204,13 +204,16 @@ export function Lighting({ tier }: { tier: Tier }) {
 
 /** Standard tier only, never inside an XR session: one merged pass of mip-blur bloom (threshold 1 = LEDs only). */
 export function Effects() {
-  // P3-FGT-18 (docs/FIGHT-REALISM-V7.md §6): screen-space ambient occlusion (N8AO, half resolution) while I am in a
+  // P3-FGT-18 (docs/FIGHT-REALISM-V7.md §6): screen-space ambient occlusion (N8AO, full resolution) while I am in a
   // ring as a fighter — contact shade where the arms close on the trunk, in the armpits, under the chin, between the
   // fighters and on the canvas round the feet. Always mounted (no composer rebuild), enabled only then.
   const ringAo = useFightFocus((s) => BOXER_V7 && !!s.ring && s.mode === "fighter");
+  // P3-FGT-24: never `halfRes`. n8ao's half-resolution path renders into its WebGLMultipleRenderTargets shim, whose
+  // `texture` getter returns the textures ARRAY; three r187's setupRenderTarget reads `texture.mipmaps` from it and
+  // throws on every frame — the whole canvas froze the moment a fighter stepped into a ring (lighting-ao.test.ts).
   return (
     <EffectComposer multisampling={4} enableNormalPass={false}>
-      <N8AO enabled={ringAo} halfRes quality="performance" aoRadius={0.55} distanceFalloff={0.9} intensity={2.4} color="black" />
+      <N8AO enabled={ringAo} quality="performance" aoRadius={0.55} distanceFalloff={0.9} intensity={2.4} color="black" />
       <Bloom mipmapBlur levels={6} luminanceThreshold={1} luminanceSmoothing={0.2} intensity={0.55} radius={0.62} />
       <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
     </EffectComposer>
