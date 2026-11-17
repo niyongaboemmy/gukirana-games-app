@@ -1,0 +1,17 @@
+{
+  "_doc": "Copy to work/pipeline.json and edit (node run.mjs --init does it). Paths are relative to apps/web/scripts/boxer-v9. run.mjs runs the steps in order; a step whose input is missing stops and says what to do. See docs/design/boxer-v9/BLENDER-PIPELINE.md.",
+  "fighter": "m",
+  "body": { "input": "work/in/metahuman/m/boxer_m_full.fbx", "height": 1.80, "target": 19000 },
+  "mixamo_character": "work/in/mixamo/m/character.fbx",
+  "mixamo_clips_dir": "work/in/mixamo/m",
+  "cloth": { "garments": ["singlet", "trunks"], "target": 3500, "source_singlet": "", "source_trunks": "" },
+  "gear": [
+    { "input": "work/in/gear/glove/model.glb", "mode": "glove", "side": "L", "rotate": "0,0,0", "length": 0.3, "target": 2200, "hide_hands": true },
+    { "input": "work/in/gear/glove/model.glb", "mode": "glove", "side": "R", "mirror": true, "rotate": "0,0,0", "length": 0.3, "target": 2200, "hide_hands": true },
+    { "input": "work/in/gear/shoe/model.glb", "mode": "shoe", "side": "L", "rotate": "0,0,0", "target": 1200, "hide_feet": true },
+    { "input": "work/in/gear/shoe/model.glb", "mode": "shoe", "side": "R", "mirror": true, "rotate": "0,0,0", "target": 1200, "hide_feet": true },
+    { "input": "work/in/gear/headgear/model.glb", "mode": "headgear", "rotate": "0,0,0", "target": 2000, "enabled": false }
+  ],
+  "bake": { "size": 2048, "rough_min": 0.42 },
+  "lod1_tris": 12000
+}
