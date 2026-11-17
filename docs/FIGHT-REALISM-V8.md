@@ -336,16 +336,16 @@ fails belong to items 7 and 8.
 | 4 | Heads tall 7.3–7.9 | 7.53–7.83 | pass |
 | 5 | Neck girth ♂; upper arm ±1.5 cm | 0.408 m; 0.2 cm off | pass |
 | 6 | Deltoid luminance step ≥ 8 % | 51 % | pass |
-| 7 | Garment vertices inside the skin ≤ 1 % (stand / guard / jab / hook) | 1.1 / 8.0 / 4.7 / 6.9 % | **fail** (see §8) |
-| 7 | No singlet outside the band in poses | 55 vertices (jab / hook) | **fail** (see §8) |
-| 8 | No vest inner face visible, guard side shot | 89 px (v7 84); broadcast 263 px (v7 140) | **fail** (see §8) |
+| 7 | Garment vertices inside the skin ≤ 1 % (stand / guard / jab / hook) | 1.1 / 8.0 / 4.7 / 6.9 % (follow-up: 0.41 / 4.2 / 0.77 / 0.58 %) | **fail** (see §8, §10) |
+| 7 | No singlet outside the band in poses | 55 vertices (jab / hook) (follow-up: 0, also across the clip sweep) | pass after the follow-up |
+| 8 | No vest inner face visible, guard side shot | 89 px (v7 84); broadcast 263 px (v7 140) (follow-up, measured through the game's own vertex stage: 83 / 185 px) | **fail** (see §8, §10) |
 | 9 | Singlet ≥ 1 mm inside the band | 0 outside | pass |
 | 10 | Band 8–10 cm, follows the waist ≤ 8 mm, ΔE ≥ 40, below the navel | 8.2–8.5 cm, 7.3 mm, ΔE 76, 0.66 cm | pass |
 | 11 | Trunks hem between mid-thigh and the knee top | ♂ 0.64 m, ♀ 0.60 m | pass |
 | 12 | Leg opening ≥ 1.25 × thigh | 1.50 | pass |
 | 13 | Gathers ≥ 1.15 | 1.33 | pass |
 | 14 | Separate garment meshes, hidden body deleted | yes (16.3k of 28.4k body triangles culled) | pass |
-| 14a | Outer upper arm covered by singlet ≤ 2 % | 1.5 % (v7 8.2 %) | pass |
+| 14a | Outer upper arm covered by singlet ≤ 2 % | 1.5 % (v7 8.2 %) (follow-up: 2.07 %, ♀ jab) | pass (follow-up: **fail** by 0.07, see §10) |
 | 15 | Gloves: length, knuckle width / depth, cuff, tape, block ratio, panel, thumb | 26.6 cm, 12.1 / 12.3 cm, 10.5 cm, 5.6 cm, 1.37, panel on the knuckle face, thumb | pass |
 | 15a | Guard forearms 55–75°, elbows in and ≥ 18 cm down, eyes visible, wrists ≤ 12°, rear glove ≤ 4 cm to the cheek, lead glove at eye height ± 4 cm and 20–30 cm out | 64–68°, in, 18.3 cm, visible, 0°, 4.0 cm, 1.6 cm, 24–26 cm | pass |
 | 15a | Jab palm down ≥ 0.8, 90–98 % extended; hook elbow 80–100° at shoulder height ± 5 cm, palm down or in | 0.91, 92 %; 87°, 2.5 cm, 0.66 | pass |
@@ -405,3 +405,71 @@ I ran a real practice fight in the Boxing hall on my own stack (web, API and rea
 
 v7 and v8 behave the same in the hall script. Its scripted knockdown does not trigger on either, which is why the
 fight lab covers the count. Nothing in the HUD, the hits, the knockdown, the referee or the corner regressed.
+
+## 10. Follow-up: items 7 and 8 (`docs/QA/boxing-v8/followup/`)
+
+The coordinator flagged jagged red singlet shards at the shoulders and arm holes in three close-ups (hook arm hole m,
+headgear 3/4 m, face without headgear m): the "torn clothes" look. Before / after:
+[closeups-before-after.jpg](QA/boxing-v8/followup/closeups-before-after.jpg). The strap shards in the headgear and face
+shots are gone; the hook arm hole shows a clean edge over the deltoid, with a dark fold at the lower edge.
+
+### What changed
+
+- **Strap and arm-hole weights (`build.mjs`):** above the armpit the singlet follows the body's own weights fully (the
+  strap rides the trapezius and the clavicle); the arm bones map to the shoulder helper only within 8 cm of the arm
+  hole. The strap shards were skin, not crumpled cloth: the strap half-followed a shrugged clavicle.
+- **Skin tuck (`_tuck`, build + vertex shader):** skin under the cloth sits up to 30 mm further in (none at a cut edge,
+  half under the cloth, all of it at the armpit side and the hip crease); never on the upper arm or the deltoid cap,
+  where a sunk deltoid read as the arm inside the cloth (14a).
+- **Pose correctives (`corrective.ts`, `qa/e2e/fighter-v8/bake-correctives.mjs`, data in
+  `scripts/boxer/corr-v8/boxer-{m,f}.json`, carried in the GLB extras):**
+  - Baked on the game's own rig in the browser, not from the prototype's guard / jab / hook sims: those are on the
+    prototype's SDF body and skeleton, and their poses are not `GUARD_V8`.
+  - Candidate frames: 25 clips at 1/14 of their length, the hooks also every 10 ms over 0.08–0.22 s. Farthest-point
+    sampling picks 128 arm states (the singlet's rows) and 128 leg states (the trunks' rows).
+  - At each state every visible singlet / trunks vertex is pushed 7 mm clear of the torso's drawn skin (never off the
+    arm's skin, which is the other wall of the armpit crease), the push smoothed over the cloth, then carried to bind
+    space through the vertex's skinning.
+  - Run time: the vertex shader adds the blended delta before skinning; each region (singlet half per arm, trunks leg)
+    blends its library's 3 nearest states by inverse distance in that limb's joint rotations, fading out far from
+    every state. Int16 at 0.1 mm; ~1.3–1.6 MB per gender in the GLB.
+  - Arm mask: the corrective is held off the front and back of each arm hole within 3 cm of the edge (fading by 6 cm);
+    there it stood the cloth over the upper arm (14a 3.8 % → 2.1 %). The side seam keeps it.
+- **Cloth push:** the singlet's arm-cone push is on again, over the whole singlet below the armpit (it keeps the arm out
+  of the cloth: 14a).
+- **Turned facing (item 8):** a second layer 2 mm inside the singlet round the arm holes and the neck, 8 cm deep,
+  facing inwards, in a darker shade (slot `vestLining`). ~250 triangles more.
+- **Harness:** the checks mirror the shader exactly (push, tuck, correctives); a sampled clip sweep (guard, jab,
+  cross, lead hook, block, clinch, knockdown; 13 frames each) for item 7 and the band hold; the band hold now pairs
+  each tucked singlet vertex with its bind-pose band vertex. The item 8 cavity render now runs the boxer vertex stage
+  and culls the facing's back faces like the game; before, it drew raw skinning without the cloth push, so the Phase 1
+  numbers (89 / 263 px) were measured on geometry the game never shows.
+- Tried and dropped: per-vertex skin anchors (no measurable effect: the skin that comes through is never the cloth's
+  bind-nearest skin); copying raw skin weights into the armpit and cutting the lower arm hole 2.5 cm deeper (both
+  raised 14a above 3 %).
+
+### Results (final run `docs/QA/boxing-v8/followup/report.md`: 80 pass, 5 fail)
+
+| Item | Before (908d093) | After | Target |
+| --- | --- | --- | --- |
+| 7 inside the skin: stand / guard / jab / hook | 1.1 / 8.0 / 4.7 / 6.9 % | 0.41 / **4.2** / 0.77 / 0.58 % | ≤ 1 % |
+| 7 band hold (posed, and every sweep frame) | 55 vertices; sweep 128 | 0; 0 | 0 |
+| 7 clip sweep, worst frame | 8.0 % | **7.7 %** (♂ lead hook 0.34 s; ♀ worst 3.1 %) | ≤ 1 % |
+| 8 inner face, guard side / broadcast | 89 / 263 px (raw skinning) | **83 / 185 px** (game vertex stage) | 0 px |
+| 14a arm covered by singlet | 1.5 % (Phase 1) | **2.07 %** (♀ jab; ♂ worst 1.3 %) | ≤ 2 % |
+
+Performance: 29.3k triangles per fighter (≤ 31k), 1 draw call, 60 fps at 1280×720 and 844×390 DPR 2, phone textures
+12.2 MB measured. GLB 3.9 / 3.5 MB per gender (was 2.1): the corrective data.
+
+### Why the rest is short
+
+- **Guard 4.2 % against arm cover:** at the front of the arm hole the guard's pectoral fold rises through the cloth,
+  and the corrective that clears it stands the same cloth over the upper arm. With the corrective there, guard 1.6 % but
+  14a 3.1 %; masked, 14a 2.1 % and guard 4.2 %. 14a was ranked first (an explicit user complaint).
+- **Sweep:** between baked frames of a hook the lead arm turns up to ~1 rad in 40 ms; blending two states that far apart
+  does not hold the crease. Denser hook sampling moved the worst frame off 0.14 s but not under 1 %.
+- **Item 8:** what still shows is the back panel's inside past the facing at the rear arm hole, and the facing's edge.
+- **Pre-existing, unchanged:** a crumple of cloth under the lead arm in the guard and dark slits at the trunks' fly
+  (both also in the Phase 1 build).
+- The remedy for all three is the same: a short GPU cloth relax per frame near the arm holes, or a two-layer singlet
+  with a real collision against the torso.

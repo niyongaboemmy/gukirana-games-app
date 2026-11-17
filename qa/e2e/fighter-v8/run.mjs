@@ -105,6 +105,8 @@ async function measure(page, kinds, limits) {
       if (kinds.includes("f0")) r.f0 = C.f0(people);
       if (kinds.includes("chroma")) r.chroma = { skin: F.cavity(people.slice(0, 1), { skinSamples: 3 }).skin };
       if (p0 && kinds.includes("deltoid")) r.deltoid = C.deltoid(p0);
+      // (last: it re-poses the fighter; the next frame poses it back from its motion)
+      if (p0 && kinds.includes("sweep")) r.sweep = C.sweep(p0, ["guard", "jab", "cross", "leadHook", "blockHigh", "clinch", "knockdown"], 12);
       if (kinds.includes("garments"))
         r.garments = people.map((p) => {
           const m = window.__humanAssess.measure(p);
@@ -272,6 +274,7 @@ export function aggregate(phase, r) {
   const rt = (m.runtime = { garments: {}, guard: {}, jab: {}, hook: {}, arms: {}, face: {}, skin: {}, cavity: {} });
   for (const ps of ["stand", "guard", "jab", "hook"]) rt.garments[ps] = worstOf((g) => shot(`chk-${g}-${ps}`)?.garments8?.share);
   rt.garments.insideWorst = Math.max(...["stand", "guard", "jab", "hook"].map((p2) => rt.garments[p2] ?? 0));
+  rt.sweep = { worst: worstOf((g) => shot(`chk-${g}-guard`)?.sweep?.worst), band: worstOf((g) => shot(`chk-${g}-guard`)?.sweep?.band), at: G2.map((g) => shot(`chk-${g}-guard`)?.sweep?.worstAt), byClip: Object.fromEntries(G2.map((g) => [g, shot(`chk-${g}-guard`)?.sweep?.byClip])) };
   rt.garments.outsideBand = worstOf((g) => Math.max(...["stand", "guard", "jab", "hook"].map((p2) => shot(`chk-${g}-${p2}`)?.garments8?.outsideBand ?? 0)));
   const gp = (g) => shot(`chk-${g}-guard`)?.pose;
   rt.guard.forearmMin = minOf((g) => gp(g)?.forearmMin);

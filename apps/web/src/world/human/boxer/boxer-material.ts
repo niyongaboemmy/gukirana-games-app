@@ -46,12 +46,14 @@ export const SLOT = {
   teeth: 22,
   sock: 23,
   belt: 24,
+  /** P3-FGT-19B: the singlet's turned facing round the arm holes and neck (inner fabric, a shade darker) */
+  vestLining: 25,
 } as const;
-export const SLOTS = 25;
+export const SLOTS = 26;
 
 /** roughness and sheen per slot (fixed); colours are uniforms */
-const ROUGH: number[] = [0.56, 0.74, 0.7, 0.48, 0.5, 0.5, 0.75, 0.8, 0.64, 0.62, 0.66, 0.64, 0.66, 0.88, 0.74, 0.66, 0.32, 0.45, 0.74, 0.82, 0.05, 0.9, 0.3, 0.88, 0.38];
-const SHEEN: number[] = [0, 0.18, 0.12, 0.55, 0.45, 0.12, 0, 0, 0.12, 0.1, 0.12, 0.12, 0.1, 0.25, 0.2, 0.15, 0.25, 0.4, 0.2, 0.3, 0, 0, 0, 0.3, 0.2];
+const ROUGH: number[] = [0.56, 0.74, 0.7, 0.48, 0.5, 0.5, 0.75, 0.8, 0.64, 0.62, 0.66, 0.64, 0.66, 0.88, 0.74, 0.66, 0.32, 0.45, 0.74, 0.82, 0.05, 0.9, 0.3, 0.88, 0.38, 0.82];
+const SHEEN: number[] = [0, 0.18, 0.12, 0.55, 0.45, 0.12, 0, 0, 0.12, 0.1, 0.12, 0.12, 0.1, 0.25, 0.2, 0.15, 0.25, 0.4, 0.2, 0.3, 0, 0, 0, 0.3, 0.2, 0.15];
 
 export interface BoxerColors {
   skin: string;
@@ -109,6 +111,18 @@ export interface BoxerUniforms {
   uAxisA: { value: THREE.Vector3 };
   uAxisB: { value: THREE.Vector3 };
   uPush: { value: number };
+  /** the shoulder joints' bind height: the singlet's arm push acts below the armpit (6 cm under it) only */
+  uShoulderY: { value: number };
+  /** the shoulder joints' half width (bind): the arm push acts on the singlet's outer part only */
+  uShoulderX: { value: number };
+  /** the singlet's arm push on (1) / off (0) */
+  uArmPush: { value: number };
+  /** P3-FGT-19B: the garments' pose correctives (corrective.ts): rows of [meta, delta per state] (bind-space metres) */
+  uCorr: { value: THREE.Texture };
+  /** states in the texture (0 = none) */
+  uCorrN: { value: number };
+  /** per state, this frame's weight for the left arm, right arm, left leg, right leg regions */
+  uCw: { value: THREE.Vector4[] };
 }
 
 const c = (hex: string) => new THREE.Color(hex);
@@ -172,6 +186,7 @@ export function boxerPalette(col: BoxerColors, v6 = false, v7 = false, v8 = fals
     // with woven kit-colour stripes (the shader draws them); the glove's white scoring panel and its cream tape; the
     // trunks the same dyed polyester as the vest
     p[SLOT.vestTrim] = p[SLOT.vest]!.clone().multiplyScalar(0.78);
+    p[SLOT.vestLining] = p[SLOT.vest]!.clone().multiplyScalar(0.6);
     p[SLOT.trunks] = p[SLOT.vest]!.clone().multiplyScalar(0.96);
     p[SLOT.belt] = c("#e8e1d0");
     p[SLOT.gloveTarget] = c("#ece9e2");
@@ -211,6 +226,15 @@ function tex(url: string, repeat: boolean, onLoad: () => void): THREE.Texture {
   TEX[url] = t;
   return t;
 }
+
+/** P3-FGT-19B: pose correctives — at most this many states, the texture this many texels wide (corrective.ts) */
+export const CORR_MAX = 128;
+export const CORR_W = 1024;
+const NO_CORR = (() => {
+  const t = new THREE.DataTexture(new Float32Array(4), 1, 1, THREE.RGBAFormat, THREE.FloatType);
+  t.needsUpdate = true;
+  return t;
+})();
 
 export function boxerMaterial(
   col: BoxerColors,
@@ -253,6 +277,12 @@ export function boxerMaterial(
     uAxisA: { value: new THREE.Vector3() },
     uAxisB: { value: new THREE.Vector3(0, 1, 0) },
     uPush: { value: 0 },
+    uShoulderY: { value: 99 },
+    uShoulderX: { value: 0 },
+    uArmPush: { value: 1 },
+    uCorr: { value: NO_CORR },
+    uCorrN: { value: 0 },
+    uCw: { value: Array.from({ length: CORR_MAX }, () => new THREE.Vector4()) },
   };
   if (typeof window !== "undefined") {
     let n = 0;
@@ -297,8 +327,17 @@ varying float vZone;
 varying vec4 vPaint;
 varying vec3 vBind;
 varying vec2 vGkUv;
+attribute float _tuck;
 uniform float uV8;
 uniform float uPush;
+uniform float uShoulderY;
+uniform float uShoulderX;
+uniform float uArmPush;
+attribute float _crow;
+uniform sampler2D uCorr;
+uniform int uCorrN;
+uniform vec4 uCw[${CORR_MAX}];
+ivec2 gkCt(int i) { return ivec2(i % ${CORR_W}, i / ${CORR_W}); }
 uniform vec4 uCapA[4];
 uniform vec4 uCapB[4];
 uniform vec3 uAxisA;
@@ -319,7 +358,14 @@ vec3 gkSeg(vec3 p, vec3 a, vec3 b, out float t) {
 if (uPush > 0.5) {
   int gkPm = int(_mat + 0.5);
   float t;
-  if (gkPm == 1 || gkPm == 2) {
+  // skin under the cloth sits up to 30 mm further in (_tuck: none at a cut edge; 15 mm under the cloth, 30 mm at the
+  // armpit and the hip crease): the moving skin never
+  // comes through the singlet or the trunks between the keys of a clip
+  if (gkPm == 0 && _tuck > 0.0) transformed -= normalize(objectNormal) * (_tuck * 0.03);
+  // (below the armpit only: over the shoulder the strap rides the skin, and the cone round a raised, rolled shoulder
+  // dragged the strap down into it)
+  // (and on its outer part by the arm only: the side panel lies on the ribs, where the cone pushed it into the lats)
+  if (uArmPush > 0.5 && (gkPm == 1 || gkPm == 2 || gkPm == 25) && position.y < uShoulderY - 0.06) {
     for (int k = 0; k < 2; k++) {
       for (int it = 0; it < 3; it++) {
         vec3 c = gkSeg(transformed, uCapA[k].xyz, uCapB[k].xyz, t);
@@ -345,6 +391,18 @@ if (uPush > 0.5) {
       .replace(
         "#include <begin_vertex>",
         `#include <begin_vertex>
+// P3-FGT-19B: the garments' pose correctives (bind space, before skinning): each cloth vertex's baked displacement
+// for every sampled state, weighted by how close this frame's arm (singlet) or leg (trunks) is to that state
+if (_crow >= 0.0 && uCorrN > 0) {
+  int gkB = int(_crow + 0.5) * (uCorrN + 1);
+  vec4 gkM = texelFetch(uCorr, gkCt(gkB), 0);
+  for (int s = 0; s < ${CORR_MAX}; s++) {
+    if (s >= uCorrN) break;
+    vec4 w = uCw[s];
+    float ws = (gkM.y < 0.5 ? mix(w.y, w.x, gkM.x) : mix(w.w, w.z, gkM.x)) * gkM.z;
+    if (ws > 0.002) transformed += texelFetch(uCorr, gkCt(gkB + 1 + s), 0).xyz * ws;
+  }
+}
 vMat = _mat;
 vAo = _ao;
 vZone = _zone;
@@ -676,7 +734,7 @@ if (uV7 > 0.5) {
   // with the webbing rough; jersey vest dry and matte
   if (gkM == 3) gkR = 0.34;
   if (gkM == 11 || gkM == 12) gkR = mix(0.7, 0.92, gkGroove);
-  if (gkM == 1) gkR = 0.82;
+  if (gkM == 1 || gkM == 25) gkR = 0.82;
   // P3-FGT-19B: glove leather 0.5, the white panel a little smoother, headgear 0.66, the elastic band matte
   if (uV8 > 0.5) {
     if (gkM == 8 || gkM == 10) gkR = 0.5;

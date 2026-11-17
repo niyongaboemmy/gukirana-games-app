@@ -7,6 +7,7 @@ import { boxerMaterial, type BoxerColors, type BoxerUniforms } from "./boxer-mat
 import { depenetrate } from "./depenetrate";
 import { BODY_V6, BOXER_V7 } from "./body-v6";
 import { BOXER_V8, boxerAssets } from "./generation";
+import { corrSetup, type CorrData, type CorrRig } from "./corrective";
 
 /**
  * The ring people's body (P3-FGT-13, docs/FIGHT-REALISM-V3.md §3): one athletic, properly skinned body per gender
@@ -83,6 +84,8 @@ export interface BoxerInstance {
   torso: TorsoSlices | null;
   /** P3-FGT-19B: the cloth-push cone radii (upper arm, thigh: proximal, distal; m) of a v8 fighter, else null */
   caps: { arm: number[]; thigh: number[] } | null;
+  /** P3-FGT-19B: the garments' pose correctives of a v8 fighter (corrective.ts), else null */
+  corr: CorrRig | null;
   bone(name: string): THREE.Bone | null;
   dispose(): void;
 }
@@ -90,9 +93,10 @@ export interface BoxerInstance {
 interface Extras {
   boxerBody?: number;
   morphs: string[];
+  corr?: CorrData;
   boneMorph: Record<string, number[][]>;
   torsoMorph?: Record<string, number[][]>;
-  landmarks: { headC: number[]; eyeL: number[]; eyeR: number[]; kit?: number[]; torso?: number[][]; caps?: { arm: number[]; thigh: number[] } };
+  landmarks: { headC: number[]; eyeL: number[]; eyeR: number[]; kit?: number[]; torso?: number[][]; caps?: { arm: number[]; thigh: number[]; shoulderY?: number; shoulderX?: number } };
 }
 
 /** Build one person from the loaded GLB scene (the GLTF stays shared and untouched). */
@@ -121,10 +125,15 @@ export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: Boxer
 
   // 1. bake the body type into each wanted geometry, drop covered body faces, give every part the same attributes
   const geos: THREE.BufferGeometry[] = [];
+  // (each part's first vertex and count in the merged geometry: the correctives address garment vertices by part)
+  const offsets = new Map<string, [number, number]>();
+  let at = 0;
   for (const name of wanted) {
     const m = byName.get(name);
     if (!m) continue;
     const g = m.geometry.clone();
+    offsets.set(name, [at, g.getAttribute("position").count]);
+    at += g.getAttribute("position").count;
     const pos = g.getAttribute("position") as THREE.BufferAttribute;
     const morphs = g.morphAttributes.position ?? [];
     // targets by name (the body mesh also carries the face-shape targets after the body types)
@@ -141,6 +150,8 @@ export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: Boxer
     const n = pos.count;
     if (!g.getAttribute("_zone")) g.setAttribute("_zone", new THREE.BufferAttribute(new Uint8Array(n), 1));
     if (!g.getAttribute("_paint")) g.setAttribute("_paint", new THREE.BufferAttribute(new Uint8Array(n * 4), 4, true));
+    // (P3-FGT-19B: the skin's tuck under the v8 cloth: body only; 0 on every other part and on older GLBs)
+    if (!g.getAttribute("_tuck")) g.setAttribute("_tuck", new THREE.BufferAttribute(new Uint8Array(n), 1, true));
     const cov = g.getAttribute("_cover") as THREE.BufferAttribute | undefined;
     if (name === "body" && cov && g.index) {
       const idx = g.index.array;
@@ -209,6 +220,15 @@ export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: Boxer
     { gender: spec.gender, lite: spec.lite, v6: spec.v6 ?? BODY_V6, v7: (spec.v6 ?? BODY_V6) && (spec.v7 ?? BOXER_V7), v8 },
   );
   if (spec.fadeable) material.alphaHash = true;
+  // (P3-FGT-19B: the cloth-push cones, for the harness's checks to rebuild them from the bones at any pose)
+  merged.userData.parts = Object.fromEntries(offsets);
+  const corr = v8 ? corrSetup(merged, offsets, extras.corr, (n) => boneOf(skeleton, n)) : null;
+  if (corr) material.userData.u.uCorr.value = corr.texture;
+  if (v8 && extras.landmarks.caps) {
+    (material.userData as { caps?: unknown }).caps = extras.landmarks.caps;
+    material.userData.u.uShoulderY.value = extras.landmarks.caps.shoulderY ?? 99;
+    material.userData.u.uShoulderX.value = extras.landmarks.caps.shoulderX ?? 0;
+  }
   const mesh = new THREE.SkinnedMesh(merged, material);
   mesh.name = "boxer-body";
   mesh.castShadow = spec.shadows !== false;
@@ -242,10 +262,12 @@ export function makeBoxer(gltfScene: THREE.Object3D, extras: Extras, spec: Boxer
     arms,
     torso: torsoOf(extras, names, w),
     caps: v8 && extras.landmarks.caps ? extras.landmarks.caps : null,
+    corr,
     bone,
     dispose() {
       merged.dispose();
       material.dispose();
+      corr?.texture.dispose();
     },
   };
 }
