@@ -665,12 +665,15 @@ export function MatchmakingV2() {
   const chatOpen = useSocial((s) => s.chatOpen);
   useTravel();
 
-  // incoming challenges past their time (a missed expiry): forget them
-  const now = useNow(incoming.length > 0, 1000);
+  // incoming challenges past their time (a missed expiry): forget them; the same for a meeting walk whose time is up
+  // (the server closes it, or the match started: never a card frozen at "0 s to get there")
+  const go = useMm((s) => s.go);
+  const now = useNow(incoming.length > 0 || !!go, 1000);
   useEffect(() => {
     const late = incoming.filter((i) => now > i.until + 3000);
     if (late.length) useMm.setState((s) => ({ incoming: s.incoming.filter((i) => !late.includes(i)) }));
-  }, [now, incoming]);
+    if (go && now > go.until + 3000) useMm.setState((s) => (s.go === go ? { go: null } : s));
+  }, [now, incoming, go]);
 
   // "Challenge" from the person menu → the challenge sheet for that person
   const socialChallenge = useSocial((s) => s.challenge);

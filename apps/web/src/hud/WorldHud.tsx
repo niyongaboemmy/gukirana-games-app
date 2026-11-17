@@ -165,7 +165,9 @@ export function WorldHud() {
   };
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-10 select-none p-[max(12px,env(safe-area-inset-top))_max(12px,env(safe-area-inset-right))_max(12px,env(safe-area-inset-bottom))_max(12px,env(safe-area-inset-left))] text-white">
+    // (P3-FGT-24) the phone's More menu opens up the right edge, where WorldControls' slim row sits (same z-10, later in
+    // the DOM): while it is open this layer goes on top, else "Quick Play" sat under the Go To button and opened Go To
+    <div className={`pointer-events-none fixed inset-0 ${more ? "z-[11]" : "z-10"} select-none p-[max(12px,env(safe-area-inset-top))_max(12px,env(safe-area-inset-right))_max(12px,env(safe-area-inset-bottom))_max(12px,env(safe-area-inset-left))] text-white`}>
       {/* top-left profile chip (phone: just the 40 px avatar with its level ring; tap = style your avatar) */}
       <div className="glass pointer-events-auto absolute left-[max(12px,env(safe-area-inset-left))] top-3 flex items-center gap-3 rounded-card py-2 pl-2 pr-4 phone:top-2 phone:rounded-full phone:p-0.5">
         <button

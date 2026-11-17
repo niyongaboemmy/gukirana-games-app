@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
@@ -22,8 +22,7 @@ import { Judges } from "./judges";
 import { FightCamera } from "./camera";
 import { RingCloseInfo } from "./ring-info";
 import "./hooks"; // registers the Boxing hall's hall hooks
-import { fightMockOn, startFightMock } from "./mock";
-import { useBoxingNetClient } from "./game/net/client";
+import { startFightMock } from "./mock";
 import { hiddenPeople } from "@/rooms/hall-hooks";
 import { fightActions } from "./actions";
 import { TrainingZone } from "./training-zone";
@@ -58,17 +57,21 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
     const all = rings.map((r) => ({ ...r, number: Number(r.id.slice(1)), rest: placedKey.includes(r.id) && restKey.includes(r.id) }));
     return [all.filter((r) => r.feature), all.filter((r) => !r.feature)];
   }, [rings, restKey, placedKey]);
-  const [mock] = useState(fightMockOn);
   const gym = useGymScene();
   // focus mode (P3-FGT-05): once the hall is dark around my ring, the ring kit keeps only that ring
   const shownTraining = useFocusRings(training);
   const shownFeatures = useFocusRings(features);
   return (
     <group>
-      {!mock && <LiveNet />}
+      {/* (the live boxing client is NOT here: it runs in the DOM overlay, fight/FightOverlay `LiveBoxingNet`) */}
       <FocusMode lite={lite} />
       <TrainingZone hidden={gym.hidden} dim={gym.dim} />
-      <GymLife room="boxing" lite={lite} hidden={gym.hidden} />
+      {/* P3-FGT-24: every person here (BoxerAvatar → useGLTF) loads its model lazily. Without a boundary of their own a
+          model that is not cached yet (the v8 fighters at the bell) re-suspended the WHOLE hall: the area went blank,
+          its warm-up reset ("Preparing the Boxing Hall…") and every effect in it was disconnected. */}
+      <Suspense fallback={null}>
+        <GymLife room="boxing" lite={lite} hidden={gym.hidden} />
+      </Suspense>
       <HallLights lite={lite} />
       <Shell layout={layout} lite={lite} />
       <FeatureStage />
@@ -84,19 +87,19 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
       <BigScreen />
       <group userData={{ noMerge: true }}>
         <RingCloseInfo />
-        <FightersLayer lite={lite} />
-        <Judges lite={lite} />
-        <BagWorker lite={lite} />
+        <Suspense fallback={null}>
+          <FightersLayer lite={lite} />
+        </Suspense>
+        <Suspense fallback={null}>
+          <Judges lite={lite} />
+        </Suspense>
+        <Suspense fallback={null}>
+          <BagWorker lite={lite} />
+        </Suspense>
         <FightCamera />
       </group>
     </group>
   );
-}
-
-/** G2's live boxing client (hall ring registry, claim / join / quick / watch); the mock replaces it behind ?fightmock=1 */
-function LiveNet() {
-  useBoxingNetClient();
-  return null;
 }
 
 /**

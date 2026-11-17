@@ -8,7 +8,7 @@ import { MatchmakingPanel } from "@/match/MatchmakingPanel";
 import { RoomOverlay } from "@/rooms/RoomOverlay";
 import { AdminBlockOverlay } from "@/admin-block/AdminBlockOverlay";
 import { ArenaOverlay } from "@/arena/ArenaOverlay";
-import { FightOverlay } from "@/fight/FightOverlay";
+import { FightOverlay, LiveBoxingNet } from "@/fight/FightOverlay";
 import { GymPrompt } from "@/fight/GymPrompt";
 import { HALLS, isHallGame } from "@/rooms/layouts";
 import { useRoom } from "@/rooms/room-store";
@@ -41,16 +41,24 @@ export default function RoomPage() {
     return () => leavePlaza();
   }, [ready, session.status, profile.onboarded, game]);
 
-  // the HUD never shows over a scene that is still booting (it fades in after the reveal)
-  if (!ready || !isHallGame(game) || !hud) return null;
+  if (!ready || !isHallGame(game)) return null;
+  // the live boxing client runs for the whole Boxing hall visit, also while the stage boots / re-warms (same tree
+  // position whether the HUD shows or not: moving it would restart it and drop a running fight)
+  const net = game === "boxing" && session.status === "authenticated" && profile.onboarded ? <LiveBoxingNet /> : null;
   const layout = HALLS[game];
   return (
-    <div className="gk-hud-in">
-      <WorldHud />
-      <MatchmakingPanel />
-      <WorldControls />
-      {game === "admin" ? <AdminBlockOverlay layout={layout} /> : game === "fight" || game === "boxing" ? <><FightOverlay layout={layout} /><GymPrompt game={game} /></> : game === "arena" ? <ArenaOverlay layout={layout} /> : <RoomOverlay layout={layout} />}
-      <RotateGuard />
-    </div>
+    <>
+      {net}
+      {/* the HUD never shows over a scene that is still booting (it fades in after the reveal) */}
+      {hud && (
+        <div className="gk-hud-in">
+          <WorldHud />
+          <MatchmakingPanel />
+          <WorldControls />
+          {game === "admin" ? <AdminBlockOverlay layout={layout} /> : game === "fight" || game === "boxing" ? <><FightOverlay layout={layout} /><GymPrompt game={game} /></> : game === "arena" ? <ArenaOverlay layout={layout} /> : <RoomOverlay layout={layout} />}
+          <RotateGuard />
+        </div>
+      )}
+    </>
   );
 }

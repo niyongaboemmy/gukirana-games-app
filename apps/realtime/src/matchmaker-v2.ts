@@ -296,7 +296,10 @@ export class MatchService {
     const [mine, theirs] = await Promise.all([this.deps.eligibility(uid, stake, game).catch(() => ({ ok: true }) as Eligibility), this.deps.eligibility(to, stake, game).catch(() => ({ ok: true }) as Eligibility)]);
     const myWhy = refusal(mine);
     if (myWhy) return fail(myWhy.reason, { game, ...(myWhy.limit !== undefined ? { limit: myWhy.limit } : {}) });
-    const theirWhy = refusal(theirs);
+    // P3-FGT-24: the recipient's rules card is not a reason to refuse the challenge — they accept it on "Accept" (the
+    // web shows the card before answering; the match start re-checks every rule). Refusing here made a newcomer
+    // impossible to challenge ("can't play that right now") until they had accepted that game's rules elsewhere.
+    const theirWhy = !theirs.ok && theirs.reason === "RULES_NOT_ACCEPTED" ? null : refusal(theirs);
     if (theirWhy) return fail(theirWhy.reason === "ALREADY_IN_MATCH" ? "BUSY" : theirWhy.reason === "GAME_DISABLED" || theirWhy.reason === "STAKE_NOT_ALLOWED" ? theirWhy.reason : "OPPONENT_CANT_PLAY", { name: them.name, game });
     if (!this.hub.online(to) || this.hub.separated(uid, to)) return fail("OFFLINE");
     // the place named in the challenge is in the hall instance I am in, else the one they are in, else the open one
