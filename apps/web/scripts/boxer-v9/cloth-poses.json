@@ -1,0 +1,15 @@
+[
+  { "name": "guard", "clip": "guard", "t": 0.0 },
+  { "name": "jab", "clip": "jab", "t": 0.33 },
+  { "name": "cross", "clip": "cross", "t": 0.5 },
+  { "name": "leadHook", "clip": "leadHook", "t": 0.5 },
+  { "name": "rearHook", "clip": "rearHook", "t": 0.55 },
+  { "name": "leadUppercut", "clip": "leadUppercut", "t": 0.55 },
+  { "name": "rearBody", "clip": "rearBody", "t": 1.1 },
+  { "name": "duck", "clip": "duck", "t": 0.9 },
+  { "name": "blockHigh", "clip": "blockHigh", "t": 0.8 },
+  { "name": "down", "clip": "knockdown", "t": 4.1 },
+  { "name": "kneel", "clip": "count", "t": 0.0 },
+  { "name": "armsUp", "clip": "victory", "t": 2.5 },
+  { "name": "sit", "clip": "cornerRest", "t": 0.0 }
+]
