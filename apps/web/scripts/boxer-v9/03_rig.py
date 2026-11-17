@@ -1,9 +1,12 @@
 """Step 3: rig the body on OUR skeleton (Bip01 names, identity bind rotations) using Mixamo's auto-rig weights.
 
-UNTESTED: needs Blender (4.2+).
+Verified on Blender 5.2.4 (P3-FGT-22) with --map bip01 on the v8 test body; the Mixamo route is not run yet (needs
+the user's Mixamo download).
 
     blender -b work/out/m/02-body.blend -P apps/web/scripts/boxer-v9/03_rig.py -- \
-        --mixamo work/in/mixamo/m/character.fbx --out work/out/m/03-rigged.blend
+        --mixamo work/in/mixamo/m/character.fbx --out work/out/m/03-rigged.blend [--map mixamo|bip01] [--source-mesh body]
+
+--map bip01 takes the joints and weights from a skeleton that already has our names (the v8 test body GLB).
 
 Input --mixamo: the body you uploaded to Mixamo, downloaded back from Mixamo with "FBX Binary, With Skin, T-pose"
 (no animation) after the auto-rigger ran. Mixamo may re-order or split vertices, so its mesh is NOT used: only its
@@ -21,20 +24,37 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bpy  # noqa: E402
-from common import BONE_MAP, Vector, apply_modifier, apply_transforms, args, armature, bip_of, ctx, fail, import_any, log, meshes, mixamo_name, save, select_only  # noqa: E402
+from common import BONE_MAP, Vector, apply_modifier, apply_transforms, args, armature, ctx, fail, import_any, log, meshes, mixamo_name, save, select_only, source_map  # noqa: E402
 
-A = args({"mixamo": None, "out": None, "shoulder_radius": 0.09})
+A = args({"mixamo": None, "out": None, "shoulder_radius": 0.09, "map": "mixamo", "source_mesh": ""})
 body = bpy.data.objects.get("body")
 if body is None:
     fail("no 'body' object (run steps 1-2 first)")
+if not os.path.exists(A["mixamo"]):
+    fail(f"rigged source not found: {A['mixamo']} (the Mixamo auto-rig download, or run.mjs --body test)")
 extra = [o for o in meshes() if o.name not in ("body", "body_hi")]
+MAP = source_map(A["map"])
 
 new = import_any(os.path.abspath(A["mixamo"]))
 src_arm = armature(new)
-src_mesh = max(meshes(new), key=lambda o: len(o.data.vertices)) if meshes(new) else None
+# the skinned mesh: --source-mesh by name (prefix match: the import renames "body" to "body.001"), else the mesh
+# with the most weight groups (a GLB / FBX can carry other meshes too)
+skinned = [o for o in meshes(new) if o.vertex_groups]
+if A["source_mesh"]:
+    skinned = [o for o in skinned if o.name.split(".")[0] == A["source_mesh"]]
+src_mesh = max(skinned, key=lambda o: (len(o.vertex_groups), len(o.data.vertices))) if skinned else None
 if src_arm is None or src_mesh is None:
-    fail("the Mixamo file needs a skeleton AND the skinned mesh (download 'With Skin')")
-apply_transforms([src_arm] + meshes(new))
+    fail("the rigged source needs a skeleton AND the skinned mesh (Mixamo: download 'With Skin')")
+for o in meshes(new):
+    if o is not src_mesh:
+        new.remove(o)
+        bpy.data.objects.remove(o, do_unlink=True)
+# unparent (keeping the world transform) so the fit below moves the mesh once, not once more through its parent
+for o in (src_arm, src_mesh):
+    mw = o.matrix_world.copy()
+    o.parent = None
+    o.matrix_world = mw
+apply_transforms([src_arm, src_mesh])
 
 
 # Mixamo can rescale / move the upload: fit its bounding box onto our body
@@ -46,19 +66,56 @@ def bbox(o):
 (blo, bhi), (slo, shi) = bbox(body), bbox(src_mesh)
 s = (bhi.z - blo.z) / max(1e-6, shi.z - slo.z)
 if abs(s - 1) > 0.01 or (slo - blo).length > 0.01:
-    log(f"fitting the Mixamo rig onto the body: scale {s:.4f}")
-    for o in [src_arm] + meshes(new):
+    log(f"fitting the source rig onto the body: scale {s:.4f}")
+    for o in (src_arm, src_mesh):
         o.scale = (s, s, s)
-    apply_transforms([src_arm] + meshes(new))
+    apply_transforms([src_arm, src_mesh])
     (slo, shi) = bbox(src_mesh)
     d = Vector(((blo.x + bhi.x - slo.x - shi.x) / 2, (blo.y + bhi.y - slo.y - shi.y) / 2, blo.z - slo.z))
-    for o in [src_arm] + meshes(new):
+    for o in (src_arm, src_mesh):
         o.location += d
-    select_only([src_arm] + meshes(new))
-    with ctx(src_arm, [src_arm] + meshes(new)):
+    select_only([src_arm, src_mesh])
+    with ctx(src_arm, [src_arm, src_mesh]):
         bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
 
-# ---- 1. copy the skin weights (all Mixamo groups) onto our body
+# ---- 0. on the source: fold every unmapped weight group (face bones, end bones, twist / helper bones of another rig)
+# into its nearest mapped ancestor, so no skin is left unweighted when the groups are renamed below
+src_bones = {mixamo_name(b.name): b for b in src_arm.data.bones}
+
+
+def mapped_ancestor(name):
+    b = src_bones.get(name)
+    while b is not None:
+        if mixamo_name(b.name) in MAP:
+            return mixamo_name(b.name)
+        b = b.parent
+    return None
+
+
+folded = {}
+for vg in list(src_mesh.vertex_groups):
+    n = mixamo_name(vg.name)
+    if n in MAP:
+        continue
+    to = mapped_ancestor(n)
+    if to is None:
+        continue
+    tgt = next((g for g in src_mesh.vertex_groups if mixamo_name(g.name) == to), None) or src_mesh.vertex_groups.new(name=to)
+    gi = vg.index
+    for v in src_mesh.data.vertices:
+        for g in v.groups:
+            if g.group == gi and g.weight > 0:
+                try:
+                    w0 = tgt.weight(v.index)
+                except RuntimeError:
+                    w0 = 0.0
+                tgt.add([v.index], w0 + g.weight, "REPLACE")
+    folded[n] = to
+    src_mesh.vertex_groups.remove(vg)
+if folded:
+    log("folded unmapped weight groups:", ", ".join(f"{a}->{b}" for a, b in sorted(folded.items())))
+
+# ---- 1. copy the skin weights (all source groups) onto our body
 for vg in list(body.vertex_groups):
     body.vertex_groups.remove(vg)
 dt = body.modifiers.new("weights", "DATA_TRANSFER")
@@ -72,15 +129,14 @@ with ctx(body):
     bpy.ops.object.datalayout_transfer(modifier=dt.name)
 apply_modifier(body, dt)
 
-# ---- 2. our skeleton at Mixamo's joints
-src_bones = {mixamo_name(b.name): b for b in src_arm.data.bones}
+# ---- 2. our skeleton at the source's joints
 joint = {}
-for mname, bip in BONE_MAP["mixamo_to_bip01"].items():
+for mname, bip in MAP.items():
     if mname in src_bones:
         joint[bip] = src_arm.matrix_world @ src_bones[mname].head_local
-missing = [b for b in BONE_MAP["mixamo_to_bip01"].values() if b not in joint and "Finger" not in b]
+missing = [b for b in MAP.values() if b not in joint and "Finger" not in b]
 if missing:
-    fail("Mixamo skeleton lacks: " + ", ".join(missing))
+    fail(f"the {A['map']} skeleton lacks: " + ", ".join(missing))
 joint["Bip01_Pelvis"] = joint["Bip01"].copy()
 for S in ("L", "R"):
     joint[f"Bip01_{S}_ShoulderHelper"] = joint[f"Bip01_{S}_UpperArm"].copy()
@@ -118,8 +174,9 @@ log(f"skeleton: {len(arm_data.bones)} bones")
 # ---- 3. rename the weight groups to Bip01 (Hips -> Bip01_Pelvis: the root itself carries no skin, as in v8)
 dropped = []
 for vg in list(body.vertex_groups):
-    m = mixamo_name(vg.name)
-    bip = "Bip01_Pelvis" if m == "Hips" else bip_of(vg.name)
+    bip = MAP.get(mixamo_name(vg.name))
+    if bip == "Bip01":
+        bip = "Bip01_Pelvis"
     if bip and bip in arm_data.bones:
         vg.name = bip
     else:
@@ -180,4 +237,12 @@ for o in [body] + extra:
     o.parent = rig
 for o in new:
     bpy.data.objects.remove(o, do_unlink=True)
+rig.name = arm_data.name = "boxer"  # (the source rig may have been called "boxer" too: the new one got ".001")
+
+# ---- 6. checks: every vertex weighted, at most 4 influences after the glTF export's normalisation
+bare = sum(1 for v in body.data.vertices if sum(g.weight for g in v.groups) < 1e-4)
+many = sum(1 for v in body.data.vertices if sum(1 for g in v.groups if g.weight > 1e-4) > 4)
+log(f"weights: {len(body.data.vertices)} vertices, {bare} unweighted, {many} with more than 4 influences (the exporter keeps the 4 largest)")
+if bare:
+    fail(f"{bare} body vertices have no skin weight (the source mesh does not cover the body?)")
 save(A["out"])

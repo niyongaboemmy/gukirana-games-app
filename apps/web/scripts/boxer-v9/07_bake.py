@@ -1,6 +1,6 @@
 """Step 7: bake the detailed sources onto the budget meshes: normal, base colour, AO, roughness at 2k, plus 1k copies.
 
-UNTESTED: needs Blender (4.2+) with Cycles (CPU works; Metal GPU on Apple silicon is faster).
+Verified on Blender 5.2.4 (P3-FGT-22, test body, 1k maps, 16 samples: 15 s on an M2 Pro CPU). Cycles; Metal GPU is faster.
 
     blender -b work/out/m/06-gear.blend -P apps/web/scripts/boxer-v9/07_bake.py -- \
         --out-dir work/out/m/maps --out work/out/m/07-baked.blend --plan work/out/m/ktx2-plan.json \
@@ -109,6 +109,9 @@ for pair in A["pairs"]:
                         "linear": m != "color",
                         "normal": m == "normal",
                         "size": sz,
+                        "object": lo_name.replace("_lo_guard", ""),
+                        "map": m,
+                        "variant": "desktop" if suffix == "" else "phone",
                     }
                 )
             log(f"baked {base}.png")

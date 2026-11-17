@@ -1,0 +1,74 @@
+[
+  {
+    "clip": "guard",
+    "file": "14_01.bvh",
+    "cmu": "14_01 boxing (subject 14), shadow boxing, orthodox",
+    "start": 9.2,
+    "end": 10.6,
+    "hand": null,
+    "loop": true,
+    "strip_root": true,
+    "face": "chest",
+    "yaw": 0
+  },
+  {
+    "clip": "jab",
+    "file": "14_01.bvh",
+    "cmu": "14_01 lead (left) straight, peak about 2.40 s into the take",
+    "start": 2.07,
+    "end": 2.9,
+    "hand": "L",
+    "loop": false,
+    "strip_root": true,
+    "face": "punch",
+    "yaw": 0
+  },
+  {
+    "clip": "cross",
+    "file": "14_01.bvh",
+    "cmu": "14_01 rear (right) straight, peak about 1.40 s",
+    "start": 0.9,
+    "end": 1.8,
+    "hand": "R",
+    "loop": false,
+    "strip_root": true,
+    "face": "punch",
+    "yaw": 0
+  },
+  {
+    "clip": "leadHook",
+    "file": "14_01.bvh",
+    "cmu": "14_01 lead (left) hook, the glove wide at shoulder height about 15.40 s",
+    "start": 14.9,
+    "end": 15.8,
+    "hand": "L",
+    "loop": false,
+    "strip_root": true,
+    "face": "punch",
+    "yaw": 0
+  },
+  {
+    "clip": "rearHook",
+    "file": "14_01.bvh",
+    "cmu": "14_01 rear (right) hook across the body about 19.6 s",
+    "start": 19.05,
+    "end": 19.95,
+    "hand": "R",
+    "loop": false,
+    "strip_root": true,
+    "face": "punch",
+    "yaw": 0
+  },
+  {
+    "clip": "hitHeadLight",
+    "file": "14_01.bvh",
+    "cmu": "STAND-IN: CMU has no hit reactions; 14_01's lean back (head behind the shoulders about 10.8 s) plays the snap of a light head hit",
+    "start": 10.5,
+    "end": 11.2,
+    "hand": null,
+    "loop": false,
+    "strip_root": true,
+    "face": "chest",
+    "yaw": 0
+  }
+]

@@ -1,6 +1,7 @@
 """Step 6: fit a downloaded gear model (glove, headgear, shoe) to the rigged body and skin it.
 
-UNTESTED: needs Blender (4.2+). Run once per item, e.g.
+Verified on Blender 5.2.4 (P3-FGT-22) with the placeholder glove (make_placeholder_gear.py), L and R. Shoe and
+headgear modes are not run yet (no model). Run once per item, e.g.
 
     blender -b work/out/m/05-cloth.blend -P apps/web/scripts/boxer-v9/06_fit_gear.py -- \
         --input work/in/gear/glove/glove.glb --mode glove --side L --rotate 0,0,90 --length 0.30 \
@@ -50,7 +51,12 @@ with ctx(objs[0], objs):
         bpy.ops.object.join()
 ob = bpy.context.view_layer.objects.active
 ob.name = name
+ob.data.name = name
 apply_transforms([ob])
+# (P3-FGT-22) the location too: a downloaded model (and the placeholder) can carry a node offset, and everything below
+# works on the mesh coordinates; a 19 cm offset left the test gloves floating over the forearms
+with ctx(ob):
+    bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
 rot = [math.radians(float(x)) for x in (A["rotate"] or ["0", "0", "0"])]
 ob.data.transform(Euler(rot, "XYZ").to_matrix().to_4x4())
 if A["mirror"]:
