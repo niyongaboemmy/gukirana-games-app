@@ -30,6 +30,20 @@ Rejected: scanned people in jeans or hoodies (OverseerThuror, 3dfarm, Renderpeop
 cannot be removed for a bare-armed boxer. in3D iPhone scan (37k): low texture quality. Renderpeople free models: their
 licence for real-time games is unclear.
 
+### No-login bodies (P3-FGT-23, searched 2026-11-17)
+
+| Model | Author | Licence | Source | Verdict |
+| --- | --- | --- | --- | --- |
+| [Body scan](https://www.artec3d.com/3d-models/body-scan) | Artec 3D (Artec Leo scanner) | CC BY 4.0 on the page (the `license.txt` in the zip says CC BY 3.0 Unported; both allow commercial use with credit) | 765k triangles, one 8192 px texture, OBJ, direct CDN download, no account | **Used for the first scan test.** An athletic adult man (white European, about 30), nearly bare (tight black briefs), real face with clear eyes, lips and ears. But: double-biceps flex pose (re-posed by step 0; the armpits were never scanned), fists, not African. The test result does not beat v8 (docs/QA/boxing-v9/scan-test/). A real person's likeness: fine for a dev test, not for shipping without thought. |
+| [Full body scan](https://www.artec3d.com/3d-models/full-body-scan) | Artec 3D | CC BY 4.0 | OBJ / PLY, no login | Rejected: an older man in a loose shirt and jeans, hands on hips (baked clothing, arms against the body). |
+| Deep3D Studio "Basic" free pack (Dropbox link, via cgchannel) | Deep3D Studio | "licensed for commercial use", no licence text | no login | Rejected: unclear terms, and all four are clothed white adults. |
+
+Nothing African, athletic, in an A-pose and CC0 / CC BY was found as a no-login download. The best login-required
+picks remain rank 1 and 2 of the table above (Sketchfab, the user's own free account): deep3dstudio's athletic African
+man (CC BY 4.0, 100k triangles, real photogrammetry, but baked clothes and a walking pose) and Scanlab's Generic Man
+(CC BY 4.0, A-pose, nearly bare, not athletic). Their texture resolution must be checked after download: reject
+anything under 4k. **The best route is the user's own iPhone scan of a real Musanze boxer (SCAN-GUIDE.md).**
+
 ## 2. Boxing gloves (laced or velcro, thumb attached)
 
 | Rank | Model | Author | Licence | Polycount / textures | Realism | What it needs to fit |

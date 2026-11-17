@@ -11,11 +11,13 @@
 // rig source (its own Bip01 skeleton, so the Mixamo web step is skipped). --clips cmu takes the CMU BVH takes listed
 // in cmu-clips.json from work/in/cmu/. --gear placeholder makes a primitive glove (make_placeholder_gear.py).
 // --fast bakes 1k maps with 16 samples (test runs). --publish-test copies a --body test result into the git-ignored
-// apps/web/public/assets/characters/_v9test/ for the dev-only lab (/play/boxing-lab?mode=boxer&v9=1).
+// apps/web/public/assets/characters/_v9test/ for the dev-only lab (/play/boxing-lab?mode=boxer&v9=1), and a --body scan
+// result (CMU clips only) into _v9test/scan/ (v9=scan).
 //
-// Steps: placeholder (only with --gear placeholder), import, decimate, rig, clips, cloth, gear, bake, export, library,
-// ktx2, publish (only with --publish-test). With --body metahuman|scan the runner stops before "rig" until the Mixamo
-// auto-rig download is in place, and prints exactly what to upload and download.
+// Steps: placeholder (only with --gear placeholder), scanprep (only with --body scan: re-pose and rig a raw scan
+// offline, P3-FGT-23), import, decimate, rig, clips, cloth, gear, bake, export, library,
+// ktx2, publish (only with --publish-test). With --body metahuman the runner stops before "rig" until the Mixamo
+// auto-rig download is in place, and prints exactly what to upload and download. --body scan rigs offline (scanprep).
 import { execFileSync, spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, platform } from "node:os";
@@ -30,6 +32,7 @@ const V8_TEST_BODY = "../../public/assets/characters/v8/boxer-m.glb";
 const MIN_BLENDER = [4, 2];
 const STEPS = [
   "placeholder",
+  "scanprep",
   "import",
   "decimate",
   "rig",
@@ -160,7 +163,26 @@ export function profile(base, { body, clips, gear, fast } = {}) {
     cfg.rig = { source: V8_TEST_BODY, map: "bip01", source_mesh: "body", manual: false };
     cfg.kind = "test";
   } else if (body === "scan") {
-    cfg.body = { ...cfg.body, ...(cfg.scan ?? {}), input: cfg.scan?.input ?? `work/in/scan/${f}/body.glb` };
+    // (P3-FGT-23) a raw scan goes through 00_scan_prep.py first: upright, metres, re-posed into our A-pose and rigged
+    // offline onto Bip01 joints (bone heat), so no Mixamo upload is needed. scan.prep: false keeps the old route (a
+    // scan already in an A-pose, rigged through the Mixamo web step).
+    const scan = cfg.scan ?? {};
+    const raw = scan.input ?? `work/in/scan/${f}/body.obj`;
+    if (scan.prep === false) {
+      cfg.body = { ...cfg.body, height: 0, ...scan, input: raw };
+    } else {
+      const apose = `work/out/${f}/scan-apose.glb`;
+      const rigSrc = `work/out/${f}/scan-rig.glb`;
+      cfg.scanprep = {
+        input: raw,
+        out: apose,
+        rig_out: rigSrc,
+        joints: scan.joints ?? "",
+        height: scan.height ?? 0,
+      };
+      cfg.body = { ...cfg.body, unwrap: true, ...scan, height: 0, input: apose };
+      cfg.rig = { source: rigSrc, map: "bip01", source_mesh: "body", manual: false };
+    }
     cfg.kind = "scan";
   } else {
     cfg.kind = "metahuman";
@@ -200,6 +222,29 @@ export function plan(cfg) {
       ),
       produces: cfg.placeholder,
     });
+  if (cfg.scanprep) {
+    const sp = cfg.scanprep;
+    out.push(
+      step(
+        "scanprep",
+        null,
+        "00_scan_prep.py",
+        [
+          "--input",
+          sp.input,
+          "--out",
+          sp.out,
+          "--rig-out",
+          sp.rig_out,
+          "--report",
+          o("scan-prep.json"),
+          ...(sp.joints ? ["--joints", sp.joints] : []),
+          ...(sp.height ? ["--height", String(sp.height)] : []),
+        ],
+        [sp.input],
+      ),
+    );
+  }
   out.push(
     step(
       "import",
@@ -366,6 +411,8 @@ const MANUAL = {
       ? `The scanned body is missing: put the FBX / GLB / OBJ at ${cfg.body.input} (or set scan.input in work/pipeline.json). ASSET-SOURCES.md lists free scans.`
       : `The MetaHuman export is missing: follow docs/design/boxer-v9/METAHUMAN-SPEC.md and save the full-body FBX as ${cfg.body.input}.\n` +
         `  (No MetaHuman yet? --body test runs the whole pipeline on the v8 stand-in body.)`,
+  scanprep: (cfg) =>
+    `The scan is missing: put the OBJ / FBX / GLB / PLY at ${cfg.scanprep?.input} (docs/design/boxer-v9/SCAN-GUIDE.md), or set scan.input in work/pipeline.json.`,
   placeholder: () => "",
 };
 
@@ -398,29 +445,35 @@ function clipHelp(cfg, missing, all) {
 
 function publishTest(cfg) {
   const f = cfg.fighter ?? "m";
-  if (cfg.kind !== "test")
+  // (P3-FGT-23) a --body scan result may go to _v9test/scan/ for the dev-only lab (v9=scan): that folder is git-ignored
+  // like the rest of _v9test/ and is never committed or deployed. MetaHuman / Mixamo outputs still never go there.
+  if (cfg.kind !== "test" && cfg.kind !== "scan")
     throw new Error(
-      "--publish-test only copies a --body test result: real MetaHuman / Mixamo / scan outputs never go into public/ (LICENCES.md)",
+      "--publish-test only copies a --body test or scan result: MetaHuman / Mixamo outputs never go into public/ (LICENCES.md)",
     );
+  if (cfg.clips?.map !== "cmu")
+    throw new Error("--publish-test needs --clips cmu: Mixamo clips never go into public/ (LICENCES.md)");
+  const dest = cfg.kind === "scan" ? join(PUBLIC_TEST, "scan") : PUBLIC_TEST;
   const src = join(WORK, "out", f);
-  mkdirSync(join(PUBLIC_TEST, "maps"), { recursive: true });
-  copyFileSync(join(src, `boxer-${f}.glb`), join(PUBLIC_TEST, "boxer-m.glb"));
-  copyFileSync(join(WORK, "out/clips/boxer-clips.glb"), join(PUBLIC_TEST, "boxer-clips.glb"));
+  mkdirSync(join(dest, "maps"), { recursive: true });
+  copyFileSync(join(src, `boxer-${f}.glb`), join(dest, "boxer-m.glb"));
+  copyFileSync(join(WORK, "out/clips/boxer-clips.glb"), join(dest, "boxer-clips.glb"));
   // the phone-size KTX2 maps and an index { object: { normal: file, color: file, ... } } for the lab
   const planFile = join(src, "ktx2-plan.json");
   const jobs = existsSync(planFile)
     ? JSON.parse(readFileSync(planFile, "utf8")).filter(
-        (j) => j.variant === "phone" && existsSync(resolve(HERE, j.out)),
+        // (the scan review needs face close-ups: it takes the desktop-size maps)
+        (j) => j.variant === (cfg.kind === "scan" ? "desktop" : "phone") && existsSync(resolve(HERE, j.out)),
       )
     : [];
   const index = {};
   for (const j of jobs) {
-    copyFileSync(resolve(HERE, j.out), join(PUBLIC_TEST, "maps", basename(j.out)));
+    copyFileSync(resolve(HERE, j.out), join(dest, "maps", basename(j.out)));
     (index[j.object] ??= {})[j.map] = basename(j.out);
   }
-  writeFileSync(join(PUBLIC_TEST, "maps.json"), JSON.stringify(index, null, 2));
+  writeFileSync(join(dest, "maps.json"), JSON.stringify(index, null, 2));
   console.log(
-    `copied the test fighter, the clip library and ${jobs.length} KTX2 maps to ${PUBLIC_TEST} (git-ignored)`,
+    `copied the ${cfg.kind} fighter, the clip library and ${jobs.length} KTX2 maps to ${dest} (git-ignored)`,
   );
 }
 

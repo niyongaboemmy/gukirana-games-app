@@ -6,7 +6,9 @@ Scripts: `apps/web/scripts/boxer-v9/`. Runner: `node apps/web/scripts/boxer-v9/r
 stand-in inputs that need no login: the shipped v8 GLB as the body (and as its own rig source), six CMU BVH boxing
 takes, and a primitive placeholder glove. The real inputs (MetaHuman body, Mixamo auto-rig and clips, Sketchfab gear)
 do not exist yet, so the Mixamo code paths of steps 3 and 4 and the shoe / headgear modes of step 6 have not run.
-See "Verified on Blender 5.2" below for exactly what ran, what changed and the timings.
+See "Verified on Blender 5.2" below for exactly what ran, what changed and the timings. **P3-FGT-23** added the
+offline scan path (step 0, `00_scan_prep.py`, no Mixamo login) and reworked the cloth: see "The scan path and the
+cloth fixes".
 
 ## What goes in, what comes out
 
@@ -34,7 +36,7 @@ node apps/web/scripts/boxer-v9/run.mjs --check                                  
 node apps/web/scripts/boxer-v9/run.mjs --init                                    # work/ and work/pipeline.json
 node apps/web/scripts/boxer-v9/run.mjs --body test --clips cmu --fast --publish-test   # the no-login test run
 node apps/web/scripts/boxer-v9/run.mjs --body metahuman --clips mixamo           # the real run (stops at Mixamo)
-node apps/web/scripts/boxer-v9/run.mjs --body scan --clips mixamo                # a scanned body instead
+node apps/web/scripts/boxer-v9/run.mjs --body scan --clips cmu --gear placeholder # a scanned body, rigged offline (step 0)
 node apps/web/scripts/boxer-v9/run.mjs ... --from rig                            # continue after the Mixamo web step
 node apps/web/scripts/boxer-v9/run.mjs ... --only cloth                          # re-run one step
 node apps/web/scripts/boxer-v9/run.mjs ... --dry-run                             # print every command
@@ -130,6 +132,72 @@ Still open (honest list):
 - The face is rigid (no jaw / blink bones in v9 yet), as planned.
 - The mixer: `THREE.AnimationMixer.setTime()` did not move the bones in the lab, for reasons not found; the lab samples
   the clip tracks directly. The runtime task must check its own playback path.
+
+## The scan path and the cloth fixes (P3-FGT-23)
+
+Test run: `--body scan --clips cmu --gear placeholder --publish-test` on the Artec 3D "Body scan" (CC BY 4.0, a
+no-login download, 765k triangles, 8k texture, a man in a double-biceps flex pose; see ASSET-SOURCES.md). All steps
+exit 0 on Blender 5.2.4. The result and its honest verdict (it does not beat v8) are in
+`docs/QA/boxing-v9/scan-test/`.
+
+### Step 0: `00_scan_prep.py` (new, runs only with `--body scan`)
+
+A raw scan rarely arrives in our frame or pose, and the Mixamo upload needs a login. Step 0 does it offline:
+
+1. imports OBJ / FBX / GLB / PLY and joins it; turns it upright (the longest axis is the height; the flat end, the
+   soles, goes down: the Artec OBJ is Z-up and Blender's OBJ importer laid it on its back); converts mm or cm to m;
+   centres it on the pelvis; checks the nose points to -Y (`--turn 180` otherwise);
+2. `--slices` prints the flesh intervals per 2 cm slice (and per column), and `--views` renders front and side
+   orthographic views: use them to read joints for an unusual pose into a joints file
+   (`scan-joints/<name>.json`, our measurement, so it may be committed). An A- or T-pose scan needs no file: the v8
+   skeleton is scaled to the scan's height and each joint snapped to the middle of the flesh around it;
+3. builds a temporary Bip01 armature at the joints and computes bone-heat weights on a 60k-triangle proxy, then copies
+   them onto the full scan;
+4. turns the arms into our A-pose (`--arm-down 48`, `--arm-forward 8`, `--elbow 12` degrees) and freezes the full scan in
+   that pose;
+5. writes `work/out/<f>/scan-apose.glb` (the re-posed full scan with its texture, the input of step 1) and
+   `scan-rig.glb` (the proxy with the skeleton and weights, the rig source of step 3 with `--map bip01`).
+
+`run.mjs` wires it in: `pipeline.json` -> `scan: { input, joints, height, prep }`. `prep: false` keeps the old route (an
+A-pose scan through the Mixamo web step). Time: about 13 s.
+
+Other scan fixes:
+
+- **step 1 welds UV-seam splits** (`remove_doubles` at 0.01 mm): glTF stores one UV per vertex, so a scan GLB arrives cut
+  into hundreds of islands along its atlas seams. The decimation could not cross them, and step 5 cut each garment out
+  of one tiny island (2 triangles).
+- `--publish-test` also takes a `--body scan --clips cmu` result, into the git-ignored `_v9test/scan/` (with the
+  desktop-size maps, for close-ups); the dev-only lab shows it with `v9=scan`, using the baked skin colour and
+  roughness. MetaHuman and Mixamo outputs are still refused.
+
+### Step 5: what changed in the cloth
+
+| Change                                                                                                                                                                                                                                                                                                                                                           | Why                                                                                                                                                                                                              |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Garments are cut from a **voxel-remeshed copy of the body** (`--voxel 0.017`: even 17 mm quads, the body's weights copied on), not from the decimated body, and are not decimated afterwards                                                                                                                                                                     | The decimated body has long thin triangles of every size. Cut from them, the cloth simulated into lumps, a rippled waistband and a ragged armhole, and on the scan body the singlet blew up (stretch p99 37-114) |
+| Fabric tension / compression 12 -> 40 (singlet) and 15 -> 50 (trunks), shear 4 / 5 -> 12 / 15, quality 8 -> 12                                                                                                                                                                                                                                                   | The soft fabric stretched to 1.9x in punches, which reads as a tear                                                                                                                                              |
+| A **Smoother** pass on the drape and every corrective, in rest space: 10 Taubin passes (+0.5 / -0.53, no shrinking; hem vertices smooth only along the hem), then anything closer than 3 mm to the skin is pushed out along the body normal                                                                                                                      | Removes the simulation's small lumps and keeps every hem a smooth line; no skin through the cloth                                                                                                                |
+| **Flat elastic waistband**: the top 3.5 cm of the trunks is set onto the skin at 11 mm (outside the singlet hem), the same in every pose, blended into the free fabric over 1.5 cm                                                                                                                                                                               | A real elastic band grips and does not fold; it also keeps the tucked singlet under the trunks                                                                                                                   |
+| **Arms outside the singlet**: in each posed shape, any singlet point inside an upper arm, or lying over the arm's far side within 2.5 cm, is moved to the torso side of the arm, the dent smoothed (2 passes), 3 rounds                                                                                                                                          | The rear hook wrapped the side panel round the upper arm                                                                                                                                                         |
+| The checks now judge **what ships** (the smoothed corrective, skinned again); the raw simulation numbers are logged next to them. The 1.6 limit applies to the **p99** edge; the single worst edge and where it is are reported (`isolated_edges_over_limit` in `correctives.json`). A fabric strain number (against the garment's own rest edges) is logged too | One edge out of thousands failed the whole round before; the worst single edge is still reported for the close-up check                                                                                          |
+
+The stretch numbers (p99 of posed edge / skinned edge, 5 CMU poses, limit 1.6):
+
+| Run                              | Singlet p99               | Trunks p99    | Arm inside          |
+| -------------------------------- | ------------------------- | ------------- | ------------------- |
+| before, v8 test body (P3-FGT-22) | 1.33-1.87 (both garments) |               | 0, rear hook 1-3    |
+| before, scan body, old cloth     | 37-114 (blew up)          | 1.30-2.15     | 0                   |
+| **after, scan body**             | **1.24-1.34**             | **1.19-1.45** | **0 in every pose** |
+
+All poses pass at p99. Single edges still go over 1.6 (singlet up to 3.9 at the side under the arm, trunks up to 3.1
+at the leg opening in the lead hook); the close-ups show a slightly stepped side edge under a raised arm and a scalloped
+neckline, not tears. The new cloth was not re-run on the v8 test body (it would overwrite the shared clip library in
+`work/out/clips/`). Cloth time: about 2 min 20 s for both garments (was 75 s).
+
+Still open after P3-FGT-23: the scan's armpits (never captured in a flex pose) look pale and torn when the arm is up;
+the face gets too little texture (a 2k smart-project atlas) and too few triangles (5k) for close-ups; the scalloped
+neckline and stepped side edge; the gloves are placeholders and there are no boots. A proper A-pose scan (SCAN-GUIDE.md)
+removes the armpit and re-pose problems.
 
 ## Triangle budget (one fighter, phone first)
 

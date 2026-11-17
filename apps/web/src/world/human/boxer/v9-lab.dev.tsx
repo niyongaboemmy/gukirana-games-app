@@ -13,6 +13,7 @@ import { loadTextureInto, registerKtx2Renderer } from "./v8/ktx2";
 
 /**
  * P3-FGT-22, DEV ONLY: the boxer v9 Blender pipeline's TEST output in the boxer lab (`/play/boxing-lab?mode=boxer&v9=1`).
+ * P3-FGT-23: `v9=scan` loads the real-scan test boxer from `_v9test/scan/` instead, with its baked skin colour.
  * Loads the git-ignored files `node apps/web/scripts/boxer-v9/run.mjs --publish-test` copies to
  * `public/assets/characters/_v9test/` (never committed, never in a production build: the lab page itself only exists
  * when NODE_ENV is "development"). Nothing in the game uses this file.
@@ -22,7 +23,9 @@ import { loadTextureInto, registerKtx2Renderer } from "./v8/ktx2";
  * skeleton with the keyed clip of the same name, the compatibility check) · maps=0 (no baked normal maps).
  */
 export const V9_LAB = process.env.NODE_ENV === "development";
-const BASE = "/assets/characters/_v9test/";
+const TEST_BASE = "/assets/characters/_v9test/";
+/** (P3-FGT-23) v9=scan: the first real-scan boxer, `run.mjs --body scan --clips cmu --publish-test` (git-ignored) */
+const v9Base = (q: URLSearchParams) => (q.get("v9") === "scan" ? `${TEST_BASE}scan/` : TEST_BASE);
 /** the cloth corrective (05_cloth.py corr_<pose>) that belongs to each clip */
 const CLIP_POSE: Record<string, string> = {
   guard: "guard",
@@ -60,6 +63,8 @@ export function BoxerV9Lab({
 }) {
   const gl = useThree((s) => s.gl);
   registerKtx2Renderer(gl);
+  const BASE = v9Base(q);
+  const scan = q.get("v9") === "scan";
   const fighter = useGLTF(`${BASE}boxer-m.glb`, false);
   const lib = useGLTF(`${BASE}boxer-clips.glb`, false);
   const clipName = q.get("clip") ?? "guard";
@@ -78,7 +83,7 @@ export function BoxerV9Lab({
     return () => {
       live = false;
     };
-  }, []);
+  }, [BASE]);
 
   const inst = useMemo(() => {
     const root = cloneSkinned(fighter.scene);
@@ -109,11 +114,20 @@ export function BoxerV9Lab({
         };
         put(files.normal, false, (t) => (mat.normalMap = t));
         put(files.ao, false, (t) => (mat.aoMap = t));
+        // (P3-FGT-23) the scan's own skin: its baked colour and roughness (the colour carries the person)
+        if (scan && kind === "body" && files.color) {
+          mat.color.set("#ffffff");
+          put(files.color, true, (t) => (mat.map = t));
+        }
+        if (scan && kind === "body" && files.roughness) {
+          mat.roughness = 1;
+          put(files.roughness, false, (t) => (mat.roughnessMap = t));
+        }
       }
     });
     const bone = (n: string) => root.getObjectByName(n) ?? null;
     return { root, meshes, bone };
-  }, [fighter, maps, mapIndex]);
+  }, [fighter, maps, mapIndex, BASE, scan]);
 
   const clip = lib.animations.find((a) => a.name === clipName) ?? null;
   // the clip sampled directly, track by track (a frozen frame: no mixer state between renders)

@@ -172,7 +172,7 @@ function CamRig({
 }
 
 export function BoxerLab(props: { q: URLSearchParams; setInfo: (s: string) => void }) {
-  if (V9_LAB && props.q.get("v9") === "1") return <BoxerLabV9 {...props} />;
+  if (V9_LAB && (props.q.get("v9") === "1" || props.q.get("v9") === "scan")) return <BoxerLabV9 {...props} />;
   return <BoxerLabV8 {...props} />;
 }
 
