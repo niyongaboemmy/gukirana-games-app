@@ -1,97 +1,620 @@
 {
   "about": "P3-FGT-19B fighter-v8 acceptance: the design's checklist (docs/design/fighter-v8/SPEC.md §15), item by item, plus the brief's budget. Scored by qa/e2e/fighter-v8/run.mjs on the AFTER (v8) phase. `static.*` comes from static.mjs (shipped GLBs, KTX2 set, design sources), `runtime.*` from the page (inpage-checks.js), `perf.*` from the broadcast shot. An item with min / max / equals all null is 'unset'.",
-  "jointLimits": { "elbowFlexMax": 155, "kneeFlexMax": 155, "kneeBehindMax": 0.015, "wristDevMax": 35, "neckBendMax": 55, "spineTwistMax": 75 },
+  "jointLimits": {
+    "elbowFlexMax": 155,
+    "kneeFlexMax": 155,
+    "kneeBehindMax": 0.015,
+    "wristDevMax": 35,
+    "neckBendMax": 55,
+    "spineTwistMax": 75
+  },
   "items": [
-    { "id": "gen", "label": "the v8 people are loaded (not the v7 fallback)", "metric": "generation.loaded", "equals": "v8", "source": "brief" },
-
-    { "id": "1-stature", "label": "1. stature within ±0.5 cm of the class value (worst of 4 classes, m)", "metric": "static.body.worst.statureErr", "max": 0.005, "source": "SPEC §15.1" },
-    { "id": "2-whr-m-lo", "label": "2. waist-to-hip ♂ ≥ 0.83", "metric": "static.body.worst.whrMaleMin", "min": 0.83, "source": "SPEC §15.2" },
-    { "id": "2-whr-m-hi", "label": "2. waist-to-hip ♂ ≤ 0.88", "metric": "static.body.worst.whrMaleMax", "max": 0.88, "source": "SPEC §15.2" },
-    { "id": "2-whr-f-lo", "label": "2. waist-to-hip ♀ ≥ 0.70", "metric": "static.body.worst.whrFemMin", "min": 0.7, "source": "SPEC §15.2" },
-    { "id": "2-whr-f-hi", "label": "2. waist-to-hip ♀ ≤ 0.76", "metric": "static.body.worst.whrFemMax", "max": 0.76, "source": "SPEC §15.2" },
-    { "id": "3-bid-m-lo", "label": "3. bideltoid / stature ♂ ≥ 0.34", "metric": "static.body.worst.bidMaleMin", "min": 0.34, "source": "SPEC §15.3" },
-    { "id": "3-bid-m-hi", "label": "3. bideltoid / stature ♂ ≤ 0.36", "metric": "static.body.worst.bidMaleMax", "max": 0.36, "source": "SPEC §15.3" },
-    { "id": "3-bid-f-lo", "label": "3. bideltoid / stature ♀ ≥ 0.30", "metric": "static.body.worst.bidFemMin", "min": 0.3, "source": "SPEC §15.3" },
-    { "id": "3-bid-f-hi", "label": "3. bideltoid / stature ♀ ≤ 0.32", "metric": "static.body.worst.bidFemMax", "max": 0.32, "source": "SPEC §15.3" },
-    { "id": "3-neck-lo", "label": "3. neck chin–notch / stature ≥ 0.050", "metric": "static.body.worst.neckMin", "min": 0.05, "source": "SPEC §15.3" },
-    { "id": "3-neck-hi", "label": "3. neck chin–notch / stature ≤ 0.056", "metric": "static.body.worst.neckMax", "max": 0.056, "source": "SPEC §15.3" },
-    { "id": "4-heads-lo", "label": "4. heads tall ≥ 7.3 (every class)", "metric": "static.body.worst.headsMin", "min": 7.3, "source": "SPEC §15.4" },
-    { "id": "4-heads-hi", "label": "4. heads tall ≤ 7.9 (every class)", "metric": "static.body.worst.headsMax", "max": 7.9, "source": "SPEC §15.4" },
-    { "id": "5-neckgirth", "label": "5. neck girth ♂ ≥ 0.40 m", "metric": "static.body.worst.neckGirthMale", "min": 0.4, "source": "SPEC §15.5" },
-    { "id": "5-upperarm", "label": "5. upper-arm mid girth within ±1.5 cm of §2 (cm)", "metric": "static.body.worst.upperArmErr", "max": 1.5, "source": "SPEC §15.5" },
-    { "id": "6-deltoid", "label": "6. deltoid–arm luminance step under the broadcast key (guard side shot)", "metric": "runtime.deltoidStep", "min": 0.08, "source": "SPEC §15.6" },
-
-    { "id": "7-inside-stand", "label": "7. garment vertices inside the skin, stand (share)", "metric": "runtime.garments.stand", "max": 0.01, "source": "SPEC §15.7" },
-    { "id": "7-inside-guard", "label": "7. garment vertices inside the skin, guard (share)", "metric": "runtime.garments.guard", "max": 0.01, "source": "SPEC §15.7" },
-    { "id": "7-inside-jab", "label": "7. garment vertices inside the skin, jab (share)", "metric": "runtime.garments.jab", "max": 0.01, "source": "SPEC §15.7" },
-    { "id": "7-inside-hook", "label": "7. garment vertices inside the skin, hook (share)", "metric": "runtime.garments.hook", "max": 0.01, "source": "SPEC §15.7" },
-    { "id": "7-band-hold", "label": "7. singlet vertices outside the band within its height, any pose", "metric": "runtime.garments.outsideBand", "max": 0, "source": "SPEC §15.7" },
-    { "id": "8-cavity", "label": "8. vest inner face visible inside the vest outline, guard side shot (px)", "metric": "runtime.cavity.vestInnerGuardSidePx", "max": 0, "source": "SPEC §15.8" },
-    { "id": "8-cavity-bc", "label": "8. vest inner face visible, practice-ring broadcast camera (px)", "metric": "runtime.cavity.vestInnerBroadcastPx", "max": 0, "source": "SPEC §15.8" },
-    { "id": "9-tuck", "label": "9. singlet vertices not ≥ 1 mm inside the band (bind)", "metric": "static.garments.worst.tuckOutside", "max": 0, "source": "SPEC §15.9" },
-    { "id": "10-band-w-lo", "label": "10. band width ≥ 8 cm", "metric": "static.garments.worst.bandWidthMin", "min": 0.08, "source": "SPEC §15.10" },
-    { "id": "10-band-w-hi", "label": "10. band width ≤ 10 cm", "metric": "static.garments.worst.bandWidthMax", "max": 0.1, "source": "SPEC §15.10" },
-    { "id": "10-band-dev", "label": "10. band follows the waist (95th pct deviation, m)", "metric": "static.garments.worst.bandDev", "max": 0.008, "source": "SPEC §15.10" },
-    { "id": "10-band-de", "label": "10. band contrast ΔE against the kit colour", "metric": "static.garments.worst.bandContrast", "min": 40, "source": "SPEC §15.10" },
-    { "id": "10-navel", "label": "10. band top below the navel (m)", "metric": "static.garments.worst.navelGapMin", "min": 0.005, "source": "SPEC §15.10" },
-    { "id": "11-hem", "label": "11. trunks hem between mid-thigh and the knee top (stand)", "metric": "static.garments.worst.hemOk", "equals": true, "source": "SPEC §15.11" },
-    { "id": "12-opening", "label": "12. leg opening ≥ 1.25 × thigh girth at the hem", "metric": "static.garments.worst.openingRatio", "min": 1.25, "source": "SPEC §15.12" },
-    { "id": "13-gathers", "label": "13. gathers: trunks edge / band length", "metric": "static.garments.worst.gathers", "min": 1.15, "source": "SPEC §15.13" },
-    { "id": "14-separate", "label": "14. garment meshes separate from the body (hidden body tris deleted)", "metric": "static.garments.worst.separate", "equals": true, "source": "SPEC §15.14" },
-    { "id": "14a-arms", "label": "14a. outer upper arm covered by singlet within 4 cm (worst camera, guard / jab / hook / block)", "metric": "runtime.arms.coverWorst", "max": 0.02, "source": "SPEC §15.14a" },
-
-    { "id": "15-len-lo", "label": "15. glove overall length (along the back) ≥ 26 cm", "metric": "static.gloves.worst.lengthMin", "min": 0.26, "source": "SPEC §15.15" },
-    { "id": "15-len-hi", "label": "15. glove overall length ≤ 29 cm", "metric": "static.gloves.worst.lengthMax", "max": 0.29, "source": "SPEC §15.15" },
-    { "id": "15-w-lo", "label": "15. knuckle width ≥ 11.3 cm", "metric": "static.gloves.worst.widthMin", "min": 0.113, "source": "SPEC §15.15" },
-    { "id": "15-w-hi", "label": "15. knuckle width ≤ 12.3 cm", "metric": "static.gloves.worst.widthMax", "max": 0.123, "source": "SPEC §15.15" },
-    { "id": "15-d-lo", "label": "15. knuckle depth ≥ 11 cm", "metric": "static.gloves.worst.depthMin", "min": 0.11, "source": "SPEC §15.15" },
-    { "id": "15-d-hi", "label": "15. knuckle depth ≤ 12.5 cm", "metric": "static.gloves.worst.depthMax", "max": 0.125, "source": "SPEC §15.15" },
-    { "id": "15-cuff-lo", "label": "15. cuff ≥ 8 cm", "metric": "static.gloves.worst.cuffMin", "min": 0.08, "source": "SPEC §15.15" },
-    { "id": "15-cuff-hi", "label": "15. cuff ≤ 11 cm", "metric": "static.gloves.worst.cuffMax", "max": 0.11, "source": "SPEC §15.15" },
-    { "id": "15-tape-lo", "label": "15. tape band 5 cm (≥ 4.5)", "metric": "static.gloves.worst.tapeMin", "min": 0.045, "source": "SPEC §15.15" },
-    { "id": "15-tape-hi", "label": "15. tape band 5 cm (≤ 6)", "metric": "static.gloves.worst.tapeMax", "max": 0.06, "source": "SPEC §15.15" },
-    { "id": "15-block", "label": "15. fist block ≥ 1.35 × cuff diameter (no tube)", "metric": "static.gloves.worst.blockToCuff", "min": 1.35, "source": "SPEC §15.15" },
-    { "id": "15-panel", "label": "15. white panel on the knuckle face only", "metric": "static.gloves.worst.panelOk", "equals": true, "source": "SPEC §15.15" },
-    { "id": "15-thumb", "label": "15. thumb lobe on the radial / palm side", "metric": "static.gloves.worst.thumbOk", "equals": true, "source": "SPEC §15.15" },
-    { "id": "15a-forearm-lo", "label": "15a. guard forearms ≥ 55° from horizontal", "metric": "runtime.guard.forearmMin", "min": 55, "source": "SPEC §15.15a" },
-    { "id": "15a-forearm-hi", "label": "15a. guard forearms ≤ 75° from horizontal", "metric": "runtime.guard.forearmMax", "max": 75, "source": "SPEC §15.15a" },
-    { "id": "15a-elbows-in", "label": "15a. guard elbows inside the shoulder width", "metric": "runtime.guard.elbowsInside", "equals": true, "source": "SPEC §15.15a" },
-    { "id": "15a-elbows-down", "label": "15a. guard elbows ≥ 18 cm below the shoulders (m)", "metric": "runtime.guard.elbowBelowMin", "min": 0.18, "source": "SPEC §15.15a" },
-    { "id": "15a-eyes", "label": "15a. guard eyes visible from the front camera (no glove on either eye)", "metric": "runtime.guard.eyesVisible", "equals": true, "source": "SPEC §15.15a" },
-    { "id": "15a-wrist", "label": "15a. wrist deviation ≤ 12° (guard, jab, hook)", "metric": "runtime.wristDevMax", "max": 12, "source": "SPEC §15.15a" },
-    { "id": "15a-rear-cheek", "label": "15a. guard rear glove within 4 cm of the cheek surface (m)", "metric": "runtime.guard.rearGloveCheekGap", "max": 0.04, "source": "SPEC §15.15a" },
-    { "id": "15a-lead-eye", "label": "15a. guard lead glove at eye height ± 4 cm (m)", "metric": "runtime.guard.leadGloveDyAbs", "max": 0.04, "source": "SPEC §15.15a" },
-    { "id": "15a-lead-fwd-lo", "label": "15a. guard lead glove ≥ 20 cm in front of the face (m)", "metric": "runtime.guard.leadGloveFwdMin", "min": 0.2, "source": "SPEC §15.15a" },
-    { "id": "15a-lead-fwd-hi", "label": "15a. guard lead glove ≤ 30 cm in front of the face (m)", "metric": "runtime.guard.leadGloveFwdMax", "max": 0.3, "source": "SPEC §15.15a" },
-    { "id": "15a-jab-palm", "label": "15a. jab palm down (dot with −y)", "metric": "runtime.jab.palmDown", "min": 0.8, "source": "SPEC §15.15a" },
-    { "id": "15a-jab-ext-lo", "label": "15a. jab extension ≥ 90 %", "metric": "runtime.jab.extensionMin", "min": 0.9, "source": "SPEC §15.15a" },
-    { "id": "15a-jab-ext-hi", "label": "15a. jab extension ≤ 98 %", "metric": "runtime.jab.extensionMax", "max": 0.98, "source": "SPEC §15.15a" },
-    { "id": "15a-hook-el-lo", "label": "15a. hook elbow angle ≥ 80°", "metric": "runtime.hook.elbowAngleMin", "min": 80, "source": "SPEC §15.15a" },
-    { "id": "15a-hook-el-hi", "label": "15a. hook elbow angle ≤ 100°", "metric": "runtime.hook.elbowAngleMax", "max": 100, "source": "SPEC §15.15a" },
-    { "id": "15a-hook-sh", "label": "15a. hook elbow at shoulder height ± 5 cm (m)", "metric": "runtime.hook.elbowVsShoulder", "max": 0.05, "source": "SPEC §15.15a" },
-    { "id": "15a-hook-palm", "label": "15a. hook palm down or in", "metric": "runtime.hook.palmDownOrIn", "min": 0.5, "source": "SPEC §15.15a" },
-    { "id": "16-padding", "label": "16. headgear padding ≥ 2.0 cm over the covered pads (2nd pct, m)", "metric": "static.headgear.worst.padding", "min": 0.02, "source": "SPEC §15.16" },
-    { "id": "16-brow", "label": "16. brow roll ≥ 3.2 cm (m)", "metric": "static.headgear.worst.brow", "min": 0.032, "source": "SPEC §15.16" },
-    { "id": "16-face", "label": "16. face opening shows both eyes, the nose and the mouth (front camera)", "metric": "runtime.face.openAll", "equals": true, "source": "SPEC §15.16" },
-    { "id": "17-mouth", "label": "17. mouthguard / mouth not red", "metric": "static.people.mouthNotRed", "equals": true, "source": "SPEC §15.17" },
-
-    { "id": "18-tones", "label": "18. tone albedos within ΔE 6 of the §6 targets (worst of 8)", "metric": "static.skin.worstToneDE", "max": 6, "source": "SPEC §15.18" },
-    { "id": "19-t1", "label": "19. no grey cast on T1: lit skin chroma / albedo target chroma", "metric": "runtime.skin.t1ChromaRatio", "min": 0.6, "source": "SPEC §15.19" },
-    { "id": "20-f0", "label": "20. the same specular F0 for every tone (shader constant + uniforms)", "metric": "static.skin.singleF0", "equals": true, "source": "SPEC §15.20" },
-    { "id": "20-f0-rt", "label": "20. F0 uniform equal across the people in the ring", "metric": "runtime.skin.f0Same", "equals": true, "source": "SPEC §15.20" },
-    { "id": "21-sweat", "label": "21. sweat off at the first bell, rising with rounds (unit test fight/sweat.test.ts)", "metric": "unit.sweat", "equals": true, "source": "SPEC §15.21" },
-
-    { "id": "22-tris", "label": "22. LOD0 triangles per person ≤ 31k (worst of m / f)", "metric": "static.perf.lod0Max", "max": 31000, "source": "SPEC §15.22" },
-    { "id": "22-calls", "label": "22. one draw call per person (isolated render)", "metric": "perf.desktop.fighterCalls", "max": 1, "source": "SPEC §15.22" },
-    { "id": "23-fps-desktop", "label": "23. fps, practice ring, 1280×720", "metric": "perf.desktop.fps", "min": 58, "source": "SPEC §15.23 (2 fps headless tolerance)" },
-    { "id": "23-fps-phone", "label": "23. fps, practice ring, 844×390 DPR 2", "metric": "perf.phone.fps", "min": 58, "source": "SPEC §15.23 (2 fps headless tolerance)" },
-    { "id": "24-phone-tex", "label": "24. phone textures per person (KTX2, MB, measured)", "metric": "perf.phoneTextureMB", "max": 14, "source": "SPEC §15.24" },
-    { "id": "24-phone-tex-budget", "label": "24. phone textures per person (KTX2, MB, from the files)", "metric": "static.perf.phoneTextureMB", "max": 14, "source": "SPEC §15.24" },
-    { "id": "25-adults-lo", "label": "25. adults only: age macro ≥ 0.5", "metric": "static.people.ageMin", "min": 0.5, "source": "SPEC §15.25" },
-    { "id": "25-adults-hi", "label": "25. adults only: age macro ≤ 0.55", "metric": "static.people.ageMax", "max": 0.55, "source": "SPEC §15.25" },
-
-    { "id": "joints", "label": "joint-limit violations, all measured poses", "metric": "joints.violations", "max": 0, "source": "harness rule" },
-    { "id": "feet-max", "label": "foot sliding: worst single plant (cm)", "metric": "feet.maxSlideCm", "max": null },
-    { "id": "feet-rate", "label": "foot sliding: planted travel per second (cm/s)", "metric": "feet.slideCmPerS", "max": null }
+    {
+      "id": "gen",
+      "label": "the v8 people are loaded (not the v7 fallback)",
+      "metric": "generation.loaded",
+      "equals": "v8",
+      "source": "brief"
+    },
+    {
+      "id": "1-stature",
+      "label": "1. stature within ±0.5 cm of the class value (worst of 4 classes, m)",
+      "metric": "static.body.worst.statureErr",
+      "max": 0.005,
+      "source": "SPEC §15.1"
+    },
+    {
+      "id": "2-whr-m-lo",
+      "label": "2. waist-to-hip ♂ ≥ 0.83",
+      "metric": "static.body.worst.whrMaleMin",
+      "min": 0.83,
+      "source": "SPEC §15.2"
+    },
+    {
+      "id": "2-whr-m-hi",
+      "label": "2. waist-to-hip ♂ ≤ 0.88",
+      "metric": "static.body.worst.whrMaleMax",
+      "max": 0.88,
+      "source": "SPEC §15.2"
+    },
+    {
+      "id": "2-whr-f-lo",
+      "label": "2. waist-to-hip ♀ ≥ 0.70",
+      "metric": "static.body.worst.whrFemMin",
+      "min": 0.7,
+      "source": "SPEC §15.2"
+    },
+    {
+      "id": "2-whr-f-hi",
+      "label": "2. waist-to-hip ♀ ≤ 0.76",
+      "metric": "static.body.worst.whrFemMax",
+      "max": 0.76,
+      "source": "SPEC §15.2"
+    },
+    {
+      "id": "3-bid-m-lo",
+      "label": "3. bideltoid / stature ♂ ≥ 0.34",
+      "metric": "static.body.worst.bidMaleMin",
+      "min": 0.34,
+      "source": "SPEC §15.3"
+    },
+    {
+      "id": "3-bid-m-hi",
+      "label": "3. bideltoid / stature ♂ ≤ 0.36",
+      "metric": "static.body.worst.bidMaleMax",
+      "max": 0.36,
+      "source": "SPEC §15.3"
+    },
+    {
+      "id": "3-bid-f-lo",
+      "label": "3. bideltoid / stature ♀ ≥ 0.30",
+      "metric": "static.body.worst.bidFemMin",
+      "min": 0.3,
+      "source": "SPEC §15.3"
+    },
+    {
+      "id": "3-bid-f-hi",
+      "label": "3. bideltoid / stature ♀ ≤ 0.32",
+      "metric": "static.body.worst.bidFemMax",
+      "max": 0.32,
+      "source": "SPEC §15.3"
+    },
+    {
+      "id": "3-neck-lo",
+      "label": "3. neck chin–notch / stature ≥ 0.050",
+      "metric": "static.body.worst.neckMin",
+      "min": 0.05,
+      "source": "SPEC §15.3"
+    },
+    {
+      "id": "3-neck-hi",
+      "label": "3. neck chin–notch / stature ≤ 0.056",
+      "metric": "static.body.worst.neckMax",
+      "max": 0.056,
+      "source": "SPEC §15.3"
+    },
+    {
+      "id": "4-heads-lo",
+      "label": "4. heads tall ≥ 7.3 (every class)",
+      "metric": "static.body.worst.headsMin",
+      "min": 7.3,
+      "source": "SPEC §15.4"
+    },
+    {
+      "id": "4-heads-hi",
+      "label": "4. heads tall ≤ 7.9 (every class)",
+      "metric": "static.body.worst.headsMax",
+      "max": 7.9,
+      "source": "SPEC §15.4"
+    },
+    {
+      "id": "5-neckgirth",
+      "label": "5. neck girth ♂ ≥ 0.40 m",
+      "metric": "static.body.worst.neckGirthMale",
+      "min": 0.4,
+      "source": "SPEC §15.5"
+    },
+    {
+      "id": "5-upperarm",
+      "label": "5. upper-arm mid girth within ±1.5 cm of §2 (cm)",
+      "metric": "static.body.worst.upperArmErr",
+      "max": 1.5,
+      "source": "SPEC §15.5"
+    },
+    {
+      "id": "6-deltoid",
+      "label": "6. deltoid–arm luminance step under the broadcast key (guard side shot)",
+      "metric": "runtime.deltoidStep",
+      "min": 0.08,
+      "source": "SPEC §15.6"
+    },
+    {
+      "id": "7-inside-stand",
+      "label": "7. garment vertices inside the skin, stand (share)",
+      "metric": "runtime.garments.stand",
+      "max": 0.01,
+      "source": "SPEC §15.7"
+    },
+    {
+      "id": "7-inside-guard",
+      "label": "7. garment vertices inside the skin, guard (share)",
+      "metric": "runtime.garments.guard",
+      "max": 0.01,
+      "source": "SPEC §15.7"
+    },
+    {
+      "id": "7-inside-jab",
+      "label": "7. garment vertices inside the skin, jab (share)",
+      "metric": "runtime.garments.jab",
+      "max": 0.01,
+      "source": "SPEC §15.7"
+    },
+    {
+      "id": "7-inside-hook",
+      "label": "7. garment vertices inside the skin, hook (share)",
+      "metric": "runtime.garments.hook",
+      "max": 0.01,
+      "source": "SPEC §15.7"
+    },
+    {
+      "id": "7-band-hold",
+      "label": "7. singlet vertices outside the band within its height, any pose",
+      "metric": "runtime.garments.outsideBand",
+      "max": 0,
+      "source": "SPEC §15.7"
+    },
+    {
+      "id": "7-sweep",
+      "label": "7. garment vertices inside the skin, worst sampled frame (guard, jab, cross, hook, block, clinch, knockdown; 13 samples each)",
+      "metric": "runtime.sweep.worst",
+      "max": 0.01,
+      "source": "SPEC §15.7 + coordinator: intermediate frames"
+    },
+    {
+      "id": "7-sweep-band",
+      "label": "7. tucked singlet vertices past the band, worst sampled frame",
+      "metric": "runtime.sweep.band",
+      "max": 0,
+      "source": "SPEC §15.7 + coordinator"
+    },
+    {
+      "id": "8-cavity",
+      "label": "8. vest inner face visible inside the vest outline, guard side shot (px)",
+      "metric": "runtime.cavity.vestInnerGuardSidePx",
+      "max": 0,
+      "source": "SPEC §15.8"
+    },
+    {
+      "id": "8-cavity-bc",
+      "label": "8. vest inner face visible, practice-ring broadcast camera (px)",
+      "metric": "runtime.cavity.vestInnerBroadcastPx",
+      "max": 0,
+      "source": "SPEC §15.8"
+    },
+    {
+      "id": "9-tuck",
+      "label": "9. singlet vertices not ≥ 1 mm inside the band (bind)",
+      "metric": "static.garments.worst.tuckOutside",
+      "max": 0,
+      "source": "SPEC §15.9"
+    },
+    {
+      "id": "10-band-w-lo",
+      "label": "10. band width ≥ 8 cm",
+      "metric": "static.garments.worst.bandWidthMin",
+      "min": 0.08,
+      "source": "SPEC §15.10"
+    },
+    {
+      "id": "10-band-w-hi",
+      "label": "10. band width ≤ 10 cm",
+      "metric": "static.garments.worst.bandWidthMax",
+      "max": 0.1,
+      "source": "SPEC §15.10"
+    },
+    {
+      "id": "10-band-dev",
+      "label": "10. band follows the waist (95th pct deviation, m)",
+      "metric": "static.garments.worst.bandDev",
+      "max": 0.008,
+      "source": "SPEC §15.10"
+    },
+    {
+      "id": "10-band-de",
+      "label": "10. band contrast ΔE against the kit colour",
+      "metric": "static.garments.worst.bandContrast",
+      "min": 40,
+      "source": "SPEC §15.10"
+    },
+    {
+      "id": "10-navel",
+      "label": "10. band top below the navel (m)",
+      "metric": "static.garments.worst.navelGapMin",
+      "min": 0.005,
+      "source": "SPEC §15.10"
+    },
+    {
+      "id": "11-hem",
+      "label": "11. trunks hem between mid-thigh and the knee top (stand)",
+      "metric": "static.garments.worst.hemOk",
+      "equals": true,
+      "source": "SPEC §15.11"
+    },
+    {
+      "id": "12-opening",
+      "label": "12. leg opening ≥ 1.25 × thigh girth at the hem",
+      "metric": "static.garments.worst.openingRatio",
+      "min": 1.25,
+      "source": "SPEC §15.12"
+    },
+    {
+      "id": "13-gathers",
+      "label": "13. gathers: trunks edge / band length",
+      "metric": "static.garments.worst.gathers",
+      "min": 1.15,
+      "source": "SPEC §15.13"
+    },
+    {
+      "id": "14-separate",
+      "label": "14. garment meshes separate from the body (hidden body tris deleted)",
+      "metric": "static.garments.worst.separate",
+      "equals": true,
+      "source": "SPEC §15.14"
+    },
+    {
+      "id": "14a-arms",
+      "label": "14a. outer upper arm covered by singlet within 4 cm (worst camera, guard / jab / hook / block)",
+      "metric": "runtime.arms.coverWorst",
+      "max": 0.02,
+      "source": "SPEC §15.14a"
+    },
+    {
+      "id": "15-len-lo",
+      "label": "15. glove overall length (along the back) ≥ 26 cm",
+      "metric": "static.gloves.worst.lengthMin",
+      "min": 0.26,
+      "source": "SPEC §15.15"
+    },
+    {
+      "id": "15-len-hi",
+      "label": "15. glove overall length ≤ 29 cm",
+      "metric": "static.gloves.worst.lengthMax",
+      "max": 0.29,
+      "source": "SPEC §15.15"
+    },
+    {
+      "id": "15-w-lo",
+      "label": "15. knuckle width ≥ 11.3 cm",
+      "metric": "static.gloves.worst.widthMin",
+      "min": 0.113,
+      "source": "SPEC §15.15"
+    },
+    {
+      "id": "15-w-hi",
+      "label": "15. knuckle width ≤ 12.3 cm",
+      "metric": "static.gloves.worst.widthMax",
+      "max": 0.123,
+      "source": "SPEC §15.15"
+    },
+    {
+      "id": "15-d-lo",
+      "label": "15. knuckle depth ≥ 11 cm",
+      "metric": "static.gloves.worst.depthMin",
+      "min": 0.11,
+      "source": "SPEC §15.15"
+    },
+    {
+      "id": "15-d-hi",
+      "label": "15. knuckle depth ≤ 12.5 cm",
+      "metric": "static.gloves.worst.depthMax",
+      "max": 0.125,
+      "source": "SPEC §15.15"
+    },
+    {
+      "id": "15-cuff-lo",
+      "label": "15. cuff ≥ 8 cm",
+      "metric": "static.gloves.worst.cuffMin",
+      "min": 0.08,
+      "source": "SPEC §15.15"
+    },
+    {
+      "id": "15-cuff-hi",
+      "label": "15. cuff ≤ 11 cm",
+      "metric": "static.gloves.worst.cuffMax",
+      "max": 0.11,
+      "source": "SPEC §15.15"
+    },
+    {
+      "id": "15-tape-lo",
+      "label": "15. tape band 5 cm (≥ 4.5)",
+      "metric": "static.gloves.worst.tapeMin",
+      "min": 0.045,
+      "source": "SPEC §15.15"
+    },
+    {
+      "id": "15-tape-hi",
+      "label": "15. tape band 5 cm (≤ 6)",
+      "metric": "static.gloves.worst.tapeMax",
+      "max": 0.06,
+      "source": "SPEC §15.15"
+    },
+    {
+      "id": "15-block",
+      "label": "15. fist block ≥ 1.35 × cuff diameter (no tube)",
+      "metric": "static.gloves.worst.blockToCuff",
+      "min": 1.35,
+      "source": "SPEC §15.15"
+    },
+    {
+      "id": "15-panel",
+      "label": "15. white panel on the knuckle face only",
+      "metric": "static.gloves.worst.panelOk",
+      "equals": true,
+      "source": "SPEC §15.15"
+    },
+    {
+      "id": "15-thumb",
+      "label": "15. thumb lobe on the radial / palm side",
+      "metric": "static.gloves.worst.thumbOk",
+      "equals": true,
+      "source": "SPEC §15.15"
+    },
+    {
+      "id": "15a-forearm-lo",
+      "label": "15a. guard forearms ≥ 55° from horizontal",
+      "metric": "runtime.guard.forearmMin",
+      "min": 55,
+      "source": "SPEC §15.15a"
+    },
+    {
+      "id": "15a-forearm-hi",
+      "label": "15a. guard forearms ≤ 75° from horizontal",
+      "metric": "runtime.guard.forearmMax",
+      "max": 75,
+      "source": "SPEC §15.15a"
+    },
+    {
+      "id": "15a-elbows-in",
+      "label": "15a. guard elbows inside the shoulder width",
+      "metric": "runtime.guard.elbowsInside",
+      "equals": true,
+      "source": "SPEC §15.15a"
+    },
+    {
+      "id": "15a-elbows-down",
+      "label": "15a. guard elbows ≥ 18 cm below the shoulders (m)",
+      "metric": "runtime.guard.elbowBelowMin",
+      "min": 0.18,
+      "source": "SPEC §15.15a"
+    },
+    {
+      "id": "15a-eyes",
+      "label": "15a. guard eyes visible from the front camera (no glove on either eye)",
+      "metric": "runtime.guard.eyesVisible",
+      "equals": true,
+      "source": "SPEC §15.15a"
+    },
+    {
+      "id": "15a-wrist",
+      "label": "15a. wrist deviation ≤ 12° (guard, jab, hook)",
+      "metric": "runtime.wristDevMax",
+      "max": 12,
+      "source": "SPEC §15.15a"
+    },
+    {
+      "id": "15a-rear-cheek",
+      "label": "15a. guard rear glove within 4 cm of the cheek surface (m)",
+      "metric": "runtime.guard.rearGloveCheekGap",
+      "max": 0.04,
+      "source": "SPEC §15.15a"
+    },
+    {
+      "id": "15a-lead-eye",
+      "label": "15a. guard lead glove at eye height ± 4 cm (m)",
+      "metric": "runtime.guard.leadGloveDyAbs",
+      "max": 0.04,
+      "source": "SPEC §15.15a"
+    },
+    {
+      "id": "15a-lead-fwd-lo",
+      "label": "15a. guard lead glove ≥ 20 cm in front of the face (m)",
+      "metric": "runtime.guard.leadGloveFwdMin",
+      "min": 0.2,
+      "source": "SPEC §15.15a"
+    },
+    {
+      "id": "15a-lead-fwd-hi",
+      "label": "15a. guard lead glove ≤ 30 cm in front of the face (m)",
+      "metric": "runtime.guard.leadGloveFwdMax",
+      "max": 0.3,
+      "source": "SPEC §15.15a"
+    },
+    {
+      "id": "15a-jab-palm",
+      "label": "15a. jab palm down (dot with −y)",
+      "metric": "runtime.jab.palmDown",
+      "min": 0.8,
+      "source": "SPEC §15.15a"
+    },
+    {
+      "id": "15a-jab-ext-lo",
+      "label": "15a. jab extension ≥ 90 %",
+      "metric": "runtime.jab.extensionMin",
+      "min": 0.9,
+      "source": "SPEC §15.15a"
+    },
+    {
+      "id": "15a-jab-ext-hi",
+      "label": "15a. jab extension ≤ 98 %",
+      "metric": "runtime.jab.extensionMax",
+      "max": 0.98,
+      "source": "SPEC §15.15a"
+    },
+    {
+      "id": "15a-hook-el-lo",
+      "label": "15a. hook elbow angle ≥ 80°",
+      "metric": "runtime.hook.elbowAngleMin",
+      "min": 80,
+      "source": "SPEC §15.15a"
+    },
+    {
+      "id": "15a-hook-el-hi",
+      "label": "15a. hook elbow angle ≤ 100°",
+      "metric": "runtime.hook.elbowAngleMax",
+      "max": 100,
+      "source": "SPEC §15.15a"
+    },
+    {
+      "id": "15a-hook-sh",
+      "label": "15a. hook elbow at shoulder height ± 5 cm (m)",
+      "metric": "runtime.hook.elbowVsShoulder",
+      "max": 0.05,
+      "source": "SPEC §15.15a"
+    },
+    {
+      "id": "15a-hook-palm",
+      "label": "15a. hook palm down or in",
+      "metric": "runtime.hook.palmDownOrIn",
+      "min": 0.5,
+      "source": "SPEC §15.15a"
+    },
+    {
+      "id": "16-padding",
+      "label": "16. headgear padding ≥ 2.0 cm over the covered pads (2nd pct, m)",
+      "metric": "static.headgear.worst.padding",
+      "min": 0.02,
+      "source": "SPEC §15.16"
+    },
+    {
+      "id": "16-brow",
+      "label": "16. brow roll ≥ 3.2 cm (m)",
+      "metric": "static.headgear.worst.brow",
+      "min": 0.032,
+      "source": "SPEC §15.16"
+    },
+    {
+      "id": "16-face",
+      "label": "16. face opening shows both eyes, the nose and the mouth (front camera)",
+      "metric": "runtime.face.openAll",
+      "equals": true,
+      "source": "SPEC §15.16"
+    },
+    {
+      "id": "17-mouth",
+      "label": "17. mouthguard / mouth not red",
+      "metric": "static.people.mouthNotRed",
+      "equals": true,
+      "source": "SPEC §15.17"
+    },
+    {
+      "id": "18-tones",
+      "label": "18. tone albedos within ΔE 6 of the §6 targets (worst of 8)",
+      "metric": "static.skin.worstToneDE",
+      "max": 6,
+      "source": "SPEC §15.18"
+    },
+    {
+      "id": "19-t1",
+      "label": "19. no grey cast on T1: lit skin chroma / albedo target chroma",
+      "metric": "runtime.skin.t1ChromaRatio",
+      "min": 0.6,
+      "source": "SPEC §15.19"
+    },
+    {
+      "id": "20-f0",
+      "label": "20. the same specular F0 for every tone (shader constant + uniforms)",
+      "metric": "static.skin.singleF0",
+      "equals": true,
+      "source": "SPEC §15.20"
+    },
+    {
+      "id": "20-f0-rt",
+      "label": "20. F0 uniform equal across the people in the ring",
+      "metric": "runtime.skin.f0Same",
+      "equals": true,
+      "source": "SPEC §15.20"
+    },
+    {
+      "id": "21-sweat",
+      "label": "21. sweat off at the first bell, rising with rounds (unit test fight/sweat.test.ts)",
+      "metric": "unit.sweat",
+      "equals": true,
+      "source": "SPEC §15.21"
+    },
+    {
+      "id": "22-tris",
+      "label": "22. LOD0 triangles per person ≤ 31k (worst of m / f)",
+      "metric": "static.perf.lod0Max",
+      "max": 31000,
+      "source": "SPEC §15.22"
+    },
+    {
+      "id": "22-calls",
+      "label": "22. one draw call per person (isolated render)",
+      "metric": "perf.desktop.fighterCalls",
+      "max": 1,
+      "source": "SPEC §15.22"
+    },
+    {
+      "id": "23-fps-desktop",
+      "label": "23. fps, practice ring, 1280×720",
+      "metric": "perf.desktop.fps",
+      "min": 58,
+      "source": "SPEC §15.23 (2 fps headless tolerance)"
+    },
+    {
+      "id": "23-fps-phone",
+      "label": "23. fps, practice ring, 844×390 DPR 2",
+      "metric": "perf.phone.fps",
+      "min": 58,
+      "source": "SPEC §15.23 (2 fps headless tolerance)"
+    },
+    {
+      "id": "24-phone-tex",
+      "label": "24. phone textures per person (KTX2, MB, measured)",
+      "metric": "perf.phoneTextureMB",
+      "max": 14,
+      "source": "SPEC §15.24"
+    },
+    {
+      "id": "24-phone-tex-budget",
+      "label": "24. phone textures per person (KTX2, MB, from the files)",
+      "metric": "static.perf.phoneTextureMB",
+      "max": 14,
+      "source": "SPEC §15.24"
+    },
+    {
+      "id": "25-adults-lo",
+      "label": "25. adults only: age macro ≥ 0.5",
+      "metric": "static.people.ageMin",
+      "min": 0.5,
+      "source": "SPEC §15.25"
+    },
+    {
+      "id": "25-adults-hi",
+      "label": "25. adults only: age macro ≤ 0.55",
+      "metric": "static.people.ageMax",
+      "max": 0.55,
+      "source": "SPEC §15.25"
+    },
+    {
+      "id": "joints",
+      "label": "joint-limit violations, all measured poses",
+      "metric": "joints.violations",
+      "max": 0,
+      "source": "harness rule"
+    },
+    {
+      "id": "feet-max",
+      "label": "foot sliding: worst single plant (cm)",
+      "metric": "feet.maxSlideCm",
+      "max": null
+    },
+    {
+      "id": "feet-rate",
+      "label": "foot sliding: planted travel per second (cm/s)",
+      "metric": "feet.slideCmPerS",
+      "max": null
+    }
   ]
 }

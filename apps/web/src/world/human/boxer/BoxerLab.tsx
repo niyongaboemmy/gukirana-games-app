@@ -199,7 +199,7 @@ export function BoxerLab({ q, setInfo }: { q: URLSearchParams; setInfo: (s: stri
         }
       }
       // (P3-FGT-19B: the clip sampler and the pose layout for the fighter-v8 harness's pose fitter)
-      (window as unknown as { __gkBoxer?: object }).__gkBoxer = { ready: true, bones: p.inst.mesh.skeleton.bones.length, probe: p, scene, sampleClip, P, ARM };
+      (window as unknown as { __gkBoxer?: object }).__gkBoxer = { ready: true, bones: p.inst.mesh.skeleton.bones.length, probe: p, scene, sampleClip, clips: BOXING_CLIPS, P, ARM };
     }, 50);
     return () => {
       clearInterval(id);

@@ -13,6 +13,7 @@ import { BoxerFace } from "./boxer-face";
 import { BOXER_V8 } from "./generation";
 import { registerKtx2Renderer } from "./v8/ktx2";
 import { driveHelpers, fingerRig, helperRig, signFingers } from "./helpers";
+import { driveCorrectives } from "./corrective";
 import type { CountSign } from "../boxing/count-signs";
 
 /**
@@ -125,6 +126,12 @@ const _pa = new THREE.Vector3();
 const _pb = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const FWD = new THREE.Vector3(0, 0, 1);
+/** dev labs: ?push=0 shows the v8 fighters without the cloth push / skin tuck (before / after comparisons) */
+const NO_PUSH = process.env.NODE_ENV !== "production" && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("push") === "0";
+/** dev labs: ?corr=0 turns the garments' pose correctives off (comparisons, and the bake's own measurements) */
+const NO_CORR = process.env.NODE_ENV !== "production" && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("corr") === "0";
+/** dev labs: ?armpush=0 turns the singlet's arm push off (comparisons) */
+const ARM_PUSH = !(process.env.NODE_ENV !== "production" && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("armpush") === "0");
 const COARSE = typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches;
 
 export function BoxerAvatar(props: BoxerAvatarProps) {
@@ -197,6 +204,7 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
         }
         rig.apply(pose, 1, false, true);
         driveHelpers(helpers);
+        driveCorrectives(inst.corr, inst.uniforms, !NO_CORR);
         inst.root.updateMatrixWorld(true);
       },
     };
@@ -248,7 +256,9 @@ export function BoxerAvatar(props: BoxerAvatarProps) {
     u.uDetail.value = near ? 1 : 0;
     // P3-FGT-19B: the cloth push cones from this frame's bones (the mesh's space)
     const caps = inst.caps;
-    u.uPush.value = caps && near ? 1 : 0;
+    u.uPush.value = caps && near && !NO_PUSH ? 1 : 0;
+    u.uArmPush.value = ARM_PUSH ? 1 : 0;
+    driveCorrectives(inst.corr, u, near && !NO_CORR);
     if (caps && near) {
       const L = (n: string, out: THREE.Vector3) => {
         const b = inst.bone(n);

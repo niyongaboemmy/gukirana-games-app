@@ -8,7 +8,7 @@
 //
 // MH_DIR is a checkout of https://github.com/makehumancommunity/makehuman (data/3dobjs, data/rigs,
 // data/targets/macrodetails). Licences: docs/ASSET-LICENSES.md (MakeHuman assets CC0 1.0).
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -57,6 +57,8 @@ export const MAT = {
   teeth: 22,
   sock: 23,
   belt: 24,
+  /** P3-FGT-19B: the singlet's turned facing (inner fabric) */
+  vestLining: 25,
 };
 /** body cover bits: a body face whose three corners are covered by the worn outfit is not drawn */
 const COVER = { vest: 1, trunks: 2, boots: 4, gloves: 8, headgear: 16, shirt: 32, trousers: 64, shoes: 128, hair: 256, vestCore: 1024 };
@@ -425,6 +427,7 @@ class MeshBuilder {
     this.zone = [];
     this.cover = [];
     this.paint = [];
+    this.tuck = [];
     this.src = [];
     this.uv = [];
     this.idx = [];
@@ -441,6 +444,7 @@ class MeshBuilder {
     this.zone.push(extra.zone ?? 0);
     this.cover.push(extra.cover ?? 0);
     this.paint.push(...(extra.paint ?? [0, 0, 0, 0]));
+    this.tuck.push(extra.tuck ?? 0);
     this.src.push(extra.src ?? -1);
     this.uv.push(...(extra.uv ?? [0, 0]));
     return this.p.length / 3 - 1;
@@ -470,6 +474,9 @@ class MeshBuilder {
       attrs._ZONE = { data: Uint8Array.from(this.zone), size: 1 };
       attrs._COVER = { data: Uint16Array.from(this.cover), size: 1 };
       attrs._PAINT = { data: u8n(this.paint), size: 4, norm: true };
+      // P3-FGT-19B: how far this skin vertex lies under the v8 cloth (0 at a cut edge … 1 from 2 cm in): the shader pulls
+      // covered skin in so it never comes through the cloth in any frame (boxer-material.ts)
+      if (this.tuck.some((t) => t > 0)) attrs._TUCK = { data: u8n(this.tuck), size: 1, norm: true };
     }
     return { name: this.name, attrs, index: Uint32Array.from(this.idx) };
   }
@@ -845,17 +852,22 @@ function buildVariant(key, base, morphParams) {
         return m ? (FINAL_INDEX.get(`Bip01_${m[1]}_ShoulderHelper`) ?? FINAL_INDEX.get(`Bip01_${m[1]}_Clavicle`)) : b;
       };
       for (let k = 0; k < vest.count; k++) {
-        // (the whole jersey follows the chest / lat skin it lies on — V8_VEST_FOLLOW of the body's own weights, 0.6 — and
+        // (the whole jersey follows the chest / lat skin it lies on — V8_VEST_FOLLOW of the body's own weights, all of it — and
         // the top of the arm hole fully; never the armpit / side seam below it, which would drag behind the arm)
         const holeTop = (1 - smooth(0.0, 0.07, eh[k])) * smooth(shoulderL[1] - 0.1, shoulderL[1] - 0.03, vest.p[k * 3 + 1]);
         const under = smooth(shoulderL[1] - 0.1, shoulderL[1] - 0.16, vest.p[k * 3 + 1]) * (1 - smooth(0.0, 0.05, eh[k]));
-        const t = Math.max(holeTop, Number(process.env.V8_VEST_FOLLOW ?? 0.6) * (1 - under));
+        // (over the shoulders — the straps on the trapezius, rolled and raised with the clavicles in a guard — the jersey
+        // rides the skin under it exactly)
+        const strap = smooth(shoulderL[1] - 0.08, shoulderL[1] - 0.02, vest.p[k * 3 + 1]);
+        const t = Math.max(holeTop, strap, Number(process.env.V8_VEST_FOLLOW ?? 1) * (1 - under));
         if (t <= 0.001) continue;
         const mix = new Map();
         for (let q = 0; q < 4; q++) {
           if (vest.w[k * 4 + q] > 0) mix.set(vest.j[k * 4 + q], (mix.get(vest.j[k * 4 + q]) ?? 0) + vest.w[k * 4 + q] * (1 - t));
           if (tw.W[k * 4 + q] > 0) {
-            const b = helperOf(tw.J[k * 4 + q]);
+            // (arm bones → the shoulder helper near the arm hole only: further in — the pectoral, the lats — the jersey
+            // keeps the body's own arm weights and moves with that skin exactly)
+            const b = eh[k] < 0.08 ? helperOf(tw.J[k * 4 + q]) : tw.J[k * 4 + q];
             mix.set(b, (mix.get(b) ?? 0) + tw.W[k * 4 + q] * t);
           }
         }
@@ -866,8 +878,9 @@ function buildVariant(key, base, morphParams) {
     // trunks (each leg follows its own leg; 18 % of the leg's weight on the pelvis so the cloth lags) + the band
     const trunks = new MeshBuilder("kit_trunks");
     const lag = (sk, y = -Infinity) => {
-      // (P3-FGT-19B: none above the crotch — the cloth on the hip crease moves like the skin — rising to 18 % 12 cm below)
-      const k = 0.18 * smooth(thighL[1] - 0.05, thighL[1] - 0.17, y);
+      // (P3-FGT-19B: below the crotch the leg moves inside the loose leg — 18 % on the pelvis 12 cm down; above it the
+      // front and seat hang from the band like the skin under them — 60 % on the pelvis)
+      const k = 0.18 * smooth(thighL[1] - 0.05, thighL[1] - 0.17, y) + 0.6 * smooth(thighL[1] - 0.06, thighL[1] + 0.02, y);
       const o = new Map();
       for (const [b, w] of sk) {
         if (legB.has(b)) {
@@ -1121,6 +1134,40 @@ function buildVariant(key, base, morphParams) {
       if (dot(dq, n) < -0.004) return -1; // the garment is behind the skin here
       return edgeAt(g, mb, h);
     };
+    /**
+     * 0 at the garment's cut edge (arm holes, neck, leg hems) … 1 from 8 mm inside it; 0 where no cloth lies over the
+     * skin. The deltoid cap under the strap tucks too (arm skin above the shoulder joint only: the visible inner arm
+     * beside the singlet never sinks).
+     */
+    // the arm holes' rims (the shell's boundary vertices off the hem and neck) as points
+    const holeRim = [];
+    {
+      const bnd = boundaryVerts(vest.idx, vest.count);
+      let hy = Infinity;
+      for (let k = 0; k < vest.count; k++) hy = Math.min(hy, vest.p[k * 3 + 1]);
+      for (let k = 0; k < vest.count; k++) if (bnd[k] && vest.p[k * 3 + 1] > hy + 0.05 && Math.abs(vest.p[k * 3]) > shoulderX * 0.45) holeRim.push([vest.p[k * 3], vest.p[k * 3 + 1], vest.p[k * 3 + 2]]);
+    }
+    const rimDist = (p) => holeRim.reduce((m, q) => Math.min(m, len(sub(p, q))), Infinity);
+    const tuckOf = (i) => {
+      // (never the upper arm, the deltoid cap included: sunk under the arm-hole binding it read as the arm inside the
+      // cloth — 14a)
+      if (isArm(i) || wSum(i, ["Bip01_L_UpperArm", "Bip01_R_UpperArm", "Bip01_L_UpperArmTwist", "Bip01_R_UpperArmTwist"]) > 0.25) return 0;
+      const ev = under(gV, vest, i, 0.06);
+      const et = under(gT, trunks, i, 0.07);
+      // (the value is the depth: 1 = 30 mm in. Covered skin takes half; the armpit and the hip crease, where the body's
+      // linear skinning bulges far out as the arm comes forward / the hip bends, take it all — the cloth hides them)
+      const tv = ev > 0 ? smooth(0.0, 0.008, ev) : 0,
+        tt = et > 0 ? smooth(0.0, 0.008, et) : 0;
+      const armpit = wOf(i, "Bip01_L_ShoulderHelper") + wOf(i, "Bip01_R_ShoulderHelper") > 0.2 || (!isArm(i) && V(i)[1] < shoulderL[1] - 0.02 && rimDist(V(i)) < 0.025);
+      const crease = wSum(i, ["Bip01_L_Thigh", "Bip01_R_Thigh"]) > 0.15 && V(i)[1] < thighL[1] + 0.08;
+      // (the side under the arm hole: the lats bulge out most as the arm comes forward — under the cloth, out of sight)
+      const side = V(i)[1] < shoulderL[1] - 0.05 && V(i)[1] > shoulderL[1] - 0.2 && Math.abs(V(i)[0]) > shoulderX * 0.55;
+      let t = Math.max(tv * (side ? 1 : armpit ? 0.6 : 0.5), tt * (crease ? 1 : 0.5));
+      // the torso skin just outside the arm hole (the lats and armpit seen through it): as the arm comes forward it
+      // slides under the binding — it tucks too (never the upper arm; below the shoulder only)
+      if (t < 0.6 && !isArm(i) && V(i)[1] < shoulderL[1] - 0.02) t = Math.max(t, 0.6 * (1 - smooth(0.015, 0.04, rimDist(V(i)))));
+      return t;
+    };
     const cover = (i) => {
       let c = 0;
       const arm = isArm(i);
@@ -1238,7 +1285,34 @@ function buildVariant(key, base, morphParams) {
     let bandTop = -Infinity;
     for (let k = bandStart; k < trunks.count; k++) bandTop = Math.max(bandTop, trunks.p[k * 3 + 1]);
     console.log(`  v8 kit ${key}: ${JSON.stringify(stats)}`);
-    return { vest, trunks, gloves, headgear, boots, wraps, cover, bandTop, stats };
+    // the turned facing (SPEC §7 "1-loop turned hem"; checklist 8): a second layer 2 mm inside the singlet round the arm
+    // holes and the neck, 8 cm deep (P3-FGT-19B: 5 cm left the back panel's inside showing past it at the rear arm hole), facing inwards — a look through the arm hole meets fabric, not the shell's raw inner
+    // face. Same skin as the shell, the binding's shade.
+    {
+      const D = Number(process.env.V8_FACING ?? 0.08);
+      const map = new Map();
+      const n0 = vest.count;
+      const ed = vest.edgeDist;
+      for (let k = 0; k < n0; k++) {
+        if (!(ed[k] < D)) continue;
+        const nn = [vest.n[k * 3], vest.n[k * 3 + 1], vest.n[k * 3 + 2]];
+        const p = [vest.p[k * 3] - nn[0] * 0.002, vest.p[k * 3 + 1] - nn[1] * 0.002, vest.p[k * 3 + 2] - nn[2] * 0.002];
+        const sk = [0, 1, 2, 3].map((q) => [vest.j[k * 4 + q], vest.w[k * 4 + q]]).filter(([, w]) => w > 0);
+        map.set(k, vest.vert(p, [-nn[0], -nn[1], -nn[2]], sk, MAT.vestLining, { src: vest.src[k], uv: [vest.uv[k * 2], vest.uv[k * 2 + 1]], ao: 0.6 }));
+      }
+      const m = vest.idx.length;
+      let added = 0;
+      for (let t = 0; t < m; t += 3) {
+        const a = map.get(vest.idx[t]),
+          b2 = map.get(vest.idx[t + 1]),
+          c = map.get(vest.idx[t + 2]);
+        if (a === undefined || b2 === undefined || c === undefined) continue;
+        vest.face(a, c, b2);
+        added++;
+      }
+      stats.facingTris = added;
+    }
+    return { vest, trunks, gloves, headgear, boots, wraps, cover, tuckOf, bandTop, stats };
   }
   const coverBits = (i) =>
     v8 ? v8CoverCache[i] :
@@ -1294,7 +1368,7 @@ function buildVariant(key, base, morphParams) {
   const addBodyVert = (i, mat, N, uvk = VUV[i]) => {
     const key = `${mat}:${i}:${uvk}`;
     if (map.has(key)) return map.get(key);
-    const k = bodyMesh.vert(V(i), N ? [N[i * 3], N[i * 3 + 1], N[i * 3 + 2]] : Nv(i), VW[i], mat, mat === MAT.skin ? { ao: cavity[i], zone: zoneOf(i), cover: coverBits(i), paint: paintOf(i), src: i, uv: uvAt(uvk) } : { src: i, uv: uvAt(uvk) });
+    const k = bodyMesh.vert(V(i), N ? [N[i * 3], N[i * 3 + 1], N[i * 3 + 2]] : Nv(i), VW[i], mat, mat === MAT.skin ? { ao: cavity[i], zone: zoneOf(i), cover: coverBits(i), paint: paintOf(i), src: i, uv: uvAt(uvk), tuck: v8 ? v8.tuckOf(i) : 0 } : { src: i, uv: uvAt(uvk) });
     map.set(key, k);
     return k;
   };
@@ -2725,7 +2799,8 @@ function buildVariant(key, base, morphParams) {
       // (the 90th percentile: a limb is oval and the sculpt bulges — the quads above the knee, the deltoid)
       return near.map((rs) => +(rs.sort((x, y) => x - y)[Math.floor(rs.length * 0.9)] ?? 0.05).toFixed(4));
     };
-    return { arm: cone("Bip01_L_UpperArm", "Bip01_L_Forearm", ["Bip01_L_UpperArm", "Bip01_L_UpperArmTwist", "Bip01_L_ShoulderHelper"]), thigh: cone("Bip01_L_Thigh", "Bip01_L_Calf", ["Bip01_L_Thigh"]) };
+    // (shoulderY: the singlet's arm push acts below the armpit only — over the shoulder the strap rides the skin)
+    return { arm: cone("Bip01_L_UpperArm", "Bip01_L_Forearm", ["Bip01_L_UpperArm", "Bip01_L_UpperArmTwist", "Bip01_L_ShoulderHelper"]), thigh: cone("Bip01_L_Thigh", "Bip01_L_Calf", ["Bip01_L_Thigh"]), shoulderY: +shoulderL[1].toFixed(4), shoulderX: +shoulderX.toFixed(4) };
   }
 }
 
@@ -2902,6 +2977,16 @@ for (const [key, spec] of Object.entries(V8_BUILD ? V8_GENDERS : GENDERS)) {
     mat: MAT,
     cover: COVER,
   };
+  // P3-FGT-19B: the garments' pose correctives (qa/e2e/fighter-v8/bake-correctives.mjs, baked on this rig in the
+  // browser from sampled frames of the clips): carried in the extras while they match this build's garment meshes
+  const corrFile = join(HERE, "corr-v8", `boxer-${key}.json`);
+  if (V8_BUILD && existsSync(corrFile)) {
+    const corr = JSON.parse(readFileSync(corrFile, "utf8"));
+    const counts = Object.fromEntries(out.map((m) => [m.name, m.attrs.POSITION.data.length / 3]));
+    const ok = Object.entries(corr.parts ?? {}).every(([n, c]) => counts[n] === c);
+    if (ok) extras.corr = corr;
+    else console.warn(`  corr-v8/boxer-${key}.json does not match the garments (${JSON.stringify(corr.parts)} vs ${JSON.stringify(counts)}): re-bake`);
+  }
   if (process.env.BAKE !== "0") bakeAnatomy(key, spec, base);
   const bytes = writeGlb(join(OUT, `boxer-${key}.glb`), { bones: base.G.bones, meshes: out, morphNames, extras });
   const tris = out.reduce((n, m) => n + m.index.length / 3, 0);

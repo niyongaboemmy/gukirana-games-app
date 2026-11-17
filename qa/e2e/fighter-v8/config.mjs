@@ -66,7 +66,7 @@ const CHK = (g, q, kinds, id, label) => ({ id: `chk-${g}-${id}`, group: "checks"
 SHOTS.push(
   ...["m", "f"].flatMap((g) => [
     CHK(g, "clip=guard&at=0.5&bind=1", ["garments8", "face"], "stand", "stand (bind pose)"),
-    CHK(g, "clip=guard&at=0.5", ["garments8", "pose:guard", "arms"], "guard", "guard"),
+    CHK(g, "clip=guard&at=0.5", ["garments8", "pose:guard", "arms", "sweep"], "guard", "guard"),
     CHK(g, "clip=jab&at=impact", ["garments8", "pose:jab", "arms"], "jab", "jab at impact"),
     CHK(g, "clip=leadHook&at=impact", ["garments8", "pose:hook", "arms"], "hook", "lead hook at impact"),
     CHK(g, "clip=blockHigh&at=0.3", ["arms"], "block", "high block"),

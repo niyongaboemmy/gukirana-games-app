@@ -77,17 +77,35 @@
         "varying float vGkMat;\n" +
         s.fragmentShader.replace(
           /}\s*$/,
-          "  bool face = vGkMat > 18.5 && vGkMat < 22.5;\n  gl_FragColor = vec4((gl_FrontFacing || face) ? 0.0 : 1.0, vGkMat < 0.5 ? 1.0 : 0.0, 1.0, (vGkMat > 0.5 && vGkMat < 2.5) ? 1.0 : 0.6);\n}",
+          "  bool face = vGkMat > 18.5 && vGkMat < 22.5;\n  gl_FragColor = vec4((gl_FrontFacing || face) ? 0.0 : 1.0, vGkMat < 0.5 ? 1.0 : 0.0, 1.0, ((vGkMat > 0.5 && vGkMat < 2.5) || (vGkMat > 24.5 && vGkMat < 25.5)) ? 1.0 : 0.6);\n}",
         );
     };
     mat.customProgramCacheKey = () => "fv8-cavity";
+    // (P3-FGT-19B: a v8 fighter is measured with its own vertex stage — the cloth push, the pose correctives and the skin
+    // anchors move the garments on the GPU, and a plain material drew the raw skinning the game never shows; the turned
+    // facing's back faces are culled as the game culls them: front-side only, they never draw)
+    const FRAG =
+      "flat varying float vMat;\n" +
+      "void main() {\n  if (!gl_FrontFacing && vMat > 24.5 && vMat < 25.5) discard;\n  bool face = vMat > 18.5 && vMat < 22.5;\n  gl_FragColor = vec4((gl_FrontFacing || face) ? 0.0 : 1.0, vMat < 0.5 ? 1.0 : 0.0, 1.0, ((vMat > 0.5 && vMat < 2.5) || (vMat > 24.5 && vMat < 25.5)) ? 1.0 : 0.6);\n}";
+    const own = (o) => {
+      const src = o.material;
+      if (!src?.userData?.u || !src.onBeforeCompile) return mat;
+      const m = new T.MeshBasicMaterial();
+      m.side = 2;
+      m.onBeforeCompile = (s) => {
+        src.onBeforeCompile(s);
+        s.fragmentShader = FRAG;
+      };
+      m.customProgramCacheKey = () => "fv8-cavity-own";
+      return m;
+    };
     const hidden = [];
     const swapped = [];
     scene.traverse((o) => {
       if (o.isMesh || o.isPoints || o.isLine || o.isSprite) {
         if (keep.has(o)) {
           swapped.push([o, o.material]);
-          o.material = mat;
+          o.material = own(o);
         } else if (o.visible) {
           hidden.push(o);
           o.visible = false;
@@ -119,7 +137,10 @@
     scene.background = prevBg;
     scene.fog = prevFog;
     for (const o of hidden) o.visible = true;
-    for (const [o, m] of swapped) o.material = m;
+    for (const [o, m] of swapped) {
+      if (o.material !== mat) o.material.dispose();
+      o.material = m;
+    }
     mat.dispose();
     // (skinSamples: front-facing skin pixels, every n-th, in screenshot coordinates — the T1 chroma check)
     let skin = null;
@@ -131,7 +152,32 @@
         if (px[o + 2] >= 128 && px[o] < 128 && px[o + 1] >= 128) skin.push([x, h - 1 - y]);
       }
     }
-    return { ...M.cavityStats(px), w, h, ...(skin ? { skin } : {}) };
+    // (png: the render as an image — singlet inner face yellow, singlet red, other garment back faces magenta, skin grey;
+    // a debugging aid for item 8)
+    let png = null;
+    if (opts.png) {
+      const c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      const g2 = c.getContext("2d");
+      const im = g2.createImageData(w, h);
+      for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4,
+            o = ((h - 1 - y) * w + x) * 4;
+          let col = [22, 24, 28];
+          if (px[i + 2] >= 128) {
+            const vest = px[i + 3] > 200,
+              back = px[i] >= 128,
+              sk = px[i + 1] >= 128;
+            col = vest ? (back ? [255, 230, 0] : [150, 20, 30]) : back ? [255, 0, 255] : sk ? [120, 120, 120] : [60, 60, 70];
+          }
+          im.data.set([...col, 255], o);
+        }
+      g2.putImageData(im, 0, 0);
+      png = c.toDataURL("image/png");
+    }
+    return { ...M.cavityStats(px), w, h, ...(skin ? { skin } : {}), ...(png ? { png } : {}) };
   }
 
   function textures(person) {
