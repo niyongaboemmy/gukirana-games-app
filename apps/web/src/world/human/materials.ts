@@ -99,6 +99,12 @@ export interface LookUniforms {
   uArmH: { value: THREE.Vector3 };
   /** the top's second colour (the shirt under the feminine blazer) */
   uTop2: { value: THREE.Color };
+  /**
+   * P2-AVA-17 (women-tops.ts): 1 = the body geometry carries a simulated garment (UV u + 4), its bare skin (u + 6) and a
+   * trousers band (u + 8); uWearMap = the garment's baked folds: RG normal x / y, B occlusion
+   */
+  uWear: { value: number };
+  uWearMap: { value: THREE.Texture | null };
 }
 
 /**
@@ -250,6 +256,8 @@ export function lookUniforms(look: AvatarLook, meta: HumanModelMeta, isHead: boo
     uArmE: { value: new THREE.Vector3() },
     uArmH: { value: new THREE.Vector3() },
     uTop2: { value: lin(top?.color2 && top.color2 !== "accent" ? top.color2 : "#f2f2f0") },
+    uWear: { value: 0 },
+    uWearMap: { value: null },
     ...faceUniforms(look.face ?? DEFAULT_FACE, isHead ? frame : null),
   };
 }
@@ -275,6 +283,9 @@ uniform vec4 uCut; uniform vec3 uNeck; uniform vec3 uFwd; uniform vec3 uArmS; un
 // P2-AVA-16: painted skin above the neckline / below a short sleeve, fabric over the head mesh's chest below the
 // neckline, how much of the base garment's own relief (lapel / pocket edges) to calm
 float gkCutSkin = 0.0; float gkCutFab = 0.0; float gkCutFlat = 0.0;
+// P2-AVA-17: simulated garment / its bare skin / the trousers band fragments (UV u + 4 / + 6 / + 8), its fold map sample
+uniform float uWear; uniform sampler2D uWearMap;
+float gkWt = 0.0; float gkWs = 0.0; float gkWb = 0.0; vec3 gkWtex = vec3(0.5, 0.5, 1.0);
 // neckline drop (m below the neck base) at side offset x, 0 back … 1 front (mirrors garment-fit.ts necklineDrop)
 float gkNeckDrop(float shape, float depth, float x, float front) {
   float base = shape > 4.5 ? -0.025 : (shape < 1.5 ? 0.0 : 0.006);
@@ -595,6 +606,30 @@ const RECOLOUR = /* glsl */ `
   }
   vec3 gkBase = diffuseColor.rgb;
   float gkL = dot(gkBase, vec3(0.2126, 0.7152, 0.0722));
+  if (uIsHead < 0.5 && uWear > 0.5 && vMapUv.x > 3.5) {
+    // P2-AVA-17: the simulated garment (its folds are geometry + the baked map: occlusion drives the shading, the
+    // photo texture is not used), its bare skin and the trousers band under the hem
+    if (vMapUv.x < 5.5) {
+      gkWt = 1.0;
+      gkWtex = texture2D(uWearMap, vec2(vMapUv.x - 4.0, vMapUv.y)).rgb;
+      gkM = vec4(0.0, 1.0, 0.0, 0.0);
+      gkL = uTopRef * mix(1.0, gkWtex.b, 0.55);
+    } else if (vMapUv.x < 7.5) {
+      gkWs = 1.0;
+      gkM = vec4(1.0, 0.0, 0.0, 0.0);
+      gkL = uSkinRef * (0.96 + 0.08 * gkNoise(vGkF.xy * 37.0));
+    } else if (vMapUv.x < 9.5) {
+      gkWb = 1.0;
+      gkM = vec4(0.0, 0.0, 1.0, 0.0);
+      gkL = uBottomRef * 0.8;
+    } else {
+      // the sash band of sash tops: the item's second colour (P2-AVA-17)
+      gkWt = 2.0;
+      gkM = vec4(0.0, 1.0, 0.0, 0.0);
+      gkL = uTopRef;
+    }
+    gkBase = vec3(gkL);
+  }
   if (uIsHead > 0.5 && uFaceOn > 0.5 && uAge.y + uAge.z > 0.001) {
     // even skin (P2-AVA-11): the base photos carry their models' own creases, frown lines and blotches (the masculine
     // one frowns). Split the skin's brightness into bands with the texture's mip chain: pores (finer than ~2 texels)
@@ -626,6 +661,8 @@ const RECOLOUR = /* glsl */ `
   // P2-AVA-12: light skin is never grey: blood under thin skin keeps it warm (a touch more red, less blue on the
   // light tones only; deep tones are untouched)
   if (uReal > 0.5) gkSkinCol *= mix(vec3(1.0), vec3(1.05, 0.97, 0.9), smoothstep(0.18, 0.55, dot(uSkin, vec3(0.2126, 0.7152, 0.0722))));
+  // (a touch under the swatch: the photo skin it meets at the neck and wrists averages darker than its reference)
+  if (gkWs > 0.5) gkSkinCol = uSkin * 0.9 * gkDetail(gkL, uSkinRef, 0.9) * (uReal > 0.5 ? mix(vec3(1.0), vec3(1.05, 0.97, 0.9), smoothstep(0.18, 0.55, dot(uSkin, vec3(0.2126, 0.7152, 0.0722)))) : vec3(1.0));
   vec3 gkCol = mix(gkBase, gkSkinCol, gkM.r);
   if (uSpecMap > 0.5) gkSpec = gkM.a;
   if (uIsHead > 0.5) {
@@ -698,6 +735,7 @@ const RECOLOUR = /* glsl */ `
         gkBotC = texture2D(uBottomPrint, gkPp.yz).rgb * gkTw.x + texture2D(uBottomPrint, gkPp.xz).rgb * gkTw.y + texture2D(uBottomPrint, gkPp.xy).rgb * gkTw.z;
     }
     gkBotC = mix(gkBotC * gkDetail(gkL, uBottomRef, 0.85), uSkin * gkDetail(gkL, uBottomRef, 0.1), uLegsSkin);
+    if (gkWt > 1.5) gkTopC = uTop2;
     float gkLt = gkL;
     float gkRefT = uTopRef;
     // P2-AVA-16: under a blazer the modelled collar is the shirt's (its second colour)
@@ -782,6 +820,7 @@ const ROUGH = /* glsl */ `
 #include <roughnessmap_fragment>
 {
   vec4 gkM2 = texture2D(uMask, vMapUv);
+  if (gkWt + gkWs + gkWb > 0.5) gkM2 = vec4(gkWs, min(gkWt, 1.0), gkWb, 0.0);
   float gkGloss = smoothstep(0.04, 0.42, gkSpec);
   roughnessFactor = mix(roughnessFactor, uSpecMap > 0.5 ? mix(0.78, 0.6, gkGloss) : 0.68, clamp(gkM2.r + gkM2.g * uHairToSkin, 0.0, 1.0));
   if (uIsHead < 0.5) roughnessFactor = mix(roughnessFactor, 0.75, clamp(1.0 - gkM2.r - gkM2.g - gkM2.b, 0.0, 1.0));
@@ -854,6 +893,10 @@ const NRM_FROM = "mapN.xy *= normalScale;";
 const NRM_TO = /* glsl */ `
 mapN.xy *= normalScale;
 mapN.xy *= 1.0 - 0.85 * gkCutFlat;
+// P2-AVA-17: the garment's own fold normals (its UVs' tangent frame); the bare skin / trousers band are smooth
+// (the asset's UVs follow glTF's top-left origin like the body: the green channel takes the body map's sign)
+if (gkWt > 0.5) { mapN.xy = (gkWtex.rg * 2.0 - 1.0) * vec2(1.0, normalScale.y < 0.0 ? -1.0 : 1.0); mapN.z = sqrt(max(0.0, 1.0 - dot(mapN.xy, mapN.xy))); }
+else if (gkWs + gkWb > 0.5) mapN = vec3(0.0, 0.0, 1.0);
 if (gkSmoothN > 0.001) {
   vec2 gkN1 = textureLod(normalMap, vNormalMapUv, 1.2).xy * 2.0 - 1.0;
   vec2 gkN4 = textureLod(normalMap, vNormalMapUv, 4.6).xy * 2.0 - 1.0;
@@ -904,6 +947,8 @@ const WARM = /* glsl */ `
 // skin: light scattered under the surface warms the shadow side a little; cavities (eye / mouth corners) get less
 // ambient light
 reflectedLight.indirectDiffuse *= mix(1.0, gkAO, uIsHead);
+// P2-AVA-17: the garment's baked occlusion (armpits, under the bust, the folds' valleys) on the ambient light
+if (gkWt > 0.5) reflectedLight.indirectDiffuse *= mix(1.0, gkWtex.b, 0.7);
 reflectedLight.indirectDiffuse += gkSkinW * diffuseColor.rgb * vec3(0.05, 0.02, 0.01);
 `;
 
@@ -934,7 +979,7 @@ export function makeLookMaterial(base: THREE.MeshStandardMaterial, look: AvatarL
         .replace("#include <lights_physical_fragment>", SPEC)
         .replace("#include <lights_fragment_end>", WARM);
   };
-  m.customProgramCacheKey = () => (real ? "gk-human-look-6r" : "gk-human-look-4");
+  m.customProgramCacheKey = () => (real ? "gk-human-look-7r" : "gk-human-look-5");
   return m;
 }
 

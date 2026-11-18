@@ -14,6 +14,7 @@ import { buildAttachments, neutralFrame } from "./human/attachments";
 import { deflateHair, dropBrim, hairAt, hairGeometry, hairHatClass, hairMesh, headFrameOf, makeHairMaterial, maskPixels, type HeadFrame, type MaskPixels } from "./human/hair";
 import { borderVertexFlags, fillNewHoles } from "./human/seam-fill";
 import { bodyFrameOf, neckBase, NECK_CODE, refitTop, SLEEVE_END, topCut } from "./human/garment-fit";
+import { bodyWithTop, GARMENT_FABRIC, readWomenTop, womenTopFor, type GarmentKind } from "./human/women-tops";
 import { headwearGeometry, makeHeadwearMaterial } from "./human/headwear";
 import { EAR_LANDMARKS } from "./human/skull";
 import type { BodyType, HeadwearKind } from "./outfits";
@@ -311,7 +312,9 @@ interface Instance {
   eyes: THREE.Mesh | null;
 }
 
-function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMeta, shadows: boolean, keepClothes: boolean, modelId: HumanModelId): Instance {
+type WomenTop = { kind: GarmentKind; loaded: NonNullable<ReturnType<typeof readWomenTop>> } | null;
+
+function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMeta, shadows: boolean, keepClothes: boolean, modelId: HumanModelId, womenTop: WomenTop = null): Instance {
   prepareBase(src, modelId);
   const root = cloneSkinned(src);
   const full: THREE.Object3D[] = [];
@@ -424,7 +427,11 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
     }
   }
   // ---- the chosen top's cut on the feminine body, modelled collars (P2-AVA-16)
-  if (campusHumansOn() && !keepClothes && modelId !== "guard" && hm) applyTopCut(root, look, modelId as BodyType, hm.lo);
+  if (campusHumansOn() && !keepClothes && modelId !== "guard" && hm) {
+    // P2-AVA-17: a simulated garment replaces the feminine body's baked blazer (shipped items only, women-tops.ts)
+    if (womenTop) applyWomenTop(root, womenTop);
+    else applyTopCut(root, look, modelId as BodyType, hm.lo);
+  }
   const bone = (n: string) => (root.getObjectByName(n) as THREE.Bone | undefined) ?? null;
   const head = bone("Bip01_Head");
   const pelvis = bone("Bip01_Pelvis");
@@ -551,6 +558,63 @@ function applyTopCut(root: THREE.Object3D, look: AvatarLook, body: BodyType, hea
       u.uNeck.value.copy(nb.centre).sub(u.uFaceO.value).applyMatrix3(u.uFaceM.value);
       u.uArmH.value.copy(nb.centre);
     }
+  }
+}
+
+/**
+ * P2-AVA-17: the body geometry (near and far level) swapped for the body without its blazer plus the garment, its bare
+ * skin and the trousers band (women-tops.ts bodyWithTop; shared per base geometry and kind), and the look shaders get
+ * the garment's fold map and weave.
+ */
+function applyWomenTop(root: THREE.Object3D, wt: NonNullable<WomenTop>) {
+  const looks: { mesh: THREE.SkinnedMesh; u: LookUniforms; part: string }[] = [];
+  root.traverse((o) => {
+    const m = o as THREE.SkinnedMesh;
+    const u = (m.material as THREE.Material | undefined)?.userData?.gkUniforms as LookUniforms | undefined;
+    if (m.isSkinnedMesh && u?.uWear && u.uIsHead && u.uIsHead.value === 0) looks.push({ mesh: m, u, part: partOf(m, root) });
+  });
+  for (const l of looks) {
+    const far = l.part === "lod1";
+    const src = (l.mesh.geometry.userData.gkWearSrc as THREE.BufferGeometry | undefined) ?? l.mesh.geometry;
+    const cache = ((src.userData.gkWear as Map<string, THREE.BufferGeometry> | undefined) ?? (src.userData.gkWear = new Map())) as Map<string, THREE.BufferGeometry>;
+    const key = `${wt.kind}${far ? ":far" : ""}`;
+    let g = cache.get(key);
+    if (!g) {
+      const mask = maskPixels(l.u.uMask.value);
+      if (!mask) continue;
+      const frame = bodyFrameOf(l.mesh);
+      const pelvis = frame.bone("Bip01_Pelvis");
+      const tl = frame.bone("Bip01_L_Thigh"),
+        tr = frame.bone("Bip01_R_Thigh"),
+        head = frame.bone("Bip01_Head");
+      if (!pelvis || !tl || !tr || !head) continue;
+      const up = head.clone().sub(pelvis).normalize();
+      const d = mask.data;
+      g = bodyWithTop(
+        src,
+        wt.loaded.asset,
+        {
+          region: (u, v) => {
+            const x = THREE.MathUtils.clamp(Math.floor((u - Math.floor(u)) * mask.w), 0, mask.w - 1);
+            const y = THREE.MathUtils.clamp(Math.floor((v - Math.floor(v)) * mask.h), 0, mask.h - 1);
+            const i = (y * mask.w + x) * 4;
+            return { skin: d[i]! / 255, top: d[i + 1]! / 255, bottom: d[i + 2]! / 255 };
+          },
+          boneIndex: frame.index,
+          pelvis,
+          hipY: (tl.dot(up) + tr.dot(up)) / 2,
+          up,
+        },
+        far,
+      );
+      g.userData.gkWearSrc = src;
+      g.userData.gkShared = true;
+      cache.set(key, g);
+    }
+    l.mesh.geometry = g;
+    l.u.uWear.value = 1;
+    l.u.uWearMap.value = wt.loaded.map;
+    l.u.uFabric.value.x = GARMENT_FABRIC[wt.kind];
   }
 }
 
@@ -698,7 +762,13 @@ function HumanBody({
   const lifeOk = useDeferredReady();
   const key = encodeLook(look);
   // `key` (the encoded look) captures every look field, so `look` itself is not a dependency
-  const inst = useMemo(() => buildInstance(model.scene, look, meta, shadows, keepClothes, modelId), [model.scene, key, meta, shadows, keepClothes, modelId]);
+  // P2-AVA-17: the simulated garment of this top (suspends until its asset is in; null = the baked garment)
+  const wearKind = campusHumansOn() && !keepClothes && modelId !== "guard" ? womenTopFor(itemById(look.outfit.top), modelId as BodyType) : null;
+  const wear = readWomenTop(wearKind);
+  const inst = useMemo(
+    () => buildInstance(model.scene, look, meta, shadows, keepClothes, modelId, wearKind && wear ? { kind: wearKind, loaded: wear } : null),
+    [model.scene, key, meta, shadows, keepClothes, modelId, wear],
+  );
   const animator = useMemo(() => new HumanAnimator(inst.root, clipsFor(meta.anim, anims.animations, meta.hipY), meta.anim, seed), [inst, anims.animations, meta, seed]);
   const proc = useMemo(() => new ProceduralLayer({ root: inst.root, arms: inst.arms, spine: inst.spine, head: inst.head }), [inst]);
   // (built before the first mixer update: it measures the standing foot heights in the bind pose)

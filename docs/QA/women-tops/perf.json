@@ -1,0 +1,106 @@
+{
+  "none/desktop": [
+    {
+      "fps": 480.5,
+      "calls": 152,
+      "triangles": 298699,
+      "textures": 80,
+      "geometries": 92,
+      "programs": 17
+    },
+    {
+      "fps": 490.1,
+      "calls": 153,
+      "triangles": 273602,
+      "textures": 80,
+      "geometries": 92,
+      "programs": 17
+    },
+    {
+      "fps": 469,
+      "calls": 152,
+      "triangles": 298699,
+      "textures": 80,
+      "geometries": 92,
+      "programs": 17
+    }
+  ],
+  "none/phone": [
+    {
+      "fps": 467.3,
+      "calls": 154,
+      "triangles": 273604,
+      "textures": 80,
+      "geometries": 92,
+      "programs": 17
+    },
+    {
+      "fps": 456,
+      "calls": 154,
+      "triangles": 273604,
+      "textures": 80,
+      "geometries": 92,
+      "programs": 17
+    },
+    {
+      "fps": 444,
+      "calls": 154,
+      "triangles": 298703,
+      "textures": 80,
+      "geometries": 92,
+      "programs": 17
+    }
+  ],
+  "all/desktop": [
+    {
+      "fps": 477.6,
+      "calls": 152,
+      "triangles": 375922,
+      "textures": 84,
+      "geometries": 97,
+      "programs": 17
+    },
+    {
+      "fps": 475,
+      "calls": 153,
+      "triangles": 350825,
+      "textures": 84,
+      "geometries": 97,
+      "programs": 17
+    },
+    {
+      "fps": 463.3,
+      "calls": 152,
+      "triangles": 375922,
+      "textures": 84,
+      "geometries": 97,
+      "programs": 17
+    }
+  ],
+  "all/phone": [
+    {
+      "fps": 431.1,
+      "calls": 154,
+      "triangles": 375926,
+      "textures": 84,
+      "geometries": 97,
+      "programs": 17
+    },
+    {
+      "fps": 468.8,
+      "calls": 154,
+      "triangles": 375926,
+      "textures": 84,
+      "geometries": 97,
+      "programs": 17
+    },
+    {
+      "fps": 425,
+      "calls": 154,
+      "triangles": 350827,
+      "textures": 84,
+      "geometries": 97,
+      "programs": 17
+    }
+  ]
+}

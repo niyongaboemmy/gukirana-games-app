@@ -40,3 +40,7 @@ apps/web/public/assets/characters/_v9test/
 # human v9 pipeline (P2-AVA-13): third-party scans, CMU takes and built GLBs are never committed
 apps/web/scripts/human-v9/work/
 apps/web/public/assets/characters/_v9humans/
+
+# women tops pipeline (P2-AVA-17): Blender work files (rebuilt by apps/web/scripts/women-tops/build.sh)
+apps/web/scripts/women-tops/work/
+apps/web/scripts/women-tops/__pycache__/
