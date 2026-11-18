@@ -257,12 +257,17 @@ function AreaWarm({ area, content }: { area: Area; content: RefObject<THREE.Grou
       let batch = budgetMs > 12 ? 1e9 : 6;
       // P3-FGT-25: the first draw with a program is the expensive one (its first use: uniform setup and, in Chrome, a
       // synchronous round trip to the GPU process — 20–250 ms per frame were measured when one batch happened to hold
-      // several new programs). While someone is walking (small budget) a batch takes at most one object whose
-      // program has never been drawn; objects on programs already drawn fill the rest of the batch.
-      const maxNew = budgetMs > 12 ? Infinity : 1;
+      // several new programs). While someone is walking in a live place (small budget) a batch takes at most one object
+      // whose program has never been drawn; objects on programs already drawn fill the rest of the batch. Behind the
+      // boot screen (nothing live on screen yet, e.g. the plaza built behind a hall deep link) batches stay unlimited.
+      const liveView = () => {
+        const st = useStage.getState();
+        return !!st.view && !!st.ready[areaOf(st.view)];
+      };
       for (let i = 0; i < list.length; ) {
         const part: THREE.Object3D[] = [];
         let fresh = 0;
+        const maxNew = budgetMs > 12 || !liveView() ? Infinity : 1;
         while (i < list.length && part.length < batch) {
           const isNew = programsOf(gl, list[i]!).some((p) => !drawnPrograms.has(p));
           if (isNew && fresh >= maxNew && part.length) break;
