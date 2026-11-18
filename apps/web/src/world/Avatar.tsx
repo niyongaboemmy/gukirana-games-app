@@ -11,7 +11,9 @@ import { makeHairCardMaterial, makeLookMaterial, type LookUniforms } from "./hum
 import { faceFrameOf, FaceRig } from "./human/face-rig";
 import { relaxMouth, relaxNormals, smoothHeadNormals, tessellateHead } from "./human/head-geometry";
 import { buildAttachments, neutralFrame } from "./human/attachments";
-import { deflateHair, dropBrim, hairGeometry, hairHatClass, hairMesh, headFrameOf, makeHairMaterial, maskPixels, type HeadFrame, type MaskPixels } from "./human/hair";
+import { deflateHair, dropBrim, hairAt, hairGeometry, hairHatClass, hairMesh, headFrameOf, makeHairMaterial, maskPixels, type HeadFrame, type MaskPixels } from "./human/hair";
+import { borderVertexFlags, fillNewHoles } from "./human/seam-fill";
+import { bodyFrameOf, neckBase, NECK_CODE, refitTop, SLEEVE_END, topCut } from "./human/garment-fit";
 import { headwearGeometry, makeHeadwearMaterial } from "./human/headwear";
 import { EAR_LANDMARKS } from "./human/skull";
 import type { BodyType, HeadwearKind } from "./outfits";
@@ -207,8 +209,13 @@ function prepareBase(scene: THREE.Object3D, modelId: HumanModelId) {
       // the neutral body's baseball cap was part of its head mesh (P2-AVA-10): the brim goes, the crown comes down
       // onto the skull as scalp (its texels are hair in the cleaned mask), so the chosen hair / headwear shows
       if (modelId === "neutral") {
+        const before = campusHumansOn() ? borderVertexFlags(g) : null;
         dropBrim(g);
         deflateHair(g, frame, "neutral", mask, { keep: 0.0025 });
+        // P2-AVA-16: the brim left a thin open crescent between the forehead and the old crown (the sky showed through
+        // as a pale arc): bridge it with real geometry that carries the crown's hair texture down to the forehead skin
+        // (so the hairline sits where the brim met the forehead; smooth normals below, hair shells grow on it too)
+        if (before) fillNewHoles(g, before, (u, v) => hairAt(mask, u, v) >= 0.5, 0.016, 0.3);
       }
       // the masculine base head pouts (scanned lips pushed forward): bring the lips back to a relaxed, closed mouth
       if (modelId === "masculine") {
@@ -416,6 +423,8 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
       lodMeshes.push({ mesh: m, near, far });
     }
   }
+  // ---- the chosen top's cut on the feminine body, modelled collars (P2-AVA-16)
+  if (campusHumansOn() && !keepClothes && modelId !== "guard" && hm) applyTopCut(root, look, modelId as BodyType, hm.lo);
   const bone = (n: string) => (root.getObjectByName(n) as THREE.Bone | undefined) ?? null;
   const head = bone("Bip01_Head");
   const pelvis = bone("Bip01_Pelvis");
@@ -469,6 +478,80 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
     }
   }
   return { root, full, lite, materials, fadeable, extras, head, jaw: bone("Bip01_MJaw"), arms, spine: bone("Bip01_Spine1"), faceU, headMesh, lodMeshes, eyes };
+}
+
+/**
+ * P2-AVA-16: the chosen top on the body. Feminine: the body geometry is swapped for the top's cut (garment-fit.ts:
+ * relaxed blazer front, neckline, sleeves, modelled collar; shared per base geometry and cut) and the look shaders get
+ * the cut (neckline / sleeve skin, fabric weave). Masculine / neutral: collared tops get the modelled collar.
+ */
+function applyTopCut(root: THREE.Object3D, look: AvatarLook, body: BodyType, headGeo: THREE.BufferGeometry) {
+  const cut = topCut(itemById(look.outfit.top), body);
+  if (!cut) return;
+  const looks: { mesh: THREE.SkinnedMesh; u: LookUniforms; part: string }[] = [];
+  root.traverse((o) => {
+    const m = o as THREE.SkinnedMesh;
+    const u = (m.material as THREE.Material | undefined)?.userData?.gkUniforms as LookUniforms | undefined;
+    // (look shaders only: the hair cards carry uniforms of their own)
+    if (m.isSkinnedMesh && u?.uCut && u.uIsHead) looks.push({ mesh: m, u, part: partOf(m, root) });
+  });
+  const bodyMesh = looks.find((l) => l.u.uIsHead.value === 0 && l.part === "body")?.mesh;
+  if (!bodyMesh) return;
+  const frame = bodyFrameOf(bodyMesh);
+  const nb = neckBase(frame, headGeo);
+  if (!nb) return;
+  const mode = body === "feminine" ? 1 : 2;
+  const mask = maskPixels(looks.find((l) => l.u.uIsHead.value === 0)?.u.uMask.value);
+  const region = mask
+    ? (u: number, v: number) => {
+        const x = THREE.MathUtils.clamp(Math.floor(u * mask.w), 0, mask.w - 1);
+        const y = THREE.MathUtils.clamp(Math.floor(v * mask.h), 0, mask.h - 1);
+        const d = mask.data;
+        const i = (y * mask.w + x) * 4;
+        return { skin: d[i]! / 255, top: d[i + 1]! / 255, bottom: d[i + 2]! / 255 };
+      }
+    : undefined;
+  const swapped = new Set<THREE.BufferGeometry>();
+  for (const l of looks) {
+    if (l.u.uIsHead.value === 0 && !swapped.has(l.mesh.geometry)) {
+      // the collar only on the near body (sub-pixel further out)
+      const near = l.part === "body";
+      if (mode === 1 || near) {
+        const src = (l.mesh.geometry.userData.gkRefitSrc as THREE.BufferGeometry | undefined) ?? l.mesh.geometry;
+        const cache = ((src.userData.gkRefit as Map<string, THREE.BufferGeometry> | undefined) ?? (src.userData.gkRefit = new Map())) as Map<string, THREE.BufferGeometry>;
+        const key = `${cut.id}${near ? "+c" : ""}`;
+        let g = cache.get(key);
+        if (!g) {
+          g = refitTop(src, { body, cut, frame, head: headGeo, region, collar: near });
+          g.userData.gkRefitSrc = src;
+          cache.set(key, g);
+        }
+        l.mesh.geometry = g;
+        swapped.add(g);
+      }
+    }
+    const u = l.u;
+    u.uCut.value.set(NECK_CODE[cut.neck], cut.depth, SLEEVE_END[cut.sleeve], mode);
+    u.uFwd.value.copy(nb.forward);
+    if (u.uIsHead.value === 0) {
+      u.uNeck.value.copy(nb.centre);
+      const s = frame.bone("Bip01_L_UpperArm"),
+        e = frame.bone("Bip01_L_Forearm"),
+        h = frame.bone("Bip01_L_Hand");
+      if (s && e && h) {
+        // the left arm is on +x of the bind frame (the shader mirrors |x|)
+        const fl = (v: THREE.Vector3) => v.set(Math.abs(v.x), v.y, v.z);
+        u.uArmS.value.copy(fl(s));
+        u.uArmE.value.copy(fl(e));
+        u.uArmH.value.copy(fl(h));
+      }
+      if (mode === 1) u.uFabric.value.x = cut.fabric;
+    } else {
+      // the head's face frame (face units): the neck centre there; uArmH carries its bind position for the print
+      u.uNeck.value.copy(nb.centre).sub(u.uFaceO.value).applyMatrix3(u.uFaceM.value);
+      u.uArmH.value.copy(nb.centre);
+    }
+  }
 }
 
 function disposeInstance(inst: Instance) {
