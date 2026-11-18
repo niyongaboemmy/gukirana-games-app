@@ -1,5 +1,11 @@
 {
   "app": { "name": "Gukirana Playground", "tagline": "Play · Meet · Win" },
-  "lobby": { "quickPlay": "Quick Play", "enterWorld": "Enter the world", "live": "{count} live", "comingSoon": "Coming soon" },
-  "games": { "pool": "8-Ball Pool", "ludo": "Ludo", "igisoro": "Igisoro" }
+  "lobby": {
+    "quickPlay": "Quick Play",
+    "enterWorld": "Enter the world",
+    "live": "{count} live",
+    "comingSoon": "Coming soon"
+  },
+  "games": { "pool": "8-Ball Pool", "ludo": "Ludo", "igisoro": "Igisoro" },
+  "world": { "entry": { "ring": "Getting the ring ready…", "hall": "Getting the {hall} ready…" } }
 }

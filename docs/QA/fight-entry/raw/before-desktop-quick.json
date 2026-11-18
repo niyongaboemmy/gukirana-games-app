@@ -1,0 +1,101 @@
+{
+ "web": "http://localhost:3200",
+ "view": "desktop",
+ "flow": "quick",
+ "throttle": 1,
+ "results": [
+  {
+   "name": "campus → Boxing hall (Quick Play)",
+   "timeline": [
+    "8ms plaza ready=1 /world",
+    "141ms plaza ready=1 /room/boxing",
+    "158ms plaza ready=1 BOOT /room/boxing",
+    "508ms hall:boxing ready=0 BOOT /room/boxing",
+    "1358ms hall:boxing ready=1 BOOT /room/boxing",
+    "2041ms hall:boxing ready=1 /room/boxing"
+   ],
+   "worstFrames": [
+    "508ms:350",
+    "875ms:150",
+    "1258ms:383",
+    "1358ms:100"
+   ],
+   "ms": 4466,
+   "frames": 196,
+   "fps": 44,
+   "maxGap": 383,
+   "over50": 7,
+   "over100": 4,
+   "longTaskTotal": 1067,
+   "longTaskMax": 340,
+   "longTasks": 8,
+   "bootScreenMs": 1883,
+   "frozenFrameMs": 0,
+   "hiddenAreaMs": 0,
+   "hintMs": 0,
+   "noStageFrameMs": 0,
+   "ok": true
+  },
+  {
+   "name": "walk to ring 7",
+   "timeline": [
+    "5ms hall:boxing ready=1 /room/boxing"
+   ],
+   "worstFrames": [
+    "1088ms:150"
+   ],
+   "ms": 1098,
+   "frames": 56,
+   "fps": 51,
+   "maxGap": 150,
+   "over50": 1,
+   "over100": 1,
+   "longTaskTotal": 202,
+   "longTaskMax": 141,
+   "longTasks": 2,
+   "bootScreenMs": 0,
+   "frozenFrameMs": 0,
+   "hiddenAreaMs": 0,
+   "hintMs": 0,
+   "noStageFrameMs": 0,
+   "ok": true,
+   "tripWalked": true
+  },
+  {
+   "name": "ring entry (practice vs AI)",
+   "timeline": [
+    "11ms hall:boxing ready=1 /room/boxing"
+   ],
+   "worstFrames": [
+    "1827ms:367"
+   ],
+   "ms": 8376,
+   "frames": 439,
+   "fps": 52,
+   "maxGap": 367,
+   "over50": 8,
+   "over100": 1,
+   "longTaskTotal": 461,
+   "longTaskMax": 325,
+   "longTasks": 3,
+   "bootScreenMs": 0,
+   "frozenFrameMs": 0,
+   "hiddenAreaMs": 0,
+   "hintMs": 0,
+   "noStageFrameMs": 0,
+   "ok": true
+  }
+ ],
+ "errors": [],
+ "shots": [
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/desktop-quick-1-to-hall-1.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/desktop-quick-1-to-hall-2.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/desktop-quick-1-to-hall-3.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/desktop-quick-1-to-hall-4.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/desktop-quick-2-ring-prompt.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/desktop-quick-3-ring-entry-1.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/desktop-quick-3-ring-entry-2.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/desktop-quick-3-ring-entry-3.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/desktop-quick-4-fight.jpg"
+ ]
+}

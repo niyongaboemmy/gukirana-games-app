@@ -98,6 +98,33 @@ function texturesOf(root: THREE.Object3D): THREE.Texture[] {
   return [...out];
 }
 
+/** under a hidden warm-only stand-in (userData.gkWarmOnly): compiled and uploaded, never drawn for real */
+function underWarmOnly(o: THREE.Object3D) {
+  for (let p: THREE.Object3D | null = o; p; p = p.parent) if (p.userData.gkWarmOnly) return true;
+  return false;
+}
+
+/** programs that have had their first draw (by a warm draw): drawing with them again is cheap */
+const drawnPrograms = new WeakSet<object>();
+type ProgramProps = { programVariants?: Map<string, object>; currentProgram?: object };
+/** the programs an object's materials were compiled to (every output variant), as the renderer keeps them */
+function programsOf(gl: THREE.WebGLRenderer, o: THREE.Object3D): object[] {
+  const props = (gl as unknown as { properties: { get(m: object): ProgramProps } }).properties;
+  let m: THREE.Material | THREE.Material[] | undefined;
+  try {
+    m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+  } catch {
+    return [];
+  }
+  const out: object[] = [];
+  for (const mat of Array.isArray(m) ? m : m ? [m] : []) {
+    const p = props.get(mat);
+    if (p.programVariants?.size) for (const v of p.programVariants.values()) out.push(v);
+    else if (p.currentProgram) out.push(p.currentProgram);
+  }
+  return out;
+}
+
 /** pending 1-pixel warm draws, run inside the next frame before the real render (never outside a frame) */
 const warmDraws: (() => void)[] = [];
 
@@ -228,9 +255,26 @@ function AreaWarm({ area, content }: { area: Area; content: RefObject<THREE.Grou
       scene.traverse((o) => isDrawable(o) && all.push(o));
       // batch size adapts to what one batch actually costs (first uses vary from µs to ms): stay near the budget
       let batch = budgetMs > 12 ? 1e9 : 6;
+      // P3-FGT-25: the first draw with a program is the expensive one (its first use: uniform setup and, in Chrome, a
+      // synchronous round trip to the GPU process — 20–250 ms per frame were measured when one batch happened to hold
+      // several new programs). While someone is walking in a live place (small budget) a batch takes at most one object
+      // whose program has never been drawn; objects on programs already drawn fill the rest of the batch. Behind the
+      // boot screen (nothing live on screen yet, e.g. the plaza built behind a hall deep link) batches stay unlimited.
+      const liveView = () => {
+        const st = useStage.getState();
+        return !!st.view && !!st.ready[areaOf(st.view)];
+      };
       for (let i = 0; i < list.length; ) {
-        const part = list.slice(i, i + batch);
-        i += part.length;
+        const part: THREE.Object3D[] = [];
+        let fresh = 0;
+        const maxNew = budgetMs > 12 || !liveView() ? Infinity : 1;
+        while (i < list.length && part.length < batch) {
+          const isNew = programsOf(gl, list[i]!).some((p) => !drawnPrograms.has(p));
+          if (isNew && fresh >= maxNew && part.length) break;
+          if (isNew) fresh++;
+          part.push(list[i]!);
+          i++;
+        }
         await new Promise<void>((resolve) => {
           warmDraws.push(() => {
             const s0 = performance.now();
@@ -271,7 +315,10 @@ function AreaWarm({ area, content }: { area: Area; content: RefObject<THREE.Grou
                   gl.autoClear = ac;
                   all.forEach((o, j) => (o.layers.mask = saved[j]!));
                   part.forEach((o, j) => (o.frustumCulled = culled[j]!));
-                  part.forEach((o) => warmed.add(o));
+                  part.forEach((o) => {
+                    warmed.add(o);
+                    for (const p of programsOf(gl, o)) drawnPrograms.add(p);
+                  });
                 }
               });
             const took = performance.now() - s0;
@@ -298,18 +345,64 @@ function AreaWarm({ area, content }: { area: Area; content: RefObject<THREE.Grou
       // parts that resolve after this warm-up (nested Suspense: props, people, text atlases streamed in) are warmed
       // the same way as they appear, while the area is still off screen
       let running = false;
-      const late = async (budgetMs: number) => {
+      const late = async (budgetMs: number, warmOnly = false) => {
         if (running || !alive) return;
+        const list = warmOnly ? unwarmed().filter(underWarmOnly) : unwarmed();
+        if (!list.length) return;
         running = true;
         try {
-          await warmPass(unwarmed(), budgetMs, false);
+          await warmPass(list, budgetMs, false);
+        } finally {
+          running = false;
+        }
+      };
+      /** objects already compiled for both output paths while on screen (see below) */
+      const compiledBoth = new WeakSet<THREE.Object3D>();
+      const compileOnly = async (budgetMs: number) => {
+        if (running || !alive) return;
+        const outs = outputs();
+        if (outs.length < 2) return;
+        const list: THREE.Object3D[] = [];
+        scene.traverse((o) => isDrawable(o) && o.visible && !warmed.has(o) && !compiledBoth.has(o) && list.push(o));
+        if (!list.length) return;
+        running = true;
+        try {
+          let i = 0;
+          while (i < list.length && alive) {
+            const s0 = performance.now();
+            while (i < list.length && performance.now() - s0 < budgetMs) {
+              const o = list[i++]!;
+              for (const rt of outs)
+                shown(() => {
+                  const prev = gl.getRenderTarget();
+                  const tm = gl.toneMapping;
+                  gl.setRenderTarget(rt);
+                  if (!rt) gl.toneMapping = THREE.ACESFilmicToneMapping;
+                  try {
+                    gl.compile(o, camera, scene);
+                  } catch {
+                    /* compiled on first use instead */
+                  } finally {
+                    gl.toneMapping = tm;
+                    gl.setRenderTarget(prev);
+                  }
+                });
+              compiledBoth.add(o);
+            }
+            await nextFrame();
+          }
         } finally {
           running = false;
         }
       };
       const watch = setInterval(() => {
         if (!alive) return clearInterval(watch);
-        if (!isOnScreen(area)) void late(4);
+        if (!isOnScreen(area)) return void late(4);
+        // on screen (P3-FGT-25): hidden warm-only stand-ins that streamed in late (the Boxing hall's fighter body) are
+        // warmed with a small budget — they would otherwise compile at their first real draw; and whatever mounted
+        // after the warm-up (people arriving with you, ring kit swaps) gets its program for the OTHER output path
+        // too (bloom on ↔ off: the performance monitor may switch it, and every such object then compiled mid-frame)
+        void late(2, true).then(() => compileOnly(2));
       }, 400);
       // and right before a crossing: whatever is still left (cheap no-op when everything is warm)
       areaTopUp.set(area, async () => {
@@ -394,20 +487,30 @@ function AreaPortal({ area, children }: { area: Area; children: ReactNode }) {
 
 function OutdoorArea({ tier }: { tier: "lite" | "standard" }) {
   const view = useStage((s) => s.view);
-  const nearPortal = useWorld((s) => s.nearPortal);
+  // (only while the plaza is on screen: a change elsewhere never re-renders the plaza)
+  const nearPortal = useWorld((s) => (view === "plaza" ? s.nearPortal : null));
   const inXR = useXR((s) => s.session != null);
-  return (
-    <AreaContent area="outdoor" actors={view === "gate" ? <GateActors /> : view === "plaza" ? <PlazaActors tier={tier} /> : null}>
-      {/* static batching across the plaza, the halls' fronts and both gates (they share the world materials):
-          one draw call per look instead of one per part (GAP-008; animated parts are marked noMerge) */}
+  // P3-FGT-25: the plaza tree is kept as one element while its inputs stay the same. Switching the view (walking into a
+  // hall) and the route change after it re-rendered every building, door and lamp of the campus — 100–300 ms of main
+  // thread on a phone right after the door, while the person walks on in the hall.
+  const statics = useMemo(
+    () => (
       <StaticMerge name="outdoor-static">
-        <Plaza nearPortal={view === "plaza" ? nearPortal : null} tier={tier} />
+        <Plaza nearPortal={nearPortal} tier={tier} />
         {/* the arrival gate at the south end of the avenue (sign-in, sign-out) */}
         <Gate tier={tier} inXR={inXR} />
         {/* the campus frontage and roads (P2-WLD-12): boundary wall, forecourt, car parks, public road, loop road */}
         <Frontage tier={tier} />
         <CampusRoads tier={tier} />
       </StaticMerge>
+    ),
+    [nearPortal, tier, inXR],
+  );
+  return (
+    <AreaContent area="outdoor" actors={view === "gate" ? <GateActors /> : view === "plaza" ? <PlazaActors tier={tier} /> : null}>
+      {/* static batching across the plaza, the halls' fronts and both gates (they share the world materials):
+          one draw call per look instead of one per part (GAP-008; animated parts are marked noMerge) */}
+      {statics}
       <ProxyAvatar tier={tier} />
       {view === "plaza" && <CampusLabels />}
     </AreaContent>
@@ -417,14 +520,23 @@ function OutdoorArea({ tier }: { tier: "lite" | "standard" }) {
 function HallArea({ game, tier }: { game: HallGame; tier: "lite" | "standard" }) {
   const layout = HALLS[game];
   const active = useStage((s) => s.view === `hall:${game}`);
+  // (P3-FGT-25: one element while layout and tier stay: crossing into the hall no longer re-renders the whole room)
+  const interior = useMemo(
+    () => (
+      <>
+        {/* static batching of the room (GAP-008): one draw call per look; animated parts are marked noMerge */}
+        <StaticMerge name={`hall-static:${game}`}>
+          <HallInterior layout={layout} lite={tier === "lite"} />
+        </StaticMerge>
+        {/* where you will appear: inside the hall lights' shadow range for the warm draw */}
+        <ProxyAvatar tier={tier} at={[layout.door.x, 0, layout.size.d / 2 - 1.2]} />
+      </>
+    ),
+    [game, layout, tier],
+  );
   return (
     <AreaContent area={`hall:${game}`} actors={active ? <HallActors layout={layout} tier={tier} /> : null}>
-      {/* static batching of the room (GAP-008): one draw call per look; animated parts are marked noMerge */}
-      <StaticMerge name={`hall-static:${game}`}>
-        <HallInterior layout={layout} lite={tier === "lite"} />
-      </StaticMerge>
-      {/* where you will appear: inside the hall lights' shadow range for the warm draw */}
-      <ProxyAvatar tier={tier} at={[layout.door.x, 0, layout.size.d / 2 - 1.2]} />
+      {interior}
     </AreaContent>
   );
 }
@@ -538,6 +650,7 @@ function WarmKeeper() {
     const st = useStage.getState();
     if (st.view !== "plaza") return;
     for (const g of st.warm) {
+      if (g === st.preparing) continue; // a hall being made ready for a trip (stage travelTo) is not released
       const p = PORTALS.find((x) => x.id === g);
       if (!p) continue;
       const t = portalTransform(p);

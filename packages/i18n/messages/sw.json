@@ -1,6 +1,12 @@
 {
   "app": { "name": "Gukirana Playground", "tagline": "Cheza · Kutana · Shinda" },
-  "lobby": { "quickPlay": "Cheza haraka", "enterWorld": "Ingia ulimwenguni", "live": "{count} wanacheza", "comingSoon": "Inakuja hivi karibuni" },
+  "lobby": {
+    "quickPlay": "Cheza haraka",
+    "enterWorld": "Ingia ulimwenguni",
+    "live": "{count} wanacheza",
+    "comingSoon": "Inakuja hivi karibuni"
+  },
   "games": { "pool": "Pool (8-Ball)", "ludo": "Ludo", "igisoro": "Igisoro" },
+  "world": { "entry": { "ring": "Tunaandaa ulingo…", "hall": "Tunaandaa {hall}…" } },
   "_review": "TODO(review): machine-drafted, needs native-speaker review"
 }

@@ -2,9 +2,10 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { areaOf, hallOf, stageNav, useStage, viewForPath, type View } from "./stage";
+import { areaOf, hallOf, stageNav, travelTo, useStage, viewForPath, type View } from "./stage";
 import { useDoorway } from "./doorway";
 import { HALLS } from "@/rooms/layouts";
+import { EntryHint } from "./EntryHint";
 
 const SceneCanvas = dynamic(() => import("./SceneCanvas"), { ssr: false, loading: () => null });
 
@@ -170,7 +171,12 @@ export function SceneHost() {
   // the route decides the view on deep links, reloads and back / forward (a crossing has already set it)
   useEffect(() => {
     if (pathView) setOn(true);
-    if (useStage.getState().view !== pathView) useStage.getState().show(pathView);
+    if (useStage.getState().view === pathView) return;
+    // P3-FGT-25: a route to a hall that is not ready yet while a live place is on screen keeps that place (the person
+    // keeps moving) until the hall is GPU-ready, then cuts to it, instead of a full-screen boot
+    const g = hallOf(pathView);
+    if (g && travelTo(g, null)) return;
+    useStage.getState().show(pathView);
   }, [pathView]);
 
   return (
@@ -181,6 +187,7 @@ export function SceneHost() {
         </div>
       )}
       <BootScreen pathView={pathView} />
+      <EntryHint />
     </>
   );
 }

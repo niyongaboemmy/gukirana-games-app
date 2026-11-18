@@ -82,6 +82,8 @@ interface StageState {
   /** when the boot screen started revealing the scene (performance.now; 0 = not yet) */
   revealAt: number;
   handoff: Handoff | null;
+  /** a hall being made ready while the place on screen stays live (`travelTo`): the small "getting ready" hint */
+  preparing: HallGame | null;
   show: (view: View | null, handoff?: Omit<Handoff, "to" | "at"> | null) => void;
   warmHall: (g: HallGame) => void;
   coolHall: (g: HallGame) => void;
@@ -101,6 +103,7 @@ export const useStage = create<StageState>()((set, get) => ({
   assets: 0,
   revealAt: 0,
   handoff: null,
+  preparing: null,
   show: (view, handoff) =>
     set({ view, handoff: view && handoff ? { ...handoff, to: view, at: performance.now() } : get().handoff?.to === view ? get().handoff : null }),
   warmHall: (g) => {
@@ -358,6 +361,70 @@ function hallCross(from: "fight" | "boxing", to: "fight" | "boxing", map: (x: nu
 }
 /** Walked through the lobby's Boxing door (fight/LobbyScene). */
 export const enterSubhall = () => hallCross("fight", "boxing", lobbyToBoxing, HALLS.boxing.title);
+
+/* ---------------- going to a hall without walking through its door (P3-FGT-25) ---------------- */
+
+/** never keep anyone waiting on a hall longer than this: the cold path (boot screen) takes over */
+const TRAVEL_MAX_MS = 25_000;
+/** once the hall is ready: wait at most this long for its late top-up before cutting */
+const TRAVEL_TOPUP_MS = 600;
+let travelling: { area: Area; cancel: () => void } | null = null;
+
+/**
+ * Go to a hall without walking through its door (Quick Play, a meeting, a route change from the HUD). The place on
+ * screen stays live — your person keeps walking and idling, the HUD stays up — while the hall is mounted hidden and
+ * made GPU-ready (SceneCanvas AreaWarm, time-sliced); then a live cut switches to it and the URL follows. A small
+ * non-blocking hint (`preparing`, world/SceneHost EntryHint) shows while it takes longer than a moment.
+ * Before, the route changed at once and a cold hall booted behind the full-screen boot screen (Boxing: ~4 s on desktop).
+ * `href` null: the route is already there (SceneHost). Returns false when there is no live place to keep on screen
+ * (a cold page, a held doorway frame, already there): the caller shows the hall the old way.
+ */
+export function travelTo(game: HallGame, href: string | null): boolean {
+  const area: Area = `hall:${game}`;
+  const st = useStage.getState();
+  const from = st.view;
+  if (!from || areaOf(from) === area || !st.ready[areaOf(from)] || useDoorway.getState().phase !== "idle") return false;
+  if (travelling?.area === area) return true;
+  travelling?.cancel();
+  let alive = true;
+  let topped: "no" | "running" | "done" = "no";
+  let readyAt = 0;
+  const t0 = performance.now();
+  const end = () => {
+    alive = false;
+    if (travelling?.area === area) travelling = null;
+    if (useStage.getState().preparing === game) useStage.setState({ preparing: null });
+  };
+  travelling = { area, cancel: end };
+  useStage.getState().warmHall(game);
+  useStage.setState({ preparing: game });
+  const tick = () => {
+    if (!alive) return;
+    const s = useStage.getState();
+    // walked through a door, signed out or navigated meanwhile: that wins
+    if (s.view !== from) return end();
+    if (s.warm[0] !== game) s.warmHall(game);
+    if (s.ready[area]) {
+      if (topped === "no") {
+        topped = "running";
+        readyAt = performance.now();
+        void (areaTopUp.get(area)?.() ?? Promise.resolve()).finally(() => (topped = "done"));
+      }
+      if (topped === "done" || performance.now() - readyAt > TRAVEL_TOPUP_MS) {
+        end();
+        return crossTo(area, href, null);
+      }
+    } else if (performance.now() - t0 > TRAVEL_MAX_MS) {
+      end();
+      if (href) stageNav.push(href);
+      else useStage.getState().show(area);
+      return;
+    }
+    setTimeout(tick, 32);
+  };
+  tick();
+  return true;
+}
 
 /** Walked out through a hall door (RoomPlayer `onExit`): the plaza is kept warm, so the walk continues outside. */
 export function leaveHall() {

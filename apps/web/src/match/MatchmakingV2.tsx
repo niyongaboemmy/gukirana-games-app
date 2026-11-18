@@ -33,6 +33,8 @@ import { QUICK_MATCH_EVENT, usePhoneHud } from "@/hud/usePhoneHud";
 import { promptWrap } from "@/hud/Prompt";
 import { getUp, pickedTable, walkToTable } from "@/rooms/RoomPlayer";
 import { walkToRing, goToRingFromLobby } from "@/fight/ring-goto";
+import { travelTo, useStage } from "@/world/stage";
+import type { HallGame } from "@/rooms/layouts";
 import { PaperCard } from "@/ui/PaperCard";
 import { DieIcon, PoolBallIcon, SeedsIcon } from "@/ui/game-icons";
 import { defaultStake, StakeChips, useStakeChoices } from "./StakeChips";
@@ -137,7 +139,8 @@ function useTravel() {
       setMmTarget(go.hall, go.roomId, Math.max(5000, go.until - Date.now()));
       // from the Fight lobby the Boxing hall is through its doorway; anywhere else straight to the hall's door
       if (go.hall === "boxing" && path === "/room/fight") goToRingFromLobby("R3" as RingId);
-      else router.push(hallPath);
+      // P3-FGT-25: the place on screen stays live while the hall gets ready, then a live cut (no boot screen)
+      else if (!travelTo(go.hall as HallGame, hallPath)) router.push(hallPath);
       return;
     }
     if (!connected || roomId !== go.roomId || walkedFor.current === go.id) return;
@@ -156,7 +159,7 @@ function useTravel() {
     const hallPath = `/room/${hallOf(trip.game)}`;
     if (path !== hallPath) {
       if (trip.game === "boxing" && path === "/room/fight" && trip.place) goToRingFromLobby(trip.place as RingId);
-      else router.push(hallPath);
+      else if (!travelTo(hallOf(trip.game) as HallGame, hallPath)) router.push(hallPath);
       return;
     }
     if (!connected || trip.walked) return;
@@ -441,6 +444,20 @@ function QuickPlaySheet() {
     setPlace(qp.place ?? null);
     setMode(authed ? "find" : "practice");
   }, [qp]);
+  // P3-FGT-25: Boxing picked → start making the Boxing hall ready now (hidden, time-sliced), so by "Go" the trip is a
+  // live cut instead of a wait (the other halls are small: they get ready in the moment the trip itself takes)
+  useEffect(() => {
+    if (!open || game !== "boxing" || inHall) return;
+    const st = useStage.getState();
+    if (!st.view || st.view === "hall:boxing") return;
+    st.warmHall("boxing");
+    // sheet closed without a trip: release it again (not while a trip is getting it ready, nor from the lobby)
+    return () =>
+      void setTimeout(() => {
+        const s = useStage.getState();
+        if (s.preparing !== "boxing" && s.view !== "hall:boxing" && s.view !== "hall:fight") s.coolHall("boxing");
+      }, 1500);
+  }, [open, game, inHall]);
   const close = () => useMm.setState({ quickPlay: null });
   useEscape(open, close);
   if (!qp) return null;

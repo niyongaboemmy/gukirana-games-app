@@ -30,6 +30,12 @@ import { GymLife, useGymScene } from "./gym-life";
 import { GYM_DECOR } from "./gym-plan";
 import { BagWorker } from "./bag-work";
 import { FocusMode, useFocusRings } from "./FocusMode";
+import { CORNER_COLORS } from "@gukirana/contracts";
+import { seededLook } from "@/world/outfits";
+import { BoxerAvatar, preloadBoxers } from "@/world/human/boxer/BoxerAvatar";
+import { BOXER_V8 } from "@/world/human/boxer/generation";
+import { registerKtx2Renderer } from "@/world/human/boxer/v8/ktx2";
+import { BoxingMotion } from "@/world/human/boxing/motion";
 
 /**
  * The Boxing hall interior (P3-FGT-01, plan §4.3–4.5): a matte, floodlit sports hall — polished-but-matte concrete,
@@ -98,6 +104,33 @@ export function BoxingHallScene({ layout, lite }: { layout: HallLayout; lite: bo
         </Suspense>
         <FightCamera />
       </group>
+      <FighterWarmup lite={lite} />
+    </group>
+  );
+}
+
+const zeroClock = () => 0;
+/**
+ * P3-FGT-25: the ring fighters' body (the v8 GLB, its KTX2 skin set, its own shader program "gk-boxer-v8") was first
+ * requested, parsed, transcoded and compiled the moment you stepped into a ring — on screen, mid-climb (the staff in the
+ * gym use the v7 bodies, so nothing of it was warm). The hall now asks for the fighter bodies as soon as it mounts
+ * (also while it is warming hidden), and keeps one hidden fighter that the area warm-up (SceneCanvas AreaWarm:
+ * `gkWarmOnly`) compiles and uploads with the hall's lights. Paused: it never poses, never draws.
+ */
+function FighterWarmup({ lite }: { lite: boolean }) {
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    if (BOXER_V8) registerKtx2Renderer(gl);
+    preloadBoxers();
+  }, [gl]);
+  const motion = useMemo(() => new BoxingMotion(), []);
+  const look = useMemo(() => seededLook("warm-fighter", "#7a7a7a"), []);
+  const paused = useMemo(() => ({ current: true }), []);
+  return (
+    <group position={[0, -400, 0]} visible={false} userData={{ gkWarmOnly: true, noMerge: true, focusKeep: true }}>
+      <Suspense fallback={null}>
+        <BoxerAvatar look={look} outfit="boxer" kit={CORNER_COLORS.red} motion={motion} clock={zeroClock} paused={paused} seed={1} lite={lite} />
+      </Suspense>
     </group>
   );
 }
