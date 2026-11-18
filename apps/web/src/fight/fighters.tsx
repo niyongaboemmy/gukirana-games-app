@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { CORNER_COLORS, TICK_HZ, type BoxingSnapshot, type Corner, type FightEvent, type RingFighter, type RingId, type RingState } from "@gukirana/contracts";
@@ -84,6 +84,30 @@ export function neutralCornerAt(r: RingPlace, s: number, k: number) {
 }
 const climbing = (dir: "in" | "out") => !!myClimb.run && myClimb.run.dir === dir && performance.now() - myClimb.run.t0 < CLIMB_S * 1000;
 
+/** the ring whose "mine" pair has mounted with its bodies loaded (set by its effect, which runs only once resolved) */
+const mineDrawn: { ring: RingId | null; dirty: boolean } = { ring: null, dirty: false };
+
+/**
+ * Sits next to my own fighter inside its Suspense boundary: its effect runs only once that body has loaded and is drawn.
+ * Then (and not before) my ordinary person is hidden, and a climb that started while the body was streaming in starts
+ * over from where my person stands now (never a jump onto the steps).
+ */
+function MineDrawn({ ring }: { ring: RingId }) {
+  useEffect(() => {
+    mineDrawn.ring = ring;
+    mineDrawn.dirty = true; // the layer hides my ordinary person on its very next frame (no double)
+    const run = myClimb.run;
+    if (run && run.dir === "in" && run.ring === ring && performance.now() > run.t0) {
+      run.t0 = performance.now();
+      run.from = { x: selfPose.x, z: selfPose.z, yaw: selfPose.yaw };
+    }
+    return () => {
+      if (mineDrawn.ring === ring) mineDrawn.ring = null;
+    };
+  }, [ring]);
+  return null;
+}
+
 export function FightersLayer({ lite }: { lite: boolean }) {
   const area = useArea();
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -109,6 +133,10 @@ export function FightersLayer({ lite }: { lite: boolean }) {
   );
   useFrame(({ camera }, dt) => {
     acc.current += dt;
+    if (mineDrawn.dirty) {
+      mineDrawn.dirty = false;
+      acc.current = 1;
+    }
     if (acc.current < 0.5 || !isOnScreen(area)) return;
     acc.current = 0;
     const b = useFightBridge.getState();
@@ -122,7 +150,9 @@ export function FightersLayer({ lite }: { lite: boolean }) {
     }
     // in my own fight (live or practice) this layer draws me too
     const you = useWorld.getState().you ?? SELF_ID;
-    if (b.mine || climbing("out")) now.add(you);
+    // (P3-FGT-25: only once my fighter is really there — while its body is still streaming in, my own person stays
+    // on screen and keeps moving instead of vanishing)
+    if ((b.mine && mineDrawn.ring === b.mine.ring) || climbing("out")) now.add(you);
     for (const id of hidden.current) if (!now.has(id)) hiddenPeople.delete(id);
     for (const id of now) hiddenPeople.add(id);
     hidden.current = now;
@@ -145,8 +175,11 @@ export function FightersLayer({ lite }: { lite: boolean }) {
   });
   return (
     <group userData={{ focusKeep: true }}>
+      {/* one boundary per pair: a pair whose bodies are still loading never hides the others (nor the impostors) */}
       {slots.map((s) => (
-        <RingPair key={`${s.ring}:${s.src}`} slot={s} lite={lite} />
+        <Suspense key={`${s.ring}:${s.src}`} fallback={null}>
+          <RingPair slot={s} lite={lite} />
+        </Suspense>
       ))}
       <Impostors exclude={slots.filter((s) => s.src === "mine" || s.src === "exit").map((s) => s.ring)} />
     </group>
@@ -280,6 +313,14 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
     },
     [p0, p1],
   );
+  // (built one member per frame, see the render)
+  const [stage, setStage] = useState(0);
+  const staged = useRef(0);
+  useFrame(() => {
+    if (staged.current >= 4) return;
+    staged.current++;
+    setStage(staged.current);
+  });
   const tracks = useRef([newTrack(), newTrack(), newTrack()]);
   const phaseRef = useRef({ phase: "", since: 0, clinchSince: -1, refSide: 0, signalAt: -10, signalTo: 0 as 0 | 1, waveAt: -10 });
   const loopT0 = useMemo(() => performance.now() - ((hashOf(slot.ring) % 997) * 1000) / 3, [slot.ring]);
@@ -554,26 +595,40 @@ function RingPair({ slot, lite }: { slot: Slot; lite: boolean }) {
       }
     }
   });
-  const showRed = slot.src !== "exit" || myCorner === "red";
-  const showBlue = slot.src === "exit" ? myCorner === "blue" : !!(entry?.blue || entry?.status === "practice" || slot.src === "mine");
+  // P3-FGT-25: the ring people are built one per frame (my own fighter first): each body is 50–200 ms of main thread, and
+  // the pair, the referee and both corner teams used to be built in one frame as you stepped into the ring. Each has its
+  // own boundary, so one still streaming in never hides the others (nor my fighter once it is there).
+  const first: Corner = myCorner ?? "red";
+  const at = (c: Corner) => (c === first ? 1 : 2);
+  const showRed = (slot.src !== "exit" || myCorner === "red") && stage >= at("red");
+  const showBlue = (slot.src === "exit" ? myCorner === "blue" : !!(entry?.blue || entry?.status === "practice" || slot.src === "mine")) && stage >= at("blue");
+  const mine = slot.src === "mine";
   return (
     <group>
       {showRed && (
         <group ref={g[0]}>
-          <FightAvatar look={red} corner="red" body={bodies[0]} lite={lite} seed={hashOf(`${slot.ring}-red-${entry?.red?.sid ?? ""}`)} klass={klassOf(slot.ring)} probe={probes[0]} opponent={probes[1]} />
+          <Suspense fallback={null}>
+            <FightAvatar look={red} corner="red" body={bodies[0]} lite={lite} seed={hashOf(`${slot.ring}-red-${entry?.red?.sid ?? ""}`)} klass={klassOf(slot.ring)} probe={probes[0]} opponent={probes[1]} />
+            {mine && myCorner === "red" && <MineDrawn ring={slot.ring} />}
+          </Suspense>
         </group>
       )}
       {showBlue && (
         <group ref={g[1]}>
-          <FightAvatar look={blue} corner="blue" body={bodies[1]} lite={lite} seed={hashOf(`${slot.ring}-blue-${entry?.blue?.sid ?? ""}`)} klass={klassOf(slot.ring)} probe={probes[1]} opponent={probes[0]} />
+          <Suspense fallback={null}>
+            <FightAvatar look={blue} corner="blue" body={bodies[1]} lite={lite} seed={hashOf(`${slot.ring}-blue-${entry?.blue?.sid ?? ""}`)} klass={klassOf(slot.ring)} probe={probes[1]} opponent={probes[0]} />
+            {mine && myCorner === "blue" && <MineDrawn ring={slot.ring} />}
+          </Suspense>
         </group>
       )}
-      {withRef && (
+      {withRef && stage >= 3 && (
         <group ref={refG}>
-          <RefereeAvatar look={refLookV} body={refBody} lite={lite} seed={hashOf(`referee-${slot.ring}`)} />
+          <Suspense fallback={null}>
+            <RefereeAvatar look={refLookV} body={refBody} lite={lite} seed={hashOf(`referee-${slot.ring}`)} />
+          </Suspense>
         </group>
       )}
-      {withRef && BOXER_BODY && !lite && (
+      {withRef && BOXER_BODY && !lite && stage >= 4 && (
         <>
           <CornerTeam place={place} corner="red" ring={slot.ring} />
           <CornerTeam place={place} corner="blue" ring={slot.ring} />

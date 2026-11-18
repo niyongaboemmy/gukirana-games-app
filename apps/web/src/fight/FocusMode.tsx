@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { RingId } from "@gukirana/contracts";
@@ -41,6 +41,11 @@ export function FocusMode({ lite = false }: { lite?: boolean }) {
   const cullAcc = useRef(0);
   const target = useMemo(() => new THREE.Object3D(), []);
 
+  const restoreBackground = () => {
+    if (!saved.current) return;
+    if (saved.current.bg && scene.background instanceof THREE.Color) scene.background.copy(saved.current.bg);
+    saved.current = null;
+  };
   const restoreScene = () => {
     if (!saved.current) return;
     scene.fog = saved.current.fog;
@@ -56,6 +61,12 @@ export function FocusMode({ lite = false }: { lite?: boolean }) {
     // dev QA handle: the focus state + the world UI store (watch cameras)
     if (process.env.NODE_ENV !== "production") Object.assign(window as unknown as Record<string, unknown>, { __gkFocus: { now: focusNow, ui: useFightUi } });
   }, []);
+  // installed from the start, before the area warm-up compiles the hall (see the frame loop)
+  useLayoutEffect(() => {
+    fog.near = 1e4;
+    fog.far = 2e4;
+    if (!scene.fog) scene.fog = fog;
+  }, [scene, fog]);
   useEffect(
     () => () => {
       uncull();
@@ -93,11 +104,17 @@ export function FocusMode({ lite = false }: { lite?: boolean }) {
 
     // darkness: the fog object is installed once while the hall shows (a far-away fog = no effect) and only its
     // distances change, so focusing never recompiles a shader; it is removed when the hall goes off screen
+    // P3-FGT-25: the fog stays installed while the hall is warm off screen too (a far-away fog = no effect): installing
+    // it only once the hall showed changed every hall material's program (FOG define) on its first visible frame, so
+    // the whole hall recompiled at the door — the area warm-up (SceneCanvas AreaWarm) had compiled it without fog
     if (!onScreen) {
-      restoreScene();
+      restoreBackground();
+      if (scene.fog !== fog) scene.fog = fog;
+      fog.near = 1e4;
+      fog.far = 2e4;
       return;
     }
-    if (!saved.current) saved.current = { fog: scene.fog, bg: scene.background instanceof THREE.Color ? scene.background.clone() : null };
+    if (!saved.current) saved.current = { fog: scene.fog === fog ? null : scene.fog, bg: scene.background instanceof THREE.Color ? scene.background.clone() : null };
     if (scene.fog !== fog) scene.fog = fog;
     if (e <= 0.001 || !ring) {
       fog.near = 1e4;

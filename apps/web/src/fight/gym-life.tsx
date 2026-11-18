@@ -1,7 +1,7 @@
 "use client";
-import { BoxerAvatar } from "@/world/human/boxer/BoxerAvatar";
+import { BoxerAvatar, preloadBoxers } from "@/world/human/boxer/BoxerAvatar";
 import { BOXER_BODY } from "./fighter-avatar";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
 import * as THREE from "three";
@@ -588,6 +588,8 @@ export function GymLife({
   const gl = useThree((s) => s.gl);
   const cap = useRef<number>(MAX_DRAWN[lite ? "lite" : "standard"]);
   useEffect(() => () => useGymUi.setState({ prop: null }), []);
+  // the staff bodies are requested as soon as the room mounts (also while it warms hidden), not at their first draw
+  useEffect(() => preloadBoxers(), []);
   useFrame(({ camera }, dt) => {
     if (!isOnScreen(area)) return void (bellPhase.current = null);
     // interaction target with hysteresis (only props not used by the staff)
@@ -623,9 +625,12 @@ export function GymLife({
       return Math.hypot(p.x - camera.position.x, p.z - camera.position.z);
     };
     const keep = staff.filter((s) => drawn.includes(s.id) && dist(s) < DRAW_OUT);
+    // P3-FGT-25: one newcomer per pass (every 0.5 s). Building a person's body is 50–200 ms of main thread; arriving in
+    // the room used to build every nearby staff member in the same frame (a freeze right after the door)
     const add = staff
       .filter((s) => !drawn.includes(s.id) && dist(s) < DRAW_IN)
-      .sort((a, b) => dist(a) - dist(b));
+      .sort((a, b) => dist(a) - dist(b))
+      .slice(0, 1);
     // budget-aware: the previous frame's draw calls (the compositor resets the counter at its start, after this
     // runs) — over BUDGET_HIGH one staff member fewer, under BUDGET_LOW back up to the cap
     const calls = gl.info.render.calls;
@@ -647,7 +652,11 @@ export function GymLife({
       {staff
         .filter((s) => drawn.includes(s.id) || fading.includes(s.id))
         .map((s) => (
-          <StaffNpc key={s.id} spot={s} lite={lite} shown={drawn.includes(s.id)} />
+          // P3-FGT-25: one boundary per person — staff are drawn only once their room is on screen, and a body model
+          // not cached yet used to suspend the whole room (the lobby went back behind "Preparing the Fight Games…")
+          <Suspense key={s.id} fallback={null}>
+            <StaffNpc spot={s} lite={lite} shown={drawn.includes(s.id)} />
+          </Suspense>
         ))}
     </group>
   );
