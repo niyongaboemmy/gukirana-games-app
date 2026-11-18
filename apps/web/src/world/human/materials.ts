@@ -84,6 +84,21 @@ export interface LookUniforms {
   uDetailTile: { value: number };
   /** fabric weave ids (skin/skin-shading.ts FABRIC) of the base garments: top, bottom */
   uFabric: { value: THREE.Vector2 };
+  /**
+   * P2-AVA-16 top cut (garment-fit.ts): [neckline shape code, depth (m), sleeve end (m along the arm, 0 = long), mode]
+   * — mode 0 off, 1 the feminine refit (neckline / sleeve skin, the blazer's own details calmed, collar), 2 collar only
+   */
+  uCut: { value: THREE.Vector4 };
+  /** neck base centre: bind frame (body) / face frame (head); the head's in face units */
+  uNeck: { value: THREE.Vector3 };
+  /** forward direction of the bind frame (body, horizontal) */
+  uFwd: { value: THREE.Vector3 };
+  /** left arm joints in the bind frame: shoulder, elbow, wrist (the right arm mirrors them) */
+  uArmS: { value: THREE.Vector3 };
+  uArmE: { value: THREE.Vector3 };
+  uArmH: { value: THREE.Vector3 };
+  /** the top's second colour (the shirt under the feminine blazer) */
+  uTop2: { value: THREE.Color };
 }
 
 /**
@@ -228,6 +243,13 @@ export function lookUniforms(look: AvatarLook, meta: HumanModelMeta, isHead: boo
     uDetailTile: { value: (isHead ? 30 : 85) * (campusPart("detail") && !lite ? 1 : -1) },
     uFabric: { value: new THREE.Vector2(meta.fabric?.top ?? FABRIC.none, bottom?.id === "chinos" ? FABRIC.cottonTwill : (meta.fabric?.bottom ?? FABRIC.none)) },
     uSpecMap: { value: meta.specInMask && isHead ? 1 : 0 },
+    uCut: { value: new THREE.Vector4(0, 0, 0, 0) },
+    uNeck: { value: new THREE.Vector3() },
+    uFwd: { value: new THREE.Vector3(0, -1, 0) },
+    uArmS: { value: new THREE.Vector3() },
+    uArmE: { value: new THREE.Vector3() },
+    uArmH: { value: new THREE.Vector3() },
+    uTop2: { value: lin(top?.color2 && top.color2 !== "accent" ? top.color2 : "#f2f2f0") },
     ...faceUniforms(look.face ?? DEFAULT_FACE, isHead ? frame : null),
   };
 }
@@ -249,6 +271,19 @@ uniform vec4 uFH; uniform vec4 uFH2; uniform vec4 uBrow; uniform vec4 uMarks; un
 uniform float uSpecMap; uniform float uHairFade; uniform float uFaceIpd; uniform float uHairGrey; uniform vec4 uAge; uniform float uHairColGrey;
 varying vec3 vGkF; varying vec3 vGkN;
 uniform float uReal; uniform sampler2D uDetailMap; uniform float uDetailTile; uniform vec2 uFabric;
+uniform vec4 uCut; uniform vec3 uNeck; uniform vec3 uFwd; uniform vec3 uArmS; uniform vec3 uArmE; uniform vec3 uArmH; uniform vec3 uTop2;
+// P2-AVA-16: painted skin above the neckline / below a short sleeve, fabric over the head mesh's chest below the
+// neckline, how much of the base garment's own relief (lapel / pocket edges) to calm
+float gkCutSkin = 0.0; float gkCutFab = 0.0; float gkCutFlat = 0.0;
+// neckline drop (m below the neck base) at side offset x, 0 back … 1 front (mirrors garment-fit.ts necklineDrop)
+float gkNeckDrop(float shape, float depth, float x, float front) {
+  float base = shape > 4.5 ? -0.025 : (shape < 1.5 ? 0.0 : 0.006);
+  float ax = abs(x);
+  if (shape > 2.5 && shape < 4.5) return base + depth * front * max(0.0, 1.0 - ax / (shape > 3.5 ? 0.05 : 0.07));
+  float w = shape > 1.5 && shape < 2.5 ? 0.085 : 0.06;
+  float r = min(1.0, ax / w);
+  return base + depth * front * sqrt(max(0.0, 1.0 - r * r));
+}
 // P2-AVA-12: thin parts (ears) for transmission, garment weights for the fabric weave / sheen
 float gkThin = 0.0; float gkTopW = 0.0; float gkBotW = 0.0; float gkBrowW = 0.0;
 // per-fragment results shared with the roughness / normal / lighting chunks
@@ -548,6 +583,16 @@ const RECOLOUR = /* glsl */ `
 #include <map_fragment>
 {
   vec4 gkM = texture2D(uMask, vMapUv);
+  if (uIsHead < 0.5 && uCut.w > 0.5 && uCut.w < 1.5) {
+    // P2-AVA-16 (feminine refit): the blazer shirt's collar band (skin in the mask) and pocket flaps (trousers in the mask)
+    // are part of the top
+    vec2 gkU = fract(vMapUv);
+    float gkCuff = (1.0 - step(0.066, gkU.x) + step(0.934, gkU.x)) * step(0.265, gkU.y) * (1.0 - step(0.505, gkU.y));
+    float gkPkt = (step(0.31, gkU.x) * (1.0 - step(0.415, gkU.x)) + step(0.585, gkU.x) * (1.0 - step(0.69, gkU.x))) * step(0.685, gkU.y) * (1.0 - step(0.76, gkU.y));
+    gkM.g += gkM.r * gkCuff + gkM.b * gkPkt;
+    gkM.r *= 1.0 - gkCuff;
+    gkM.b *= 1.0 - gkPkt;
+  }
   vec3 gkBase = diffuseColor.rgb;
   float gkL = dot(gkBase, vec3(0.2126, 0.7152, 0.0722));
   if (uIsHead > 0.5 && uFaceOn > 0.5 && uAge.y + uAge.z > 0.001) {
@@ -625,6 +670,18 @@ const RECOLOUR = /* glsl */ `
     gkCol = mix(gkCol, gkCollarC * gkDetail(gkL, uTopRef, 0.8), smoothstep(0.6, 0.85, gkM.b) * uClothes * gkNeck);
     vec3 gkShaved = uSkin * gkDetail(min(gkL, uSkinRef * 1.05), uSkinRef, 0.35);
     ${FACE}
+    if (uCut.w > 0.5 && uCut.w < 1.5 && uFaceOn > 0.5 && uClothes > 0.5 && uCut.x > 0.5) {
+      // P2-AVA-16: the feminine head mesh carries the upper chest: below the chosen top's neckline it is the top
+      vec3 gkR = (vGkF - uNeck) * uFaceIpd;
+      float gkHz = length(gkR.xz);
+      float gkFr = clamp(0.5 + 0.5 * gkR.z / max(gkHz, 1e-4), 0.0, 1.0);
+      float gkDr = gkNeckDrop(uCut.x, uCut.y, gkR.x, gkFr);
+      gkCutFab = (1.0 - smoothstep(-gkDr - 0.002, -gkDr + 0.002, gkR.y)) * (1.0 - step(0.03, gkR.y));
+      vec3 gkFc = uTop;
+      if (uTopPrintOn > 0.5) gkFc = texture2D(uTopPrint, (uArmH.xz + gkR.xy) / 0.22).rgb;
+      gkFc *= 1.0 - 0.1 * smoothstep(-gkDr - 0.013, -gkDr - 0.007, gkR.y);
+      gkCol = mix(gkCol, gkFc, gkCutFab);
+    }
   } else {
     vec3 gkTopC = uTopPrintOn > 0.5 ? texture2D(uTopPrint, vMapUv * 7.0).rgb : uTop;
     vec3 gkBotC = uBottomPrintOn > 0.5 ? texture2D(uBottomPrint, vMapUv * 7.0).rgb : uBottom;
@@ -641,14 +698,77 @@ const RECOLOUR = /* glsl */ `
         gkBotC = texture2D(uBottomPrint, gkPp.yz).rgb * gkTw.x + texture2D(uBottomPrint, gkPp.xz).rgb * gkTw.y + texture2D(uBottomPrint, gkPp.xy).rgb * gkTw.z;
     }
     gkBotC = mix(gkBotC * gkDetail(gkL, uBottomRef, 0.85), uSkin * gkDetail(gkL, uBottomRef, 0.1), uLegsSkin);
-    gkCol = mix(gkCol, gkTopC * gkDetail(gkL, uTopRef, uTopDetail), gkM.g * uClothes);
-    gkCol = mix(gkCol, gkBotC, gkM.b * uClothes);
+    float gkLt = gkL;
+    float gkRefT = uTopRef;
+    // P2-AVA-16: under a blazer the modelled collar is the shirt's (its second colour)
+    if (uCut.w > 0.5 && uCut.x < 0.5 && vMapUv.x > 1.5) gkTopC = uTop2;
+    if (uCut.w > 0.5 && uCut.w < 1.5) {
+      // P2-AVA-16 (feminine refit): the blazer photo's own details (lapel and pocket edges, buttons, the shirt's
+      // placket) are calmed to its broad folds; the white shirt texels read as the same garment as the jacket ones
+      float gkLb = dot(textureLod(map, fract(vMapUv), 3.4).rgb, vec3(0.2126, 0.7152, 0.0722));
+      float gkShirt = smoothstep(0.12, 0.3, gkLb);
+      if (uCut.x > 0.5) {
+        // one even garment: none of the blazer photo's own shading (lapel edges, the shirt's brightness, buttons,
+        // pockets); its form comes from the relaxed geometry, the light and the knit / weave of the chosen fabric
+        gkLt = uTopRef;
+        gkCutFlat = gkM.g;
+      } else gkTopC = mix(gkTopC, uTop2, gkShirt * step(vMapUv.x, 1.5));
+    }
+    gkCol = mix(gkCol, gkTopC * gkDetail(gkLt, gkRefT, uTopDetail), gkM.g * uClothes);
+    float gkCutaway = 0.0;
+    if (uCut.w > 0.5 && uCut.w < 1.5 && uCut.x > 0.5) {
+      // P2-AVA-16: the blazer's fronts open over the trousers below the button; a one-piece top closes it (the
+      // trousers' texels there, above the hem, take the top)
+      vec3 gkRc = vGkF - uNeck;
+      gkCutaway = gkM.b * step(uArmS.z - 0.54, vGkF.z) * (1.0 - step(0.075, abs(gkRc.x))) * step(0.04, dot(gkRc.xy, normalize(uFwd.xy)));
+      gkCol = mix(gkCol, gkTopC * gkDetail(gkLt, gkRefT, uTopDetail), gkCutaway * uClothes);
+    }
+    gkCol = mix(gkCol, gkBotC, gkM.b * uClothes * (1.0 - gkCutaway));
     float gkShoe = clamp(1.0 - gkM.r - gkM.g - gkM.b, 0.0, 1.0);
-    gkTopW = gkM.g * uClothes;
-    gkBotW = gkM.b * uClothes * (1.0 - uLegsSkin);
+    gkTopW = (gkM.g + gkCutaway) * uClothes;
+    gkBotW = gkM.b * uClothes * (1.0 - uLegsSkin) * (1.0 - gkCutaway);
     gkCol = mix(gkCol, min(uShoes * gkDetail(gkL, uShoesRef, 0.85), vec3(0.7)), gkShoe * uClothes);
+    if (uCut.w > 0.5 && uCut.w < 1.5 && vMapUv.x < 1.5 && uClothes > 0.5 && uCut.x > 0.5) {
+      // P2-AVA-16: the chosen top's neckline and sleeve length on the feminine body (bind-frame metres)
+      vec3 gkR = vGkF - uNeck;
+      vec2 gkFw = normalize(uFwd.xy);
+      float gkFd = dot(gkR.xy, gkFw);
+      float gkSd = dot(gkR.xy, vec2(-gkFw.y, gkFw.x));
+      float gkHz = length(vec2(gkFd, gkSd));
+      float gkFr = clamp(0.5 + 0.5 * gkFd / max(gkHz, 1e-4), 0.0, 1.0);
+      float gkDr = gkNeckDrop(uCut.x, uCut.y, gkSd, gkFr);
+      float gkNear = (1.0 - smoothstep(0.11, 0.14, gkHz)) * step(-0.13, gkR.z);
+      float gkNeckSkin = smoothstep(-gkDr - 0.002, -gkDr + 0.002, gkR.z) * gkNear;
+      float gkSlv = 0.0;
+      if (uCut.z > 0.0) {
+        vec3 gkPa = vec3(abs(vGkF.x), vGkF.yz);
+        vec3 gkUa = uArmE - uArmS;
+        float gkUl = length(gkUa);
+        float gkT = dot(gkPa - uArmS, gkUa) / max(gkUl * gkUl, 1e-6);
+        float gkD = length(gkPa - uArmS - gkUa * clamp(gkT, 0.0, 1.0));
+        float gkAl = gkT * gkUl;
+        if (gkT > 1.0) {
+          vec3 gkFa = uArmH - uArmE;
+          float gkT2 = clamp(dot(gkPa - uArmE, gkFa) / max(dot(gkFa, gkFa), 1e-6), 0.0, 1.0);
+          gkAl = gkUl + gkT2 * length(gkFa);
+          gkD = length(gkPa - uArmE - gkFa * gkT2);
+        }
+        float gkArm = step(0.0, gkT) * (1.0 - smoothstep(0.075, 0.09, gkD));
+        gkSlv = gkArm * smoothstep(uCut.z + 0.003, uCut.z + 0.008, gkAl);
+        // a turned hem: a slightly deeper band just before the sleeve ends
+        gkCol *= 1.0 - 0.13 * gkArm * smoothstep(uCut.z - 0.013, uCut.z - 0.008, gkAl) * (1.0 - gkSlv) * gkM.g;
+      }
+      // neckband: a slightly deeper rib just under the neckline
+      gkCol *= 1.0 - 0.1 * smoothstep(-gkDr - 0.013, -gkDr - 0.007, gkR.z) * (1.0 - gkNeckSkin) * gkNear * gkM.g;
+      gkCutSkin = max(gkNeckSkin, gkSlv) * clamp(gkM.g + gkM.b, 0.0, 1.0);
+      vec3 gkSk = uSkin * gkDetail(uSkinRef * (0.94 + 0.1 * gkNoise(vGkF.xz * 240.0)), uSkinRef, 1.0);
+      gkCol = mix(gkCol, gkSk, gkCutSkin);
+      gkTopW *= 1.0 - gkCutSkin;
+      gkCutFlat *= 1.0 - gkCutSkin;
+    }
   }
   gkSkinW = clamp(gkM.r * (1.0 - gkM.g) + gkM.g * uHairToSkin, 0.0, 1.0) * (1.0 - gkBeardW * 0.7);
+  gkSkinW = max(gkSkinW, gkCutSkin) * (1.0 - gkCutFab);
   diffuseColor.rgb = gkCol;
 }
 `;
@@ -733,6 +853,7 @@ if (uReal > 0.5) {
 const NRM_FROM = "mapN.xy *= normalScale;";
 const NRM_TO = /* glsl */ `
 mapN.xy *= normalScale;
+mapN.xy *= 1.0 - 0.85 * gkCutFlat;
 if (gkSmoothN > 0.001) {
   vec2 gkN1 = textureLod(normalMap, vNormalMapUv, 1.2).xy * 2.0 - 1.0;
   vec2 gkN4 = textureLod(normalMap, vNormalMapUv, 4.6).xy * 2.0 - 1.0;
@@ -813,7 +934,7 @@ export function makeLookMaterial(base: THREE.MeshStandardMaterial, look: AvatarL
         .replace("#include <lights_physical_fragment>", SPEC)
         .replace("#include <lights_fragment_end>", WARM);
   };
-  m.customProgramCacheKey = () => (real ? "gk-human-look-5r" : "gk-human-look-4");
+  m.customProgramCacheKey = () => (real ? "gk-human-look-6r" : "gk-human-look-4");
   return m;
 }
 
