@@ -73,19 +73,31 @@ const CUT_BY_KIND: Record<string, TopCut> = {
   blazer: C("blazer", "blazer", 0.12, "long", "shirt", FABRIC.suiting, false),
 };
 
+/**
+ * The feminine cuts are held back (P2-AVA-16 review: the refit tops did not yet beat the baked blazer at full size —
+ * flat, fold-less fabric, leftover notches at the shoulder tips / side hem, the cuff ring at the wrist); the feminine
+ * body keeps its baked garment until they do. The geometry / shader path stays (tested) for the follow-up.
+ */
+export const FEMININE_CUTS = false;
+
+/**
+ * The modelled collar (masculine kitenge shirts) is held back too: lowered and rolled over after review it reads as a
+ * shirt collar lying down, but next to the base jacket's own baked collar the gain is modest, not clearly better.
+ */
+export const MODELLED_COLLARS = false;
+
+/** The feminine cut of a top kind (whether or not the feminine cuts are on). */
+export const feminineCut = (item: OutfitItem): TopCut => CUT_BY_KIND[item.kind] ?? CUT_BY_KIND.tee!;
+
 /** The cut of a top on a body: the feminine body gets its own cuts; the other bodies keep their base garment. */
 export function topCut(item: OutfitItem | undefined, body: BodyType): TopCut | null {
   if (!item || item.slot !== "top") return null;
-  if (body === "feminine") return CUT_BY_KIND[item.kind] ?? CUT_BY_KIND.tee!;
-  // masculine / neutral: their base jacket stays; collared tops get the modelled collar
-  if (item.kind === "shirt" || item.kind === "blazer")
-    return {
-      ...CUT_BY_KIND[item.kind]!,
-      id: `${item.kind}-collar`,
-      flatten: false,
-      neck: item.kind === "blazer" ? "blazer" : "open",
-      sleeve: "long",
-    };
+  if (body === "feminine") return FEMININE_CUTS ? (CUT_BY_KIND[item.kind] ?? CUT_BY_KIND.tee!) : null;
+  // masculine: its base jacket stays, the collared shirts get the modelled collar. (Held back after review: the shirt
+  // collar under a blazer, and every collar on the neutral body, whose base fleece has a hood round the neck: they did
+  // not beat the baked look.)
+  if (MODELLED_COLLARS && body === "masculine" && item.kind === "shirt")
+    return { ...CUT_BY_KIND.shirt!, id: "shirt-collar", flatten: false, neck: "open", sleeve: "long" };
   return null;
 }
 
@@ -678,23 +690,25 @@ export function collarSection(kind: CollarSpec["kind"], theta: number, opening: 
       [th * 0.5, -0.008],
     ];
   }
-  // shirt collar: stand (back 3.2 cm → front 2.4 cm) + fall folded over it (back 4.0 cm → points at the front)
-  const hs = 0.032 - 0.008 * f;
-  const point = ss(f, 0.62, 1);
-  const hf = 0.041 + 0.03 * point;
-  const spread = 0.01 + 0.008 * f + 0.012 * point;
-  const fold = hs + 0.0035;
+  // shirt collar: a low stand (back 2.7 cm → front 2.0 cm) and the fall rolled over it, lying down and out on the
+  // shoulders (back 3.6 cm deep) to points resting on the chest
+  const hs = 0.027 - 0.007 * f;
+  const point = ss(f, 0.6, 1);
+  const hf = 0.036 + 0.026 * point;
+  const spread = 0.024 + 0.008 * f + 0.016 * point;
+  const fold = hs + 0.003;
   return [
     [-t * 0.5, -0.006], // stand base, inner (against the neck)
-    [-t * 0.5 - 0.002, hs * 0.7],
-    [0.0, fold], // the fold, rounded
-    [t + 0.0016, fold + 0.0012],
-    [t + 0.004, fold - 0.003],
-    [spread * 0.55 + t, fold - hf * 0.55], // fall outer face
+    [-t * 0.5 - 0.0015, hs * 0.7],
+    [-0.0005, fold - 0.001], // the roll, rounded
+    [t * 0.8, fold + 0.0012],
+    [t + 0.0035, fold - 0.0006],
+    [t + 0.007, fold - 0.005],
+    [spread * 0.6 + t, fold - hf * 0.5], // fall outer face, lying out over the shoulders
     [spread + t, fold - hf], // finished lower edge / point
-    [spread, fold - hf + t * 0.8], // the edge's thickness
-    [spread * 0.55, fold - hf * 0.55 + t], // fall inner face (over the stand)
-    [t * 1.6, fold - 0.004],
+    [spread - t * 0.4, fold - hf + t * 0.9], // the edge's thickness
+    [spread * 0.6 - t * 0.3, fold - hf * 0.5 + t], // fall inner face (over the stand)
+    [t * 1.8, fold - 0.005],
     [t * 0.5, hs * 0.5], // stand outer face (under the fall)
     [t * 0.5, -0.005],
   ];
@@ -1208,7 +1222,10 @@ function appendCollar(
             ? 0.55
             : 0.4;
   const drop = kind === "stand" ? 0.012 : kind === "hood" ? 0.03 : 0.034;
-  const zc = nb.baseZ - 0.012;
+  // (masculine / neutral: their head mesh stops high at the back, the collar sits at the root of the neck)
+  const neckJ = frame.bone("Bip01_Neck");
+  const zc =
+    inp.body === "feminine" || !neckJ ? nb.baseZ - 0.012 : Math.min(nb.baseZ - 0.012, neckJ.z + 0.006);
   const centre = nb.centre.clone().setZ(zc);
   const dz = (th: number) => -drop * (1 - Math.cos(th)) * 0.5;
   const levels: { z: number; r: ((t: number) => number) | null }[] = [];
@@ -1216,6 +1233,8 @@ function appendCollar(
     const z = zc + 0.01 - drop - 0.01 + (k * (drop + 0.02)) / 8;
     levels.push({ z, r: neckProfile(head, centre, nb.forward, z) });
   }
+  // a full ring of neck skin (where the head mesh goes all round): the collar never closes in tighter than it
+  const ring = neckProfile(head, centre, nb.forward, nb.baseZ + 0.006);
   const radius = (th: number) => {
     const z = zc + dz(th) + 0.008;
     let best = 0.058,
@@ -1230,6 +1249,7 @@ function appendCollar(
     }
     // in front, the collar stands on the top's own front panel (the chest is well in front of the neck there)
     const surf = geo.userData.gkFrontSurface as ((sv: number, z: number) => number | null) | undefined;
+    if (ring) best = Math.max(best, ring(th));
     let r = best + 0.004;
     if (surf) {
       const radial = nb.forward

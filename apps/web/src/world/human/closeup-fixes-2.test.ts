@@ -4,6 +4,9 @@ import { borderLoops, borderVertexFlags, fillNewHoles, fillStripHole, stripWidth
 import {
   buildCollar,
   collarSection,
+  FEMININE_CUTS,
+  feminineCut,
+  MODELLED_COLLARS,
   frontPanel,
   necklineDrop,
   neckProfile,
@@ -94,28 +97,25 @@ describe("forehead gap fill (P2-AVA-16)", () => {
 });
 
 describe("tops follow the chosen item on the feminine body (P2-AVA-16)", () => {
-  it("gives every catalogue top a feminine cut, and only collared tops a collar elsewhere", () => {
+  it("gives every catalogue top a feminine cut (held back for now), and only the masculine shirts a collar", () => {
     for (const item of OUTFITS.filter((o) => o.slot === "top")) {
-      const f = topCut(item, "feminine");
-      expect(f, item.id).not.toBeNull();
+      const f = feminineCut(item);
       // the base blazer's tailoring stays only for the blazer itself
-      expect(f!.flatten).toBe(item.kind !== "blazer");
-      const m = topCut(item, "masculine");
-      expect(!!m).toBe(item.kind === "shirt" || item.kind === "blazer");
+      expect(f.flatten).toBe(item.kind !== "blazer");
+      expect(topCut(item, "feminine")).toBe(FEMININE_CUTS ? f : null);
+      expect(!!topCut(item, "masculine")).toBe(MODELLED_COLLARS && item.kind === "shirt");
+      expect(topCut(item, "neutral")).toBeNull();
     }
-    expect(
-      topCut(
-        OUTFITS.find((o) => o.id === "tee"),
-        "feminine",
-      )!.sleeve,
-    ).toBe("short");
-    expect(
-      topCut(
-        OUTFITS.find((o) => o.id === "kitenge-sun"),
-        "feminine",
-      )!.collar,
-    ).toBe("shirt");
-    expect(topCut(undefined, "feminine")).toBeNull();
+    expect(feminineCut(OUTFITS.find((o) => o.id === "tee")!).sleeve).toBe("short");
+    expect(feminineCut(OUTFITS.find((o) => o.id === "kitenge-sun")!).collar).toBe("shirt");
+    if (MODELLED_COLLARS)
+      expect(
+        topCut(
+          OUTFITS.find((o) => o.id === "kitenge-sun"),
+          "masculine",
+        )!.collar,
+      ).toBe("shirt");
+    expect(topCut(undefined, "masculine")).toBeNull();
   });
 
   it("cuts necklines lower in front than at the back, a V deepest on the centre line", () => {
