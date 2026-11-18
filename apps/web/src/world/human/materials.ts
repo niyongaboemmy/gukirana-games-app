@@ -953,6 +953,27 @@ reflectedLight.indirectDiffuse += gkSkinW * diffuseColor.rgb * vec3(0.05, 0.02, 
 `;
 
 /**
+ * P3-FGT-25: three's Material.copy deep-copies `userData` through JSON.stringify — the base materials carry their mask
+ * texture there (`gkMask`), so every clone serialised the mask image (canvas toDataURL: 40–100 ms per person built,
+ * measured at the Boxing hall door and in the ring). The copy runs without userData; the clone gets a shallow copy (the
+ * same texture references the JSON round trip used to turn into useless plain objects).
+ */
+function withoutUserData<T>(base: THREE.Material, fn: () => T): T {
+  const ud = base.userData;
+  base.userData = {};
+  try {
+    return fn();
+  } finally {
+    base.userData = ud;
+  }
+}
+function cloneMaterial<T extends THREE.Material>(base: T): T {
+  const m = withoutUserData(base, () => base.clone() as T);
+  m.userData = { ...base.userData };
+  return m;
+}
+
+/**
  * Clone a base Rocketbox material and attach the look recolour shader. `lite` (P2-AVA-12): the far body level (beyond
  * the near LOD): no physical sheen lobe, no pore / weave detail (sub-pixel there anyway), the rest identical.
  */
@@ -960,7 +981,7 @@ export function makeLookMaterial(base: THREE.MeshStandardMaterial, look: AvatarL
   const mask = (base.userData.gkMask as THREE.Texture | undefined) ?? null;
   const real = campusHumansOn() && !!mask && !!base.map;
   // P2-AVA-12: a physical material (sheen lobe for the fabrics); same maps / settings as the base
-  const m: THREE.MeshStandardMaterial = real && !lite && campusPart("sheen") ? toPhysical(base) : base.clone();
+  const m: THREE.MeshStandardMaterial = real && !lite && campusPart("sheen") ? toPhysical(base) : cloneMaterial(base);
   m.emissiveMap = null;
   m.emissive.set(0x000000);
   if (!mask || !m.map) return m;
@@ -986,7 +1007,7 @@ export function makeLookMaterial(base: THREE.MeshStandardMaterial, look: AvatarL
 /** A MeshPhysicalMaterial with a standard material's maps and settings, sheen on (its colour set per fragment). */
 function toPhysical(base: THREE.MeshStandardMaterial): THREE.MeshPhysicalMaterial {
   const p = new THREE.MeshPhysicalMaterial();
-  THREE.MeshStandardMaterial.prototype.copy.call(p, base);
+  withoutUserData(base, () => THREE.MeshStandardMaterial.prototype.copy.call(p, base));
   p.defines = { STANDARD: "", PHYSICAL: "" };
   p.userData = { ...base.userData };
   p.sheen = 1;
@@ -997,7 +1018,7 @@ function toPhysical(base: THREE.MeshStandardMaterial): THREE.MeshPhysicalMateria
 
 /** Hair cards (alpha-tested strands) take the chosen hair colour via luminance transfer. */
 export function makeHairCardMaterial(base: THREE.MeshStandardMaterial, look: AvatarLook, meta: HumanModelMeta): THREE.MeshStandardMaterial {
-  const m = base.clone();
+  const m = cloneMaterial(base);
   const hair = lin(look.hairColor);
   const ref = meta.regions.hair;
   m.onBeforeCompile = (shader) => {
