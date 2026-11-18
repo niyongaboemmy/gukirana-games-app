@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { BodyType, HairStyle, HeadwearKind } from "../outfits";
 import { weldGroups } from "./head-geometry";
 import { EAR_LANDMARKS, SKULL_FITS, skullNormal, skullPoint, skullStandoff } from "./skull";
-import { bandY, clippedLength, HAT_CLEARANCE, SHELL, skullAzimuth } from "./head-fit";
+import { bandY, clippedLength, hatClearance, SHELL, skullAzimuth, strandRadius, swayWeight } from "./head-fit";
 import { dirAt, elevationAt } from "./headwear";
 import { campusHumansOn } from "./realism-flag";
 
@@ -660,9 +660,16 @@ interface StrandSpec {
 const STRANDS: Partial<Record<HairStyle, StrandSpec>> = {
   braids: { count: 72, len: [0.3, 0.36], r0: 0.0043, r1: 0.0034, stiff: 0.62, pattern: 0 },
   locs: { count: 50, len: [0.25, 0.31], r0: 0.0064, r1: 0.0056, stiff: 0.58, pattern: 1 },
+  // (P2-AVA-15: the campus people's locs are denser and a touch slimmer: STRANDS_V15 below)
   twists: { count: 140, len: [0.045, 0.062], r0: 0.0046, r1: 0.0034, stiff: 0.86, pattern: 2 },
   braidtail: { count: 76, len: [0.36, 0.42], r0: 0.0041, r1: 0.0032, stiff: 0.62, pattern: 0 },
   shortlocs: { count: 78, len: [0.085, 0.115], r0: 0.006, r1: 0.005, stiff: 0.74, pattern: 1 },
+};
+
+/** P2-AVA-15 overrides with the realistic campus people on: denser, slimmer locs (no gaps between sticks). */
+const STRANDS_V15: Partial<Record<HairStyle, Partial<StrandSpec>>> = {
+  locs: { count: 74, r0: 0.0056, r1: 0.005 },
+  shortlocs: { count: 92, r0: 0.0054, r1: 0.0046 },
 };
 
 /** Fibonacci directions over the upper head whose skull point lies inside the hair region. */
@@ -719,13 +726,54 @@ function addStrands(
   body: BodyType,
   lod: 0 | 1,
 ) {
-  const spec = STRANDS[style];
-  if (!spec) return;
+  const baseSpec = STRANDS[style];
+  if (!baseSpec) return;
+  const spec: StrandSpec = campusHumansOn() ? { ...baseSpec, ...STRANDS_V15[style] } : baseSpec;
   const roots = strandRoots(s, body, spec.count, hat, style);
+  // P2-AVA-15: where this head's real scalp lies below the skull template (the feminine crown), strands lying on the
+  // upper head came to rest on the template, a centimetre over the scalp: arcs with daylight under them. The offset
+  // (m, ≤ 0) of the real hair surface from the template along a direction, from the head's own hair vertices.
+  const hairDirs: number[] = [];
+  if (campusHumansOn()) {
+    const cc = SKULL_FITS[body].c;
+    const tp = V(),
+      dd = V();
+    for (let i = 0; i < s.hw.length; i++) {
+      if (s.hw[i]! < 0.6) continue;
+      dd.set(s.F[i * 3]! - cc[0], s.F[i * 3 + 1]! - cc[1], s.F[i * 3 + 2]! - cc[2]);
+      const r = dd.length();
+      dd.divideScalar(r);
+      skullPoint(body, dd, tp);
+      const tr = Math.hypot(tp.x - cc[0], tp.y - cc[1], tp.z - cc[2]);
+      hairDirs.push(dd.x, dd.y, dd.z, r - tr);
+    }
+  }
+  const scalpOffset = (pt: THREE.Vector3): number => {
+    if (!hairDirs.length) return 0;
+    const cc = SKULL_FITS[body].c;
+    const dx = pt.x - cc[0],
+      dy = pt.y - cc[1],
+      dz = pt.z - cc[2];
+    const l = Math.hypot(dx, dy, dz) || 1;
+    let best = -1,
+      off = 0;
+    for (let i = 0; i < hairDirs.length; i += 4) {
+      const d = (hairDirs[i]! * dx + hairDirs[i + 1]! * dy + hairDirs[i + 2]! * dz) / l;
+      if (d > best) {
+        best = d;
+        off = hairDirs[i + 3]!;
+      }
+    }
+    return best > 0.985 ? THREE.MathUtils.clamp(off, -0.02, 0) : 0;
+  };
   const c = SKULL_FITS[body].c;
   const ears = EAR_LANDMARKS[body];
-  const lift = hat !== "none" ? Math.max(0.0035, HAT_CLEARANCE[style] - spec.r0 - 0.0015) : 0.0032;
-  const radial = lod === 0 ? 6 : 3;
+  const clear = hatClearance(hat, style);
+  const lift = hat !== "none" ? Math.max(0.0035, clear - spec.r0 - 0.0015) : 0.0032;
+  // P2-AVA-15: round tubes (8 sides up close, 5 further out: a 3-sided far tube read as a flat plank)
+  const v15 = campusHumansOn();
+  const radial = lod === 0 ? (v15 ? 8 : 6) : v15 ? 5 : 3;
+  const profile: "loc" | "braid" | "twist" = spec.pattern === 1 ? "loc" : spec.pattern === 2 ? "twist" : "braid";
   // ponytail gathering point: low on the back of the head (nape)
   const tail = skullPoint(body, new THREE.Vector3(0, -0.28, -1).normalize(), V());
   tail.addScaledVector(skullNormal(body, new THREE.Vector3(0, -0.28, -1).normalize(), V()), 0.012);
@@ -749,7 +797,7 @@ function addStrands(
     const step = len / segs;
     skullPoint(body, root, surf);
     skullNormal(body, root, nrm);
-    p.copy(surf).addScaledVector(nrm, lift + spec.r0);
+    p.copy(surf).addScaledVector(nrm, v15 && spec.stiff <= 0.85 ? lift * 0.5 + spec.r0 * 0.6 : lift + spec.r0);
     // front roots sweep to the sides and back (braids / locs pulled back off the face)
     const front = smooth(surf.z - c[2], 0.02, 0.08);
     const standing = spec.stiff > 0.85;
@@ -791,7 +839,10 @@ function addStrands(
       p.addScaledVector(d, step);
       // stay on / outside the hair surface
       const sd = skullStandoff(body, p, surf);
-      const min = lift + spec.r0 * 0.9;
+      // P2-AVA-15: over the upper head the strands lie flat on the scalp, a little slimmer (pulled from the parting),
+      // so the crown reads as dense locs hugging the head, not sticks arching up off it
+      const lie = v15 && !standing ? smooth(p.y, c[1] - 0.03, c[1] + 0.01) : 0;
+      const min = lift * (1 - 0.55 * lie) + spec.r0 * (0.9 - 0.3 * lie) + (lie > 0 ? scalpOffset(p) * lie : 0);
       // P2-AVA-12: over the upper head long strands lie on the scalp (braids pulled back hug it): no strand lifts off
       // the crown in a spike before it falls
       if (flatTop && !standing && sd > min && p.y > c[1] - 0.015) {
@@ -839,6 +890,8 @@ function addStrands(
     // under headwear (P2-AVA-12): the strands inside the crown are pressed flat against the scalp (thinner, inside the
     // hat's clearance), so no braid / loc ever pokes through the cap, the bucket hat or the kufi; they come out below
     // the band at full thickness (a 2 cm blend below it)
+    // how much each point lies on the upper head (thinner there, P2-AVA-15)
+    const lying: number[] = pts.map((pt) => (v15 && !standing ? smooth(pt.y, c[1] - 0.03, c[1] + 0.01) : 0));
     const press: number[] = pts.map(() => 0);
     if (hat !== "none" && campusHumansOn()) {
       pts.forEach((pt, k) => {
@@ -849,7 +902,7 @@ function addStrands(
         const u = k / (pts.length - 1);
         const rr0 = THREE.MathUtils.lerp(spec.r0, spec.r1, u) * 0.5;
         const sd = skullStandoff(body, pt, surf);
-        const maxSd = HAT_CLEARANCE[style] - rr0 - 0.001;
+        const maxSd = clear - rr0 - 0.001;
         const want = THREE.MathUtils.lerp(sd, Math.min(sd, maxSd), tp);
         if (want < sd) {
           q.set(surf.x - c[0], surf.y - c[1], surf.z - c[2]);
@@ -873,13 +926,21 @@ function addStrands(
       nn.crossVectors(b, t).normalize();
       ref.copy(nn);
       const u = k / (pts.length - 1);
-      const r =
-        THREE.MathUtils.lerp(spec.r0, spec.r1, u) * (style === "braids" && k === pts.length - 1 ? 0.6 : 1) * (1 - 0.5 * press[k]!) * (k === 0 && flatTop ? 0.35 : 1); // (a tapered root: no open tube end at the scalp)
+      const r = v15
+        ? // P2-AVA-15: felted, slightly irregular, tapered ropes (head-fit.ts strandRadius), pressed thinner under a hat
+          THREE.MathUtils.lerp(spec.r0, spec.r1, u) * strandRadius(u, h, profile) * (1 - 0.28 * lying[k]!) * (1 - 0.55 * press[k]!) * (k === 0 ? 0.35 : 1)
+        : THREE.MathUtils.lerp(spec.r0, spec.r1, u) * (style === "braids" && k === pts.length - 1 ? 0.6 : 1) * (1 - 0.5 * press[k]!) * (k === 0 && flatTop ? 0.35 : 1); // (a tapered root: no open tube end at the scalp)
+      // a loc is not a perfect cylinder: a little oval, its long axis turning slowly along the strand
+      const oval = v15 && profile === "loc" ? 0.12 : 0;
+      const twistA = h * 6.283 + along * 9;
+      // sway weight in the 3rd hk slot's fraction (the vertex shader swings the free length; 0 at the root and under a hat)
+      const sw = v15 && profile !== "twist" ? swayWeight(u) * (1 - press[k]!) : 0;
       for (let j = 0; j <= radial; j++) {
         const ang = (j / radial) * Math.PI * 2;
         dir.copy(nn).multiplyScalar(Math.cos(ang)).addScaledVector(b, Math.sin(ang));
-        q.copy(pts[k]!).addScaledVector(dir, r);
-        B.face(q, dir, j / radial, along, [u, 3, spec.pattern, h]);
+        const ro = r * (1 + oval * Math.cos(2 * (ang - twistA)));
+        q.copy(pts[k]!).addScaledVector(dir, ro);
+        B.face(q, dir, j / radial, along, [u, 3, spec.pattern + Math.min(0.49, sw * 0.49), h]);
       }
     }
     for (let k = 0; k < pts.length - 1; k++)
@@ -889,15 +950,40 @@ function addStrands(
         B.tri(a, a + 1, a + radial + 1);
         B.tri(a + 1, a + radial + 2, a + radial + 1);
       }
-    // cap the tip
+    // cap the tip (P2-AVA-15: a rounded end, two rings of a half dome, not a flat cut)
     const tip = pts[pts.length - 1]!;
-    const ti = B.face(tip.clone().addScaledVector(t, spec.r1 * 0.7), t, 0.5, along + spec.r1, [
+    const swTip = v15 && profile !== "twist" ? 0.49 : 0;
+    let last = base + (pts.length - 1) * (radial + 1);
+    if (v15) {
+      const rt = spec.r1 * strandRadius(1, h, profile);
+      for (const [ring, a] of [
+        [1, 0.5],
+        [2, 0.85],
+      ] as const) {
+        const rb = B.count;
+        for (let j = 0; j <= radial; j++) {
+          const ang = (j / radial) * Math.PI * 2;
+          dir.copy(nn).multiplyScalar(Math.cos(ang)).addScaledVector(b, Math.sin(ang));
+          q.copy(tip)
+            .addScaledVector(dir, rt * Math.cos(a * Math.PI * 0.5))
+            .addScaledVector(t, rt * Math.sin(a * Math.PI * 0.5));
+          nn.copy(dir).multiplyScalar(Math.cos(a * Math.PI * 0.5)).addScaledVector(t, Math.sin(a * Math.PI * 0.5));
+          B.face(q, nn.clone(), j / radial, along + rt * ring * 0.5, [1, 3, spec.pattern + swTip, h]);
+          nn.crossVectors(b, t).normalize();
+        }
+        for (let j = 0; j < radial; j++) {
+          B.tri(last + j, last + j + 1, rb + j);
+          B.tri(last + j + 1, rb + j + 1, rb + j);
+        }
+        last = rb;
+      }
+    }
+    const ti = B.face(tip.clone().addScaledVector(t, (v15 ? spec.r1 * strandRadius(1, h, profile) : spec.r1 * 0.7)), t, 0.5, along + spec.r1, [
       1,
       3,
-      spec.pattern,
+      spec.pattern + swTip,
       h,
     ]);
-    const last = base + (pts.length - 1) * (radial + 1);
     for (let j = 0; j < radial; j++) B.tri(last + j, last + j + 1, ti);
   });
 }
@@ -998,23 +1084,43 @@ export interface HairUniforms {
   uHStyle: { value: THREE.Vector4 };
   uHO: { value: THREE.Vector3 };
   uHR: { value: THREE.Matrix3 };
+  /** seconds, shared by every hair material (strand sway, P2-AVA-15) */
+  uHTime: { value: number };
 }
+
+/** One clock for every person's hair sway (P2-AVA-15), advanced when a hair mesh is drawn (no per-person updates). */
+export const HAIR_TIME = { value: 0 };
 
 const HAIR_VERT_HEAD = /* glsl */ `
 attribute vec4 hk;
 attribute vec2 huv;
-uniform vec3 uHO; uniform mat3 uHR;
+uniform vec3 uHO; uniform mat3 uHR; uniform float uHTime;
 varying vec4 vHk; varying vec3 vHF; varying vec2 vHUv;
 `;
 const HAIR_VERT = /* glsl */ `
 #include <begin_vertex>
 vHk = hk; vHUv = huv; vHF = uHR * (position - uHO);
+#ifdef GK_HAIR_SWAY
+// P2-AVA-15: hanging locs / braids sway a little (secondary motion): the free length swings with the strand's own
+// phase over a slow shared breeze, weight 0 at the root (fract(hk.z), built in hair.ts addStrands)
+if (hk.y > 2.5 && hk.y < 3.5) {
+  float sw = fract(hk.z) * 2.04;
+  if (sw > 0.001) {
+    float ph = hk.w * 6.2831;
+    float br = sin(uHTime * 0.7) * 0.5 + 0.5;
+    vec3 off = vec3(sin(uHTime * 1.3 + ph) * 0.6 + sin(uHTime * 2.3 + ph * 1.7) * 0.25,
+                    0.0,
+                    sin(uHTime * 1.05 + ph * 0.8) * 0.45 - 0.25 * br) * (0.0065 * sw);
+    transformed += transpose(uHR) * off;
+  }
+}
+#endif
 `;
 
 const HAIR_FRAG_HEAD = /* glsl */ `
 uniform sampler2D uHMask; uniform vec3 uHair; uniform vec3 uHSkin; uniform vec4 uHStyle;
 varying vec4 vHk; varying vec3 vHF; varying vec2 vHUv;
-float hH = 0.0; float hRough = 0.8; float hBumpK = 1.0;
+float hH = 0.0; float hRough = 0.8; float hBumpK = 1.0; float hSpecK = 0.4; float hRimK = 0.0;
 float hHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 float hNoise(vec3 x) {
   vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);
@@ -1045,6 +1151,13 @@ const HAIR_FRAG = /* glsl */ `
   float c2 = hNoise(F * 1400.0);
   float clump = hNoise(F * 140.0);
   float detail = mix(0.5, c1 * 0.65 + c2 * 0.35, nearK);
+#ifdef GK_HAIR_V15
+  // P2-AVA-15: each octave fades to its mean once its cells shrink towards a pixel (the 1400 / m octave sparkled as
+  // grey speckle up close: noisy, pixelated hair at the hairline and under a cap)
+  float k1 = clamp(1.5 - fw * 560.0 * 2.2, 0.0, 1.0);
+  float k2 = clamp(1.5 - fw * 1400.0 * 2.6, 0.0, 1.0);
+  detail = mix(0.5, c1, k1) * 0.65 + mix(0.5, c2, k2) * 0.35;
+#endif
   float alpha = 1.0;
   float ao = 1.0;
   vec3 col = max(uHair, vec3(0.013, 0.0105, 0.0088));
@@ -1062,6 +1175,16 @@ const HAIR_FRAG = /* glsl */ `
   if (kind < 0.5) {
     // ---- close-hair shell: hairline from the mask, strands thin out layer by layer
     float m = texture2D(uHMask, vHUv).g;
+#ifdef GK_HAIR_V15
+    // P2-AVA-15: the hairline from a 4-tap filtered mask, broken by a soft 3–5 mm noise (no texel stair-steps, no
+    // hard painted edge), so it blends into the skin
+    {
+      vec2 tx = 0.85 / vec2(textureSize(uHMask, 0));
+      m = (texture2D(uHMask, vHUv + vec2(tx.x, tx.y)).g + texture2D(uHMask, vHUv + vec2(-tx.x, tx.y)).g
+         + texture2D(uHMask, vHUv + vec2(tx.x, -tx.y)).g + texture2D(uHMask, vHUv + vec2(-tx.x, -tx.y)).g) * 0.25;
+      m = clamp(m + (hNoise(F * 260.0) - 0.5) * 0.22 * m * (1.0 - m) * 4.0, 0.0, 1.0);
+    }
+#endif
     float L = vHk.z;
     float edge = smoothstep(0.04, 0.5, m);
     float dens = edge * mix(1.0, 0.42, lf) * smoothstep(0.0006, 0.0045, L);
@@ -1104,6 +1227,11 @@ const HAIR_FRAG = /* glsl */ `
     if (lf < 0.02) {
       // base layer: covers the scalp inside the hairline (dark roots / skin in partings, a fade's shaved skin)
       alpha = smoothstep(0.03, 0.42, m);
+#ifdef GK_HAIR_V15
+      // a wider, softer edge: the hairline thins out over a few millimetres into the skin
+      alpha = smoothstep(0.02, 0.6, m);
+      col = mix(scalp * 1.15, col, smoothstep(0.1, 0.55, m));
+#endif
       float shaved = 1.0 - smoothstep(0.0005, 0.0062, L);
       col = mix(col, scalp, clamp(scalpShow * 0.9, 0.0, 1.0));
       // a skin fade shows the head's own (shaved, skin-shaded) scalp through: same skin as the face
@@ -1111,6 +1239,9 @@ const HAIR_FRAG = /* glsl */ `
       ao *= mix(0.55, 1.0, shaved);
     } else {
       float sharp = mix(1.0, 7.0, nearK);
+#ifdef GK_HAIR_V15
+      sharp = mix(1.0, 4.0, nearK);
+#endif
       alpha = clamp((detail - (1.0 - dens)) * sharp + 0.5, 0.0, 1.0) * step(0.02, dens) * (1.0 - scalpShow);
       ao *= mix(0.5, 1.0, pow(lf, 0.8));
     }
@@ -1134,6 +1265,23 @@ const HAIR_FRAG = /* glsl */ `
     if (vHk.z < 0.5) h = max(hRidge(t * 95.0 + s * 2.0), hRidge(t * 95.0 - s * 2.0 + 0.5));
     else if (vHk.z < 1.5) h = hNoise(F * 420.0) * 0.6 + hCoil(F * 700.0) * 0.4;
     else h = hRidge(t * 60.0 + s * 2.0);
+#ifdef GK_HAIR_V15
+    if (vHk.z >= 0.5 && vHk.z < 1.5) {
+      // locs (P2-AVA-15): a felted rope: strand bundles spiralling round it, matted fuzz along them, soft lumps, all
+      // in the strand's own (around, along) frame so the texture wraps the tube instead of swimming in world space
+      float sk = clamp(1.5 - fw * 160.0 * 2.0, 0.0, 1.0);
+      float spiral = hRidge(s * 4.0 + t * 38.0 + vHk.w * 3.0);
+      float fuzz = hNoise(vec3(s * 14.0, t * 240.0, vHk.w * 20.0));
+      float mat = hNoise(vec3(s * 4.0, t * 60.0, vHk.w * 9.0));
+      h = mix(0.5, spiral * 0.45 + fuzz * 0.35 + mat * 0.2, sk);
+      // per-loc tone, a little sun-faded towards the tips (never one flat black)
+      col = max(col, vec3(0.024, 0.019, 0.016)) * (0.8 + 0.45 * vHk.w) * mix(1.0, 1.9, smoothstep(0.55, 1.0, lf) * 0.5);
+      hRimK = 1.0;
+    } else if (vHk.z < 0.5) {
+      hRimK = 0.8;
+    }
+    hSpecK = 0.7;
+#endif
     h = mix(0.5, h, nearK * 0.85 + 0.15);
     ao *= mix(0.55, 1.05, h) * mix(0.8, 1.0, lf);
     hH += h * 2.4 + detail * 0.6;
@@ -1163,6 +1311,10 @@ const HAIR_FRAG = /* glsl */ `
   col *= ao * (0.86 + 0.28 * clump) * (0.9 + 0.2 * detail);
   hRough = 0.8 + 0.14 * (1.0 - detail);
   hBumpK = nearK * (kind > 2.5 ? 0.5 : 1.0);
+#ifdef GK_HAIR_V15
+  // strands: a soft satin highlight runs along each rope (reads round), still no plastic glare
+  if (kind > 2.5 && kind < 3.5) hRough = 0.62 + 0.12 * (1.0 - detail);
+#endif
   diffuseColor.rgb = col;
   diffuseColor.a *= alpha;
 }
@@ -1173,6 +1325,7 @@ const HAIR_ROUGH = /* glsl */ `
 roughnessFactor = hRough;
 `;
 const HAIR_BUMP = /* glsl */ `
+vec3 hN0 = normal;
 #include <normal_fragment_maps>
 {
   vec3 sx = dFdx(-vViewPosition); vec3 sy = dFdy(-vViewPosition);
@@ -1185,13 +1338,21 @@ const HAIR_BUMP = /* glsl */ `
   float gl = length(gk); float lim = abs(det) * 0.6;
   if (gl > lim) gk *= lim / gl;
   normal = normalize(abs(det) * normal - gk);
+#ifdef GK_HAIR_V15
+  // round tubes (P2-AVA-15): the silhouette edges of a loc / braid sit in the shade of its own curvature and the
+  // neighbouring strands, so each rope reads as a cylinder, not a flat card
+  if (hRimK > 0.0) {
+    float facing = abs(dot(normalize(hN0), normalize(vViewPosition)));
+    diffuseColor.rgb *= mix(1.0, mix(0.42, 1.0, pow(facing, 0.6)), hRimK);
+  }
+#endif
 }
 `;
 /** hair F0 ≈ 0.022 instead of 0.04: matte, no plastic glare */
 const HAIR_SPEC = /* glsl */ `
 #include <lights_physical_fragment>
-material.specularColor *= 0.4;
-material.specularColorBlended *= 0.4;
+material.specularColor *= hSpecK;
+material.specularColorBlended *= hSpecK;
 `;
 
 /**
@@ -1236,8 +1397,11 @@ export function makeHairMaterial(
     uHStyle: { value: new THREE.Vector4(g.pattern, grey, recede, age.temple) },
     uHO: { value: frame.o.clone() },
     uHR: { value: frame.R.clone() },
+    uHTime: HAIR_TIME,
   };
   m.userData.gkHair = u;
+  const v15 = campusHumansOn();
+  if (v15) m.defines = { ...(m.defines ?? {}), GK_HAIR_V15: "", GK_HAIR_SWAY: "" };
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, u);
     shader.vertexShader = HAIR_VERT_HEAD + shader.vertexShader.replace("#include <begin_vertex>", HAIR_VERT);
@@ -1253,7 +1417,7 @@ export function makeHairMaterial(
           "#include <lights_fragment_end>\n reflectedLight.indirectSpecular *= 0.08; reflectedLight.directSpecular *= 0.6;",
         );
   };
-  m.customProgramCacheKey = () => "gk-hair-4";
+  m.customProgramCacheKey = () => (v15 ? "gk-hair-5" : "gk-hair-4");
   return m;
 }
 
@@ -1270,5 +1434,11 @@ export function hairMesh(
   m.scale.copy(head.scale);
   m.bind(head.skeleton, head.bindMatrix);
   m.frustumCulled = false;
+  // (the eyes reuse this helper with their own material: the clock tick is harmless there)
+  m.onBeforeRender = tickHairTime;
   return m;
+}
+
+function tickHairTime() {
+  HAIR_TIME.value = (typeof performance !== "undefined" ? performance.now() : 0) / 1000;
 }

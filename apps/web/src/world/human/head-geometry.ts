@@ -70,7 +70,11 @@ function borderGroups(idx: ArrayLike<number>, weld: Int32Array, groups: number):
  * normal is within `crease` (rad) of that vertex's authored normal, so authored hard creases survive; border vertices
  * keep their authored normal (no seam against the body mesh). Returns how many vertex normals changed by > 5°.
  */
-export function smoothHeadNormals(geo: THREE.BufferGeometry, crease = THREE.MathUtils.degToRad(62)): number {
+export function smoothHeadNormals(
+  geo: THREE.BufferGeometry,
+  crease = THREE.MathUtils.degToRad(62),
+  seamAgree = 0,
+): number {
   const pos = geo.attributes.position as THREE.BufferAttribute;
   const nrm = geo.attributes.normal as THREE.BufferAttribute | undefined;
   if (!pos || !nrm) return 0;
@@ -106,6 +110,31 @@ export function smoothHeadNormals(geo: THREE.BufferGeometry, crease = THREE.Math
   const touch: number[][] = Array.from({ length: groups }, () => []);
   for (let t = 0; t < tris; t++) for (let k = 0; k < 3; k++) touch[weld[idx[t * 3 + k]!]!]!.push(t * 3 + k);
   const cosCrease = Math.cos(crease);
+  // P2-AVA-15 (`seamAgree` > 0): duplicates of one welded position whose authored normals roughly agree (a soft split
+  // the base mesh carries across the cheek / jaw, not a real fold) test their triangles against their shared mean
+  // normal, so both sides of the split get the very same smooth normal (the split showed as a hard-edged light patch
+  // from the nose to the temple and on the jaw). Real creases (lips into the mouth, eyelid rims) disagree by more.
+  const gmean = new Float32Array(groups * 3);
+  const gok = new Uint8Array(groups).fill(1);
+  if (seamAgree > 0) {
+    for (let i = 0; i < pos.count; i++) {
+      const g = weld[i]!;
+      _n.fromBufferAttribute(nrm, i).normalize();
+      gmean[g * 3] = gmean[g * 3]! + _n.x;
+      gmean[g * 3 + 1] = gmean[g * 3 + 1]! + _n.y;
+      gmean[g * 3 + 2] = gmean[g * 3 + 2]! + _n.z;
+    }
+    for (let g = 0; g < groups; g++) {
+      _n.set(gmean[g * 3]!, gmean[g * 3 + 1]!, gmean[g * 3 + 2]!).normalize();
+      gmean.set([_n.x, _n.y, _n.z], g * 3);
+    }
+    const cosAgree = Math.cos(seamAgree);
+    for (let i = 0; i < pos.count; i++) {
+      const g = weld[i]!;
+      _n.fromBufferAttribute(nrm, i).normalize();
+      if (_n.x * gmean[g * 3]! + _n.y * gmean[g * 3 + 1]! + _n.z * gmean[g * 3 + 2]! < cosAgree) gok[g] = 0;
+    }
+  }
   const out = new Float32Array(pos.count * 3);
   let changed = 0;
   const auth = new THREE.Vector3();
@@ -113,6 +142,7 @@ export function smoothHeadNormals(geo: THREE.BufferGeometry, crease = THREE.Math
   for (let i = 0; i < pos.count; i++) {
     auth.fromBufferAttribute(nrm, i).normalize();
     const g = weld[i]!;
+    const ref = seamAgree > 0 && gok[g] ? _c.set(gmean[g * 3]!, gmean[g * 3 + 1]!, gmean[g * 3 + 2]!) : auth;
     sum.set(0, 0, 0);
     if (!border[g]) {
       for (const corner of touch[g]!) {
@@ -120,7 +150,7 @@ export function smoothHeadNormals(geo: THREE.BufferGeometry, crease = THREE.Math
         const fx = fn[t * 3]!,
           fy = fn[t * 3 + 1]!,
           fz = fn[t * 3 + 2]!;
-        if (fx * auth.x + fy * auth.y + fz * auth.z < cosCrease) continue;
+        if (fx * ref.x + fy * ref.y + fz * ref.z < cosCrease) continue;
         const w = ang[corner]!;
         sum.x += fx * w;
         sum.y += fy * w;
@@ -136,6 +166,70 @@ export function smoothHeadNormals(geo: THREE.BufferGeometry, crease = THREE.Math
   }
   geo.setAttribute("normal", new THREE.BufferAttribute(out, 3));
   return changed;
+}
+
+/**
+ * P2-AVA-15: relax (diffuse) the vertex normals over the welded surface, in place: each pass moves every normal
+ * towards the mean of its edge neighbours' normals that lie within `maxAngle` of it (creases such as the lip line and
+ * the eyelid rims, more than `maxAngle` apart, never blend), open-border vertices stay. On the low-poly heads the
+ * lighting otherwise turned direction at every original triangle edge: large triangular light / dark patches on the
+ * cheeks, beside the nose and on the jaw. Returns the mean change (rad) of the last pass.
+ */
+export function relaxNormals(geo: THREE.BufferGeometry, passes = 3, maxAngle = THREE.MathUtils.degToRad(40), k = 0.6): number {
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  const nrm = geo.attributes.normal as THREE.BufferAttribute | undefined;
+  if (!pos || !nrm || passes <= 0) return 0;
+  const idx = indexOf(geo);
+  const weld = weldGroups(pos);
+  let groups = 0;
+  for (let i = 0; i < weld.length; i++) groups = Math.max(groups, weld[i]! + 1);
+  const border = borderGroups(idx, weld, groups);
+  // welded edge adjacency
+  const adj: Set<number>[] = Array.from({ length: groups }, () => new Set<number>());
+  for (let t = 0; t < idx.length; t += 3)
+    for (let e = 0; e < 3; e++) {
+      const a = weld[idx[t + e]!]!,
+        b = weld[idx[t + ((e + 1) % 3)]!]!;
+      if (a === b) continue;
+      adj[a]!.add(b);
+      adj[b]!.add(a);
+    }
+  // per vertex (not per group): seam duplicates on a real crease keep their own sides
+  const byGroup: number[][] = Array.from({ length: groups }, () => []);
+  for (let i = 0; i < pos.count; i++) byGroup[weld[i]!]!.push(i);
+  const cosMax = Math.cos(maxAngle);
+  let cur = new Float32Array(nrm.array as ArrayLike<number>);
+  let change = 0;
+  const own = new THREE.Vector3(),
+    sum = new THREE.Vector3(),
+    o = new THREE.Vector3();
+  for (let pass = 0; pass < passes; pass++) {
+    const next = new Float32Array(cur);
+    change = 0;
+    for (let i = 0; i < pos.count; i++) {
+      const g = weld[i]!;
+      if (border[g]) continue;
+      own.fromArray(cur, i * 3).normalize();
+      sum.set(0, 0, 0);
+      let n = 0;
+      for (const h of adj[g]!)
+        for (const j of byGroup[h]!) {
+          o.fromArray(cur, j * 3).normalize();
+          if (o.dot(own) < cosMax) continue;
+          sum.add(o);
+          n++;
+        }
+      if (!n) continue;
+      sum.divideScalar(n).normalize();
+      o.copy(own).lerp(sum, k).normalize();
+      change += o.angleTo(own);
+      next.set([o.x, o.y, o.z], i * 3);
+    }
+    cur = next;
+    change /= pos.count;
+  }
+  geo.setAttribute("normal", new THREE.BufferAttribute(cur, 3));
+  return change;
 }
 
 /** Top-4 bone weights of the mean of two vertices' skin weights. */
