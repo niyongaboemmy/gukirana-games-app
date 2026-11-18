@@ -9,7 +9,7 @@ import { encodeLook, itemById, LEGACY_SKIN, type AvatarLook } from "./outfits";
 import { ANIM_SETS, HUMAN_MODELS, type HumanModelId, type HumanModelMeta } from "./human/meta";
 import { makeHairCardMaterial, makeLookMaterial, type LookUniforms } from "./human/materials";
 import { faceFrameOf, FaceRig } from "./human/face-rig";
-import { relaxMouth, smoothHeadNormals, tessellateHead } from "./human/head-geometry";
+import { relaxMouth, relaxNormals, smoothHeadNormals, tessellateHead } from "./human/head-geometry";
 import { buildAttachments, neutralFrame } from "./human/attachments";
 import { deflateHair, dropBrim, hairGeometry, hairHatClass, hairMesh, headFrameOf, makeHairMaterial, maskPixels, type HeadFrame, type MaskPixels } from "./human/hair";
 import { headwearGeometry, makeHeadwearMaterial } from "./human/headwear";
@@ -143,6 +143,29 @@ export const tagScale = (d: number) => THREE.MathUtils.clamp(d / 10, 0.6, 1);
 const headHi = new WeakMap<THREE.BufferGeometry, THREE.BufferGeometry>();
 const preparedBases = new WeakSet<THREE.Object3D>();
 const HEAD_HI_RANGE = 9;
+/**
+ * P2-AVA-15: duplicates of one head vertex whose authored normals agree within this angle of their mean share one
+ * smooth normal (the base heads' soft normal splits showed as hard-edged light patches on the cheeks and jaw).
+ */
+const SEAM_AGREE = () => (campusHumansOn() ? THREE.MathUtils.degToRad(40) : 0);
+/** crease angle of the head normals: the nose sides and the cheek / jaw folds of the low-poly heads stay soft (P2-AVA-15) */
+const HEAD_CREASE = () => THREE.MathUtils.degToRad(62);
+/**
+ * The smooth close-up head: one level of Phong tessellation, then (P2-AVA-15) its normals re-smoothed over the new,
+ * rounded surface. Interpolated normals alone kept the low-poly lighting: big triangular light / dark patches on the
+ * cheeks, beside the nose and on the jaw (the "blotches").
+ */
+function hiHead(g: THREE.BufferGeometry): THREE.BufferGeometry {
+  const h = tessellateHead(g, 0.6);
+  if (campusHumansOn()) {
+    smoothHeadNormals(h, HEAD_CREASE(), SEAM_AGREE());
+    relaxNormals(h, 4, THREE.MathUtils.degToRad(42));
+    // smooth per-vertex tangents for the photo normal map: the screen-space tangent frame (no tangents) changed at
+    // every triangle and the normal map lit the face in triangular patches (beside the nose, on the cheeks)
+    h.computeTangents();
+  }
+  return h;
+}
 
 /**
  * Prepare a loaded base model once: pull the recolour masks out of the emissive slot, set shadow/culling flags,
@@ -205,8 +228,8 @@ function prepareBase(scene: THREE.Object3D, modelId: HumanModelId) {
         }
       }
     }
-    smoothHeadNormals(g);
-    if (!headHi.has(g)) headHi.set(g, tessellateHead(g, 0.6));
+    smoothHeadNormals(g, HEAD_CREASE(), SEAM_AGREE());
+    if (!headHi.has(g)) headHi.set(g, hiHead(g));
   }
 }
 
@@ -234,8 +257,8 @@ function slimHead(g: THREE.BufferGeometry): { lo: THREE.BufferGeometry; hi: THRE
     // the bob's under-side (UV islands in the lower half of the texture) tucks deeper than its outside
     // (its hair clip, a small island of its own, goes under too)
     deflateHair(lo, info.frame, info.body, info.mask, { keep: 0.0015, tuck: true, inner: (_u, w) => w > 0.62, force: (u, w) => u > 0.1 && u < 0.24 && w > 0.63 && w < 0.84 });
-    smoothHeadNormals(lo);
-    v = { lo, hi: tessellateHead(lo, 0.6) };
+    smoothHeadNormals(lo, HEAD_CREASE(), SEAM_AGREE());
+    v = { lo, hi: hiHead(lo) };
     if (g.userData.gkEyes) lo.userData.gkEyes = g.userData.gkEyes;
     headSlim.set(g, v);
     headInfo.set(lo, info);

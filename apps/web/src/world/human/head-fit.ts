@@ -75,6 +75,51 @@ export const HAT_CLEARANCE: Record<HairStyle, number> = {
 };
 
 /**
+ * P2-AVA-15: a kufi is a close, snug cap: it never floats a centimetre over pressed locs / braids (the close-up showed
+ * a rigid bowl with a gap under its edge). Under it the strands are pressed flatter, so its clearance is capped.
+ */
+export const KUFI_SNUG = 0.0055;
+
+/**
+ * Floor of the room under any hat with the campus people on (P2-AVA-15): on a bald head the old negative clearance put
+ * the kufi and the cap crown inside the scalp (the skin showed through the fabric in patches).
+ */
+export const HAT_MIN_CLEARANCE = 0.0012;
+
+/** Room (m above the skull template) a hairstyle gets under a given headwear (HAT_CLEARANCE, capped for a kufi). */
+export function hatClearance(hat: HeadwearKind, style: HairStyle): number {
+  const c = HAT_CLEARANCE[style] ?? 0.002;
+  if (!campusHumansOn() || hat === "none") return c;
+  return Math.max(HAT_MIN_CLEARANCE, hat === "kufi" ? Math.min(c, KUFI_SNUG) : c);
+}
+
+/**
+ * P2-AVA-15 loc / braid strand profile: radius factor along the strand (u = 0 root … 1 tip) for a strand with hash
+ * `h` (0..1). Locs are felted ropes: a little narrower at the root (the parting pulls them), full through the length,
+ * slightly irregular (soft lumps, never a constant-width plank), then a rounded, tapered tip.
+ */
+export function strandRadius(u: number, h: number, kind: "loc" | "braid" | "twist"): number {
+  const root = THREE.MathUtils.lerp(0.72, 1, smoothRange(u, 0, 0.06));
+  const tipStart = kind === "loc" ? 0.86 : 0.9;
+  const tip = 1 - 0.55 * Math.pow(smoothRange(u, tipStart, 1), 1.4);
+  const lumps =
+    kind === "loc"
+      ? 1 + 0.085 * Math.sin(u * 23 + h * 17) + 0.05 * Math.sin(u * 51 + h * 31)
+      : 1 + 0.02 * Math.sin(u * 40 + h * 9);
+  return root * tip * lumps;
+}
+
+/** Secondary sway weight of a hanging strand (0 at the root, growing with the free length squared). */
+export function swayWeight(u: number): number {
+  const free = smoothRange(u, 0.12, 1);
+  return free * free;
+}
+
+function smoothRange(x: number, a: number, b: number): number {
+  return THREE.MathUtils.smoothstep(x, a, b);
+}
+
+/**
  * Close-hair shell (hair cut close to the scalp, drawn as stacked layers): layer count and hair length (m) at a
  * face-frame point. A fade runs from skin-short at the temples, over the ears and on the nape up to full length on
  * the top; the front hairline keeps its length. Returns 0 where the style has no shell.
@@ -167,6 +212,6 @@ export function clippedLength(
     bandY(hat, body, skullAzimuth(body, x, z)) - 0.006,
     bandY(hat, body, skullAzimuth(body, x, z)) + 0.002,
   );
-  const room = Math.max(0.0004, HAT_CLEARANCE[style] - 0.0012);
+  const room = Math.max(0.0004, hatClearance(hat, style) - 0.0012);
   return THREE.MathUtils.lerp(l, Math.min(l, room), under);
 }

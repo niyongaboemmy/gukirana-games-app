@@ -247,7 +247,7 @@ float gkDetail(float l, float ref, float k) { return mix(1.0, pow(clamp(l / max(
 uniform float uFaceOn; uniform float uFaceDetail; uniform vec4 uFaceL; uniform vec3 uIris;
 uniform vec4 uFH; uniform vec4 uFH2; uniform vec4 uBrow; uniform vec4 uMarks; uniform vec3 uLipTint; uniform vec4 uMakeup;
 uniform float uSpecMap; uniform float uHairFade; uniform float uFaceIpd; uniform float uHairGrey; uniform vec4 uAge; uniform float uHairColGrey;
-varying vec3 vGkF;
+varying vec3 vGkF; varying vec3 vGkN;
 uniform float uReal; uniform sampler2D uDetailMap; uniform float uDetailTile; uniform vec2 uFabric;
 // P2-AVA-12: thin parts (ears) for transmission, garment weights for the fabric weave / sheen
 float gkThin = 0.0; float gkTopW = 0.0; float gkBotW = 0.0; float gkBrowW = 0.0;
@@ -273,11 +273,12 @@ ${GK_SKIN_GLSL.fabric}
 /** Vertex side: the bind-pose face position (moves with the skin, so painted details follow lids, lips and jaw). */
 const VERT_HEADER = /* glsl */ `
 uniform vec3 uFaceO; uniform mat3 uFaceM;
-varying vec3 vGkF;
+varying vec3 vGkF; varying vec3 vGkN;
 `;
 const VERT_BEGIN = /* glsl */ `
 #include <begin_vertex>
 vGkF = uFaceM * (position - uFaceO);
+vGkN = normal;
 `;
 
 /**
@@ -506,7 +507,9 @@ if (uFaceOn > 0.5) {
     float dark = clamp(1.0 - ls * 5.0, 0.0, 1.0);
     vec3 nat = uSkin * mix(vec3(1.0, 0.79, 0.74), vec3(0.88, 0.68, 0.7), dark);
     // keep the photo's lip shading but squeeze it round the skin's own brightness (a touch darker on dark skin)
-    float lt = ls * mix(0.98, 0.84, dark) * pow(clamp(l0 / max(ls, 1e-4), 0.2, 4.0), 0.45);
+    // (P2-AVA-15: with the campus people the photo's own lip shading is kept much more (0.66 instead of 0.45: the
+    // squeeze flattened the lips into the skin) and the natural tone sits a little deeper than the skin round it)
+    float lt = ls * mix(0.98, 0.84, dark) * (uReal > 0.5 ? 0.94 : 1.0) * pow(clamp(l0 / max(ls, 1e-4), 0.2, 4.0), uReal > 0.5 ? 0.66 : 0.45);
     nat *= lt / max(dot(nat, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
     gkCol = mix(gkCol, nat, 0.72 * gkLipW);
     l0 = mix(l0, lt, 0.72 * gkLipW);
@@ -523,6 +526,14 @@ if (uFaceOn > 0.5) {
     float ld = length(vec2((ax - 0.5) / 0.3, (q.y - 0.03) / 0.16));
     float liner = (1.0 - smoothstep(0.05, 0.13, abs(ld - 1.0))) * step(0.02, q.y) * smoothstep(0.25, 0.42, ax);
     gkCol = mix(gkCol, gkCol * 0.25, liner * (1.0 - eyeR) * front * 0.8 * uMakeup.y);
+  }
+  // ---- ears (P2-AVA-15): the base photo's folds (helix, concha, the hollow at the canal) deepened in tone and in the
+  // bump, so the ear has depth instead of reading as a flat flap
+  if (uReal > 0.5) {
+    float earK = smoothstep(1.06, 1.28, ax) * (1.0 - front) * gkM.r * smoothstep(-0.95, -0.55, q.y) * (1.0 - smoothstep(0.25, 0.5, q.y));
+    float rel = clamp(gkL / max(dot(textureLod(map, vMapUv, 3.0).rgb, vec3(0.2126, 0.7152, 0.0722)) * 0.9 + 1e-4, 1e-4), 0.35, 2.2);
+    gkCol *= mix(1.0, clamp(pow(rel, 0.7), 0.55, 1.25), earK);
+    gkH += earK * (rel - 1.0) * 1.3;
   }
   // ---- soft cavity occlusion: inner eye corners, mouth corners (indirect light only, see WARM)
   float aoE = 1.0 - smoothstep(0.0, 0.14, length(vec2(ax - 0.26, (q.y + 0.02) * 1.3)));
@@ -577,6 +588,10 @@ const RECOLOUR = /* glsl */ `
     // (P2-AVA-12: the break-up noise only on the scalp: on the brows / lash line it read as grey grain)
     float gkScalp = uReal > 0.5 && uFaceOn > 0.5 ? max(smoothstep(uFaceL.z + 0.18, uFaceL.z + 0.4, vGkF.y), smoothstep(0.75, 1.1, abs(vGkF.x))) : 1.0;
     float gkHn = (gkNoise(vMapUv * 900.0) - 0.5) * gkScalp;
+    // (P2-AVA-15: the break-up noise fades to nothing once its cells near a pixel: it aliased into a pixelated,
+    // speckled hairline; the baby hairs below likewise turn into their mean tint)
+    float gkHnAA = uReal > 0.5 ? clamp(1.5 - length(fwidth(vMapUv * 900.0)) * 1.6, 0.0, 1.0) : 1.0;
+    gkHn *= gkHnAA;
     float gkHair = clamp(gkM.g + gkHn * 1.2 * gkM.g * (1.0 - gkM.g) * 4.0, 0.0, 1.0);
     // grey colours: pepper-and-silver per strand (a flat light grey showed as white patches at the nape / temples)
     vec3 gkHairBase = uHairColGrey > 0.001 ? mix(vec3(0.016, 0.014, 0.012), vec3(0.28, 0.27, 0.26), step(gkHash(floor(vMapUv * 760.0) + 1.7), uHairColGrey * (uFaceOn > 0.5 && vGkF.y < uFaceL.z + 0.4 && vGkF.z > -0.3 ? 0.4 : 1.0))) : max(uHair, vec3(0.011, 0.0095, 0.0085));
@@ -585,7 +600,8 @@ const RECOLOUR = /* glsl */ `
     // baby hairs: just outside the hairline the skin carries a faint, fine darkening
     float gkNearHair = texture2D(uMask, vMapUv, 2.5).g;
     float gkBaby = clamp(gkNearHair - gkM.g, 0.0, 1.0) * gkM.r * (1.0 - uHairToSkin);
-    gkCol = mix(gkCol, gkHairCol, gkBaby * 0.45 * step(0.55, gkNoise(vMapUv * 1400.0)) * gkScalp);
+    float gkBabyAA = uReal > 0.5 ? clamp(1.5 - length(fwidth(vMapUv * 1400.0)) * 1.6, 0.0, 1.0) : 1.0;
+    gkCol = mix(gkCol, gkHairCol, gkBaby * 0.45 * mix(0.45, step(0.55, gkNoise(vMapUv * 1400.0)), gkBabyAA) * gkScalp);
     if (uHairFade > 0.5 && uFaceOn > 0.5) {
       vec3 gkFm = vGkF * uFaceIpd;
       float gkSide = smoothstep(0.035, 0.07, -gkFm.z);
@@ -602,12 +618,28 @@ const RECOLOUR = /* glsl */ `
     // collar region: hard threshold so the soft mask edge never tints the throat
     // (only at the neck base: stray mask texels on the throat used to show as top-coloured specks)
     float gkNeck = uFaceOn > 0.5 ? 1.0 - smoothstep(-3.1, -2.7, vGkF.y) : 1.0;
-    gkCol = mix(gkCol, uTop * gkDetail(gkL, uTopRef, 0.8), smoothstep(0.6, 0.85, gkM.b) * uClothes * gkNeck);
+    // (P2-AVA-15: a printed top keeps its print on the head mesh's collar too: with the print's white base colour
+    // the collar showed as white, torn-looking shards next to the printed shirt)
+    vec3 gkCollarC = uTop;
+    if (uReal > 0.5 && uTopPrintOn > 0.5) gkCollarC = texture2D(uTopPrint, vec2(vGkF.x + vGkF.z * 0.7, vGkF.y) * 0.27).rgb;
+    gkCol = mix(gkCol, gkCollarC * gkDetail(gkL, uTopRef, 0.8), smoothstep(0.6, 0.85, gkM.b) * uClothes * gkNeck);
     vec3 gkShaved = uSkin * gkDetail(min(gkL, uSkinRef * 1.05), uSkinRef, 0.35);
     ${FACE}
   } else {
     vec3 gkTopC = uTopPrintOn > 0.5 ? texture2D(uTopPrint, vMapUv * 7.0).rgb : uTop;
     vec3 gkBotC = uBottomPrintOn > 0.5 ? texture2D(uBottomPrint, vMapUv * 7.0).rgb : uBottom;
+    if (uReal > 0.5 && uTopPrintOn + uBottomPrintOn > 0.5) {
+      // P2-AVA-15: prints are laid on the garment in metres (a soft tri-planar projection of the bind-pose body,
+      // ~22 cm repeat), not per UV island: the small collar / lapel islands blew one motif up into flat, torn-looking
+      // shards round the neck, and the print jumped at every UV seam
+      vec3 gkTw = pow(abs(normalize(vGkN)), vec3(4.0));
+      gkTw /= max(gkTw.x + gkTw.y + gkTw.z, 1e-4);
+      vec3 gkPp = vGkF / 0.22;
+      if (uTopPrintOn > 0.5)
+        gkTopC = texture2D(uTopPrint, gkPp.yz).rgb * gkTw.x + texture2D(uTopPrint, gkPp.xz).rgb * gkTw.y + texture2D(uTopPrint, gkPp.xy).rgb * gkTw.z;
+      if (uBottomPrintOn > 0.5)
+        gkBotC = texture2D(uBottomPrint, gkPp.yz).rgb * gkTw.x + texture2D(uBottomPrint, gkPp.xz).rgb * gkTw.y + texture2D(uBottomPrint, gkPp.xy).rgb * gkTw.z;
+    }
     gkBotC = mix(gkBotC * gkDetail(gkL, uBottomRef, 0.85), uSkin * gkDetail(gkL, uBottomRef, 0.1), uLegsSkin);
     gkCol = mix(gkCol, gkTopC * gkDetail(gkL, uTopRef, uTopDetail), gkM.g * uClothes);
     gkCol = mix(gkCol, gkBotC, gkM.b * uClothes);

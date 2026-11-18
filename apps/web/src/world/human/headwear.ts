@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { BodyType, HairStyle, HeadwearKind } from "../outfits";
 import { fabricTexture, type PrintId } from "../textures";
 import { skullNormal, skullPoint, SKULL_FITS } from "./skull";
-import { bandY, HAT_CLEARANCE } from "./head-fit";
+import { bandY, hatClearance } from "./head-fit";
 import { campusHumansOn } from "./realism-flag";
 import type { HeadFrame } from "./hair";
 
@@ -342,6 +342,39 @@ function dome(
 }
 
 /**
+ * A rolled / bound lower edge along a crown's rim (P2-AVA-15): a half tube of radius `rad` from the outer surface,
+ * round the edge and back under it, so the hat has visible fabric thickness and a finished hem instead of a
+ * paper-thin razor line.
+ */
+function rolledEdge(B: HatBuilder, r: { rimP: THREE.Vector3[]; rimN: THREE.Vector3[] }, rad: number, T: number) {
+  const p = V(),
+    n = V(),
+    t = V();
+  const cols = r.rimP.length - 1;
+  const tb = B.count;
+  for (let i = 0; i <= cols; i++) {
+    const q = r.rimP[i]!,
+      nn = r.rimN[i]!;
+    for (let j = 0; j <= T; j++) {
+      const a = (j / T) * Math.PI;
+      n.copy(nn)
+        .multiplyScalar(Math.sin(a))
+        .add(t.set(0, -Math.cos(a), 0))
+        .normalize();
+      p.copy(q)
+        .addScaledVector(nn, rad * Math.sin(a) - rad * 0.36)
+        .add(t.set(0, rad * 1.07 * (1 - Math.cos(a)) - rad * 0.71, 0));
+      B.v(p, n, PART.cuff, i / cols, j / T);
+    }
+  }
+  for (let i = 0; i < cols; i++)
+    for (let j = 0; j < T; j++) {
+      const a = tb + i * (T + 1) + j;
+      B.quad(a, a + T + 1, a + T + 2, a + 1);
+    }
+}
+
+/**
  * Headwrap (igitambaro) fabric: hugs the skull with a little volume gathered at the back of the crown, soft folds
  * radiating from the knot, a folded, thick lower edge sitting snugly on the hairline, and a neat knot at the back of
  * the crown (two short tucked ends and the twisted centre), all sized to the head.
@@ -367,36 +400,13 @@ function wrapGeometry(B: HatBuilder, body: BodyType, clearance: number, lod: 0 |
     rimDepth: 0.006,
   });
   // rolled lower edge: a soft tube along the rim (fabric thickness, no paper edge)
-  const p = V(),
-    n = V();
-  const cols = r.rimP.length - 1;
-  const tb = B.count;
-  const T = lod === 0 ? 6 : 3;
-  for (let i = 0; i <= cols; i++) {
-    const q = r.rimP[i]!,
-      nn = r.rimN[i]!;
-    for (let j = 0; j <= T; j++) {
-      const a = (j / T) * Math.PI;
-      // half tube from the crown surface, round the edge, back under it
-      n.copy(nn)
-        .multiplyScalar(Math.sin(a))
-        .add(V().set(0, -Math.cos(a), 0))
-        .normalize();
-      p.copy(q)
-        .addScaledVector(nn, 0.0028 * Math.sin(a) - 0.001)
-        .add(V().set(0, 0.003 - 0.003 * Math.cos(a) - 0.002, 0));
-      B.v(p, n, PART.cuff, i / cols, j / T);
-    }
-  }
-  for (let i = 0; i < cols; i++)
-    for (let j = 0; j < T; j++) {
-      const a = tb + i * (T + 1) + j;
-      B.quad(a, a + T + 1, a + T + 2, a + 1);
-    }
+  rolledEdge(B, r, 0.0028, lod === 0 ? 6 : 3);
   // knot at the back of the crown
   const d = V(),
     q = V(),
-    up = V();
+    up = V(),
+    p = V(),
+    n = V();
   dirAt(body, Math.PI, 0.78, d);
   skullPoint(body, d, q);
   skullNormal(body, d, up);
@@ -443,7 +453,8 @@ export function headwearGeometry(
   const hit = cache.get(key);
   if (hit) return hit;
   const B = new HatBuilder();
-  const clearance = HAT_CLEARANCE[style] ?? 0.002;
+  const clearance = hatClearance(kind, style);
+  const v15 = campusHumansOn();
   const cols = lod === 0 ? 96 : 36;
   if (kind === "cap") {
     // a structured front: the two front panels stand a little proud
@@ -476,6 +487,8 @@ export function headwearGeometry(
     skullNormal(body, d, up);
     top.addScaledVector(up, clearance + 0.0016);
     dome(B, top, up, 0.0068, 0.0032, PART.button);
+    // P2-AVA-15: a bound hem round the band (the back of a cap showed a paper-thin edge)
+    if (v15) rolledEdge(B, r, 0.0014, lod === 0 ? 4 : 2);
   } else if (kind === "beanie") {
     const slouch = (az: number, v: number) => 0.003 + 0.007 * v * v + 0.006 * Math.max(0, -Math.cos(az)) * v;
     const r = crown(B, {
@@ -530,15 +543,19 @@ export function headwearGeometry(
       body,
     });
   } else if (kind === "kufi") {
-    crown(B, {
+    // P2-AVA-15: snug on the pressed hair (hatClearance), knit with a little body (a soft fullness over the crown, the
+    // band drawn in), the inner band turned in all the way down to the hair (no see-through gap under the edge from
+    // any angle) and a rolled, bound hem (fabric thickness, no razor edge)
+    const r = crown(B, {
       kind,
       body,
       clearance,
       cols,
-      rows: lod === 0 ? 12 : 5,
-      extra: (_az, v) => 0.0015 * (1 - v),
-      rimDepth: 0.0022,
+      rows: lod === 0 ? (v15 ? 16 : 12) : 5,
+      extra: v15 ? (_az, v) => 0.0012 * (1 - v) + 0.0016 * Math.sin(Math.min(1, v * 1.4) * Math.PI * 0.5) : (_az, v) => 0.0015 * (1 - v),
+      rimDepth: v15 ? clearance + 0.0045 : 0.0022,
     });
+    if (v15) rolledEdge(B, r, 0.0021, lod === 0 ? 6 : 3);
   } else {
     wrapGeometry(B, body, clearance, lod);
   }
@@ -638,6 +655,9 @@ const HW_FRAG = /* glsl */ `
       }
     } else if (part < 4.5) {
       shade *= 0.95;
+    } else if (part > 5.5) {
+      // bound hem (P2-AVA-15): the same twill, a touch darker in its own fold
+      shade *= 0.86;
     } else {
       shade *= 0.55;
     }
@@ -672,15 +692,22 @@ const HW_FRAG = /* glsl */ `
     // ---- kufi: knit base, an embroidered imigongo zigzag band round the lower half, a little rosette on top
     float k = hwRidge(u * 240.0) * hwRidge(v * 70.0);
     shade *= 0.9 + 0.1 * k;
-    float zz = abs(fract(u * 24.0) - 0.5) * 2.0;
-    float band1 = 1.0 - smoothstep(0.03, 0.06, abs(v - 0.12 - zz * 0.16));
-    float band2 = 1.0 - smoothstep(0.03, 0.06, abs(v - 0.22 - zz * 0.16));
-    float dia = 1.0 - smoothstep(0.08, 0.12, abs(fract(u * 24.0) - 0.5) + abs(v - 0.36) * 2.2);
-    float emb = max(max(band1, band2), dia) * step(v, 0.5);
-    float ros = (1.0 - smoothstep(0.0, 0.02, abs(fract(u * 16.0) - 0.5) * 0.25 + abs(v - 0.86))) * step(0.75, v);
-    col = mix(col, uHwC2, max(emb, ros));
-    hwH += max(emb, ros) * 1.4;
-    if (part > 4.5) shade *= 0.6;
+    if (part > 5.5) {
+      // rolled hem (P2-AVA-15): plain knit, rib lines across the roll, a touch darker in its own fold
+      float rib = hwRidge(u * 420.0);
+      shade *= 0.86 + 0.1 * rib;
+      hwH += rib * 0.8;
+    } else {
+      float zz = abs(fract(u * 24.0) - 0.5) * 2.0;
+      float band1 = 1.0 - smoothstep(0.03, 0.06, abs(v - 0.12 - zz * 0.16));
+      float band2 = 1.0 - smoothstep(0.03, 0.06, abs(v - 0.22 - zz * 0.16));
+      float dia = 1.0 - smoothstep(0.08, 0.12, abs(fract(u * 24.0) - 0.5) + abs(v - 0.36) * 2.2);
+      float emb = max(max(band1, band2), dia) * step(v, 0.5) * step(part, 0.5);
+      float ros = (1.0 - smoothstep(0.0, 0.02, abs(fract(u * 16.0) - 0.5) * 0.25 + abs(v - 0.86))) * step(0.75, v) * step(part, 0.5);
+      col = mix(col, uHwC2, max(emb, ros));
+      hwH += max(emb, ros) * 1.4;
+      if (part > 4.5) shade *= 0.6;
+    }
   } else {
     // ---- headwrap: printed cotton, fine weave, folds shaded by the geometry
     vec3 pr = uHwPrintOn > 0.5 ? texture2D(uHwPrint, vec2(u * 3.0, v * 1.6)).rgb : uHwC;
@@ -748,6 +775,6 @@ export function makeHeadwearMaterial(
         .replace("#include <map_fragment>", HW_FRAG)
         .replace("#include <normal_fragment_maps>", HW_BUMP);
   };
-  m.customProgramCacheKey = () => "gk-headwear-1";
+  m.customProgramCacheKey = () => "gk-headwear-2";
   return m;
 }
