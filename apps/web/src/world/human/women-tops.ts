@@ -51,10 +51,8 @@ export const GARMENT_FABRIC: Record<GarmentKind, FabricId> = {
  * listed keep the baked blazer.
  */
 export const SHIPPED_TOPS: ReadonlySet<string> = new Set<string>([
-  // the tee garment (crew neck, short sleeves)
-  "tee",
-  "tee-white",
-  "imigongo-top",
+  // held at coordinator review (P2-AVA-17): the tee garment ("tee", "tee-white", "imigongo-top") shows ragged
+  // neckline/sleeve/hem edges and armpit crumples at full size; re-enable once those are clean
 ]);
 
 /** Development only: `?wtops=all|none|<item>,<item>` overrides the shipped set (before / after shots). */
