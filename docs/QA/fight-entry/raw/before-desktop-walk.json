@@ -1,0 +1,84 @@
+{
+ "web": "http://localhost:3200",
+ "view": "desktop",
+ "flow": "walk",
+ "throttle": 1,
+ "results": [
+  {
+   "name": "campus → Fight lobby (walk)",
+   "timeline": [
+    "5ms plaza ready=1 /world",
+    "5905ms plaza ready=1 door=cut /world",
+    "5921ms hall:fight ready=1 door=cut /world",
+    "5971ms hall:fight ready=1 door=opening /world",
+    "6271ms hall:fight ready=1 /world",
+    "6571ms hall:fight ready=1 /room/fight",
+    "7055ms hall:fight ready=1 BOOT /room/fight",
+    "7221ms hall:fight ready=0 BOOT /room/fight",
+    "7721ms hall:fight ready=1 BOOT /room/fight",
+    "8355ms hall:fight ready=1 /room/fight"
+   ],
+   "worstFrames": [
+    "5905ms:150",
+    "7055ms:400",
+    "7221ms:167",
+    "7455ms:133",
+    "7605ms:150"
+   ],
+   "ms": 8976,
+   "frames": 446,
+   "fps": 50,
+   "maxGap": 400,
+   "over50": 11,
+   "over100": 5,
+   "longTaskTotal": 1524,
+   "longTaskMax": 372,
+   "longTasks": 12,
+   "bootScreenMs": 1300,
+   "frozenFrameMs": 0,
+   "hiddenAreaMs": 0,
+   "hintMs": 0,
+   "noStageFrameMs": 0,
+   "ok": true
+  },
+  {
+   "name": "Fight lobby → Boxing hall (walk)",
+   "timeline": [
+    "5ms hall:fight ready=1 /room/fight",
+    "5838ms hall:fight ready=1 door=cut /room/fight",
+    "6071ms hall:boxing ready=1 door=cut /room/fight",
+    "6121ms hall:boxing ready=1 door=opening /room/fight",
+    "6255ms hall:boxing ready=1 door=opening /room/boxing",
+    "6471ms hall:boxing ready=1 /room/boxing"
+   ],
+   "worstFrames": [
+    "5838ms:117",
+    "6071ms:233"
+   ],
+   "ms": 8984,
+   "frames": 506,
+   "fps": 56,
+   "maxGap": 233,
+   "over50": 3,
+   "over100": 2,
+   "longTaskTotal": 411,
+   "longTaskMax": 226,
+   "longTasks": 3,
+   "bootScreenMs": 0,
+   "frozenFrameMs": 0,
+   "hiddenAreaMs": 0,
+   "hintMs": 0,
+   "noStageFrameMs": 0,
+   "ok": true
+  }
+ ],
+ "errors": [],
+ "shots": [
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/desktop-walk-1-to-lobby-1.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/desktop-walk-1-to-lobby-2.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/desktop-walk-1-to-lobby-3.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/desktop-walk-2-to-boxing-1.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/desktop-walk-2-to-boxing-2.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/desktop-walk-2-to-boxing-3.jpg"
+ ]
+}

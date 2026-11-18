@@ -1,0 +1,118 @@
+{
+ "web": "http://localhost:3200",
+ "view": "phone",
+ "flow": "quick",
+ "throttle": 4,
+ "results": [
+  {
+   "name": "campus → Boxing hall (Quick Play)",
+   "timeline": [
+    "10ms plaza ready=1 /world",
+    "377ms plaza ready=1 /room/boxing",
+    "627ms plaza ready=1 BOOT /room/boxing",
+    "1594ms hall:boxing ready=0 BOOT /room/boxing",
+    "2360ms hall:boxing ready=1 BOOT /room/boxing",
+    "3643ms hall:boxing ready=1 /room/boxing"
+   ],
+   "worstFrames": [
+    "627ms:200",
+    "1594ms:967",
+    "2310ms:350",
+    "2660ms:133",
+    "2910ms:250",
+    "3643ms:217",
+    "4410ms:317"
+   ],
+   "ms": 5494,
+   "frames": 160,
+   "fps": 29,
+   "maxGap": 967,
+   "over50": 12,
+   "over100": 7,
+   "longTaskTotal": 2437,
+   "longTaskMax": 869,
+   "longTasks": 11,
+   "bootScreenMs": 3017,
+   "frozenFrameMs": 0,
+   "hiddenAreaMs": 0,
+   "hintMs": 0,
+   "noStageFrameMs": 0,
+   "ok": true
+  },
+  {
+   "name": "walk to ring 7",
+   "timeline": [
+    "3ms hall:boxing ready=1 /room/boxing"
+   ],
+   "worstFrames": [
+    "20702ms:250",
+    "21369ms:100"
+   ],
+   "ms": 45148,
+   "frames": 2675,
+   "fps": 59,
+   "maxGap": 250,
+   "over50": 3,
+   "over100": 2,
+   "longTaskTotal": 428,
+   "longTaskMax": 263,
+   "longTasks": 3,
+   "bootScreenMs": 0,
+   "frozenFrameMs": 0,
+   "hiddenAreaMs": 0,
+   "hintMs": 0,
+   "noStageFrameMs": 0,
+   "ok": false,
+   "tripWalked": false
+  },
+  {
+   "name": "ring entry (practice vs AI)",
+   "timeline": [
+    "16ms hall:boxing ready=1 /room/boxing"
+   ],
+   "worstFrames": [
+    "1033ms:333",
+    "1250ms:117",
+    "1666ms:417",
+    "2050ms:233",
+    "2283ms:233",
+    "2450ms:167",
+    "2716ms:267",
+    "2950ms:233",
+    "3100ms:150",
+    "3733ms:300",
+    "3866ms:133",
+    "6333ms:117"
+   ],
+   "ms": 9446,
+   "frames": 158,
+   "fps": 17,
+   "maxGap": 417,
+   "over50": 56,
+   "over100": 13,
+   "longTaskTotal": 2404,
+   "longTaskMax": 310,
+   "longTasks": 15,
+   "bootScreenMs": 0,
+   "frozenFrameMs": 0,
+   "hiddenAreaMs": 0,
+   "hintMs": 0,
+   "noStageFrameMs": 0,
+   "ok": true
+  }
+ ],
+ "errors": [
+  "Failed to load resource: the server responded with a status of 404 (Not Found)"
+ ],
+ "shots": [
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/phone-quick-1-to-hall-1.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/phone-quick-1-to-hall-2.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/phone-quick-1-to-hall-3.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/phone-quick-1-to-hall-4.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/phone-quick-2-ring-prompt.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/phone-quick-3-ring-entry-1.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/phone-quick-3-ring-entry-2.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/phone-quick-3-ring-entry-3.jpg",
+  "/private/tmp/claude-501/-Users-m2pro-dev-projects-gukirana-games-app/76f56e52-b01c-48ed-bf43-b1235bed43ef/scratchpad/before2/phone-quick-4-fight.jpg"
+ ]
+}
