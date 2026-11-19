@@ -1,0 +1,60 @@
+{
+  "main": [
+    {
+      "frames": 778,
+      "medianMs": 9.7,
+      "p95Ms": 14.1,
+      "calls": 155,
+      "triangles": 345947,
+      "textures": 83,
+      "programs": 17
+    },
+    {
+      "frames": 810,
+      "medianMs": 9.4,
+      "p95Ms": 13.1,
+      "calls": 155,
+      "triangles": 345947,
+      "textures": 83,
+      "programs": 17
+    },
+    {
+      "frames": 827,
+      "medianMs": 9.5,
+      "p95Ms": 12.1,
+      "calls": 155,
+      "triangles": 345947,
+      "textures": 83,
+      "programs": 17
+    }
+  ],
+  "v2": [
+    {
+      "frames": 799,
+      "medianMs": 9.4,
+      "p95Ms": 14.4,
+      "calls": 155,
+      "triangles": 345947,
+      "textures": 83,
+      "programs": 17
+    },
+    {
+      "frames": 811,
+      "medianMs": 9.5,
+      "p95Ms": 12.8,
+      "calls": 155,
+      "triangles": 345947,
+      "textures": 83,
+      "programs": 17
+    },
+    {
+      "frames": 825,
+      "medianMs": 9.3,
+      "p95Ms": 12.7,
+      "calls": 155,
+      "triangles": 345947,
+      "textures": 83,
+      "programs": 17
+    }
+  ]
+}

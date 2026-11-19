@@ -35,6 +35,8 @@ import { eyeballGeometry, fitEyes, makeEyeMaterial, sinkEyeCaps, type EyeFit } f
 import { campusHumansOn, campusPart } from "./human/realism-flag";
 import { MotionLayer } from "./human/motion-layer";
 import { crowd } from "./human/crowd";
+import { isHairMaterial, softAlphaEdges } from "./human/alpha-edges";
+import { v2On } from "./human/realism-v2";
 
 /**
  * Realistic human avatar (DESIGN-SPEC §7): photographic, rigged Rocketbox bodies (MIT) — feminine, masculine and
@@ -469,6 +471,7 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
     if (upper && fore && hand) arms.push({ upper, fore, hand, side, fingers });
   }
   const fadeable = [...materials];
+  const softEdges = v2On("hairEdge");
   extras.push(...own);
   for (const e of extras.filter((x) => !own.includes(x)))
     e.traverse((c) => {
@@ -483,6 +486,7 @@ function buildInstance(src: THREE.Object3D, look: AvatarLook, meta: HumanModelMe
       mm.alphaHash = true;
       mm.needsUpdate = true;
     }
+    if (softEdges && isHairMaterial(m)) softAlphaEdges(m);
   }
   return { root, full, lite, materials, fadeable, extras, head, jaw: bone("Bip01_MJaw"), arms, spine: bone("Bip01_Spine1"), faceU, headMesh, lodMeshes, eyes };
 }
@@ -568,10 +572,14 @@ function applyTopCut(root: THREE.Object3D, look: AvatarLook, body: BodyType, hea
  */
 function applyWomenTop(root: THREE.Object3D, wt: NonNullable<WomenTop>) {
   const looks: { mesh: THREE.SkinnedMesh; u: LookUniforms; part: string }[] = [];
+  const chestSkin = v2On("womenTee");
   root.traverse((o) => {
     const m = o as THREE.SkinnedMesh;
     const u = (m.material as THREE.Material | undefined)?.userData?.gkUniforms as LookUniforms | undefined;
     if (m.isSkinnedMesh && u?.uWear && u.uIsHead && u.uIsHead.value === 0) looks.push({ mesh: m, u, part: partOf(m, root) });
+    // P2-AVA-18: the head mesh carries the upper chest with the blazer's collar painted on it; seen from above, inside
+    // the garment's neckline, that showed as jagged collar shapes: under a garment it is chest skin
+    if (chestSkin && m.isSkinnedMesh && u?.uWear && u.uIsHead?.value === 1) u.uWear.value = 1;
   });
   for (const l of looks) {
     const far = l.part === "lod1";

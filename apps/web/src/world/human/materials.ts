@@ -7,6 +7,7 @@ import type { FaceFrame } from "./face-rig";
 import { ageParams } from "../age";
 import { FABRIC, GK_SKIN_GLSL, skinDetailTexture } from "./skin/skin-shading";
 import { campusHumansOn, campusPart } from "./realism-flag";
+import { v2On } from "./realism-v2";
 
 /**
  * Look-driven recolouring of the photographic Rocketbox textures. The base albedo keeps all its detail (pores,
@@ -105,6 +106,8 @@ export interface LookUniforms {
    */
   uWear: { value: number };
   uWearMap: { value: THREE.Texture | null };
+  /** P2-AVA-18 (realism-v2.ts): [feminine blazer fix, beauty mark v2, feminine brow clean-up, women's tee] (1 = on) */
+  uV2: { value: THREE.Vector4 };
 }
 
 /**
@@ -213,7 +216,7 @@ export function lookUniforms(look: AvatarLook, meta: HumanModelMeta, isHead: boo
   const bottomKind = bottom?.kind;
   const ag = ageParams(look.age, look.bodyType);
   const real = campusHumansOn();
-  return {
+  const u: LookUniforms = {
     uMask: { value: mask },
     uIsHead: { value: isHead ? 1 : 0 },
     uSkin: { value: skin },
@@ -258,8 +261,13 @@ export function lookUniforms(look: AvatarLook, meta: HumanModelMeta, isHead: boo
     uTop2: { value: lin(top?.color2 && top.color2 !== "accent" ? top.color2 : "#f2f2f0") },
     uWear: { value: 0 },
     uWearMap: { value: null },
+    uV2: { value: new THREE.Vector4(v2On("blazer") && look.bodyType === "feminine" && !isHead ? 1 : 0, v2On("marks") ? 1 : 0, v2On("brows") && look.bodyType === "feminine" && isHead ? 1 : 0, v2On("womenTee") ? 1 : 0) },
     ...faceUniforms(look.face ?? DEFAULT_FACE, isHead ? frame : null),
   };
+  // P2-AVA-18: the feminine base photo's own brow (a pale, blocky band above the drawn one) is cleared to skin: only
+  // the drawn strand brow shows
+  if (isHead && look.bodyType === "feminine" && v2On("brows")) u.uBrow.value.w = Math.max(u.uBrow.value.w, 1);
+  return u;
 }
 
 const HEADER = /* glsl */ `
@@ -284,7 +292,7 @@ uniform vec4 uCut; uniform vec3 uNeck; uniform vec3 uFwd; uniform vec3 uArmS; un
 // neckline, how much of the base garment's own relief (lapel / pocket edges) to calm
 float gkCutSkin = 0.0; float gkCutFab = 0.0; float gkCutFlat = 0.0;
 // P2-AVA-17: simulated garment / its bare skin / the trousers band fragments (UV u + 4 / + 6 / + 8), its fold map sample
-uniform float uWear; uniform sampler2D uWearMap;
+uniform float uWear; uniform sampler2D uWearMap; uniform vec4 uV2;
 float gkWt = 0.0; float gkWs = 0.0; float gkWb = 0.0; vec3 gkWtex = vec3(0.5, 0.5, 1.0);
 // neckline drop (m below the neck base) at side offset x, 0 back … 1 front (mirrors garment-fit.ts necklineDrop)
 float gkNeckDrop(float shape, float depth, float x, float front) {
@@ -302,7 +310,7 @@ float gkSkinW = 0.0; float gkEyeW = 0.0; float gkIrisW = 0.0; float gkBeardW = 0
 float gkSpec = 0.25; float gkH = 0.0; float gkAO = 1.0;
 // P2-AVA-11: broad soft sheen zones (forehead, nose bridge, cheekbones) and how much of the normal map's crease band
 // to remove (young, even skin)
-float gkSheen = 0.0; float gkSmoothN = 0.0;
+float gkSheen = 0.0; float gkSmoothN = 0.0; float gkBrowFlat = 0.0;
 float gkHash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 float gkNoise(vec2 p) {
   vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
@@ -527,6 +535,8 @@ if (uFaceOn > 0.5) {
   {
     float bz2 = (1.0 - smoothstep(0.42, 0.56, abs(bx))) * smoothstep(-0.14, -0.05, q.y - uFaceL.z) * (1.0 - smoothstep(0.16, 0.26, q.y - uFaceL.z));
     gkBrowW = max(gkBrowW, uReal * bz2 * front);
+    // P2-AVA-18: the photo normal map's brow relief (blocky texels lit as a pale bar above the drawn brow) goes flat
+    gkBrowFlat = uV2.z * bz2 * front;
   }
   // (P2-AVA-12: no relief from the photo-brow mask: its texel blocks lit up as a pale bar above the brow)
   gkH += (browA + natB * (1.0 - uReal)) * (bs - 0.5) * bFine;
@@ -541,6 +551,17 @@ if (uFaceOn > 0.5) {
   }
   if (uMarks.w > 0.5) {
     float d = length(vec2(q.x - uMarks.y, q.y - uMarks.z));
+    if (uV2.y > 0.5) {
+      // P2-AVA-18: a real mole: ~2.5 mm, a little irregular, soft edged, a warm deeper brown with a darker core (a crisp
+      // black disc read like a sticker)
+      vec2 dv = vec2(q.x - uMarks.y, q.y - uMarks.z);
+      float ang = atan(dv.y, dv.x);
+      float r = 0.021 * (1.0 + 0.16 * sin(ang * 3.0 + 1.3) + 0.08 * sin(ang * 5.0 + 0.4));
+      float k = 1.0 - smoothstep(r * 0.45, r * 1.25, d);
+      vec3 mole = gkCol * vec3(0.62, 0.5, 0.44);
+      gkCol = mix(gkCol, mole, k * front * gkM.r * 0.85);
+      gkCol *= 1.0 - 0.18 * (1.0 - smoothstep(0.0, r * 0.6, d)) * front * gkM.r;
+    } else
     gkCol = mix(gkCol, gkCol * 0.32, (1.0 - smoothstep(0.03, 0.046, d)) * front * gkM.r);
   }
   // ---- lips: natural colour from the skin tone (deeper and cooler on dark skin, rosier on light skin), the
@@ -594,6 +615,13 @@ const RECOLOUR = /* glsl */ `
 #include <map_fragment>
 {
   vec4 gkM = texture2D(uMask, vMapUv);
+  if (uIsHead < 0.5 && uV2.x > 0.5 && uCut.w < 0.5 && uWear < 0.5) {
+    // P2-AVA-18: the kept feminine blazer's pocket flaps (trousers in the mask) are the jacket's
+    vec2 gkU = fract(vMapUv);
+    float gkPkt = (step(0.31, gkU.x) * (1.0 - step(0.415, gkU.x)) + step(0.585, gkU.x) * (1.0 - step(0.69, gkU.x))) * step(0.685, gkU.y) * (1.0 - step(0.76, gkU.y));
+    gkM.g += gkM.b * gkPkt;
+    gkM.b *= 1.0 - gkPkt;
+  }
   if (uIsHead < 0.5 && uCut.w > 0.5 && uCut.w < 1.5) {
     // P2-AVA-16 (feminine refit): the blazer shirt's collar band (skin in the mask) and pocket flaps (trousers in the mask)
     // are part of the top
@@ -662,7 +690,7 @@ const RECOLOUR = /* glsl */ `
   // light tones only; deep tones are untouched)
   if (uReal > 0.5) gkSkinCol *= mix(vec3(1.0), vec3(1.05, 0.97, 0.9), smoothstep(0.18, 0.55, dot(uSkin, vec3(0.2126, 0.7152, 0.0722))));
   // (a touch under the swatch: the photo skin it meets at the neck and wrists averages darker than its reference)
-  if (gkWs > 0.5) gkSkinCol = uSkin * 0.9 * gkDetail(gkL, uSkinRef, 0.9) * (uReal > 0.5 ? mix(vec3(1.0), vec3(1.05, 0.97, 0.9), smoothstep(0.18, 0.55, dot(uSkin, vec3(0.2126, 0.7152, 0.0722)))) : vec3(1.0));
+  if (gkWs > 0.5) gkSkinCol = uSkin * (uV2.w > 0.5 ? 0.7 : 0.9) * gkDetail(gkL, uSkinRef, 0.9) * (uReal > 0.5 ? mix(vec3(1.0), vec3(1.05, 0.97, 0.9), smoothstep(0.18, 0.55, dot(uSkin, vec3(0.2126, 0.7152, 0.0722)))) : vec3(1.0));
   vec3 gkCol = mix(gkBase, gkSkinCol, gkM.r);
   if (uSpecMap > 0.5) gkSpec = gkM.a;
   if (uIsHead > 0.5) {
@@ -675,6 +703,15 @@ const RECOLOUR = /* glsl */ `
     float gkHnAA = uReal > 0.5 ? clamp(1.5 - length(fwidth(vMapUv * 900.0)) * 1.6, 0.0, 1.0) : 1.0;
     gkHn *= gkHnAA;
     float gkHair = clamp(gkM.g + gkHn * 1.2 * gkM.g * (1.0 - gkM.g) * 4.0, 0.0, 1.0);
+    if (uV2.z > 0.5 && uFaceOn > 0.5) {
+      // P2-AVA-18: the feminine photo brow is hair in the mask: painted as scalp hair (its pale texels brightened) with
+      // the scalp hair's strand relief it lit up as a pale, blocky bar over the brow. The brow is drawn in FACE only.
+      float gkBy = vGkF.y - uFaceL.z;
+      float gkBz = (1.0 - smoothstep(0.42, 0.6, abs(abs(vGkF.x) - 0.6))) * smoothstep(-0.18, -0.08, gkBy) * (1.0 - smoothstep(0.24, 0.34, gkBy)) * smoothstep(-0.2, 0.3, vGkF.z);
+      // its pale texels become the skin round them (the drawn brow goes on top in FACE)
+      gkCol = mix(gkCol, uSkin * 0.93 * gkDetail(min(gkL, uSkinRef), uSkinRef, 0.35), gkBz * clamp(gkM.g * 1.6, 0.0, 1.0));
+      gkHair *= 1.0 - gkBz;
+    }
     // grey colours: pepper-and-silver per strand (a flat light grey showed as white patches at the nape / temples)
     vec3 gkHairBase = uHairColGrey > 0.001 ? mix(vec3(0.016, 0.014, 0.012), vec3(0.28, 0.27, 0.26), step(gkHash(floor(vMapUv * 760.0) + 1.7), uHairColGrey * (uFaceOn > 0.5 && vGkF.y < uFaceL.z + 0.4 && vGkF.z > -0.3 ? 0.4 : 1.0))) : max(uHair, vec3(0.011, 0.0095, 0.0085));
     vec3 gkHairCol = mix(gkHairBase * gkDetail(gkL, uHairRef, 0.95), mix(uSkin, vec3(dot(uSkin, vec3(0.2126, 0.7152, 0.0722))), 0.3) * gkDetail(gkL, uHairRef, 0.1) * 0.66, uHairToSkin);
@@ -706,6 +743,18 @@ const RECOLOUR = /* glsl */ `
     if (uReal > 0.5 && uTopPrintOn > 0.5) gkCollarC = texture2D(uTopPrint, vec2(vGkF.x + vGkF.z * 0.7, vGkF.y) * 0.27).rgb;
     gkCol = mix(gkCol, gkCollarC * gkDetail(gkL, uTopRef, 0.8), smoothstep(0.6, 0.85, gkM.b) * uClothes * gkNeck);
     vec3 gkShaved = uSkin * gkDetail(min(gkL, uSkinRef * 1.05), uSkinRef, 0.35);
+    if (uWear > 0.5 && uFaceOn > 0.5) {
+      // P2-AVA-18: under a simulated garment the head mesh's chest is skin: its painted blazer collar / shirt texels
+      // (well below the chin, never hair) take the chest skin's tone
+      float gkUnder = 1.0 - smoothstep(-2.4, -2.1, vGkF.y);
+      float gkCloth = clamp(1.0 - gkM.r - gkM.g, 0.0, 1.0);
+      // lower down, the photo skin fades into the garment's own chest skin tone (body shader gkWs), so the head mesh's
+      // jagged lower edge meets it without a step
+      float gkLow = 1.0 - smoothstep(-3.2, -2.5, vGkF.y);
+      vec3 gkWsCol = uSkin * 0.7 * (uReal > 0.5 ? mix(vec3(1.0), vec3(1.05, 0.97, 0.9), smoothstep(0.18, 0.55, dot(uSkin, vec3(0.2126, 0.7152, 0.0722)))) : vec3(1.0));
+      gkCol = mix(gkCol, uSkin * 0.9 * gkDetail(min(gkL, uSkinRef), uSkinRef, 0.3), gkUnder * gkCloth);
+      gkCol = mix(gkCol, gkWsCol, gkLow * (1.0 - gkM.g));
+    }
     ${FACE}
     if (uCut.w > 0.5 && uCut.w < 1.5 && uFaceOn > 0.5 && uClothes > 0.5 && uCut.x > 0.5) {
       // P2-AVA-16: the feminine head mesh carries the upper chest: below the chosen top's neckline it is the top
@@ -751,6 +800,14 @@ const RECOLOUR = /* glsl */ `
         gkLt = uTopRef;
         gkCutFlat = gkM.g;
       } else gkTopC = mix(gkTopC, uTop2, gkShirt * step(vMapUv.x, 1.5));
+    }
+    if (uV2.x > 0.5 && uCut.w < 0.5 && uWear < 0.5 && vMapUv.x < 1.5) {
+      // P2-AVA-18: the white shirt texels under the kept feminine blazer are a blouse in the top's second colour (the
+      // jacket colour brightened read as one glowing garment); its folds stay, at the blouse's own brightness
+      float gkLb = dot(textureLod(map, vMapUv, 2.4).rgb, vec3(0.2126, 0.7152, 0.0722));
+      float gkShirt = smoothstep(0.1, 0.26, gkLb);
+      gkTopC = mix(gkTopC, uTop2, gkShirt);
+      gkRefT = mix(gkRefT, max(gkLb, 1e-3) * 1.08, gkShirt);
     }
     gkCol = mix(gkCol, gkTopC * gkDetail(gkLt, gkRefT, uTopDetail), gkM.g * uClothes);
     float gkCutaway = 0.0;
@@ -893,6 +950,7 @@ const NRM_FROM = "mapN.xy *= normalScale;";
 const NRM_TO = /* glsl */ `
 mapN.xy *= normalScale;
 mapN.xy *= 1.0 - 0.85 * gkCutFlat;
+mapN.xy *= 1.0 - gkBrowFlat;
 // P2-AVA-17: the garment's own fold normals (its UVs' tangent frame); the bare skin / trousers band are smooth
 // (the asset's UVs follow glTF's top-left origin like the body: the green channel takes the body map's sign)
 if (gkWt > 0.5) { mapN.xy = (gkWtex.rg * 2.0 - 1.0) * vec2(1.0, normalScale.y < 0.0 ? -1.0 : 1.0); mapN.z = sqrt(max(0.0, 1.0 - dot(mapN.xy, mapN.xy))); }

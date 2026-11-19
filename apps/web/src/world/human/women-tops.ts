@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { BodyType, OutfitItem } from "../outfits";
 import { FABRIC, type FabricId } from "./skin/skin-shading";
+import { v2On } from "./realism-v2";
 
 /**
  * P2-AVA-17: women's tops — real garments instead of the feminine body's baked blazer.
@@ -55,6 +56,16 @@ export const SHIPPED_TOPS: ReadonlySet<string> = new Set<string>([
   // neckline/sleeve/hem edges and armpit crumples at full size; re-enable once those are clean
 ]);
 
+/**
+ * P2-AVA-18 (realism-v2.ts "womenTee"): the tee garment rebuilt with clean edges (calmed underarm and borders, turned
+ * hems shaded as the cloth, a softened fold map without the baked lump): its three items.
+ */
+export const TEE_ITEMS: readonly string[] = ["tee", "tee-white", "imigongo-top"];
+
+function shippedTops(): ReadonlySet<string> {
+  return v2On("womenTee") ? new Set([...SHIPPED_TOPS, ...TEE_ITEMS]) : SHIPPED_TOPS;
+}
+
 /** Development only: `?wtops=all|none|<item>,<item>` overrides the shipped set (before / after shots). */
 function devOverride(): ReadonlySet<string> | "all" | null {
   if (process.env.NODE_ENV === "production" || typeof window === "undefined") return null;
@@ -65,7 +76,7 @@ function devOverride(): ReadonlySet<string> | "all" | null {
 }
 
 /** The garment a top is drawn with on a body, or null for the body's own baked garment. */
-export function womenTopFor(item: OutfitItem | undefined, body: BodyType, shipped: ReadonlySet<string> | "all" = devOverride() ?? SHIPPED_TOPS): GarmentKind | null {
+export function womenTopFor(item: OutfitItem | undefined, body: BodyType, shipped: ReadonlySet<string> | "all" = devOverride() ?? shippedTops()): GarmentKind | null {
   if (!item || item.slot !== "top" || body !== "feminine") return null;
   const kind = GARMENT_OF_KIND[item.kind] ?? null;
   if (!kind) return null;

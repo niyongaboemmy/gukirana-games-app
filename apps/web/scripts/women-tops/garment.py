@@ -45,7 +45,7 @@ KINDS = {
     "shirt": dict(neck="vee", depth=0.075, width=0.052, sleeve=1.0, hem=0.155, ease=0.01, mass=0.16, tension=110.0, bending=4.0, slope=0.25, goal_hem=0.15),
     "sash": dict(neck="scoop", depth=0.045, width=0.08, sleeve=0.98, hem=0.15, ease=0.008, mass=0.16, tension=100.0, bending=3.0, slope=0.26, goal_hem=0.15),
 }
-A = args({"kind": "tee", "voxel": 0.024, "ramp": 30, "hold": 40, "quality": 10, "arm_down": 0.62, "elbow": 0.2, "hi": True, "out": ""})
+A = args({"kind": "tee", "voxel": 0.024, "ramp": 30, "hold": 40, "quality": 10, "arm_down": 0.62, "elbow": 0.2, "hi": True, "out": "", "calm": 1})
 K = KINDS.get(A["kind"]) or fail(f"unknown kind {A['kind']}")
 scene = bpy.context.scene
 rig = bpy.data.objects["Bip01"]
@@ -468,6 +468,107 @@ def simulate(ob, what, self_collision=True, dense=False):
     return rest, posed
 
 
+def calm_weights(bm, co):
+    """P2-AVA-18: where the simulation leaves crumples a viewer reads as defects, 0..1 per vertex: the underarm (torso
+    side and the sleeve's underside round the upper arm, below the shoulder line), a band along every border (the
+    neckline, sleeve and hem edges came out wavy / beaded), and the front above the hem (creases where the trousers'
+    waist pushed into the fabric)"""
+    n = len(co)
+    w = np.zeros(n)
+    # rings from the border (0 = on it)
+    ring = np.full(n, 99)
+    front = [v.index for v in bm.verts if v.is_boundary]
+    for i in front:
+        ring[i] = 0
+    for r in range(1, 5):
+        nxt = []
+        for i in front:
+            for e in bm.verts[i].link_edges:
+                j = e.other_vert(bm.verts[i]).index
+                if ring[j] > r:
+                    ring[j] = r
+                    nxt.append(j)
+        front = nxt
+    w = np.maximum(w, np.clip(1.0 - ring / 4.5, 0.0, 1.0))
+    for s_ in ("L", "R"):
+        S, E = J[f"Bip01 {s_} UpperArm"], J[f"Bip01 {s_} Forearm"]
+        a = np.array(S[:])
+        ab = np.array((E - S)[:])
+        t = np.clip(((co - a) @ ab) / (ab @ ab), 0.0, 1.0)
+        d = np.linalg.norm(co - (a + t[:, None] * ab), axis=1)
+        below = np.clip((S.z - 0.01 - co[:, 2]) / 0.03, 0.0, 1.0)
+        near = np.clip(1.0 - (d - 0.06) / 0.05, 0.0, 1.0) * (t < 0.55)
+        w = np.maximum(w, near * below)
+        # the torso's side under the arm (where the arm coming down pressed the cloth together)
+        sy = 1.0 if S.y > 0 else -1.0
+        side = np.clip((co[:, 1] * sy - (abs(S.y) - 0.1)) / 0.03, 0.0, 1.0)
+        band = np.clip((S.z - co[:, 2]) / 0.03, 0.0, 1.0) * np.clip((co[:, 2] - (hem_z + 0.03)) / 0.04, 0.0, 1.0)
+        w = np.maximum(w, side * band)
+    above_hem = np.clip(1.0 - (co[:, 2] - hem_z - 0.12) / 0.12, 0.0, 1.0) * (co[:, 0] < pelvis.x + 0.02)
+    w = np.maximum(w, 0.8 * above_hem)
+    return w
+
+
+def calm(ob, co, passes=60):
+    """P2-AVA-18: take the small-scale crumples out where calm_weights says (Taubin steps weighted per vertex: the broad
+    folds and the volume stay), the borders along themselves only (a hem stays where it was cut)"""
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    bm.verts.ensure_lookup_table()
+    w = calm_weights(bm, co)
+    s_, d_, deg_ = edge_pairs(np, bm)
+    bm.free()
+    out = taubin(np, co, s_, d_, deg_, passes, fixed=1.0 - w)
+    log(f"calm {ob.name}: {int((w > 0.5).sum())} of {len(co)} vertices, {passes} passes")
+    return out
+
+
+def smooth_weights(ob, co, passes=12):
+    """P2-AVA-18: in the calm zones the skin weights are smoothed too. The torso's side under the arm carried patches
+    of upper-arm weight from the body: skinned into a pose other than the simulated one they pulled single points out
+    as lumps."""
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    bm.verts.ensure_lookup_table()
+    zone = calm_weights(bm, co)
+    nbr = [[e.other_vert(v).index for e in v.link_edges] for v in bm.verts]
+    bm.free()
+    groups = [g.index for g in ob.vertex_groups if g.name != "pin"]
+    n = len(ob.data.vertices)
+    W = np.zeros((n, max(groups) + 1 if groups else 1))
+    for v in ob.data.vertices:
+        for g in v.groups:
+            if g.group in groups:
+                W[v.index, g.group] = g.weight
+    # the torso below the armpit follows the spine only: no upper-arm / forearm weight (the arm coming down pulled the
+    # cloth over the ribs out into a lump); the sleeves (near the arm bone) keep theirs
+    arm_g = [g.index for g in ob.vertex_groups if any(a in g.name for a in ("UpperArm", "Forearm", "Hand"))]
+    for s_ in ("L", "R"):
+        S, E = J[f"Bip01 {s_} UpperArm"], J[f"Bip01 {s_} Forearm"]
+        a = np.array(S[:])
+        ab = np.array((E - S)[:])
+        t = np.clip(((co - a) @ ab) / (ab @ ab), 0.0, 1.0)
+        d = np.linalg.norm(co - (a + t[:, None] * ab), axis=1)
+        torso = (d > 0.075) & (co[:, 2] < S.z - 0.05) & ((co[:, 1] > 0) == (S.y > 0))
+        for gi in arm_g:
+            W[torso, gi] = 0.0
+    for _ in range(passes):
+        avg = np.array([W[nb].mean(axis=0) if nb else W[i] for i, nb in enumerate(nbr)])
+        k = np.clip(zone, 0.0, 1.0)[:, None] * 0.8
+        W = W * (1 - k) + avg * k
+    tot = W.sum(axis=1, keepdims=True)
+    W = np.where(tot > 1e-6, W / np.maximum(tot, 1e-6), W)
+    for gi in groups:
+        vg = ob.vertex_groups[gi]
+        for i in np.nonzero(zone > 0.01)[0]:
+            w = float(W[i, gi])
+            if w > 1e-4:
+                vg.add([int(i)], w, "REPLACE")
+            else:
+                vg.remove([int(i)])
+    log(f"weights smoothed {ob.name}: {int((zone > 0.01).sum())} vertices")
+
+
 def finish(ob, rest, gap=0.002, passes=6):
     bm = bmesh.new()
     bm.from_mesh(ob.data)
@@ -486,15 +587,25 @@ def finish(ob, rest, gap=0.002, passes=6):
             if len(nb) == 2:
                 nxt[i] = co[i] * 0.5 + (co[nb[0]] + co[nb[1]]) * 0.25
         co = nxt
-    pushed = 0
-    for i in range(len(co)):
-        p = Vector(co[i])
-        for bvh, g in ((form_bvh, gap), (kept_bvh, gap + 0.001)):
-            loc, n, idx, d = bvh.find_nearest(p)
-            if loc is not None and d < 0.025 and (p - loc).dot(n) < g:
-                p = loc + n * g
-                pushed += 1
-        co[i] = p[:]
+    def push(co, gap):
+        n_ = 0
+        for i in range(len(co)):
+            p = Vector(co[i])
+            for bvh, g in ((form_bvh, gap), (kept_bvh, gap + 0.001)):
+                loc, n, idx, d = bvh.find_nearest(p)
+                if loc is not None and d < 0.025 and (p - loc).dot(n) < g:
+                    p = loc + n * g
+                    n_ += 1
+            co[i] = p[:]
+        return n_
+
+    pushed = push(co, gap)
+    if A["calm"]:
+        # P2-AVA-18: calm after the push (pushed single points in the A-pose's armpit crease became lumps once skinned
+        # into the arms-down pose), then push only what is still clearly inside (> 3 mm)
+        co = calm(ob, co)
+        pushed += push(co, -0.003)
+        smooth_weights(ob, co)
     for i, v in enumerate(ob.data.vertices):
         v.co = co[i]
     ob.data.update()
@@ -561,6 +672,7 @@ def hem(ob, depth=0.0025, facing=0.01):
     bm.faces.ensure_lookup_table()
     ref = bm.faces[0]
     ref_n = ref.normal.copy()
+    orig = set(bm.faces)
     r1 = bmesh.ops.extrude_edge_only(bm, edges=border_edges)
     lip = [g for g in r1["geom"] if isinstance(g, bmesh.types.BMVert)]
     srcmap = {}
@@ -589,8 +701,10 @@ def hem(ob, depth=0.0025, facing=0.01):
     bm.normal_update()
     if ref.normal.dot(ref_n) < 0:
         bmesh.ops.reverse_faces(bm, faces=list(bm.faces))
+    # (P2-AVA-18: extruded faces inherit the layers of the face they grow from, so "cloth" alone marked no hem at all)
     for f in bm.faces:
-        f[hl] = 1 - f[cl]
+        f[hl] = 0 if f in orig else 1
+        f[cl] = 1 - f[hl]
     bm.to_mesh(ob.data)
     bm.free()
     ob.data.update()

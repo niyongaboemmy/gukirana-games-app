@@ -152,7 +152,15 @@ bpy.context.view_layer.objects.active = lo
 bake.use_selected_to_active = False
 scene.world = scene.world or bpy.data.worlds.new("w")
 scene.world.light_settings.distance = 0.07
+# P2-AVA-18: only the garment itself and the trunk occlude (folds, armpits, under the bust): with the posed arms and
+# hands in the scene their contact patches baked into round dark blobs on the sides and hips
+_ao_hidden = [o for o in bpy.data.objects if o.type == "MESH" and o is not lo and o.name != "form" and not o.hide_render]
+for o in _ao_hidden:
+    o.hide_render = True
+log("ao occluders", [o.name for o in bpy.data.objects if o.type == "MESH" and not o.hide_render])
 bpy.ops.object.bake(type="AO")
+for o in _ao_hidden:
+    o.hide_render = False
 log("baked occlusion")
 _a = ao.pixels[:]
 _n = img.pixels[:]
@@ -178,6 +186,53 @@ def _blur(x, r=3):
 _aob = _blur(_ao * _m) / np.maximum(_blur(_m), 1e-4)
 _aob = np.where(_m > 0, _aob, 0.0)
 a = np.repeat(_aob.reshape(-1, 1), 4, axis=1).reshape(-1).tolist()
+
+
+def _hem_mask(ob, size):
+    """P2-AVA-18: texels covered by the turned hems' faces (lip + facing, "hem" = 1), grown by one texel"""
+    m = np.zeros((size, size), dtype=bool)
+    ha = ob.data.attributes.get("hem")
+    if ha is None:
+        return m
+    uvd = ob.data.uv_layers.active.data
+    for poly in ob.data.polygons:
+        if not ha.data[poly.index].value:
+            continue
+        pts = np.array([uvd[li].uv[:] for li in poly.loop_indices]) * size
+        for k in range(1, len(pts) - 1):
+            tri = np.array([pts[0], pts[k], pts[k + 1]])
+            x0, y0 = np.floor(tri.min(axis=0)).astype(int) - 1
+            x1, y1 = np.ceil(tri.max(axis=0)).astype(int) + 1
+            x0, y0, x1, y1 = max(x0, 0), max(y0, 0), min(x1, size - 1), min(y1, size - 1)
+            if x1 < x0 or y1 < y0:
+                continue
+            gx, gy = np.meshgrid(np.arange(x0, x1 + 1) + 0.5, np.arange(y0, y1 + 1) + 0.5)
+            (ax, ay), (bx, by), (cx, cy) = tri
+            den = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+            if abs(den) < 1e-12:
+                continue
+            l1 = ((by - cy) * (gx - cx) + (cx - bx) * (gy - cy)) / den
+            l2 = ((cy - ay) * (gx - cx) + (ax - cx) * (gy - cy)) / den
+            l3 = 1 - l1 - l2
+            inside = (l1 > -0.08) & (l2 > -0.08) & (l3 > -0.08)
+            m[y0 : y1 + 1, x0 : x1 + 1] |= inside
+    return m
+
+
+# P2-AVA-18: the normal map, softened (normalised blur over the baked texels, ~7 texels: small lumps, a dent from the
+# dense simulation and its crinkles go, the broad folds stay) and flat on the turned hems (their texels were noise: with the
+# cloth's smooth normal on the lip, P2-AVA-18 lip_normals, the edge reads as a rounded fold)
+if hi is not None:
+    _nn = np.array(n).reshape(S0 := A["size"], S0, 4)
+    _hm = _hem_mask(lo, S0)
+    for ch in (0, 1):
+        _c = _nn[:, :, ch] - 0.5
+        _cb = _blur(_c * _m, r=7) / np.maximum(_blur(_m, r=7), 1e-4)
+        _cb = np.clip(_cb * 0.8, -0.12, 0.12)
+        _nn[:, :, ch] = np.where(_m > 0, _cb + 0.5, _nn[:, :, ch])
+        _nn[:, :, ch] = np.where(_hm, 0.5, _nn[:, :, ch])
+    n = _nn.reshape(-1).tolist()
+    log("hem texels flattened", int(_hm.sum()))
 out = bpy.data.images.new(f"wt_{kind}", A["size"], A["size"], alpha=False)
 out.colorspace_settings.name = "Non-Color"
 px = [0.0] * len(n)
@@ -230,11 +285,47 @@ under_far = far_copy(under, 0.5) if under else None
 
 
 # ---- export
+def lip_normals(me):
+    """P2-AVA-18: the turned hems (lip + facing faces, "hem" = 1) take the smooth normal of the cloth they turn from.
+    Shaded with their own sharp normals, the 2.5 mm lip faces lit up one by one as a row of pale beads along the
+    neckline and the sleeve ends; with the cloth's normal the edge reads as the rounded fold of a real hem, its
+    thickness still in the silhouette."""
+    ha = me.attributes.get("hem")
+    if ha is None or not any(a.value for a in ha.data):
+        return
+    from mathutils.kdtree import KDTree
+
+    hem_face = [a.value for a in ha.data]
+    vn = {}
+    for poly in me.polygons:
+        if hem_face[poly.index]:
+            continue
+        for vi in poly.vertices:
+            vn[vi] = vn.get(vi, Vector()) + poly.normal * poly.area
+    kd = KDTree(len(vn))
+    for vi in vn:
+        kd.insert(me.vertices[vi].co, vi)
+    kd.balance()
+    cn = me.corner_normals
+    custom = [Vector(cn[li].vector) for li in range(len(me.loops))]
+    for poly in me.polygons:
+        if not hem_face[poly.index]:
+            continue
+        for li in poly.loop_indices:
+            vi = me.loops[li].vertex_index
+            j = vi if vi in vn else kd.find(me.vertices[vi].co)[1]
+            n = vn[j]
+            if n.length > 1e-9:
+                custom[li] = n.normalized()
+    me.normals_split_custom_set(custom)
+
+
 def part(ob, bones):
     me = ob.data
     # sharp where the hem turns (the lip meets the cloth at ~90 degrees): smooth normals across it shaded every edge
     # as a dark band
     me.set_sharp_from_angle(angle=math.radians(50))
+    lip_normals(me)
     me.calc_loop_triangles()
     cn = me.corner_normals
     uvl = me.uv_layers.active.data if me.uv_layers.active else None
