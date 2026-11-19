@@ -45,3 +45,17 @@ committed (today `tee`, 217 KB); a kind is committed together with turning its i
 2 wrist; > 1.9 = long with the arm skin only near the cuff), `hem` (m below the hip joints, keep ≥ 0.15: the
 trousers bulge above that line), `ease`, cloth `mass` / `tension` / `bending`, `slope`, `goal_hem`.
 Turn an item on in `SHIPPED_TOPS` only after the before / after review (`qa/e2e/human-assess/women-tops.mjs`).
+
+## P2-AVA-18 changes (clean edges)
+
+- `garment.py`: after the simulation and the push out of the body, a **calm** pass (`calm_weights` / `calm`): Taubin
+  steps weighted per vertex where the cloth crumpled — the underarm (round the upper arm and the torso's side down to
+  the hem), a band of four rings along every border, the front above the hem — then only points still more than 3 mm
+  inside the body are pushed out, and the skin weights in those zones are smoothed (no arm weight on the torso below
+  the armpit). `--calm 0` turns it off. The turned hems are now marked (`hem` = 1) on the extruded lip / facing faces
+  (extruded faces inherited the cloth layer, so nothing had been marked).
+- `bake.py`: the hems take the cloth's smooth normal (`lip_normals`: no more row of pale beads along the neckline and
+  sleeve ends); only the garment and the trunk occlude in the AO bake; the fold normal map is softened (~7 texel
+  normalised blur, clamped) and flat on the hem texels (a dent the dense simulation left on the side baked in as a lump).
+- The tee items stay held behind `realism-v2.ts` `womenTee` (docs/QA/human-realism-v2/README.md).
+
